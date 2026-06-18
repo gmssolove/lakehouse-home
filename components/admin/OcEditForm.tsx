@@ -124,7 +124,9 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     const el = document.getElementById('detail-screen');
     if (!el) return;
     applyCharacterTheme(el, form);
-    return () => applyCharacterTheme(el, character);
+    return () => {
+      applyCharacterTheme(el, character);
+    };
   }, [character, form.accentColor, form.accentSoft, form.panelColor, form.personalColor, form.borderColor, form.vnColor, form.menuColor, form.themeAutoBackground]);
 
   function applyPersonalColor(raw: string) {

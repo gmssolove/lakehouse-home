@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "lakehouse-home",
+  "account_id": "d47331fa71b913d9497c2ede130ab0fb",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
