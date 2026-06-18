@@ -15,5 +15,15 @@
       "binding": "WORKER_SELF_REFERENCE",
       "service": "lakehouse-home"
     }
+  ],
+  "routes": [
+    {
+      "pattern": "lakehouse.me.kr",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.lakehouse.me.kr",
+      "custom_domain": true
+    }
   ]
 }
