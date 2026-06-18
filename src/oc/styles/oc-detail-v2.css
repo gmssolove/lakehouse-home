@@ -182,6 +182,10 @@
 .oc-char-slide .game-char-img,
 .oc-char-slide .game-char-placeholder {
   pointer-events: auto;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  object-position: center bottom !important;
 }
 
 .oc-detail-body .game-char-gradient {
@@ -307,7 +311,11 @@
 /* Character — keep centered; slide handled by .oc-char-slide wrapper */
 #detail-screen #game-char-img,
 #detail-screen .game-char-placeholder {
-  transition: none !important;
+  transition: opacity 0.22s ease !important;
+}
+
+#detail-screen #game-char-img.is-expr-fading {
+  opacity: 0 !important;
 }
 
 #detail-screen #game-char-img {
@@ -425,7 +433,7 @@
 /* Left panel shell — height follows content, capped for scroll */
 .oc-left-panel-shell {
   position: absolute;
-  left: clamp(210px, 19vw, 252px);
+  left: calc(clamp(1.15rem, 2.5vw, 1.85rem) + min(188px, 20vw) + 0.45rem);
   top: 50%;
   transform: translateY(-50%);
   bottom: auto;

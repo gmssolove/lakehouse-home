@@ -818,8 +818,24 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
     siteInitRef.current = true;
     const first = firstPageTrack(siteBgm);
-    if (first) applyTrackRef.current(first, { autoplay: false });
+    if (first) applyTrackRef.current(first, { autoplay: true });
   }, [siteBgm]);
+
+  useEffect(() => {
+    if (playing || !trackRef.current?.id) return;
+    const unlock = () => {
+      if (!trackRef.current?.id) return;
+      playInternal(getTime());
+      document.removeEventListener('pointerdown', unlock);
+      document.removeEventListener('keydown', unlock);
+    };
+    document.addEventListener('pointerdown', unlock, { once: true });
+    document.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      document.removeEventListener('pointerdown', unlock);
+      document.removeEventListener('keydown', unlock);
+    };
+  }, [getTime, playInternal, playing, siteBgm.url, siteBgm.playlist]);
 
   useEffect(() => {
     pagePlaylistRef.current = buildPagePlaylist(siteBgm);

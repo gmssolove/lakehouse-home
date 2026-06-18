@@ -96,6 +96,8 @@ export function OcCharacterDetail({
   const wasPlayingRef = useRef(false);
   const panelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portraitRef = useRef<ShownPortrait>({ src: '', fit: 'contain', pos: 'center top' });
+  const charImgRef = useRef<HTMLImageElement>(null);
+  const exprFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vn = useVnDialogue(character);
   const { profileRows, keywordTags } = useMemo(() => splitProfileRows(character), [character]);
   const personalTheme = useMemo(() => resolveCharacterTheme(character), [character]);
@@ -132,7 +134,30 @@ export function OcCharacterDetail({
   }, [character.id]);
 
   useEffect(() => {
+    if (!vn.active) return;
+    const urls = new Set<string>();
+    if (img?.src) urls.add(img.src);
+    for (const node of character.dialogue ?? []) {
+      if (node.expression?.trim()) urls.add(node.expression.trim());
+    }
+    for (const line of character.vnLines ?? []) {
+      const expr = (line as { expression?: string }).expression;
+      if (expr?.trim()) urls.add(expr.trim());
+    }
+    urls.forEach((url) => {
+      const pre = new Image();
+      pre.src = url;
+    });
+  }, [vn.active, character.dialogue, character.vnLines, img?.src]);
+
+  useEffect(() => {
     const target = portraitTarget;
+    if (exprFadeTimerRef.current) {
+      window.clearTimeout(exprFadeTimerRef.current);
+      exprFadeTimerRef.current = null;
+      charImgRef.current?.classList.remove('is-expr-fading');
+    }
+
     if (!target.src) {
       setShownPortrait(null);
       portraitRef.current = { src: '', fit: 'contain', pos: 'center top' };
@@ -152,9 +177,24 @@ export function OcCharacterDetail({
     }
 
     if (vn.active) {
+      const el = charImgRef.current;
+      if (el) {
+        el.classList.add('is-expr-fading');
+        exprFadeTimerRef.current = window.setTimeout(() => {
+          portraitRef.current = target;
+          setShownPortrait(target);
+          requestAnimationFrame(() => {
+            el.classList.remove('is-expr-fading');
+          });
+          exprFadeTimerRef.current = null;
+        }, 150);
+        return () => {
+          if (exprFadeTimerRef.current) window.clearTimeout(exprFadeTimerRef.current);
+          el.classList.remove('is-expr-fading');
+        };
+      }
       portraitRef.current = target;
       setShownPortrait(target);
-      setCharAnim('in');
       return;
     }
 
@@ -431,9 +471,9 @@ export function OcCharacterDetail({
           <div className={`oc-char-slide${openLeft ? ' shifted' : ''}`}>
             {displayImgSrc ? (
               <img
+                ref={charImgRef}
                 id="game-char-img"
-                key={`${character.id}-${displayImgSrc}-${shownPortrait?.fit}-${shownPortrait?.pos}`}
-                className={`game-char-img animate-${charAnim}`}
+                className={`game-char-img${vn.active ? '' : ` animate-${charAnim}`}`}
                 src={displayImgSrc}
                 alt=""
                 style={{
