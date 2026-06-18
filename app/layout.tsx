@@ -6,6 +6,7 @@ import {
   Marcellus,
   My_Soul,
   Noto_Sans_KR,
+  Noto_Serif_KR,
   Playfair_Display,
   Pinyon_Script,
 } from 'next/font/google';
@@ -17,6 +18,13 @@ const notoSansKr = Noto_Sans_KR({
   subsets: ['latin'],
   weight: ['300', '400', '500'],
   variable: '--font-noto-sans-kr',
+  display: 'swap',
+});
+
+const notoSerifKr = Noto_Serif_KR({
+  subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  variable: '--font-noto-serif-kr',
   display: 'swap',
 });
 
@@ -84,6 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="ko"
       className={[
         notoSansKr.variable,
+        notoSerifKr.variable,
         playfair.variable,
         cormorant.variable,
         cormorantUpright.variable,

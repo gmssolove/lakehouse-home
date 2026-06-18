@@ -105,6 +105,11 @@ export function hasCustomTheme(character: OcCharacter): boolean {
   return THEME_FIELD_KEYS.some((key) => normalizeHex(character[key]));
 }
 
+export function characterHasBgmTheme(character: OcCharacter): boolean {
+  const theme = character.theme;
+  return !!(theme?.fileData?.trim() || theme?.youtubeId?.trim());
+}
+
 export function resolveCharacterTheme(character: OcCharacter): ResolvedCharacterTheme {
   const autoBackground = character.themeAutoBackground !== false;
   const personal = normalizeHex(character.personalColor);

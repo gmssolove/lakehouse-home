@@ -12,6 +12,7 @@ import { useOcData } from '@/lib/hooks/useOcData';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
 import { displayCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
+import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import { isOcProfileUnlocked } from '@/lib/oc/profileAccess';
 import { OcProfilePasswordModal } from '@/components/oc/OcProfilePasswordModal';
 import { buildCharacterNumberMap } from '@/lib/oc/characterOrder';
@@ -43,10 +44,10 @@ export function OcPageClient() {
   const router = useRouter();
   const { characters, categories, saveCharacters } = useOcData();
   const { ocSettings } = useSiteContent();
-  const { restorePageSnapshot, pushPageSnapshot } = useBgm();
+  const { restorePageSnapshot, pushPageSnapshot, resumePageBgmIfNeeded } = useBgm();
   const { isAdmin } = useAuth();
   const wasInDetailRef = useRef(false);
-  const skipBgmRestoreRef = useRef(false);
+  const detailUsedThemeRef = useRef(false);
   const [activeCat, setActiveCat] = useState('all');
   const [activeSub, setActiveSub] = useState('all');
   const [search, setSearch] = useState('');
@@ -73,7 +74,10 @@ export function OcPageClient() {
   }, []);
 
   const leaveDetail = useCallback(() => {
-    restorePageSnapshot(ocSettings.autoResumeMainBgm);
+    if (detailUsedThemeRef.current) {
+      restorePageSnapshot(ocSettings.autoResumeMainBgm);
+    }
+    detailUsedThemeRef.current = false;
     clearDetailView();
   }, [clearDetailView, ocSettings.autoResumeMainBgm, restorePageSnapshot]);
 
@@ -97,15 +101,10 @@ export function OcPageClient() {
   useLakeBackGesture(leaveOc, !detail && !intro);
 
   useEffect(() => {
-    const inDetail = !!(detail || intro);
-    if (wasInDetailRef.current && !inDetail && skipBgmRestoreRef.current) {
-      skipBgmRestoreRef.current = false;
-    }
-    wasInDetailRef.current = inDetail;
+    wasInDetailRef.current = !!(detail || intro);
   }, [detail, intro]);
 
   const completeIntro = useCallback((payload: IntroState) => {
-    skipBgmRestoreRef.current = true;
     setDetail(payload.character);
     setAuIdx(payload.auIdx);
     setIntro(null);
@@ -142,7 +141,13 @@ export function OcPageClient() {
   }, [characters, activeCat, activeSub, search, filterGender, sortMode]);
 
   function openDetail(c: OcCharacter, au: number) {
-    pushPageSnapshot();
+    const hasTheme = characterHasBgmTheme(c);
+    detailUsedThemeRef.current = hasTheme;
+    if (hasTheme) {
+      pushPageSnapshot();
+    } else {
+      resumePageBgmIfNeeded();
+    }
     if (shouldShowPvIntro(c, ocSettings.pvIntroEnabled)) {
       setIntro({ character: c, auIdx: au });
       setDetail(null);

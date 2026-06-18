@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useBgm } from '@/lib/contexts/BgmContext';
+import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import { buildPvIntroPlan, estimatePvIntroMs } from '@/lib/oc/pvIntroTiming';
 import type { OcCharacter } from '@/lib/types/character';
 import { pickQuoteLines } from '@/lib/oc/profileQuotes';
@@ -74,9 +75,8 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
   const { playCharacterTheme } = useBgm();
 
   useEffect(() => {
+    if (!characterHasBgmTheme(character)) return;
     const th = character.theme;
-    const themeId = th?.fileData || th?.youtubeId;
-    if (!themeId) return;
     playCharacterTheme(
       {
         fileData: th?.fileData,

@@ -314,6 +314,32 @@
   transition: opacity 0.22s ease !important;
 }
 
+#detail-screen .oc-detail-body.vn-active #game-char-img,
+#detail-screen .oc-detail-body.vn-active .oc-char-portrait-layer {
+  transition: none !important;
+}
+
+.oc-char-portrait-stack {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.oc-char-portrait-stack .oc-char-portrait-layer {
+  pointer-events: auto;
+  transition: none !important;
+}
+
+.oc-char-portrait-stack .oc-char-portrait-layer.is-back {
+  visibility: hidden;
+  z-index: 0;
+}
+
+.oc-char-portrait-stack .oc-char-portrait-layer.is-front {
+  visibility: visible;
+  z-index: 1;
+}
+
 #detail-screen #game-char-img.is-expr-fading {
   opacity: 0 !important;
 }

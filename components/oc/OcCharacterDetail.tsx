@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useBgm } from '@/lib/contexts/BgmContext';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { OcEditForm } from '@/components/admin/OcEditForm';
 import { OcAuPicker } from '@/components/oc/OcAuPicker';
 import { OcVnDialogue, useVnDialogue } from '@/components/oc/OcVnDialogue';
-import { applyCharacterTheme, clearCharacterTheme, resolveCharacterTheme } from '@/lib/oc/characterTheme';
+import { applyCharacterTheme, characterHasBgmTheme, clearCharacterTheme, resolveCharacterTheme } from '@/lib/oc/characterTheme';
 import { gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
 import { displayCategory, isTrpgCategory } from '@/lib/oc/categories';
 import { buildDetailProfileRows, formatCardTag, formatStatDigits } from '@/lib/oc/profile';
@@ -96,8 +96,13 @@ export function OcCharacterDetail({
   const wasPlayingRef = useRef(false);
   const panelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portraitRef = useRef<ShownPortrait>({ src: '', fit: 'contain', pos: 'center top' });
-  const charImgRef = useRef<HTMLImageElement>(null);
-  const exprFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exprPortraitRef = useRef<{ front: 0 | 1; layers: [string, string] }>({
+    front: 0,
+    layers: ['', ''],
+  });
+  const [exprPortrait, setExprPortrait] = useState(exprPortraitRef.current);
+  const exprSwapGenRef = useRef(0);
+  const prevVnActiveRef = useRef(false);
   const vn = useVnDialogue(character);
   const { profileRows, keywordTags } = useMemo(() => splitProfileRows(character), [character]);
   const personalTheme = useMemo(() => resolveCharacterTheme(character), [character]);
@@ -119,6 +124,60 @@ export function OcCharacterDetail({
   );
   const displayImgSrc = shownPortrait?.src || portraitTarget.src;
 
+  const portraitImgStyle = useCallback(
+    (fit: string, pos: string): CSSProperties => ({
+      objectFit: fit as CSSProperties['objectFit'],
+      objectPosition: pos,
+    }),
+    [],
+  );
+
+  useEffect(() => {
+    if (vn.active && !prevVnActiveRef.current && portraitTarget.src) {
+      const init = { front: 0 as const, layers: [portraitTarget.src, portraitTarget.src] as [string, string] };
+      exprPortraitRef.current = init;
+      setExprPortrait(init);
+      exprSwapGenRef.current += 1;
+    }
+    prevVnActiveRef.current = vn.active;
+  }, [vn.active, portraitTarget.src]);
+
+  useEffect(() => {
+    if (!vn.active || !portraitTarget.src) return;
+
+    const nextSrc = portraitTarget.src;
+    const current = exprPortraitRef.current;
+    if (current.layers[current.front] === nextSrc) return;
+
+    const back = (current.front ^ 1) as 0 | 1;
+    const gen = ++exprSwapGenRef.current;
+
+    const applySwap = () => {
+      if (gen !== exprSwapGenRef.current) return;
+      const live = exprPortraitRef.current;
+      const layers: [string, string] = [...live.layers];
+      layers[back] = nextSrc;
+      const next = { front: back, layers };
+      exprPortraitRef.current = next;
+      setExprPortrait(next);
+    };
+
+    if (current.layers[back] === nextSrc) {
+      const next = { front: back, layers: current.layers };
+      exprPortraitRef.current = next;
+      setExprPortrait(next);
+      return;
+    }
+
+    const pre = new Image();
+    pre.src = nextSrc;
+    const finish = () => {
+      void pre.decode?.().then(applySwap).catch(applySwap);
+    };
+    if (pre.complete) finish();
+    else pre.onload = finish;
+  }, [vn.active, portraitTarget.src]);
+
   useEffect(() => {
     if (panelTimerRef.current) clearTimeout(panelTimerRef.current);
     setOpenLeft(null);
@@ -134,7 +193,6 @@ export function OcCharacterDetail({
   }, [character.id]);
 
   useEffect(() => {
-    if (!vn.active) return;
     const urls = new Set<string>();
     if (img?.src) urls.add(img.src);
     for (const node of character.dialogue ?? []) {
@@ -146,18 +204,13 @@ export function OcCharacterDetail({
     }
     urls.forEach((url) => {
       const pre = new Image();
+      pre.decoding = 'async';
       pre.src = url;
     });
-  }, [vn.active, character.dialogue, character.vnLines, img?.src]);
+  }, [character.id, character.dialogue, character.vnLines, img?.src]);
 
   useEffect(() => {
     const target = portraitTarget;
-    if (exprFadeTimerRef.current) {
-      window.clearTimeout(exprFadeTimerRef.current);
-      exprFadeTimerRef.current = null;
-      charImgRef.current?.classList.remove('is-expr-fading');
-    }
-
     if (!target.src) {
       setShownPortrait(null);
       portraitRef.current = { src: '', fit: 'contain', pos: 'center top' };
@@ -177,24 +230,6 @@ export function OcCharacterDetail({
     }
 
     if (vn.active) {
-      const el = charImgRef.current;
-      if (el) {
-        el.classList.add('is-expr-fading');
-        exprFadeTimerRef.current = window.setTimeout(() => {
-          portraitRef.current = target;
-          setShownPortrait(target);
-          requestAnimationFrame(() => {
-            el.classList.remove('is-expr-fading');
-          });
-          exprFadeTimerRef.current = null;
-        }, 150);
-        return () => {
-          if (exprFadeTimerRef.current) window.clearTimeout(exprFadeTimerRef.current);
-          el.classList.remove('is-expr-fading');
-        };
-      }
-      portraitRef.current = target;
-      setShownPortrait(target);
       return;
     }
 
@@ -222,10 +257,9 @@ export function OcCharacterDetail({
   }, [galleryLightbox]);
 
   useEffect(() => {
-    const th = character.theme;
-    const themeId = th?.fileData || th?.youtubeId;
-    if (!themeId) return;
+    if (!characterHasBgmTheme(character)) return;
 
+    const th = character.theme;
     wasPlayingRef.current = bgmApi.current.playing;
     bgmApi.current.playCharacterTheme(
       {
@@ -465,26 +499,42 @@ export function OcCharacterDetail({
         )}
       </div>
 
-      <div className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}`}>
+      <div className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.active ? ' vn-active' : ''}`}>
         <div className="game-left" id="game-left">
           <div className="game-char-gradient" />
           <div className={`oc-char-slide${openLeft ? ' shifted' : ''}`}>
             {displayImgSrc ? (
-              <img
-                ref={charImgRef}
-                id="game-char-img"
-                className={`game-char-img${vn.active ? '' : ` animate-${charAnim}`}`}
-                src={displayImgSrc}
-                alt=""
-                style={{
-                  objectFit: (shownPortrait?.fit || portraitTarget.fit) as React.CSSProperties['objectFit'],
-                  objectPosition: shownPortrait?.pos || portraitTarget.pos,
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!vn.active) vn.open();
-                }}
-              />
+              vn.active ? (
+                <div className="oc-char-portrait-stack">
+                  {([0, 1] as const).map((layer) => (
+                    <img
+                      key={layer}
+                      id={layer === 0 ? 'game-char-img' : undefined}
+                      className={`game-char-img oc-char-portrait-layer${exprPortrait.front === layer ? ' is-front' : ' is-back'}`}
+                      src={exprPortrait.layers[layer] || portraitTarget.src}
+                      alt=""
+                      decoding="sync"
+                      style={portraitImgStyle(portraitTarget.fit, portraitTarget.pos)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <img
+                  id="game-char-img"
+                  className={`game-char-img animate-${charAnim}`}
+                  src={displayImgSrc}
+                  alt=""
+                  decoding="async"
+                  style={portraitImgStyle(
+                    shownPortrait?.fit || portraitTarget.fit,
+                    shownPortrait?.pos || portraitTarget.pos,
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    vn.open();
+                  }}
+                />
+              )
             ) : (
               <div className="game-char-placeholder" id="game-placeholder">
                 {character.name?.[0] || '?'}

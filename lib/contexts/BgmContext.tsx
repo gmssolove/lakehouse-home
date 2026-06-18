@@ -92,6 +92,7 @@ type BgmContextValue = {
   playlistActive: boolean;
   pushPageSnapshot: () => void;
   restorePageSnapshot: (autoplay?: boolean) => void;
+  resumePageBgmIfNeeded: () => void;
   playCharacterTheme: (
     src: { fileData?: string; youtubeId?: string; title?: string; artist?: string },
     wasPlaying: boolean,
@@ -670,6 +671,15 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       }
 
       if (snap && snap.track.scope !== 'character') {
+        if (
+          sameTrack(trackRef.current, snap.track) &&
+          trackRef.current?.scope === 'page' &&
+          playing
+        ) {
+          snapshotRef.current = null;
+          pageSnapshotRef.current = null;
+          return;
+        }
         applyTrack(snap.track, {
           autoplay: shouldPlay && snap.playing,
           currentTime: snap.currentTime,
@@ -694,8 +704,13 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       applyTrack(first, { autoplay: shouldPlay, currentTime: 0, force: true });
     },
-    [applyTrack, pauseInternal, persistState, siteBgm],
+    [applyTrack, pauseInternal, persistState, playing, siteBgm],
   );
+
+  const resumePageBgmIfNeeded = useCallback(() => {
+    if (trackRef.current?.scope !== 'character') return;
+    restorePageSnapshot(playing);
+  }, [playing, restorePageSnapshot]);
 
   const playCharacterTheme = useCallback(
     (
@@ -930,6 +945,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       playlistActive,
       pushPageSnapshot,
       restorePageSnapshot,
+      resumePageBgmIfNeeded,
       playCharacterTheme,
     }),
     [
@@ -954,6 +970,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       playlistActive,
       pushPageSnapshot,
       restorePageSnapshot,
+      resumePageBgmIfNeeded,
       playCharacterTheme,
     ],
   );

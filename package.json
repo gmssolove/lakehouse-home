@@ -4,8 +4,8 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0 -p 3004",
-    "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev --hostname 0.0.0.0 -p 3004",
+    "dev": "next dev --hostname 127.0.0.1 -p 3004",
+    "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev --hostname 127.0.0.1 -p 3004",
     "build": "next build",
     "build:cf": "opennextjs-cloudflare build",
     "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",

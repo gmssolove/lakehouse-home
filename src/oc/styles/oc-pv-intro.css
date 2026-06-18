@@ -83,24 +83,25 @@
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: var(--font-playfair), var(--font-cormorant-upright), var(--font-cormorant), 'Playfair Display',
-    'Cormorant Garamond', var(--font-noto-sans-kr), serif;
-  font-size: clamp(24px, 3.1vw, 40px);
+  font-family: var(--font-im-fell), var(--font-noto-serif-kr), var(--font-pinyon), var(--font-cormorant),
+    'IM Fell English', 'Noto Serif KR', 'Pinyon Script', 'Cormorant Garamond', serif;
+  font-size: clamp(20px, 2.55vw, 32px);
   font-weight: 400;
   font-style: italic;
-  line-height: 1.72;
-  letter-spacing: 0.055em;
+  line-height: 1.76;
+  letter-spacing: 0.03em;
+  font-feature-settings: 'liga' 1, 'kern' 1;
 }
 
 .oc-pv-intro-quote-inner {
   display: inline-block;
   position: relative;
   z-index: 1;
-  color: rgba(255, 255, 255, 0.96);
+  color: rgba(255, 252, 246, 0.97);
   text-shadow:
-    0 0 18px rgba(255, 255, 255, 0.28),
-    0 0 36px rgba(240, 207, 173, 0.18),
-    0 2px 20px rgba(0, 0, 0, 0.5);
+    0 0 22px rgba(255, 248, 236, 0.32),
+    0 0 48px rgba(240, 207, 173, 0.22),
+    0 2px 24px rgba(0, 0, 0, 0.55);
 }
 
 .oc-pv-intro-quote.is-sweeping .oc-pv-intro-quote-inner {
@@ -170,11 +171,12 @@
   padding: 0;
   border: 0;
   background: transparent;
-  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-family: var(--font-marcellus), var(--font-cormorant), 'Marcellus', 'Cormorant Garamond', serif;
   font-size: 11px;
   font-weight: 400;
-  font-style: italic;
-  letter-spacing: 0.28em;
+  font-style: normal;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
   color: rgba(255, 255, 255, 0.38);
   cursor: pointer;
   transition: color 0.2s ease, text-shadow 0.2s ease;
