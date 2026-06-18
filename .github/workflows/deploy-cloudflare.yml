@@ -38,6 +38,18 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: d47331fa71b913d9497c2ede130ab0fb
+
+      - name: Upload Worker secrets
+        if: success()
+        run: |
+          printf '%s' "$R2_ACCOUNT_ID" | npx wrangler secret put R2_ACCOUNT_ID
+          printf '%s' "$R2_ACCESS_KEY_ID" | npx wrangler secret put R2_ACCESS_KEY_ID
+          printf '%s' "$R2_SECRET_ACCESS_KEY" | npx wrangler secret put R2_SECRET_ACCESS_KEY
+          printf '%s' "$R2_BUCKET_NAME" | npx wrangler secret put R2_BUCKET_NAME
+          printf '%s' "$R2_PUBLIC_BASE_URL" | npx wrangler secret put R2_PUBLIC_BASE_URL
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: d47331fa71b913d9497c2ede130ab0fb
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}

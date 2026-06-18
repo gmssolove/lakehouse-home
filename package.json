@@ -9,7 +9,7 @@
     "build": "next build",
     "build:cf": "opennextjs-cloudflare build",
     "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:cf": "opennextjs-cloudflare build && npx pnpm exec opennextjs-cloudflare deploy",
     "start": "next start --hostname 0.0.0.0 -p 3005",
     "dev:vite": "vite --host 0.0.0.0",
     "build:vite": "vite build",
