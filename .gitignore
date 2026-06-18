@@ -78,6 +78,9 @@ node_modules/
 
 dist/
 
+# OpenNext (Cloudflare)
+.open-next/
+
 # Local / backup clutter
 *.bak
 *.bak-*
