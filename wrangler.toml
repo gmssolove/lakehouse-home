@@ -1,0 +1,13 @@
+name = "lakehouse-r2-upload"
+main = "worker/r2-upload-worker.js"
+compatibility_date = "2025-06-17"
+
+# Cloudflare Dashboard?먯꽌 留뚮뱺 R2 踰꾪궥 ?대쫫?쇰줈 諛붽퓭 二쇱꽭??
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "lakehouse-images"
+
+# PUBLIC_BASE_URL???ｌ쑝硫??낅줈???묐떟 URL??洹??꾨찓?몄쑝濡?留뚮뱾?댁쭛?덈떎.
+# ?? https://img.lakehouse.me.kr
+# [vars]
+# PUBLIC_BASE_URL = "https://img.lakehouse.me.kr"

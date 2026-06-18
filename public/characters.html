@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character — 如月高校</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Noto+Serif+JP:wght@400;500&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#0a0608; --bg2:#110a0d; --bg3:#170d10; --bg4:#1f0f13;
+  --red:#8b1a1a; --red-light:#c0392b; --red-dim:#4a0e0e;
+  --gold:#9a7d4a; --gold-light:#c4a265;
+  --text:#e8ddd5; --text-dim:#9a8a82; --text-muted:#5a4a44;
+  --border:rgba(139,26,26,0.25); --border-gold:rgba(154,125,74,0.3);
+}
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; font-weight:400; min-height:100vh; overflow-x:hidden; }
+
+/* NAV */
+nav { position:sticky; top:0; z-index:200; background:rgba(10,6,8,0.95); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); padding:0 2rem; display:flex; align-items:center; height:56px; }
+.nav-logo { font-family:'Noto Serif JP',serif; font-size:17px; font-weight:500; color:var(--text); letter-spacing:0.08em; margin-right:2.5rem; display:flex; align-items:center; gap:10px; text-decoration:none; }
+.nav-logo-mark { width:28px; height:28px; border:1px solid var(--red); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--red-light); font-family:'Cormorant Garamond',serif; font-style:italic; flex-shrink:0; }
+.nav-links { display:flex; gap:0; list-style:none; flex:1; }
+.nav-links li a { display:block; padding:0 1.1rem; height:56px; line-height:56px; font-size:11px; letter-spacing:0.14em; color:var(--text-dim); text-decoration:none; transition:color 0.2s; text-transform:uppercase; font-weight:500; }
+.nav-links li a:hover { color:var(--text); }
+.nav-links li.active a { color:var(--red-light); border-bottom:2px solid var(--red-light); }
+
+/* LAYOUT */
+.page { display:flex; height:calc(100vh - 56px); overflow:hidden; }
+
+/* LEFT: CHARACTER COLLECTION */
+.char-collection {
+  width:380px; flex-shrink:0;
+  background:var(--bg2);
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+
+.collection-header {
+  padding:1.25rem 1.5rem;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+
+.collection-title {
+  font-family:'Cormorant Garamond',serif;
+  font-style:italic;
+  font-size:18px;
+  font-weight:500;
+  color:var(--gold-light);
+  letter-spacing:0.08em;
+}
+
+.collection-sub {
+  font-size:10px;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+}
+
+.collection-filter {
+  padding:0.75rem 1.5rem;
+  border-bottom:1px solid var(--border);
+  display:flex; gap:8px; flex-wrap:wrap;
+}
+
+.filter-btn {
+  padding:4px 12px;
+  font-size:10px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--text-muted);
+  cursor:pointer;
+  transition:all 0.2s;
+  font-family:inherit;
+}
+.filter-btn.active, .filter-btn:hover { border-color:var(--red); color:var(--red-light); background:rgba(139,26,26,0.08); }
+
+.char-grid-collection {
+  flex:1; overflow-y:auto;
+  padding:1rem;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  align-content:start;
+}
+.char-grid-collection::-webkit-scrollbar { width:4px; }
+.char-grid-collection::-webkit-scrollbar-track { background:var(--bg2); }
+.char-grid-collection::-webkit-scrollbar-thumb { background:var(--red-dim); }
+
+.char-card-col {
+  aspect-ratio:2/3;
+  background:var(--bg3);
+  border:1px solid var(--border);
+  position:relative;
+  cursor:pointer;
+  overflow:hidden;
+  transition:all 0.2s;
+  display:flex; flex-direction:column; justify-content:flex-end;
+}
+.char-card-col:hover { border-color:var(--gold); transform:translateY(-2px); }
+.char-card-col.selected { border-color:var(--gold-light); box-shadow:0 0 12px rgba(196,162,101,0.2); }
+
+.char-card-col img {
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top;
+}
+.char-card-col-overlay {
+  position:absolute; inset:0;
+  background:linear-gradient(to top, rgba(10,6,8,0.95) 0%, rgba(10,6,8,0.3) 50%, transparent 100%);
+}
+.char-card-col-placeholder {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Cormorant Garamond',serif;
+  font-size:36px;
+  color:rgba(139,26,26,0.12);
+  font-style:italic;
+}
+.char-card-col-info {
+  position:relative; z-index:2;
+  padding:8px;
+}
+.char-card-col-name {
+  font-family:'Noto Serif JP',serif;
+  font-size:11px;
+  font-weight:500;
+  color:var(--text);
+  letter-spacing:0.04em;
+}
+.char-card-col-role {
+  font-size:9px;
+  color:var(--text-muted);
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  margin-top:1px;
+}
+.char-stars {
+  font-size:7px;
+  color:var(--gold);
+  margin-bottom:2px;
+  letter-spacing:1px;
+}
+
+/* RIGHT: CHARACTER DETAIL */
+.char-detail {
+  flex:1; overflow-y:auto;
+  position:relative;
+  background:var(--bg);
+}
+.char-detail::-webkit-scrollbar { width:4px; }
+.char-detail::-webkit-scrollbar-thumb { background:var(--red-dim); }
+
+.detail-empty {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  height:100%; gap:1rem;
+  color:var(--text-muted);
+  font-family:'Cormorant Garamond',serif;
+  font-style:italic;
+  font-size:18px;
+  letter-spacing:0.1em;
+}
+.detail-empty-sub { font-family:'Noto Sans KR',serif; font-style:normal; font-size:11px; letter-spacing:0.1em; }
+
+/* DETAIL CONTENT */
+.detail-content { display:none; }
+.detail-content.active { display:block; }
+
+/* DETAIL HERO */
+.detail-hero {
+  height:460px;
+  position:relative;
+  overflow:hidden;
+  display:flex; align-items:flex-end;
+}
+.detail-hero-bg {
+  position:absolute; inset:0;
+  background:radial-gradient(ellipse at 60% 30%, rgba(100,15,15,0.3) 0%, transparent 60%);
+}
+.detail-hero-img {
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; object-position:center top;
+  opacity:0.85;
+}
+.detail-hero-placeholder {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Cormorant Garamond',serif;
+  font-style:italic;
+  font-size:140px;
+  color:rgba(139,26,26,0.06);
+}
+.detail-hero-gradient {
+  position:absolute; inset:0;
+  background:linear-gradient(to right, rgba(10,6,8,0.95) 0%, rgba(10,6,8,0.5) 50%, transparent 100%),
+             linear-gradient(to top, rgba(10,6,8,1) 0%, transparent 40%);
+}
+.detail-hero-info {
+  position:relative; z-index:2;
+  padding:2.5rem;
+  flex:1;
+}
+.detail-faction {
+  font-size:9px;
+  letter-spacing:0.25em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin-bottom:0.8rem;
+  display:flex; align-items:center; gap:8px;
+}
+.detail-faction::before { content:''; width:20px; height:1px; background:var(--gold); }
+.detail-stars-lg { font-size:12px; color:var(--gold); letter-spacing:2px; margin-bottom:0.6rem; }
+.detail-name {
+  font-family:'Noto Serif JP',serif;
+  font-size:36px;
+  font-weight:500;
+  color:var(--text);
+  letter-spacing:0.08em;
+  line-height:1.1;
+  margin-bottom:4px;
+}
+.detail-name-roman {
+  font-family:'Cormorant Garamond',serif;
+  font-size:16px;
+  font-style:italic;
+  color:var(--text-muted);
+  letter-spacing:0.15em;
+  margin-bottom:1.2rem;
+}
+.detail-role-badge {
+  display:inline-block;
+  padding:4px 14px;
+  border:1px solid var(--red-dim);
+  font-size:10px;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:var(--red-light);
+  font-family:'Cormorant Garamond',serif;
+  font-style:italic;
+  margin-bottom:1rem;
+}
+.detail-stats-quick {
+  display:flex; gap:1.5rem; margin-top:0.5rem;
+}
+.detail-stat-item { display:flex; flex-direction:column; gap:3px; }
+.detail-stat-label { font-size:9px; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-muted); }
+.detail-stat-val { font-size:13px; color:var(--text-dim); font-weight:500; }
+
+/* TABS */
+.detail-tabs {
+  display:flex;
+  border-bottom:1px solid var(--border);
+  background:var(--bg2);
+  position:sticky; top:0; z-index:10;
+}
+.detail-tab {
+  padding:12px 20px;
+  font-size:11px;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:all 0.2s;
+  font-weight:500;
+}
+.detail-tab.active { color:var(--gold-light); border-bottom-color:var(--gold-light); }
+.detail-tab:hover { color:var(--text-dim); }
+
+.detail-tab-content { display:none; padding:2rem 2.5rem; }
+.detail-tab-content.active { display:block; }
+
+/* INFO TAB */
+.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+.info-card { background:var(--bg2); border:1px solid var(--border); padding:1.25rem; }
+.info-card-title { font-size:10px; letter-spacing:0.2em; text-transform:uppercase; color:var(--red-light); margin-bottom:1rem; font-family:'Cormorant Garamond',serif; font-style:italic; }
+.info-row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(139,26,26,0.08); font-size:12px; }
+.info-row:last-child { border-bottom:none; }
+.info-key { color:var(--text-muted); }
+.info-val { color:var(--text-dim); font-weight:500; }
+.info-desc { font-size:13px; color:var(--text-dim); line-height:1.9; letter-spacing:0.03em; }
+
+/* GALLERY TAB */
+.gallery-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.gallery-item { aspect-ratio:3/4; background:var(--bg3); border:1px solid var(--border); overflow:hidden; cursor:pointer; transition:border-color 0.2s; }
+.gallery-item:hover { border-color:var(--gold); }
+.gallery-item img { width:100%; height:100%; object-fit:cover; }
+.gallery-empty { font-size:12px; color:var(--text-muted); text-align:center; padding:3rem; letter-spacing:0.05em; }
+
+/* NOVEL TAB */
+.novel-entry { padding:1.5rem 0; border-bottom:1px solid rgba(139,26,26,0.1); }
+.novel-entry:last-child { border-bottom:none; }
+.novel-entry-title { font-size:14px; color:var(--text); margin-bottom:0.5rem; font-weight:500; }
+.novel-entry-preview { font-size:12px; color:var(--text-muted); line-height:1.8; }
+.novel-empty { font-size:12px; color:var(--text-muted); text-align:center; padding:3rem; }
+
+/* VN DIALOG */
+#vn-overlay {
+  display:none;
+  position:fixed; inset:0; z-index:500;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px);
+  align-items:flex-end;
+  justify-content:center;
+  padding-bottom:0;
+}
+#vn-overlay.active { display:flex; }
+#vn-box {
+  width:100%; max-width:900px;
+  background:rgba(15,8,12,0.97);
+  border-top:1px solid var(--border);
+  padding:2rem 2.5rem;
+  position:relative;
+}
+#vn-speaker {
+  font-family:'Noto Serif JP',serif;
+  font-size:14px;
+  font-weight:500;
+  color:var(--gold-light);
+  letter-spacing:0.08em;
+  margin-bottom:0.75rem;
+  display:flex; align-items:center; gap:10px;
+}
+#vn-speaker::after { content:''; flex:1; height:1px; background:var(--border-gold); }
+#vn-text {
+  font-size:14px;
+  color:var(--text);
+  line-height:2;
+  letter-spacing:0.04em;
+  min-height:56px;
+}
+#vn-close {
+  position:absolute; top:1.25rem; right:1.5rem;
+  background:transparent; border:1px solid var(--border);
+  color:var(--text-muted); cursor:pointer;
+  width:28px; height:28px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; transition:all 0.2s;
+}
+#vn-close:hover { border-color:var(--red); color:var(--red-light); }
+#vn-hint { font-size:9px; color:var(--text-muted); letter-spacing:0.15em; text-align:right; margin-top:0.75rem; text-transform:uppercase; }
+
+/* BGM */
+#bgm-player { position:fixed; bottom:1.5rem; right:1.5rem; z-index:999; background:rgba(17,10,13,0.96); border:1px solid var(--border); backdrop-filter:blur(12px); display:flex; align-items:center; gap:10px; padding:10px 14px; min-width:220px; max-width:300px; transition:all 0.3s; }
+#bgm-player.collapsed { min-width:0; max-width:none; width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; }
+#bgm-player.collapsed #bgm-info,#bgm-player.collapsed #bgm-toggle-collapse,#bgm-player.collapsed #bgm-vol-wrap { display:none; }
+#bgm-player.collapsed #bgm-play-btn { display:none; }
+#bgm-play-btn { width:28px; height:28px; flex-shrink:0; background:transparent; border:1px solid var(--red); color:var(--red-light); cursor:pointer; font-size:11px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; font-family:inherit; }
+#bgm-play-btn:hover { background:var(--red-dim); }
+#bgm-info { flex:1; min-width:0; }
+#bgm-title { font-size:10px; color:var(--text-dim); letter-spacing:0.06em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#bgm-artist { font-size:9px; color:var(--text-muted); letter-spacing:0.05em; margin-top:2px; }
+#bgm-vol-wrap { display:flex; align-items:center; gap:6px; }
+#bgm-vol { width:60px; accent-color:var(--red-light); cursor:pointer; }
+#bgm-toggle-collapse { background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; padding:2px 4px; transition:color 0.2s; flex-shrink:0; }
+#bgm-toggle-collapse:hover { color:var(--text); }
+#bgm-expand-btn { display:none; background:transparent; border:none; color:var(--red-light); cursor:pointer; font-size:14px; width:100%; height:100%; align-items:center; justify-content:center; }
+#bgm-player.collapsed #bgm-expand-btn { display:flex; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">
+    <div class="nav-logo-mark">如</div>
+    如月高校
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li class="active"><a href="characters.html">Character</a></li>
+    <li><a href="#">Chronicle</a></li>
+    <li><a href="#">Gallery</a></li>
+    <li><a href="#">Facility</a></li>
+    <li><a href="#">About</a></li>
+  </ul>
+</nav>
+
+<div class="page">
+  <!-- LEFT: COLLECTION -->
+  <div class="char-collection">
+    <div class="collection-header">
+      <div>
+        <div class="collection-title">Collection</div>
+        <div class="collection-sub">도감 · 캐릭터</div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);" id="char-count">0명</div>
+    </div>
+    <div class="collection-filter" id="filter-wrap">
+      <button class="filter-btn active" onclick="filterChars('all',this)">전체</button>
+    </div>
+    <div class="char-grid-collection" id="char-grid-col"></div>
+  </div>
+
+  <!-- RIGHT: DETAIL -->
+  <div class="char-detail" id="char-detail">
+    <div class="detail-empty" id="detail-empty">
+      <div>캐릭터를 선택하세요</div>
+      <div class="detail-empty-sub">Select a character</div>
+    </div>
+    <div class="detail-content" id="detail-content">
+      <!-- HERO -->
+      <div class="detail-hero" id="detail-hero">
+        <div class="detail-hero-bg"></div>
+        <div class="detail-hero-placeholder" id="detail-placeholder"></div>
+        <img id="detail-hero-img" style="display:none;">
+        <div class="detail-hero-gradient"></div>
+        <div class="detail-hero-info">
+          <div class="detail-faction" id="detail-faction">—</div>
+          <div class="detail-stars-lg" id="detail-stars">★★★★★</div>
+          <div class="detail-name" id="detail-name">—</div>
+          <div class="detail-name-roman" id="detail-name-roman">—</div>
+          <div class="detail-role-badge" id="detail-role">—</div>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="detail-tabs">
+        <div class="detail-tab active" onclick="switchDetailTab('info',this)">기본 정보</div>
+        <div class="detail-tab" onclick="switchDetailTab('story',this)">서사</div>
+        <div class="detail-tab" onclick="switchDetailTab('gallery',this)">갤러리</div>
+        <div class="detail-tab" onclick="switchDetailTab('novel',this)">소설</div>
+      </div>
+
+      <!-- INFO -->
+      <div class="detail-tab-content active" id="tab-info">
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="info-card-title">프로필</div>
+            <div id="info-profile-rows"></div>
+          </div>
+          <div class="info-card">
+            <div class="info-card-title">소개</div>
+            <div class="info-desc" id="info-desc">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STORY -->
+      <div class="detail-tab-content" id="tab-story">
+        <div class="info-card" style="margin-bottom:0;">
+          <div class="info-card-title">서사</div>
+          <div class="info-desc" id="story-text" style="white-space:pre-wrap;">—</div>
+        </div>
+      </div>
+
+      <!-- GALLERY -->
+      <div class="detail-tab-content" id="tab-gallery">
+        <div class="gallery-grid" id="char-gallery-grid"></div>
+      </div>
+
+      <!-- NOVEL -->
+      <div class="detail-tab-content" id="tab-novel">
+        <div id="novel-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VN DIALOG -->
+<div id="vn-overlay">
+  <div id="vn-box">
+    <button id="vn-close" onclick="closeVN()">✕</button>
+    <div id="vn-speaker">—</div>
+    <div id="vn-text"></div>
+    <div id="vn-hint">이미지를 클릭하면 닫힙니다</div>
+  </div>
+</div>
+
+<!-- BGM -->
+<div id="bgm-player">
+  <button id="bgm-play-btn" title="재생/일시정지">▶</button>
+  <div id="bgm-info">
+    <div id="bgm-title">불러오는 중...</div>
+    <div id="bgm-artist">BGM</div>
+  </div>
+  <div id="bgm-vol-wrap">
+    <input type="range" id="bgm-vol" min="0" max="100" value="70">
+  </div>
+  <button id="bgm-toggle-collapse" title="접기">✕</button>
+  <button id="bgm-expand-btn" title="펼치기">♪</button>
+</div>
+<div id="yt-container" style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
+
+<script>
+function getData(k,d){ try{return JSON.parse(localStorage.getItem('kisaragi_'+k))||d;}catch(e){return d;} }
+
+var defaultChars = [
+  {id:1,nameJp:'遠藤 潤',nameRoman:'Endo Jun',role:'Antagonist',faction:'生徒会',stars:5,tag:'Uru',img:'',desc:'生徒会長。表向きは完璧な優等生。',profile:{학년:'3학년',나이:'18세',혈액형:'AB형'},story:'',gallery:[],novel:[],vnLines:[{speaker:'遠藤 潤',text:'......그래서, 네가 원하는 게 뭐야?'}]},
+  {id:2,nameJp:'遠藤 伊織',nameRoman:'Endo Iori',role:'Founder',faction:'창립자',stars:5,tag:'Iori',img:'',desc:'키사라기 고교의 창립자. 현재 소재 불명.',profile:{나이:'불명',상태:'소재 불명'},story:'',gallery:[],novel:[],vnLines:[{speaker:'遠藤 伊織',text:'이 학교는... 내가 만든 게 아니야. 나는 그저 봉인했을 뿐이지.'}]},
+  {id:3,nameJp:'遠藤 斗哉',nameRoman:'Endo Toya',role:'Protagonist',faction:'1학년',stars:4,tag:'Toya',img:'',desc:'전학생. 이 학교의 비밀을 조금씩 알아간다.',profile:{학년:'1학년',나이:'17세',혈액형:'O형'},story:'',gallery:[],novel:[],vnLines:[{speaker:'遠藤 斗哉',text:'...여기, 뭔가 이상해.'}]}
+];
+
+var romans = ['Ⅰ','Ⅱ','Ⅲ','Ⅳ','Ⅴ','Ⅵ','Ⅶ','Ⅷ'];
+var currentChar = null;
+var filterRole = 'all';
+
+function renderCollection() {
+  var chars = getData('characters', defaultChars);
+  var grid = document.getElementById('char-grid-col');
+  var filtered = filterRole === 'all' ? chars : chars.filter(function(c){ return c.role === filterRole; });
+  document.getElementById('char-count').textContent = chars.length + '명';
+
+  // build filters
+  var roles = [...new Set(chars.map(function(c){ return c.role; }))];
+  var fw = document.getElementById('filter-wrap');
+  var activeFilter = fw.querySelector('.filter-btn.active');
+  var activeVal = activeFilter ? activeFilter.dataset.val : 'all';
+  fw.innerHTML = '<button class="filter-btn'+(activeVal==='all'?' active':'')+'" data-val="all" onclick="filterChars(\'all\',this)">전체</button>';
+  roles.forEach(function(r){
+    fw.innerHTML += '<button class="filter-btn'+(activeVal===r?' active':'')+'" data-val="'+r+'" onclick="filterChars(\''+r+'\',this)">'+r+'</button>';
+  });
+
+  grid.innerHTML = '';
+  filtered.forEach(function(c, i) {
+    var div = document.createElement('div');
+    div.className = 'char-card-col' + (currentChar && currentChar.id===c.id ? ' selected' : '');
+    div.onclick = function(){ selectChar(c); };
+    var stars = '★'.repeat(c.stars||5) + '☆'.repeat(5-(c.stars||5));
+    div.innerHTML = (c.img ? '<img src="'+c.img+'" alt="">' : '<div class="char-card-col-placeholder">'+(romans[i]||'')+'</div>') +
+      '<div class="char-card-col-overlay"></div>' +
+      '<div class="char-card-col-info"><div class="char-stars">'+stars+'</div><div class="char-card-col-name">'+c.nameJp+'</div><div class="char-card-col-role">'+c.role+'</div></div>';
+    grid.appendChild(div);
+  });
+}
+
+function filterChars(role, btn) {
+  filterRole = role;
+  document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderCollection();
+}
+
+function selectChar(c) {
+  currentChar = c;
+  renderCollection();
+  document.getElementById('detail-empty').style.display = 'none';
+  document.getElementById('detail-content').classList.add('active');
+
+  // hero
+  document.getElementById('detail-name').textContent = c.nameJp;
+  document.getElementById('detail-name-roman').textContent = c.nameRoman || '';
+  document.getElementById('detail-role').textContent = c.role;
+  document.getElementById('detail-faction').textContent = c.faction || '—';
+  document.getElementById('detail-stars').textContent = '★'.repeat(c.stars||5) + '☆'.repeat(5-(c.stars||5));
+  document.getElementById('detail-placeholder').textContent = c.tag || c.nameJp[0];
+
+  var heroImg = document.getElementById('detail-hero-img');
+  if (c.img) { heroImg.src = c.img; heroImg.style.display = 'block'; document.getElementById('detail-placeholder').style.display = 'none'; }
+  else { heroImg.style.display = 'none'; document.getElementById('detail-placeholder').style.display = 'flex'; }
+
+  // VN on image click
+  heroImg.onclick = function(){ openVN(c); };
+  document.getElementById('detail-hero').style.cursor = 'pointer';
+  document.getElementById('detail-hero').onclick = function(e){ if(!e.target.closest('#detail-hero-img')) openVN(c); };
+
+  // profile
+  var rows = '';
+  if (c.profile) {
+    Object.keys(c.profile).forEach(function(k){
+      rows += '<div class="info-row"><span class="info-key">'+k+'</span><span class="info-val">'+c.profile[k]+'</span></div>';
+    });
+  }
+  document.getElementById('info-profile-rows').innerHTML = rows || '<div class="info-row"><span class="info-key">—</span></div>';
+  document.getElementById('info-desc').textContent = c.desc || '—';
+  document.getElementById('story-text').textContent = c.story || '—';
+
+  // gallery
+  var gg = document.getElementById('char-gallery-grid');
+  if (c.gallery && c.gallery.length) {
+    gg.innerHTML = c.gallery.map(function(g){ return '<div class="gallery-item"><img src="'+g+'"></div>'; }).join('');
+  } else { gg.innerHTML = '<div class="gallery-empty" style="grid-column:1/-1">등록된 이미지가 없습니다.</div>'; }
+
+  // novel
+  var nl = document.getElementById('novel-list');
+  if (c.novel && c.novel.length) {
+    nl.innerHTML = c.novel.map(function(n){ return '<div class="novel-entry"><div class="novel-entry-title">'+n.title+'</div><div class="novel-entry-preview">'+n.preview+'</div></div>'; }).join('');
+  } else { nl.innerHTML = '<div class="novel-empty">등록된 소설이 없습니다.</div>'; }
+
+  // reset tab
+  switchDetailTab('info', document.querySelector('.detail-tab'));
+  document.getElementById('char-detail').scrollTop = 0;
+}
+
+function switchDetailTab(name, btn) {
+  document.querySelectorAll('.detail-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.detail-tab-content').forEach(function(t){ t.classList.remove('active'); });
+  if(btn) btn.classList.add('active');
+  else document.querySelector('.detail-tab').classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function openVN(c) {
+  if (!c.vnLines || !c.vnLines.length) return;
+  var line = c.vnLines[0];
+  document.getElementById('vn-speaker').childNodes[0].textContent = line.speaker || c.nameJp;
+  document.getElementById('vn-text').textContent = '';
+  document.getElementById('vn-overlay').classList.add('active');
+  typeText(line.text);
+}
+function closeVN() { document.getElementById('vn-overlay').classList.remove('active'); }
+
+var typeTimer = null;
+function typeText(text) {
+  var el = document.getElementById('vn-text');
+  el.textContent = '';
+  var i = 0;
+  clearInterval(typeTimer);
+  typeTimer = setInterval(function(){
+    if (i < text.length) { el.textContent += text[i++]; }
+    else clearInterval(typeTimer);
+  }, 40);
+}
+
+// BGM
+var ytPlayer=null, isPlaying=false;
+var bgmData = getData('bgm',{title:'배경음악',artist:'',youtubeId:''});
+document.getElementById('bgm-title').textContent = bgmData.title||'배경음악';
+document.getElementById('bgm-artist').textContent = bgmData.artist||'';
+
+window.onYouTubeIframeAPIReady = function(){
+  if(!bgmData.youtubeId) return;
+  ytPlayer = new YT.Player('yt-iframe',{height:'1',width:'1',videoId:bgmData.youtubeId,playerVars:{autoplay:0,loop:1,playlist:bgmData.youtubeId},events:{onReady:function(){}}});
+};
+function loadYT(){
+  if(!bgmData.youtubeId) return;
+  document.getElementById('yt-container').innerHTML='<div id="yt-iframe"></div>';
+  var s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+}
+document.getElementById('bgm-play-btn').addEventListener('click',function(){
+  if(!bgmData.youtubeId) return;
+  if(!ytPlayer){loadYT();isPlaying=true;this.textContent='⏸';return;}
+  if(isPlaying){ytPlayer.pauseVideo();isPlaying=false;this.textContent='▶';}
+  else{ytPlayer.playVideo();isPlaying=true;this.textContent='⏸';}
+});
+document.getElementById('bgm-vol').addEventListener('input',function(){
+  if(ytPlayer) ytPlayer.setVolume(this.value);
+});
+document.getElementById('bgm-toggle-collapse').addEventListener('click',function(){ document.getElementById('bgm-player').classList.add('collapsed'); });
+document.getElementById('bgm-expand-btn').addEventListener('click',function(){ document.getElementById('bgm-player').classList.remove('collapsed'); });
+
+// click sound
+var clickSound = null;
+var csData = getData('clicksound',{url:''});
+if(csData.url){ clickSound = new Audio(csData.url); document.addEventListener('click',function(){ try{clickSound.currentTime=0;clickSound.play();}catch(e){} }); }
+
+renderCollection();
+</script>
+</body>
+</html>

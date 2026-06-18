@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OC — lakehouse</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=Noto+Serif+JP:wght@400;500&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/src/oc/styles/index.css">
+<link rel="stylesheet" href="/lakehouse-r2.css">
+<script type="module" src="/src/oc/main.js"></script>
+<script src="/lakehouse-r2.js"></script>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-back">← back</a>
+  <div class="nav-title">OC — Original Characters</div>
+  <ul class="nav-links">
+    <li class="active"><a href="oc.html">OC</a></li>
+    <li><a href="pair.html">Pair</a></li>
+  </ul>
+</nav>
+
+<div class="layout">
+  <div class="sidebar">
+    <div>
+      <div class="s-title">Search</div>
+      <input class="search-input" id="search-input" placeholder="이름으로 검색..." oninput="renderGrid()">
+    </div>
+    <div>
+      <div class="s-title">Category</div>
+      <div class="filter-group" id="category-filters"></div>
+    </div>
+    <div id="sub-filter-wrap" style="display:none;">
+      <div class="s-title" id="sub-filter-title">—</div>
+      <div class="filter-group" id="sub-filters"></div>
+    </div>
+    <div class="sidebar-count" id="char-count">0개</div>
+  </div>
+  <div class="main-content"><div class="card-grid" id="card-grid"></div></div>
+</div>
+
+<!-- GAME UI DETAIL -->
+<div id="detail-screen">
+  <div class="game-topbar">
+    <button class="game-back" onclick="closeDetail()">← 목록으로</button>
+    <div class="game-topbar-title" id="game-topbar-title">—</div>
+    <div class="game-topbar-id" id="game-topbar-id"></div>
+    <button class="btn-edit" id="btn-edit" style="display:none;" onclick="openEditPanel()">✎ 수정</button>
+  </div>
+  <div class="game-body">
+    <div class="game-left" id="game-left">
+      <div class="game-char-bg"></div>
+      <div class="game-char-placeholder" id="game-placeholder">—</div>
+      <img id="game-char-img" style="display:none;" alt="" class="game-char-img">
+      <div class="game-char-gradient"></div>
+      <div class="game-corner game-corner-tl"></div>
+      <div class="game-corner game-corner-tr"></div>
+      <div class="game-corner game-corner-bl"></div>
+      <div class="game-corner game-corner-br"></div>
+      <!-- THEME PLAYER -->
+      <div class="theme-player" id="theme-player" style="display:none;">
+        <button class="theme-play-btn" id="theme-play-btn" onclick="toggleTheme()">▶</button>
+        <div class="theme-info">
+          <div class="theme-title" id="theme-title">—</div>
+          <div class="theme-artist" id="theme-artist"></div>
+        </div>
+      </div>
+      <!-- AU BUTTONS -->
+      <div class="au-buttons" id="au-buttons"></div>
+    </div>
+    <div class="game-right">
+      <div class="game-file-header">
+        <div class="game-file-label">CHARACTER FILE</div>
+        <div class="game-file-id" id="game-file-id">—</div>
+        <div class="game-role-badge" id="game-role">—</div>
+      </div>
+      <div class="game-tabs">
+        <div class="game-tab active" onclick="switchTab('info',this)">Info</div>
+        <div class="game-tab" onclick="switchTab('story',this)">Story</div>
+        <div class="game-tab" onclick="switchTab('gallery',this)">Gallery</div>
+        <div class="game-tab" onclick="switchTab('novel',this)">Novel</div>
+      </div>
+      <div class="game-tab-content active" id="gtab-info">
+        <div class="game-info-block" id="info-name-block">
+          <div class="game-char-stars" id="game-stars">★★★★★</div>
+          <div class="game-char-name-block">
+            <div class="game-char-name" id="game-name">—</div>
+            <div class="game-char-sub" id="game-sub">—</div>
+          </div>
+          <div class="game-role-badge" id="game-role2" style="margin-bottom:1rem;">—</div>
+        </div>
+        <div class="game-info-block" id="info-profile-block">
+          <div class="game-section-label">기본 정보</div>
+          <table class="game-profile-table" id="game-profile-table"></table>
+        </div>
+        <div class="game-info-block" id="info-desc-block">
+          <div class="game-section-label">소개</div>
+          <div class="game-desc" id="game-desc">—</div>
+        </div>
+      </div>
+      <div class="game-tab-content" id="gtab-story">
+        <div class="game-desc" id="game-story" style="white-space:pre-wrap;">—</div>
+      </div>
+      <div class="game-tab-content" id="gtab-gallery">
+        <div class="game-gallery-grid" id="game-gallery"></div>
+      </div>
+      <div class="game-tab-content" id="gtab-novel">
+        <div id="game-novel"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PANEL -->
+<div id="edit-panel">
+  <div class="ep-header">
+    <div class="ep-title">캐릭터 수정</div>
+    <button class="ep-close" onclick="closeEditPanel()">✕</button>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">이름</label><input class="form-input" id="ep-name"></div>
+    <div class="form-group"><label class="form-label">서브명</label><input class="form-input" id="ep-namesub"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">역할</label><input class="form-input" id="ep-role"></div>
+    <div class="form-group"><label class="form-label">소속</label><input class="form-input" id="ep-faction"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">카테고리</label><select class="form-input" id="ep-category"></select></div>
+    <div class="form-group"><label class="form-label">서브카테고리</label><input class="form-input" id="ep-subcat"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">태그</label><input class="form-input" id="ep-tag"></div>
+    <div class="form-group"><label class="form-label">별점(1~5)</label><input class="form-input" type="number" id="ep-stars" min="1" max="5"></div>
+  </div>
+
+  <!-- THEME SONG -->
+  <div class="section-sep">
+    <div class="section-sep-title">테마곡 (캐릭터별 BGM)</div>
+    <div class="form-group"><label class="form-label">곡 제목</label><input class="form-input" id="ep-theme-title" placeholder="테마곡 이름"></div>
+    <div class="form-group"><label class="form-label">아티스트</label><input class="form-input" id="ep-theme-artist" placeholder="아티스트"></div>
+    <div style="border:1px solid var(--border);padding:10px;background:var(--bg3);">
+      <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">소스 선택</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="filter-btn active" id="theme-src-yt" onclick="setThemeSrc('yt')" style="flex:1;justify-content:center;">유튜브</button>
+        <button class="filter-btn" id="theme-src-file" onclick="setThemeSrc('file')" style="flex:1;justify-content:center;">파일</button>
+      </div>
+      <div id="theme-yt-input">
+        <input class="form-input" id="ep-theme-yt" placeholder="https://youtu.be/...">
+      </div>
+      <div id="theme-file-input" style="display:none;">
+        <label class="file-input-label">🎵 오디오 파일 선택 (MP3/OGG/WAV)<input type="file" accept="audio/*" onchange="handleThemeFileUpload(this)"></label>
+        <div id="theme-file-name" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
+        <input type="hidden" id="ep-theme-file-data">
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN IMAGE -->
+  <div class="section-sep">
+    <div class="section-sep-title">기본 이미지</div>
+    <div class="img-upload-wrap">
+      <div class="img-preview" id="ep-img-preview">이미지 없음</div>
+      <div class="img-size-controls">
+        <div class="form-group"><label class="form-label">Fit</label><select class="form-input" id="ep-img-fit" onchange="updateImgStyle()"><option value="contain">Contain</option><option value="cover">Cover</option></select></div>
+        <div class="form-group"><label class="form-label">위치</label><select class="form-input" id="ep-img-pos" onchange="updateImgStyle()"><option value="center top">위쪽</option><option value="center center">중앙</option><option value="center bottom">아래</option></select></div>
+      </div>
+      <label class="file-input-label">📁 파일 선택<input type="file" accept="image/*" onchange="handleImgUpload(this)"></label>
+      <div class="lh-r2-status" id="ep-img-upload-status"></div>
+      <input class="form-input" id="ep-img-data" placeholder="또는 URL 입력" oninput="previewUrl(this.value)">
+    </div>
+  </div>
+
+  <!-- AU VERSIONS -->
+  <div class="section-sep">
+    <div class="section-sep-title">AU / 버전 추가</div>
+    <div id="ep-au-list"></div>
+    <button class="btn-save" style="margin-top:8px;padding:5px 12px;" onclick="addAUItem()">+ 버전 추가</button>
+  </div>
+
+  <div class="form-group"><label class="form-label">소개</label><textarea class="form-input" id="ep-desc" rows="2"></textarea></div>
+
+  <div class="section-sep">
+    <div class="section-sep-title">프로필 항목 (드래그로 순서 변경)</div>
+    <div class="profile-drag-list" id="ep-profile-rows"></div>
+    <button class="btn-save" style="margin-top:8px;padding:5px 12px;" onclick="addProfileRow()">+ 항목 추가</button>
+  </div>
+  <div class="section-sep">
+    <div class="section-sep-title">서사</div>
+    <textarea class="form-input" id="ep-story" rows="4"></textarea>
+  </div>
+  <div class="section-sep">
+    <div class="section-sep-title">갤러리 이미지</div>
+    <label class="file-input-label">📁 이미지 추가 (여러 장)<input type="file" accept="image/*" multiple onchange="handleGalleryUpload(this)"></label>
+    <div id="ep-gallery-list" style="margin-top:8px;display:flex;flex-direction:column;gap:4px;"></div>
+  </div>
+  <div class="section-sep">
+    <div class="section-sep-title">VN 대사</div>
+    <div id="ep-vn-rows"></div>
+    <button class="btn-save" style="margin-top:6px;padding:5px 12px;" onclick="addVNRow()">+ 대사 추가</button>
+  </div>
+  <div class="section-sep" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <button class="btn-save" id="ep-save-btn" onclick="saveChar()">저장</button>
+    <button class="btn-del" onclick="deleteChar()">삭제</button>
+    <div class="save-msg" id="ep-save-msg">저장되었습니다.</div>
+  </div>
+</div>
+
+<div id="bgm-player">
+  <button id="bgm-play-btn">▶</button>
+  <div id="bgm-info"><div id="bgm-title">BGM</div><div id="bgm-artist"></div></div>
+  <div id="bgm-vol-wrap"><input type="range" id="bgm-vol" min="0" max="100" value="70"></div>
+  <button id="bgm-toggle-collapse">✕</button>
+  <button id="bgm-expand-btn">♪</button>
+</div>
+<div id="yt-container" style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
+<div id="theme-yt-container" style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>
+
+
+
+
+
+

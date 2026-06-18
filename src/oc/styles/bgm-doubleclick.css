@@ -1,0 +1,12 @@
+/* Keep the player shadow attached to the actual player box on OC/Pair. */
+#bgm-player{
+  overflow:hidden!important;
+  filter:none!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.42),0 0 18px rgba(215,169,130,.08),inset 0 0 0 1px rgba(255,255,255,.04)!important;
+}
+#bgm-player.collapsed{
+  width:52px!important;min-width:52px!important;max-width:52px!important;height:52px!important;padding:0!important;border-radius:50%!important;justify-content:center!important;align-items:center!important;
+  box-shadow:0 8px 20px rgba(0,0,0,.38),0 0 14px rgba(215,169,130,.1)!important;
+}
+#bgm-player.collapsed #bgm-expand-btn{display:flex!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:none!important;cursor:move!important;align-items:center!important;justify-content:center!important;}
+#bgm-player.collapsed:hover{transform:none!important;}

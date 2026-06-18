@@ -1,0 +1,412 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
+import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
+import { useBgm } from '@/lib/contexts/BgmContext';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
+import { useOcData } from '@/lib/hooks/useOcData';
+import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
+import { displayCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
+import { isOcProfileUnlocked } from '@/lib/oc/profileAccess';
+import { OcProfilePasswordModal } from '@/components/oc/OcProfilePasswordModal';
+import { buildCharacterNumberMap } from '@/lib/oc/characterOrder';
+import { collectProfileFieldValues, formatCardTag, getProfileFieldValue } from '@/lib/oc/profile';
+import type { OcCharacter } from '@/lib/types/character';
+
+const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
+type SortMode = 'name' | 'stars' | 'no';
+
+type IntroState = { character: OcCharacter; auIdx: number };
+
+function charImg(c: OcCharacter, auIdx: number) {
+  if (auIdx >= 0 && c.auVersions?.[auIdx]) {
+    return {
+      src: c.auVersions[auIdx].img || c.img || '',
+      fit: c.auVersions[auIdx].imgFit || c.imgFit || 'contain',
+      pos: c.auVersions[auIdx].imgPos || c.imgPos || 'center top',
+    };
+  }
+  return {
+    src: c.img || '',
+    fit: c.imgFit || 'contain',
+    pos: c.imgPos || 'center top',
+  };
+}
+
+export function OcPageClient() {
+  const router = useRouter();
+  const { characters, categories, saveCharacters } = useOcData();
+  const { ocSettings } = useSiteContent();
+  const { restorePageSnapshot, pushPageSnapshot } = useBgm();
+  const { isAdmin } = useAuth();
+  const wasInDetailRef = useRef(false);
+  const skipBgmRestoreRef = useRef(false);
+  const [activeCat, setActiveCat] = useState('all');
+  const [activeSub, setActiveSub] = useState('all');
+  const [search, setSearch] = useState('');
+  const [filterGender, setFilterGender] = useState('all');
+  const [sortMode, setSortMode] = useState<SortMode>('no');
+  const [detail, setDetail] = useState<OcCharacter | null>(null);
+  const [intro, setIntro] = useState<IntroState | null>(null);
+  const [auIdx, setAuIdx] = useState(-1);
+  const [passwordGate, setPasswordGate] = useState<{ character: OcCharacter; au: number } | null>(null);
+
+  const charNumberMap = useMemo(() => buildCharacterNumberMap(characters), [characters]);
+  const activeCharacter = detail ?? intro?.character ?? null;
+  const activeCharNo = activeCharacter ? charNumberMap.get(String(activeCharacter.id)) ?? 1 : 1;
+
+  const clearDetailView = useCallback(() => {
+    setDetail(null);
+    setIntro(null);
+  }, []);
+
+  const detailBackHandlerRef = useRef<(() => void) | null>(null);
+
+  const bindDetailBack = useCallback((handler: (() => void) | null) => {
+    detailBackHandlerRef.current = handler;
+  }, []);
+
+  const leaveDetail = useCallback(() => {
+    restorePageSnapshot(ocSettings.autoResumeMainBgm);
+    clearDetailView();
+  }, [clearDetailView, ocSettings.autoResumeMainBgm, restorePageSnapshot]);
+
+  const requestOcBack = useCallback(() => {
+    if (detailBackHandlerRef.current) {
+      detailBackHandlerRef.current();
+      return;
+    }
+    leaveDetail();
+  }, [leaveDetail]);
+
+  const handleDetailBack = requestOcBack;
+
+  const leaveOc = useCallback(() => {
+    router.replace('/');
+  }, [router]);
+
+  const routeGuard = useMemo(() => ({ guardPath: '/oc', router }), [router]);
+
+  useLakeBackNavigation(!!detail || !!intro, requestOcBack, 'oc-detail', routeGuard);
+  useLakeBackGesture(leaveOc, !detail && !intro);
+
+  useEffect(() => {
+    const inDetail = !!(detail || intro);
+    if (wasInDetailRef.current && !inDetail && skipBgmRestoreRef.current) {
+      skipBgmRestoreRef.current = false;
+    }
+    wasInDetailRef.current = inDetail;
+  }, [detail, intro]);
+
+  const completeIntro = useCallback((payload: IntroState) => {
+    skipBgmRestoreRef.current = true;
+    setDetail(payload.character);
+    setAuIdx(payload.auIdx);
+    setIntro(null);
+  }, []);
+
+  const genders = useMemo(() => collectProfileFieldValues(characters, '성별'), [characters]);
+
+  const subs = useMemo(() => {
+    if (activeCat === 'all') return [];
+    return [
+      ...new Set(
+        characters.filter((c) => normalizeCategory(c.category) === activeCat).map((c) => c.subcat).filter(Boolean),
+      ),
+    ] as string[];
+  }, [characters, activeCat]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    let list = characters.filter((c) => {
+      const cat = normalizeCategory(c.category);
+      if (activeCat !== 'all' && cat !== activeCat) return false;
+      if (activeSub !== 'all' && c.subcat !== activeSub) return false;
+      if (filterGender !== 'all' && getProfileFieldValue(c, '성별') !== filterGender) return false;
+      if (q && !c.name.toLowerCase().includes(q) && !(c.nameSub || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    list = [...list].sort((a, b) => {
+      if (sortMode === 'name') return a.name.localeCompare(b.name, 'ko');
+      if (sortMode === 'stars') return (b.stars ?? 5) - (a.stars ?? 5);
+      return String(a.id).localeCompare(String(b.id));
+    });
+    return list;
+  }, [characters, activeCat, activeSub, search, filterGender, sortMode]);
+
+  function openDetail(c: OcCharacter, au: number) {
+    pushPageSnapshot();
+    if (shouldShowPvIntro(c, ocSettings.pvIntroEnabled)) {
+      setIntro({ character: c, auIdx: au });
+      setDetail(null);
+      return;
+    }
+    setIntro(null);
+    setDetail(c);
+    setAuIdx(au);
+  }
+
+  function requestOpenDetail(c: OcCharacter, au: number) {
+    if (isAdmin || isOcProfileUnlocked()) {
+      openDetail(c, au);
+      return;
+    }
+    setPasswordGate({ character: c, au });
+  }
+
+  const finishIntro = useCallback(() => {
+    setIntro((current) => {
+      if (!current) return null;
+      completeIntro(current);
+      return null;
+    });
+  }, [completeIntro]);
+
+  const detailImg = detail ? charImg(detail, auIdx) : null;
+
+  return (
+    <>
+      <nav className="oc-topbar">
+        <div className="oc-topbar-left">
+          {detail || intro ? (
+            <button type="button" className="nav-back" onClick={handleDetailBack}>
+              ← back
+            </button>
+          ) : (
+            <Link href="/" replace className="nav-back">
+              ← back
+            </Link>
+          )}
+          <div className="nav-title">OC — Original Characters</div>
+        </div>
+        <ul className="nav-links">
+          <li className="active">
+            <Link href="/oc">OC</Link>
+          </li>
+          <li>
+            <Link href="/pair">Pair</Link>
+          </li>
+        </ul>
+      </nav>
+
+      <div className="layout oc-archive-layout">
+        <div className="sidebar">
+          <div>
+            <div className="s-title">Search</div>
+            <input
+              className="search-input"
+              placeholder="이름으로 검색..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className="oc-filter-bar oc-filter-bar--sidebar" role="group" aria-label="OC 필터">
+              <select
+                id="oc-filter-gender"
+                className="oc-filter-select"
+                value={filterGender}
+                onChange={(e) => setFilterGender(e.target.value)}
+                aria-label="성별"
+              >
+                <option value="all">성별 · 전체</option>
+                {genders.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+              <select
+                id="oc-filter-category"
+                className="oc-filter-select"
+                value={activeCat}
+                onChange={(e) => {
+                  setActiveCat(e.target.value);
+                  setActiveSub('all');
+                }}
+                aria-label="카테고리"
+              >
+                <option value="all">카테고리 · 전체</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {displayCategory(cat)}
+                  </option>
+                ))}
+              </select>
+              <select
+                id="oc-filter-sort"
+                className="oc-filter-select"
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                aria-label="정렬"
+              >
+                <option value="no">정렬 · 번호</option>
+                <option value="name">정렬 · 이름</option>
+                <option value="stars">정렬 · 별점</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <div className="s-title">Category</div>
+            <div className="filter-group" id="category-filters">
+              <button
+                type="button"
+                className={`filter-btn${activeCat === 'all' ? ' active' : ''}`}
+                onClick={() => {
+                  setActiveCat('all');
+                  setActiveSub('all');
+                }}
+              >
+                All
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`filter-btn${activeCat === cat ? ' active' : ''}`}
+                  onClick={() => {
+                    setActiveCat(cat);
+                    setActiveSub('all');
+                  }}
+                >
+                  {displayCategory(cat)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {subs.length > 0 && (
+            <div id="sub-filter-wrap">
+              <div className="s-title">{isUniverseCategory(activeCat) ? 'Universe' : 'Scenario'}</div>
+              <div className="filter-group" id="sub-filters">
+                <button
+                  type="button"
+                  className={`filter-btn${activeSub === 'all' ? ' active' : ''}`}
+                  onClick={() => setActiveSub('all')}
+                >
+                  전체
+                </button>
+                {subs.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`filter-btn${activeSub === s ? ' active' : ''}`}
+                    onClick={() => setActiveSub(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="sidebar-count">{filtered.length}개</div>
+        </div>
+        <div className="main-content">
+          <h2 className="oc-archive-heading">Character Archive</h2>
+          <div className="card-grid" id="card-grid">
+            {!filtered.length ? (
+              <div
+                style={{
+                  gridColumn: '1/-1',
+                  textAlign: 'center',
+                  padding: '5rem',
+                  fontFamily: 'Playfair Display, serif',
+                  fontStyle: 'italic',
+                  fontSize: 20,
+                  color: 'var(--text-muted)',
+                }}
+              >
+                — 캐릭터가 없습니다 —
+              </div>
+            ) : (
+              filtered.map((c, i) => {
+                const stars = '★'.repeat(c.stars || 5) + '☆'.repeat(5 - (c.stars || 5));
+                const cardTag = formatCardTag(c.tag);
+                return (
+                  <div key={c.id} className="char-card" onClick={() => requestOpenDetail(c, -1)}>
+                    {c.img ? (
+                      <img
+                        className="char-card-img"
+                        src={c.img}
+                        alt=""
+                        style={{
+                          objectFit: (c.imgFit as React.CSSProperties['objectFit']) || 'cover',
+                          objectPosition: c.imgPos || 'center top',
+                        }}
+                      />
+                    ) : (
+                      <div className="char-card-placeholder">{ROMANS[i] || ''}</div>
+                    )}
+                    <div className="char-card-hover">
+                      <div className="hover-name">{c.name}</div>
+                      {c.nameSub && <div className="hover-sub">{c.nameSub}</div>}
+                      {cardTag && <div className="hover-tag">{cardTag}</div>}
+                    </div>
+                    <div className="char-card-bottom">
+                      <div className="char-card-stars">{stars}</div>
+                      <div className="char-card-name">{c.name}</div>
+                      {cardTag && (
+                        <div className="char-card-tags">
+                          <span className="char-card-tag">{cardTag}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      <OcProfilePasswordModal
+        open={!!passwordGate}
+        characterName={passwordGate?.character.name}
+        onClose={() => setPasswordGate(null)}
+        onSuccess={() => {
+          const pending = passwordGate;
+          setPasswordGate(null);
+          if (pending) openDetail(pending.character, pending.au);
+        }}
+      />
+
+      <div id="detail-screen" className={detail || intro ? 'active' : ''}>
+        {intro && (
+          <OcProfileIntro
+            character={intro.character}
+            durationMs={ocSettings.pvIntroDurationMs}
+            onComplete={finishIntro}
+            onCancel={leaveDetail}
+          />
+        )}
+        {detail && !intro && (
+          <OcCharacterDetail
+            character={detail}
+            charNo={activeCharNo}
+            auIdx={auIdx}
+            isAdmin={isAdmin}
+            categories={categories}
+            img={detailImg?.src ? detailImg : null}
+            onBack={leaveDetail}
+            onBindBack={bindDetailBack}
+            onAuChange={(au) => openDetail(detail, au)}
+            onSave={
+              isAdmin
+                ? async (next) => {
+                    await saveCharacters(
+                      characters.map((c) => (String(c.id) === String(next.id) ? next : c)),
+                    );
+                    setDetail(next);
+                  }
+                : undefined
+            }
+          />
+        )}
+      </div>
+    </>
+  );
+}

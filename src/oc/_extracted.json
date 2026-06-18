@@ -1,0 +1,37 @@
+{
+  "htmlFile": "oc.html",
+  "styleImports": [
+    "base.css",
+    "codex.css",
+    "oc.css",
+    "bgm-doubleclick.css",
+    "oc-rebuild.css",
+    "oc-final-polish.css",
+    "oc-left-menu-polish.css",
+    "bgm-expand-final.css",
+    "oc-layout-vn-final.css",
+    "oc-final-left-layout.css",
+    "oc-context-save-modal.css",
+    "oc-dialogue-typewriter-final.css",
+    "oc-dialogue-gallery-polish.css",
+    "oc-profile-dialogue-final2.css",
+    "oc-restore-final.css",
+    "oc-side-info-restore.css",
+    "oc-char-vn-fix.css"
+  ],
+  "jsImports": [
+    "firebase.js",
+    "bgm-sanitize.js",
+    "bgm.js",
+    "oc-theme.js",
+    "transition.js",
+    "page-bgm.js",
+    "bgm-doubleclick-override.js",
+    "bgm-persist-guard.js",
+    "oc-rebuild.js",
+    "bgm-expand-final.js",
+    "oc-restore-final.js",
+    "r2-hooks.js"
+  ],
+  "extractedAt": "2026-06-17T23:43:38.672Z"
+}

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 — 如月高校</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#0a0608; --bg2:#110a0d; --bg3:#170d10;
+  --red:#8b1a1a; --red-light:#c0392b; --red-dim:#4a0e0e;
+  --gold:#9a7d4a; --gold-light:#c4a265;
+  --text:#e8ddd5; --text-dim:#9a8a82; --text-muted:#5a4a44;
+  --border:rgba(139,26,26,0.25);
+}
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; font-weight:400; min-height:100vh; }
+
+#login-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+.login-box { background:var(--bg2); border:1px solid var(--border); padding:2.5rem; width:320px; text-align:center; }
+.login-mark { font-family:'Cormorant Garamond',serif; font-size:32px; font-style:italic; color:var(--red-light); margin-bottom:0.5rem; }
+.login-title { font-size:12px; letter-spacing:0.2em; color:var(--text-muted); text-transform:uppercase; margin-bottom:2rem; }
+.login-box input { width:100%; padding:10px 12px; background:var(--bg3); border:1px solid var(--border); color:var(--text); font-family:inherit; font-size:13px; margin-bottom:12px; outline:none; }
+.login-box input:focus { border-color:var(--red); }
+.btn-primary { padding:9px 20px; background:var(--red-dim); border:1px solid var(--red); color:var(--text-dim); font-family:inherit; font-size:11px; letter-spacing:0.15em; text-transform:uppercase; cursor:pointer; transition:all 0.2s; }
+.btn-primary:hover { background:var(--red); color:var(--text); }
+.login-error { font-size:11px; color:var(--red-light); margin-top:10px; display:none; }
+
+#admin-screen { display:none; }
+header { background:var(--bg2); border-bottom:1px solid var(--border); padding:0 2rem; display:flex; align-items:center; height:52px; gap:1rem; }
+.header-title { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:16px; color:var(--gold); flex:1; }
+.btn-sm { padding:5px 14px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-family:inherit; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; transition:all 0.2s; text-decoration:none; display:inline-block; }
+.btn-sm:hover { border-color:var(--red); color:var(--red-light); }
+.btn-danger { border-color:var(--red-dim); color:var(--red-light); }
+
+.admin-wrap { max-width:960px; margin:0 auto; padding:2rem; }
+.admin-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:2rem; flex-wrap:wrap; }
+.admin-tab { padding:10px 18px; font-size:11px; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; font-weight:500; }
+.admin-tab.active { color:var(--red-light); border-bottom-color:var(--red-light); }
+.admin-panel { display:none; }
+.admin-panel.active { display:block; }
+
+.form-group { margin-bottom:1rem; }
+.form-label { font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; display:block; font-weight:500; }
+.form-input { width:100%; padding:9px 12px; background:var(--bg3); border:1px solid var(--border); color:var(--text); font-family:inherit; font-size:13px; outline:none; resize:vertical; }
+.form-input:focus { border-color:var(--red); }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+
+.card { background:var(--bg2); border:1px solid var(--border); padding:1.25rem; margin-bottom:1.5rem; }
+.card-title { font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--gold); margin-bottom:1rem; font-family:'Cormorant Garamond',serif; font-style:italic; }
+
+.item-list { display:flex; flex-direction:column; gap:8px; margin-top:1rem; }
+.item-row { display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--bg3); border:1px solid var(--border); }
+.item-name { flex:1; font-size:12px; color:var(--text-dim); }
+.item-sub { font-size:10px; color:var(--text-muted); margin-top:2px; }
+.item-actions { display:flex; gap:6px; }
+
+.msg { font-size:11px; padding:8px 12px; margin-top:12px; display:none; background:rgba(139,26,26,0.15); border:1px solid var(--red-dim); color:var(--red-light); }
+
+/* CHAR EDITOR */
+.char-editor-wrap { display:grid; grid-template-columns:220px 1fr; gap:1.5rem; }
+.char-list-panel { display:flex; flex-direction:column; gap:8px; }
+.char-list-item { padding:10px 12px; background:var(--bg3); border:1px solid var(--border); cursor:pointer; transition:all 0.2s; }
+.char-list-item:hover, .char-list-item.selected { border-color:var(--red); }
+.char-list-item-name { font-size:13px; color:var(--text-dim); font-weight:500; }
+.char-list-item-role { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-top:2px; }
+.char-edit-panel { background:var(--bg2); border:1px solid var(--border); padding:1.5rem; }
+
+/* VN LINES */
+.vn-line-row { display:flex; gap:8px; margin-bottom:8px; }
+.vn-line-row input { flex:1; }
+.vn-line-row button { flex-shrink:0; }
+
+.section-div { border-top:1px solid var(--border); margin:1.5rem 0; padding-top:1.5rem; }
+.section-div-title { font-size:10px; letter-spacing:0.2em; text-transform:uppercase; color:var(--gold); margin-bottom:1rem; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-mark">如</div>
+    <div class="login-title">Administrator</div>
+    <input type="password" id="pw-input" placeholder="비밀번호">
+    <br>
+    <button class="btn-primary" style="width:100%;" onclick="tryLogin()">로그인</button>
+    <div class="login-error" id="login-error">비밀번호가 틀렸습니다.</div>
+  </div>
+</div>
+
+<div id="admin-screen">
+  <header>
+    <div class="header-title">如月高校 — 관리자</div>
+    <a href="index.html" class="btn-sm">← 사이트로</a>
+    <button class="btn-sm btn-danger" onclick="logout()">로그아웃</button>
+  </header>
+
+  <div class="admin-wrap">
+    <div class="admin-tabs">
+      <div class="admin-tab active" onclick="switchTab('bgm')">BGM</div>
+      <div class="admin-tab" onclick="switchTab('sound')">클릭 사운드</div>
+      <div class="admin-tab" onclick="switchTab('chars')">캐릭터</div>
+      <div class="admin-tab" onclick="switchTab('chronicle')">크로니클</div>
+      <div class="admin-tab" onclick="switchTab('notice')">공지사항</div>
+      <div class="admin-tab" onclick="switchTab('gallery')">갤러리</div>
+    </div>
+
+    <!-- BGM -->
+    <div class="admin-panel active" id="panel-bgm">
+      <div class="card">
+        <div class="card-title">BGM 설정</div>
+        <div class="form-group">
+          <label class="form-label">곡 제목</label>
+          <input class="form-input" id="bgm-title" placeholder="예: Caterpillar In A Mol For Piano">
+        </div>
+        <div class="form-group">
+          <label class="form-label">아티스트</label>
+          <input class="form-input" id="bgm-artist" placeholder="예: Aidan Clare">
+        </div>
+        <div class="form-group">
+          <label class="form-label">유튜브 URL 또는 ID</label>
+          <input class="form-input" id="bgm-yt" placeholder="https://youtu.be/xxxx">
+          <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">유튜브 공유 링크를 그대로 붙여넣으면 됩니다.</div>
+        </div>
+        <button class="btn-primary" onclick="saveBgm()">저장</button>
+        <div class="msg" id="bgm-msg">저장되었습니다.</div>
+      </div>
+    </div>
+
+    <!-- CLICK SOUND -->
+    <div class="admin-panel" id="panel-sound">
+      <div class="card">
+        <div class="card-title">마우스 클릭 사운드</div>
+        <div class="form-group">
+          <label class="form-label">사운드 파일 URL (MP3/OGG/WAV)</label>
+          <input class="form-input" id="cs-url" placeholder="https://example.com/click.mp3">
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:0.5rem;">
+          <button class="btn-primary" onclick="saveCS()">저장</button>
+          <button class="btn-sm" onclick="testCS()">미리듣기</button>
+          <button class="btn-sm btn-danger" onclick="removeCS()">제거</button>
+        </div>
+        <div class="msg" id="cs-msg">저장되었습니다.</div>
+      </div>
+    </div>
+
+    <!-- CHARACTERS -->
+    <div class="admin-panel" id="panel-chars">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <div style="font-size:11px;color:var(--text-muted);letter-spacing:0.1em;">캐릭터를 선택하여 편집하거나 새로 추가하세요.</div>
+        <button class="btn-primary" onclick="newChar()">+ 새 캐릭터</button>
+      </div>
+      <div class="char-editor-wrap">
+        <div class="char-list-panel" id="char-list-panel"></div>
+        <div class="char-edit-panel" id="char-edit-panel">
+          <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:2rem;">캐릭터를 선택하거나 새로 추가하세요.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHRONICLE -->
+    <div class="admin-panel" id="panel-chronicle">
+      <div class="card">
+        <div class="card-title">새 크로니클 추가</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">번호</label><input class="form-input" id="chr-num" placeholder="01"></div>
+          <div class="form-group"><label class="form-label">태그</label><input class="form-input" id="chr-tag" placeholder="Prologue"></div>
+        </div>
+        <div class="form-group"><label class="form-label">내용</label><input class="form-input" id="chr-text" placeholder="이야기 제목"></div>
+        <button class="btn-primary" onclick="addChr()">추가</button>
+        <div class="msg" id="chr-msg">추가되었습니다.</div>
+      </div>
+      <div class="item-list" id="chr-list"></div>
+    </div>
+
+    <!-- NOTICE -->
+    <div class="admin-panel" id="panel-notice">
+      <div class="card">
+        <div class="card-title">새 공지 추가</div>
+        <div class="form-group"><label class="form-label">제목</label><input class="form-input" id="ntc-title" placeholder="공지 제목"></div>
+        <div class="form-group"><label class="form-label">날짜</label><input class="form-input" id="ntc-date" placeholder="2025.01.01"></div>
+        <div class="form-group"><label class="form-label">내용</label><textarea class="form-input" id="ntc-content" rows="3" placeholder="공지 내용"></textarea></div>
+        <button class="btn-primary" onclick="addNotice()">추가</button>
+        <div class="msg" id="ntc-msg">추가되었습니다.</div>
+      </div>
+      <div class="item-list" id="ntc-list"></div>
+    </div>
+
+    <!-- GALLERY -->
+    <div class="admin-panel" id="panel-gallery">
+      <div class="card">
+        <div class="card-title">갤러리 이미지 추가</div>
+        <div class="form-group"><label class="form-label">이미지 URL</label><input class="form-input" id="gal-img" placeholder="이미지 링크"></div>
+        <div class="form-group"><label class="form-label">설명 (선택)</label><input class="form-input" id="gal-desc" placeholder="이미지 설명"></div>
+        <button class="btn-primary" onclick="addGallery()">추가</button>
+        <div class="msg" id="gal-msg">추가되었습니다.</div>
+      </div>
+      <div class="item-list" id="gal-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var ADMIN_PW = 'kisaragi2024';
+function getData(k,d){ try{return JSON.parse(localStorage.getItem('kisaragi_'+k))||d;}catch(e){return d;} }
+function setData(k,v){ localStorage.setItem('kisaragi_'+k,JSON.stringify(v)); }
+function showMsg(id){ var e=document.getElementById(id); e.style.display='block'; setTimeout(function(){e.style.display='none';},2000); }
+
+function tryLogin(){
+  if(document.getElementById('pw-input').value===ADMIN_PW){
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('admin-screen').style.display='block';
+    initAdmin();
+  } else { document.getElementById('login-error').style.display='block'; }
+}
+document.getElementById('pw-input').addEventListener('keydown',function(e){ if(e.key==='Enter') tryLogin(); });
+function logout(){ document.getElementById('login-screen').style.display='flex'; document.getElementById('admin-screen').style.display='none'; document.getElementById('pw-input').value=''; }
+
+function switchTab(n){
+  var tabs=['bgm','sound','chars','chronicle','notice','gallery'];
+  document.querySelectorAll('.admin-tab').forEach(function(t,i){ t.classList.toggle('active',tabs[i]===n); });
+  document.querySelectorAll('.admin-panel').forEach(function(p){ p.classList.remove('active'); });
+  document.getElementById('panel-'+n).classList.add('active');
+}
+
+// BGM
+function extractYtId(url){ url=url.trim(); var m=url.match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{11})/); if(m)return m[1]; if(/^[A-Za-z0-9_-]{11}$/.test(url))return url; return url; }
+function saveBgm(){
+  setData('bgm',{title:document.getElementById('bgm-title').value,artist:document.getElementById('bgm-artist').value,youtubeId:extractYtId(document.getElementById('bgm-yt').value)});
+  showMsg('bgm-msg');
+}
+function loadBgmForm(){ var d=getData('bgm',{}); document.getElementById('bgm-title').value=d.title||''; document.getElementById('bgm-artist').value=d.artist||''; document.getElementById('bgm-yt').value=d.youtubeId||''; }
+
+// CLICK SOUND
+function saveCS(){ setData('clicksound',{url:document.getElementById('cs-url').value.trim()}); showMsg('cs-msg'); }
+function removeCS(){ setData('clicksound',{url:''}); document.getElementById('cs-url').value=''; showMsg('cs-msg'); }
+function testCS(){ var url=document.getElementById('cs-url').value.trim(); if(!url) return; try{new Audio(url).play();}catch(e){} }
+function loadCSForm(){ var d=getData('clicksound',{}); document.getElementById('cs-url').value=d.url||''; }
+
+// CHARACTERS
+var defaultChars=[
+  {id:1,nameJp:'遠藤 潤',nameRoman:'Endo Jun',role:'Antagonist',faction:'生徒会',stars:5,tag:'Uru',img:'',desc:'生徒会長。表向きは完璧な優等生。',profile:{학년:'3학년',나이:'18세',혈액형:'AB형'},story:'',gallery:[],novel:[],vnLines:[{speaker:'遠藤 潤',text:'......그래서, 네가 원하는 게 뭐야?'}]},
+  {id:2,nameJp:'遠藤 伊織',nameRoman:'Endo Iori',role:'Founder',faction:'창립자',stars:5,tag:'Iori',img:'',desc:'키사라기 고교의 창립자. 현재 소재 불명.',profile:{나이:'불명',상태:'소재 불명'},story:'',gallery:[],novel:[],vnLines:[{speaker:'遠藤 伊織',text:'이 학교는... 내가 만든 게 아니야.'}]},
+  {id:3,nameJp:'遠藤 斗哉',nameRoman:'Endo Toya',role:'Protagonist',faction:'1학년',stars:4,tag:'Toya',img:'',desc:'전학생.',profile:{학년:'1학년',나이:'17세',혈액형:'O형'},story:'',gallery:[],novel:[],vnLines:[{speaker:'遠藤 斗哉',text:'...여기, 뭔가 이상해.'}]}
+];
+var editingCharId = null;
+
+function renderCharListPanel(){
+  var chars=getData('characters',defaultChars);
+  var panel=document.getElementById('char-list-panel');
+  panel.innerHTML='';
+  chars.forEach(function(c){
+    var d=document.createElement('div');
+    d.className='char-list-item'+(editingCharId===c.id?' selected':'');
+    d.innerHTML='<div class="char-list-item-name">'+c.nameJp+'</div><div class="char-list-item-role">'+c.role+'</div>';
+    d.onclick=function(){ editChar(c.id); };
+    panel.appendChild(d);
+  });
+}
+
+function newChar(){
+  var chars=getData('characters',defaultChars);
+  var nc={id:Date.now(),nameJp:'새 캐릭터',nameRoman:'',role:'',faction:'',stars:5,tag:'',img:'',desc:'',profile:{},story:'',gallery:[],novel:[],vnLines:[]};
+  chars.push(nc);
+  setData('characters',chars);
+  renderCharListPanel();
+  editChar(nc.id);
+}
+
+function editChar(id){
+  editingCharId=id;
+  renderCharListPanel();
+  var chars=getData('characters',defaultChars);
+  var c=chars.find(function(x){ return x.id===id; });
+  if(!c) return;
+
+  var panel=document.getElementById('char-edit-panel');
+  panel.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">
+      <div style="font-size:14px;color:var(--gold-light);font-family:'Cormorant Garamond',serif;font-style:italic;">캐릭터 편집</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-primary" onclick="saveChar(${id})">저장</button>
+        <button class="btn-sm btn-danger" onclick="deleteChar(${id})">삭제</button>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">이름 (한자/일어)</label><input class="form-input" id="ce-namejp" value="${c.nameJp}"></div>
+      <div class="form-group"><label class="form-label">이름 (로마자)</label><input class="form-input" id="ce-roman" value="${c.nameRoman||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">역할</label><input class="form-input" id="ce-role" value="${c.role}"></div>
+      <div class="form-group"><label class="form-label">소속/세력</label><input class="form-input" id="ce-faction" value="${c.faction||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">태그 (짧게)</label><input class="form-input" id="ce-tag" value="${c.tag||''}"></div>
+      <div class="form-group"><label class="form-label">별점 (1~5)</label><input class="form-input" id="ce-stars" type="number" min="1" max="5" value="${c.stars||5}"></div>
+    </div>
+    <div class="form-group"><label class="form-label">캐릭터 이미지 URL (메인)</label><input class="form-input" id="ce-img" value="${c.img||''}" placeholder="https://..."></div>
+    <div class="form-group"><label class="form-label">소개 (한 줄)</label><textarea class="form-input" id="ce-desc" rows="2">${c.desc||''}</textarea></div>
+
+    <div class="section-div">
+      <div class="section-div-title">프로필 항목 (키: 값)</div>
+      <div id="ce-profile-rows"></div>
+      <button class="btn-sm" onclick="addProfileRow()" style="margin-top:8px;">+ 항목 추가</button>
+    </div>
+
+    <div class="section-div">
+      <div class="section-div-title">서사</div>
+      <textarea class="form-input" id="ce-story" rows="5">${c.story||''}</textarea>
+    </div>
+
+    <div class="section-div">
+      <div class="section-div-title">갤러리 이미지 URL 목록 (줄바꿈으로 구분)</div>
+      <textarea class="form-input" id="ce-gallery" rows="4">${(c.gallery||[]).join('\n')}</textarea>
+    </div>
+
+    <div class="section-div">
+      <div class="section-div-title">소설 목록</div>
+      <div id="ce-novel-list"></div>
+      <button class="btn-sm" onclick="addNovelRow()" style="margin-top:8px;">+ 소설 추가</button>
+    </div>
+
+    <div class="section-div">
+      <div class="section-div-title">비주얼노벨 대사 (이미지 클릭 시 표시)</div>
+      <div id="ce-vn-lines"></div>
+      <button class="btn-sm" onclick="addVNLine()" style="margin-top:8px;">+ 대사 추가</button>
+    </div>
+  `;
+
+  // profile rows
+  renderProfileRows(c.profile||{});
+  renderNovelRows(c.novel||[]);
+  renderVNLines(c.vnLines||[]);
+
+  var msg=document.createElement('div');
+  msg.className='msg'; msg.id='char-save-msg'; msg.textContent='저장되었습니다.';
+  panel.appendChild(msg);
+}
+
+function renderProfileRows(profile){
+  var container=document.getElementById('ce-profile-rows');
+  container.innerHTML='';
+  Object.keys(profile).forEach(function(k){
+    addProfileRowWithVal(k,profile[k]);
+  });
+}
+function addProfileRow(){ addProfileRowWithVal('',''); }
+function addProfileRowWithVal(k,v){
+  var container=document.getElementById('ce-profile-rows');
+  var row=document.createElement('div');
+  row.className='vn-line-row';
+  row.innerHTML='<input class="form-input prof-key" placeholder="항목명 (예: 나이)" value="'+k+'" style="flex:1;"><input class="form-input prof-val" placeholder="내용 (예: 17세)" value="'+v+'" style="flex:2;"><button class="btn-sm btn-danger" onclick="this.parentNode.remove()">삭제</button>';
+  container.appendChild(row);
+}
+
+function renderNovelRows(novels){
+  var container=document.getElementById('ce-novel-list');
+  container.innerHTML='';
+  novels.forEach(function(n){ addNovelRowWithVal(n.title||'',n.preview||''); });
+}
+function addNovelRow(){ addNovelRowWithVal('',''); }
+function addNovelRowWithVal(t,p){
+  var container=document.getElementById('ce-novel-list');
+  var row=document.createElement('div');
+  row.style.cssText='background:var(--bg3);border:1px solid var(--border);padding:10px;margin-bottom:8px;';
+  row.innerHTML='<input class="form-input novel-title" placeholder="소설 제목" value="'+t+'" style="margin-bottom:6px;"><textarea class="form-input novel-preview" placeholder="미리보기 텍스트" rows="2">'+p+'</textarea><button class="btn-sm btn-danger" onclick="this.parentNode.remove()" style="margin-top:6px;">삭제</button>';
+  container.appendChild(row);
+}
+
+function renderVNLines(lines){
+  var container=document.getElementById('ce-vn-lines');
+  container.innerHTML='';
+  lines.forEach(function(l){ addVNLineWithVal(l.speaker||'',l.text||''); });
+}
+function addVNLine(){ addVNLineWithVal('',''); }
+function addVNLineWithVal(sp,tx){
+  var container=document.getElementById('ce-vn-lines');
+  var row=document.createElement('div');
+  row.className='vn-line-row';
+  row.style.cssText='flex-direction:column;background:var(--bg3);border:1px solid var(--border);padding:10px;margin-bottom:8px;gap:6px;';
+  row.innerHTML='<input class="form-input vn-speaker" placeholder="화자 이름" value="'+sp+'"><textarea class="form-input vn-text" placeholder="대사 내용" rows="2">'+tx+'</textarea><button class="btn-sm btn-danger" onclick="this.parentNode.remove()" style="align-self:flex-start;">삭제</button>';
+  container.appendChild(row);
+}
+
+function saveChar(id){
+  var chars=getData('characters',defaultChars);
+  var idx=chars.findIndex(function(c){ return c.id===id; });
+  if(idx<0) return;
+
+  var profile={};
+  document.querySelectorAll('.prof-key').forEach(function(k,i){
+    var v=document.querySelectorAll('.prof-val')[i];
+    if(k.value.trim()) profile[k.value.trim()]=v?v.value:'';
+  });
+
+  var novels=[];
+  document.querySelectorAll('.novel-title').forEach(function(t,i){
+    var p=document.querySelectorAll('.novel-preview')[i];
+    if(t.value.trim()) novels.push({title:t.value.trim(),preview:p?p.value:''});
+  });
+
+  var vnLines=[];
+  document.querySelectorAll('.vn-speaker').forEach(function(s,i){
+    var t=document.querySelectorAll('.vn-text')[i];
+    if(t&&t.value.trim()) vnLines.push({speaker:s.value,text:t.value.trim()});
+  });
+
+  var galleryRaw=document.getElementById('ce-gallery').value.trim();
+  var gallery=galleryRaw ? galleryRaw.split('\n').map(function(s){return s.trim();}).filter(Boolean) : [];
+
+  chars[idx]={
+    id:id,
+    nameJp:document.getElementById('ce-namejp').value,
+    nameRoman:document.getElementById('ce-roman').value,
+    role:document.getElementById('ce-role').value,
+    faction:document.getElementById('ce-faction').value,
+    stars:parseInt(document.getElementById('ce-stars').value)||5,
+    tag:document.getElementById('ce-tag').value,
+    img:document.getElementById('ce-img').value.trim(),
+    desc:document.getElementById('ce-desc').value,
+    profile:profile,
+    story:document.getElementById('ce-story').value,
+    gallery:gallery,
+    novel:novels,
+    vnLines:vnLines
+  };
+  setData('characters',chars);
+  renderCharListPanel();
+  showMsg('char-save-msg');
+}
+
+function deleteChar(id){
+  if(!confirm('이 캐릭터를 삭제할까요?')) return;
+  var chars=getData('characters',defaultChars).filter(function(c){ return c.id!==id; });
+  setData('characters',chars);
+  editingCharId=null;
+  document.getElementById('char-edit-panel').innerHTML='<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:2rem;">캐릭터를 선택하거나 새로 추가하세요.</div>';
+  renderCharListPanel();
+}
+
+// CHRONICLE
+var defaultChr=[
+  {id:1,num:'01',text:'입학. 그리고 첫 번째 실종.',tag:'Prologue'},
+  {id:2,num:'02',text:'교칙 제 7조. 일몰 이후 교정을 벗어나지 말 것.',tag:'Act I'},
+  {id:3,num:'03',text:'지하 도서관에서 발견된 것.',tag:'Act I'}
+];
+function addChr(){
+  var t=document.getElementById('chr-text').value.trim(); if(!t) return;
+  var list=getData('chronicle',defaultChr);
+  list.push({id:Date.now(),num:document.getElementById('chr-num').value||String(list.length+1).padStart(2,'0'),text:t,tag:document.getElementById('chr-tag').value});
+  setData('chronicle',list);
+  ['chr-num','chr-text','chr-tag'].forEach(function(id){ document.getElementById(id).value=''; });
+  renderChrList(); showMsg('chr-msg');
+}
+function deleteChr(id){ setData('chronicle',getData('chronicle',defaultChr).filter(function(c){ return c.id!==id; })); renderChrList(); }
+function renderChrList(){
+  var list=getData('chronicle',defaultChr);
+  document.getElementById('chr-list').innerHTML=list.map(function(c){
+    return '<div class="item-row"><div class="item-name">'+c.num+'. '+c.text+'<div class="item-sub">'+c.tag+'</div></div><button class="btn-sm btn-danger" onclick="deleteChr('+c.id+')">삭제</button></div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text-muted);padding:12px;">항목 없음</div>';
+}
+
+// NOTICE
+function addNotice(){
+  var t=document.getElementById('ntc-title').value.trim(); if(!t) return;
+  var list=getData('notices',[]);
+  list.unshift({id:Date.now(),title:t,date:document.getElementById('ntc-date').value,content:document.getElementById('ntc-content').value});
+  setData('notices',list);
+  ['ntc-title','ntc-date','ntc-content'].forEach(function(id){ document.getElementById(id).value=''; });
+  renderNtcList(); showMsg('ntc-msg');
+}
+function deleteNotice(id){ setData('notices',getData('notices',[]).filter(function(n){ return n.id!==id; })); renderNtcList(); }
+function renderNtcList(){
+  var list=getData('notices',[]);
+  document.getElementById('ntc-list').innerHTML=list.map(function(n){
+    return '<div class="item-row"><div class="item-name">'+n.title+'<div class="item-sub">'+n.date+'</div></div><button class="btn-sm btn-danger" onclick="deleteNotice('+n.id+')">삭제</button></div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text-muted);padding:12px;">공지 없음</div>';
+}
+
+// GALLERY
+function addGallery(){
+  var img=document.getElementById('gal-img').value.trim(); if(!img) return;
+  var list=getData('gallery',[]);
+  list.push({id:Date.now(),img:img,desc:document.getElementById('gal-desc').value});
+  setData('gallery',list);
+  ['gal-img','gal-desc'].forEach(function(id){ document.getElementById(id).value=''; });
+  renderGalList(); showMsg('gal-msg');
+}
+function deleteGallery(id){ setData('gallery',getData('gallery',[]).filter(function(g){ return g.id!==id; })); renderGalList(); }
+function renderGalList(){
+  var list=getData('gallery',[]);
+  document.getElementById('gal-list').innerHTML=list.map(function(g){
+    return '<div class="item-row"><div class="item-name">'+g.img+'<div class="item-sub">'+g.desc+'</div></div><button class="btn-sm btn-danger" onclick="deleteGallery('+g.id+')">삭제</button></div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text-muted);padding:12px;">이미지 없음</div>';
+}
+
+function initAdmin(){
+  loadBgmForm(); loadCSForm();
+  renderCharListPanel(); renderChrList(); renderNtcList(); renderGalList();
+}
+</script>
+</body>
+</html>

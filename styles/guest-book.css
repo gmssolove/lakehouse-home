@@ -1,0 +1,207 @@
+/* ===== Guest book (public) ===== */
+
+#page-guest .guest-container {
+  width: 460px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-top: 1.5rem;
+}
+
+#page-guest #guest-list {
+  width: 100%;
+  min-height: 0;
+}
+
+#page-guest #guest-list .guest-bubble {
+  position: relative;
+  max-width: min(620px, 100%);
+  margin: 0 0 18px;
+  padding: 15px 18px;
+  background: linear-gradient(135deg, rgba(18, 20, 18, 0.88), rgba(34, 32, 28, 0.72));
+  border: 1px solid rgba(215, 169, 130, 0.25);
+  border-radius: 20px 20px 20px 6px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
+}
+
+#page-guest #guest-list .guest-bubble::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  bottom: -9px;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, rgba(18, 20, 18, 0.88), rgba(34, 32, 28, 0.72));
+  border-left: 1px solid rgba(215, 169, 130, 0.25);
+  border-bottom: 1px solid rgba(215, 169, 130, 0.25);
+  transform: rotate(45deg);
+  border-radius: 0 0 0 5px;
+}
+
+.guest-bubble-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--lake-copper-soft, var(--pink));
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.guest-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.guest-actions button {
+  border: none;
+  background: transparent;
+  color: rgba(215, 169, 130, 0.72);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 6px;
+  letter-spacing: 0.02em;
+}
+
+.guest-actions button:hover {
+  color: var(--lake-copper-soft, var(--pink));
+}
+
+.guest-bubble-date {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.guest-bubble-msg {
+  font-size: 13px;
+  color: rgba(234, 231, 222, 0.86);
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.guest-reply {
+  position: relative;
+  margin: 12px 0 0 42px;
+  padding: 12px 14px;
+  background: rgba(215, 169, 130, 0.07);
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  border-radius: 18px 18px 6px 18px;
+  color: rgba(240, 231, 220, 0.86);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.guest-reply::before {
+  content: 'Admin';
+  display: block;
+  font: 600 10px/1 'Cormorant Garamond', serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(240, 207, 173, 0.76);
+  margin-bottom: 6px;
+}
+
+#page-guest #guest-login-notice {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  letter-spacing: 0.06em;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+#page-guest #guest-form-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+#page-guest #guest-form-inner .form-group {
+  width: 100%;
+  margin: 0 0 12px 0;
+  box-sizing: border-box;
+}
+
+#page-guest #guest-form-inner .form-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.guest-reply-editor {
+  margin: 10px 0 0 28px;
+  padding: 10px;
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  border-radius: 14px;
+  background: rgba(5, 6, 6, 0.34);
+}
+
+.guest-reply-editor textarea {
+  width: 100%;
+  min-height: 74px;
+  resize: vertical;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  border-radius: 10px;
+  color: rgba(235, 231, 222, 0.88);
+  padding: 10px;
+  font: 12px/1.6 inherit;
+  box-sizing: border-box;
+}
+
+.guest-reply-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.guest-reply-editor-actions button {
+  border: 1px solid rgba(215, 169, 130, 0.3);
+  background: rgba(215, 169, 130, 0.08);
+  color: rgba(240, 231, 220, 0.82);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.guest-reply-editor-actions button:hover {
+  border-color: rgba(240, 207, 173, 0.62);
+  color: rgba(255, 238, 218, 0.95);
+}
+
+/* Save toast */
+.lh-save-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 44px;
+  z-index: 100000;
+  transform: translate(-50%, 12px);
+  padding: 10px 18px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--lake-copper-soft, var(--pink));
+  background: linear-gradient(135deg, rgba(18, 20, 18, 0.96), rgba(35, 32, 28, 0.94));
+  border: 1px solid rgba(215, 169, 130, 0.34);
+  border-radius: 999px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.24s ease,
+    transform 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lh-save-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>如月高校 — Kisaragi High School</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Noto+Serif+JP:wght@400;500&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#0a0608; --bg2:#110a0d; --bg3:#170d10;
+  --red:#8b1a1a; --red-light:#c0392b; --red-dim:#4a0e0e;
+  --gold:#9a7d4a; --gold-light:#c4a265;
+  --text:#e8ddd5; --text-dim:#9a8a82; --text-muted:#5a4a44;
+  --border:rgba(139,26,26,0.25); --border-gold:rgba(154,125,74,0.3);
+}
+html { scroll-behavior:smooth; }
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; font-weight:400; min-height:100vh; overflow-x:hidden; }
+nav { position:sticky; top:0; z-index:100; background:rgba(10,6,8,0.95); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); padding:0 2rem; display:flex; align-items:center; height:56px; }
+.nav-back { font-size:10px; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-muted); text-decoration:none; margin-right:1.5rem; transition:color 0.2s; }
+.nav-back:hover { color:var(--text-dim); }
+.nav-logo { font-family:'Noto Serif JP',serif; font-size:17px; font-weight:500; color:var(--text); letter-spacing:0.08em; margin-right:2.5rem; display:flex; align-items:center; gap:10px; text-decoration:none; }
+.nav-logo-mark { width:28px; height:28px; border:1px solid var(--red); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--red-light); font-family:'Cormorant Garamond',serif; font-style:italic; flex-shrink:0; }
+.nav-links { display:flex; gap:0; list-style:none; flex:1; }
+.nav-links li a { display:block; padding:0 1.1rem; height:56px; line-height:56px; font-size:11px; letter-spacing:0.14em; color:var(--text-dim); text-decoration:none; transition:color 0.2s; text-transform:uppercase; font-weight:500; }
+.nav-links li a:hover { color:var(--text); }
+.nav-links li.active a { color:var(--red-light); border-bottom:2px solid var(--red-light); }
+.hero { height:520px; position:relative; overflow:hidden; display:flex; align-items:flex-end; padding:3rem; background:var(--bg2); }
+.hero-bg { position:absolute; inset:0; background:radial-gradient(ellipse at 70% 40%,rgba(100,15,15,0.4) 0%,transparent 60%),radial-gradient(ellipse at 20% 80%,rgba(80,10,20,0.2) 0%,transparent 50%); }
+.hero-pattern { position:absolute; inset:0; opacity:0.035; background-image:repeating-linear-gradient(0deg,transparent,transparent 60px,rgba(200,150,100,0.5) 60px,rgba(200,150,100,0.5) 61px),repeating-linear-gradient(90deg,transparent,transparent 60px,rgba(200,150,100,0.5) 60px,rgba(200,150,100,0.5) 61px); }
+.hero-seal { position:absolute; top:50%; right:8%; transform:translateY(-50%); width:220px; height:220px; opacity:0.07; }
+.hero-content { position:relative; z-index:2; }
+.hero-eyebrow { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:13px; color:var(--gold); letter-spacing:0.2em; margin-bottom:1rem; }
+.hero-title { font-family:'Noto Serif JP',serif; font-size:46px; font-weight:400; letter-spacing:0.15em; line-height:1.2; color:var(--text); margin-bottom:0.4rem; }
+.hero-subtitle { font-family:'Cormorant Garamond',serif; font-size:15px; font-weight:400; color:var(--text-dim); letter-spacing:0.15em; font-style:italic; }
+.hero-divider { width:48px; height:1px; background:var(--red); margin:1.2rem 0; }
+.hero-tagline { font-size:13px; color:var(--text-muted); letter-spacing:0.06em; max-width:400px; line-height:1.8; }
+.main { max-width:1200px; margin:0 auto; padding:3rem 2rem; display:grid; grid-template-columns:1fr 300px; gap:2rem; }
+.section-header { display:flex; align-items:center; gap:12px; margin-bottom:1.4rem; }
+.section-label { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:11px; letter-spacing:0.25em; color:var(--red-light); text-transform:uppercase; white-space:nowrap; }
+.section-line { flex:1; height:1px; background:var(--border); }
+.about-strip { border:1px solid var(--border-gold); background:rgba(154,125,74,0.04); padding:1.2rem 1.5rem; display:flex; align-items:center; gap:2rem; margin-bottom:2.5rem; }
+.about-jp { font-family:'Noto Serif JP',serif; font-size:13px; color:var(--gold); letter-spacing:0.1em; white-space:nowrap; }
+.about-divider { width:1px; height:32px; background:var(--border-gold); flex-shrink:0; }
+.about-desc { font-size:12px; color:var(--text-muted); line-height:1.9; letter-spacing:0.04em; }
+.char-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:2.5rem; }
+.char-card { background:var(--bg3); border:1px solid var(--border); aspect-ratio:3/4; position:relative; overflow:hidden; cursor:pointer; transition:border-color 0.25s; display:flex; flex-direction:column; justify-content:flex-end; text-decoration:none; }
+.char-card:hover { border-color:rgba(139,26,26,0.65); }
+.char-card:hover .char-overlay { opacity:1; }
+.char-placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+.char-roman { font-family:'Cormorant Garamond',serif; font-size:56px; font-weight:400; color:rgba(139,26,26,0.13); font-style:italic; }
+.char-overlay { position:absolute; inset:0; background:linear-gradient(to top,rgba(10,6,8,0.95) 0%,transparent 55%); opacity:0.75; transition:opacity 0.25s; }
+.char-info { position:relative; z-index:2; padding:12px; }
+.char-name-jp { font-family:'Noto Serif JP',serif; font-size:14px; font-weight:500; color:var(--text); letter-spacing:0.05em; margin-bottom:2px; }
+.char-role { font-size:10px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; }
+.char-tag { display:inline-block; font-size:9px; letter-spacing:0.1em; padding:2px 7px; border:1px solid var(--red-dim); color:var(--red-light); margin-top:5px; text-transform:uppercase; font-family:'Cormorant Garamond',serif; font-style:italic; }
+.char-more { grid-column:1/-1; text-align:center; padding:12px; border:1px solid var(--border); background:var(--bg2); font-size:11px; letter-spacing:0.2em; color:var(--text-dim); cursor:pointer; transition:all 0.2s; text-transform:uppercase; text-decoration:none; display:block; }
+.char-more:hover { border-color:var(--red); color:var(--red-light); }
+.gallery-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:2.5rem; }
+.gallery-thumb { aspect-ratio:1; background:var(--bg3); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:border-color 0.2s; text-decoration:none; overflow:hidden; }
+.gallery-thumb:hover { border-color:var(--gold); }
+.gallery-thumb .g-roman { font-family:'Cormorant Garamond',serif; font-size:28px; color:rgba(154,125,74,0.12); font-style:italic; }
+.gallery-more { display:flex; align-items:center; justify-content:center; font-size:10px; letter-spacing:0.2em; color:var(--gold); cursor:pointer; border:1px solid var(--border-gold); text-transform:uppercase; text-decoration:none; transition:background 0.2s; }
+.gallery-more:hover { background:rgba(154,125,74,0.06); }
+.chronicle-item { padding:12px 0; border-bottom:1px solid rgba(139,26,26,0.1); display:flex; gap:14px; align-items:flex-start; cursor:pointer; text-decoration:none; transition:opacity 0.2s; }
+.chronicle-item:last-child { border-bottom:none; }
+.chronicle-item:hover { opacity:0.7; }
+.chronicle-num { font-family:'Cormorant Garamond',serif; font-size:22px; font-style:italic; color:var(--red-dim); min-width:24px; line-height:1.2; }
+.chronicle-text { font-size:13px; color:var(--text-dim); line-height:1.7; }
+.chronicle-tag { font-size:9px; color:var(--text-muted); letter-spacing:0.12em; text-transform:uppercase; margin-top:3px; }
+.sidebar { display:flex; flex-direction:column; gap:1.5rem; }
+.sidebar-card { background:var(--bg2); border:1px solid var(--border); padding:1.25rem; }
+.notice-empty { font-size:12px; color:var(--text-muted); text-align:center; padding:1.5rem 0; letter-spacing:0.05em; }
+.sidebar-more { width:100%; margin-top:12px; padding:7px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:10px; letter-spacing:0.15em; text-transform:uppercase; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+.sidebar-more:hover { border-color:var(--red); color:var(--red-light); }
+.sidebar-link { font-size:11px; color:var(--text-muted); text-decoration:none; letter-spacing:0.08em; display:block; padding:6px 0; border-bottom:1px solid rgba(139,26,26,0.08); transition:color 0.2s; }
+.sidebar-link:last-child { border-bottom:none; }
+.sidebar-link:hover { color:var(--red-light); }
+footer { border-top:1px solid var(--border); padding:2rem; text-align:center; font-size:10px; color:var(--text-muted); letter-spacing:0.1em; text-transform:uppercase; }
+footer span { color:var(--red-dim); margin:0 8px; }
+.admin-link { font-size:9px; color:var(--text-muted); text-decoration:none; letter-spacing:0.1em; opacity:0.4; transition:opacity 0.2s; }
+.admin-link:hover { opacity:1; color:var(--red-light); }
+#bgm-player { position:fixed; bottom:1.5rem; right:1.5rem; z-index:999; background:rgba(17,10,13,0.96); border:1px solid var(--border); backdrop-filter:blur(12px); display:flex; align-items:center; gap:10px; padding:10px 14px; min-width:220px; max-width:300px; transition:all 0.3s; }
+#bgm-player.collapsed { min-width:0; max-width:none; width:44px; height:44px; padding:0; justify-content:center; }
+#bgm-player.collapsed #bgm-info,#bgm-player.collapsed #bgm-vol-wrap,#bgm-player.collapsed #bgm-toggle-collapse,#bgm-player.collapsed #bgm-play-btn { display:none; }
+#bgm-play-btn { width:28px; height:28px; flex-shrink:0; background:transparent; border:1px solid var(--red); color:var(--red-light); cursor:pointer; font-size:11px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+#bgm-play-btn:hover { background:var(--red-dim); }
+#bgm-info { flex:1; min-width:0; }
+#bgm-title { font-size:10px; color:var(--text-dim); letter-spacing:0.06em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#bgm-artist { font-size:9px; color:var(--text-muted); margin-top:2px; }
+#bgm-vol-wrap { display:flex; align-items:center; }
+#bgm-vol { width:55px; accent-color:var(--red-light); cursor:pointer; }
+#bgm-toggle-collapse { background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:11px; padding:2px 4px; flex-shrink:0; }
+#bgm-expand-btn { display:none; background:transparent; border:none; color:var(--red-light); cursor:pointer; font-size:14px; width:100%; height:100%; align-items:center; justify-content:center; }
+#bgm-player.collapsed #bgm-expand-btn { display:flex; }
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-back">← back</a>
+  <a href="kisaragi.html" class="nav-logo">
+    <div class="nav-logo-mark">如</div>
+    如月高校
+  </a>
+  <ul class="nav-links">
+    <li class="active"><a href="kisaragi.html">Home</a></li>
+    <li><a href="characters.html">Character</a></li>
+    <li><a href="#">Chronicle</a></li>
+    <li><a href="#">Gallery</a></li>
+    <li><a href="#">Facility</a></li>
+    <li><a href="#">About</a></li>
+  </ul>
+</nav>
+<div class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-pattern"></div>
+  <svg class="hero-seal" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="100" cy="100" r="90" stroke="#c4a265" stroke-width="1"/>
+    <circle cx="100" cy="100" r="75" stroke="#c4a265" stroke-width="0.5"/>
+    <circle cx="100" cy="100" r="60" stroke="#8b1a1a" stroke-width="1"/>
+    <text x="100" y="108" text-anchor="middle" font-family="Noto Serif JP" font-size="28" fill="#c4a265">如月</text>
+    <text x="100" y="130" text-anchor="middle" font-family="Cormorant Garamond" font-size="10" fill="#9a7d4a" letter-spacing="3">KISARAGI</text>
+  </svg>
+  <div class="hero-content">
+    <div class="hero-eyebrow">Kisaragi High School — Est. ????</div>
+    <div class="hero-title">如月高校</div>
+    <div class="hero-subtitle">Where the gifted are chosen, and the chosen disappear.</div>
+    <div class="hero-divider"></div>
+    <div class="hero-tagline">키사라기 고교에 입학하신 신입생 여러분, 환영합니다.<br>입학을 축하드립니다. 부디 건강히 졸업하시길.</div>
+  </div>
+</div>
+<div class="main">
+  <div class="left-col">
+    <div class="about-strip">
+      <div class="about-jp">如月高校　キサラギ高校</div>
+      <div class="about-divider"></div>
+      <div class="about-desc">일본 어딘가에 위치한 엘리트 사립학교. 입학 기준은 불명확하며, 졸업생 명단은 공개되지 않는다.<br>교칙은 엄격하고, 교사들은 말이 없다. 학생들은 무언가를 알고 있다.</div>
+    </div>
+    <div class="section-header"><div class="section-label">Characters</div><div class="section-line"></div></div>
+    <div class="char-grid" id="char-grid"></div>
+    <div class="section-header"><div class="section-label">Gallery</div><div class="section-line"></div></div>
+    <div class="gallery-strip" id="gallery-strip"></div>
+    <div class="section-header"><div class="section-label">Chronicle</div><div class="section-line"></div></div>
+    <div id="chronicle-list"></div>
+  </div>
+  <div class="sidebar">
+    <div class="sidebar-card">
+      <div class="section-header" style="margin-bottom:0.75rem;"><div class="section-label">Notice</div><div class="section-line"></div></div>
+      <div id="notice-list"><div class="notice-empty">— 공지사항이 없습니다 —</div></div>
+      <button class="sidebar-more">더보기</button>
+    </div>
+    <div class="sidebar-card">
+      <div class="section-header" style="margin-bottom:0.75rem;"><div class="section-label">About</div><div class="section-line"></div></div>
+      <div style="font-size:12px;color:var(--text-muted);line-height:1.9;letter-spacing:0.03em;">키사라기 고교는 다솜의 자작 세계관입니다.<br>모든 캐릭터·설정·스토리의 저작권은 작가에게 있습니다.<br><br><span style="color:var(--red-light);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;">© Dasom. All rights reserved.</span></div>
+    </div>
+    <div class="sidebar-card">
+      <div class="section-header" style="margin-bottom:0.75rem;"><div class="section-label">Links</div><div class="section-line"></div></div>
+      <a href="#" class="sidebar-link">↗ X / Twitter</a>
+    </div>
+  </div>
+</div>
+<footer><span>如月高校</span> Kisaragi High School <span>|</span> © Dasom. All rights reserved.<br><br><a href="admin.html" class="admin-link">관리자</a></footer>
+<div id="bgm-player">
+  <button id="bgm-play-btn">▶</button>
+  <div id="bgm-info"><div id="bgm-title">BGM</div><div id="bgm-artist"></div></div>
+  <div id="bgm-vol-wrap"><input type="range" id="bgm-vol" min="0" max="100" value="70"></div>
+  <button id="bgm-toggle-collapse">✕</button>
+  <button id="bgm-expand-btn">♪</button>
+</div>
+<div id="yt-container" style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
+<script>
+function getData(k,d){ try{return JSON.parse(localStorage.getItem('kisaragi_'+k))||d;}catch(e){return d;} }
+var defaultChars=[{id:1,nameJp:'遠藤 潤',role:'Antagonist',tag:'Uru',img:''},{id:2,nameJp:'遠藤 伊織',role:'Founder',tag:'Iori',img:''},{id:3,nameJp:'遠藤 斗哉',role:'Protagonist',tag:'Toya',img:''}];
+var defaultChr=[{id:1,num:'01',text:'입학. 그리고 첫 번째 실종.',tag:'Prologue'},{id:2,num:'02',text:'교칙 제 7조. 일몰 이후 교정을 벗어나지 말 것.',tag:'Act I'},{id:3,num:'03',text:'지하 도서관에서 발견된 것.',tag:'Act I'}];
+var romans=['Ⅰ','Ⅱ','Ⅲ','Ⅳ','Ⅴ','Ⅵ'];
+function renderChars(){ var chars=getData('characters',defaultChars); var grid=document.getElementById('char-grid'); var html=''; chars.slice(0,6).forEach(function(c,i){ html+='<a href="characters.html" class="char-card">'+(c.img?'<img style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" src="'+c.img+'">':'<div class="char-placeholder"><div class="char-roman">'+(romans[i]||'')+'</div></div>')+'<div class="char-overlay"></div><div class="char-info"><div class="char-name-jp">'+c.nameJp+'</div><div class="char-role">'+c.role+'</div>'+(c.tag?'<div class="char-tag">'+c.tag+'</div>':'')+'</div></a>'; }); html+='<a href="characters.html" class="char-more">모든 캐릭터 보기 →</a>'; grid.innerHTML=html; }
+function renderGallery(){ var gallery=getData('gallery',[]); var strip=document.getElementById('gallery-strip'); var html=''; var show=gallery.slice(0,3); show.forEach(function(g){ html+='<a href="#" class="gallery-thumb">'+(g.img?'<img src="'+g.img+'" style="width:100%;height:100%;object-fit:cover;">':'<span class="g-roman">✦</span>')+'</a>'; }); for(var i=show.length;i<3;i++){ html+='<a href="#" class="gallery-thumb"><span class="g-roman">'+['I','II','III'][i]+'</span></a>'; } html+='<a href="#" class="gallery-more">전체 갤러리</a>'; strip.innerHTML=html; }
+function renderChronicle(){ var list=getData('chronicle',defaultChr); var el=document.getElementById('chronicle-list'); if(!list.length){el.innerHTML='<div class="notice-empty">— 등록된 크로니클이 없습니다 —</div>';return;} el.innerHTML=list.slice(0,5).map(function(c){ return '<a href="#" class="chronicle-item"><div class="chronicle-num">'+c.num+'</div><div><div class="chronicle-text">'+c.text+'</div>'+(c.tag?'<div class="chronicle-tag">'+c.tag+'</div>':'')+'</div></a>'; }).join(''); }
+function renderNotice(){ var list=getData('notices',[]); var el=document.getElementById('notice-list'); if(!list.length){el.innerHTML='<div class="notice-empty">— 공지사항이 없습니다 —</div>';return;} el.innerHTML=list.slice(0,3).map(function(n){ return '<div style="padding:10px 0;border-bottom:1px solid rgba(139,26,26,0.1);"><div style="font-size:12px;color:var(--text-dim);margin-bottom:2px;">'+n.title+'</div><div style="font-size:10px;color:var(--text-muted);">'+n.date+'</div></div>'; }).join(''); }
+renderChars(); renderGallery(); renderChronicle(); renderNotice();
+var ytPlayer=null,isPlaying=false;
+var bgmData=getData('bgm',{title:'BGM',artist:'',youtubeId:''});
+document.getElementById('bgm-title').textContent=bgmData.title||'BGM';
+document.getElementById('bgm-artist').textContent=bgmData.artist||'';
+window.onYouTubeIframeAPIReady=function(){ if(!bgmData.youtubeId)return; ytPlayer=new YT.Player('yt-iframe',{height:'1',width:'1',videoId:bgmData.youtubeId,playerVars:{autoplay:0,loop:1,playlist:bgmData.youtubeId},events:{onReady:function(){}}}); };
+function loadYT(){ if(!bgmData.youtubeId)return; document.getElementById('yt-container').innerHTML='<div id="yt-iframe"></div>'; var s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; document.head.appendChild(s); }
+document.getElementById('bgm-play-btn').addEventListener('click',function(){ if(!bgmData.youtubeId)return; if(!ytPlayer){loadYT();isPlaying=true;this.textContent='⏸';return;} if(isPlaying){ytPlayer.pauseVideo();isPlaying=false;this.textContent='▶';}else{ytPlayer.playVideo();isPlaying=true;this.textContent='⏸';} });
+document.getElementById('bgm-vol').addEventListener('input',function(){ if(ytPlayer) ytPlayer.setVolume(this.value); });
+document.getElementById('bgm-toggle-collapse').addEventListener('click',function(){ document.getElementById('bgm-player').classList.add('collapsed'); });
+document.getElementById('bgm-expand-btn').addEventListener('click',function(){ document.getElementById('bgm-player').classList.remove('collapsed'); });
+var csData=getData('clicksound',{url:''}); if(csData.url){ var cs=new Audio(csData.url); document.addEventListener('click',function(){ try{cs.currentTime=0;cs.play();}catch(e){} }); }
+</script>
+</body>
+</html>

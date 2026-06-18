@@ -1,0 +1,201 @@
+/* OC profile PV intro — cinematic dialogue */
+.oc-pv-intro--cinema {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  animation: ocPvIntroIn 0.45s ease both;
+}
+
+.oc-pv-intro--cinema.is-exiting {
+  animation: ocPvIntroOut 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+@keyframes ocPvIntroIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ocPvIntroOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.oc-pv-intro-backdrop {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+}
+
+.oc-pv-intro-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(18px, 3vh, 32px);
+  width: min(92vw, 820px);
+  padding: 0 1.5rem;
+  transition:
+    opacity 0.38s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform 0.38s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.oc-pv-intro-stage.is-fading {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.985);
+}
+
+.oc-pv-intro-quote-wrap {
+  position: relative;
+  width: 100%;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.oc-pv-intro-quote-wrap.visible {
+  opacity: 1;
+  transform: none;
+}
+
+.oc-pv-intro-quote-wrap-2.visible {
+  transition-delay: 0.08s;
+}
+
+.oc-pv-intro-quote {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', sans-serif;
+  font-size: clamp(22px, 2.8vw, 34px);
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: 0.02em;
+}
+
+.oc-pv-intro-quote-inner {
+  display: inline-block;
+  position: relative;
+  z-index: 1;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow:
+    0 0 18px rgba(255, 255, 255, 0.28),
+    0 0 36px rgba(240, 207, 173, 0.18),
+    0 2px 20px rgba(0, 0, 0, 0.5);
+}
+
+.oc-pv-intro-quote.is-sweeping .oc-pv-intro-quote-inner {
+  color: rgba(255, 255, 255, 0.22);
+  clip-path: inset(0 100% 0 0);
+  animation: ocPvTextReveal var(--pv-sweep-ms, 0.58s) cubic-bezier(0.33, 0.04, 0.18, 1) forwards;
+}
+
+.oc-pv-intro-quote.is-revealed .oc-pv-intro-quote-inner {
+  clip-path: inset(0 0 0 0);
+}
+
+@keyframes ocPvTextReveal {
+  to {
+    color: rgba(255, 255, 255, 0.96);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.oc-pv-intro-shine {
+  position: absolute;
+  top: -8%;
+  bottom: -8%;
+  left: -45%;
+  width: 38%;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 28%,
+    rgba(255, 255, 255, 0.55) 48%,
+    rgba(240, 207, 173, 0.42) 58%,
+    rgba(255, 255, 255, 0.1) 72%,
+    transparent 100%
+  );
+  transform: skewX(-12deg);
+  animation: ocPvShineSweep var(--pv-sweep-ms, 0.58s) cubic-bezier(0.33, 0.04, 0.18, 1) forwards;
+}
+
+.oc-pv-intro-quote.is-revealed .oc-pv-intro-shine {
+  display: none;
+}
+
+@keyframes ocPvShineSweep {
+  0% {
+    left: -45%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: 108%;
+    opacity: 0;
+  }
+}
+
+.oc-pv-intro-skip {
+  position: absolute;
+  right: 0;
+  bottom: -1.6rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-size: 11px;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.28em;
+  color: rgba(255, 255, 255, 0.38);
+  cursor: pointer;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+.oc-pv-intro-skip:hover {
+  color: rgba(240, 207, 173, 0.78);
+  text-shadow: 0 0 12px rgba(240, 207, 173, 0.35);
+}
+
+.oc-pv-intro--quotes-only {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-pv-intro-quote.is-sweeping .oc-pv-intro-quote-inner,
+  .oc-pv-intro-shine {
+    animation-duration: 0.01ms !important;
+  }
+
+  .oc-pv-intro-stage,
+  .oc-pv-intro--cinema.is-exiting {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

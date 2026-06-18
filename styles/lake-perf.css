@@ -1,0 +1,148 @@
+/* GPU-heavy effects를 줄여 Chrome 등에서 프레임 드랍 완화 */
+
+/* Next.js 클라이언트 라우팅 시 body가 opacity:0에 고정되는 문제 방지 */
+body {
+  opacity: 1 !important;
+  animation: none !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+body.lh-leaving {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+/* backdrop-filter는 합성 비용이 큼 — 불투명 배경으로 대체 */
+#bgm-player,
+nav,
+.game-topbar,
+.detail-nav,
+.lh-dialog-overlay,
+.lh-gallery-lightbox {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+#bgm-player {
+  background: rgba(10, 12, 11, 0.97) !important;
+}
+
+/* 카드 hover blur 제거 */
+.char-card:hover .char-card-img,
+.char-card:hover .char-card-placeholder {
+  filter: none !important;
+  opacity: 0.42 !important;
+}
+
+/* OC 상세: blur 기반 등장 애니메이션 경량화 */
+#detail-screen #game-char-img.animate-out {
+  animation: lhCharacterExitLite 0.3s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+@keyframes lhCharacterExitLite {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+    filter: drop-shadow(0 28px 44px rgba(0, 0, 0, 0.55));
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px) scale(0.97);
+    filter: none;
+  }
+}
+
+#detail-screen #game-char-img.animate-in {
+  animation: lhCharacterRevealLite 0.95s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+@keyframes lhCharacterRevealLite {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(18px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+    filter: drop-shadow(0 28px 44px rgba(0, 0, 0, 0.55));
+  }
+}
+
+.oc-left-panel-shell.is-open .oc-left-content-inner {
+  animation: ocPanelContentInLite 0.95s cubic-bezier(0.25, 0.46, 0.45, 0.94) both !important;
+}
+
+.oc-left-panel-shell.is-closing .oc-left-content-inner {
+  animation: ocPanelContentOutLite 0.88s cubic-bezier(0.25, 0.46, 0.45, 0.94) both !important;
+}
+
+@keyframes ocPanelContentInLite {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ocPanelContentOutLite {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+.oc-detail-right {
+  animation-name: ocRightInLite !important;
+}
+
+@keyframes ocRightInLite {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 그리드 페인트 격리 */
+.card-grid {
+  contain: layout style;
+}
+
+.char-card {
+  contain: layout paint;
+  content-visibility: auto;
+  contain-intrinsic-size: 220px 325px;
+}
+
+#detail-screen.active {
+  contain: layout style paint;
+}
+
+/* 리플 이펙트: box-shadow 대신 단순 border */
+.lake-click-ripple {
+  box-shadow: none !important;
+  border: 1px solid rgba(240, 207, 173, 0.45) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

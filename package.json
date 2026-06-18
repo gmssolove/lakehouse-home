@@ -1,0 +1,40 @@
+{
+  "name": "lakehouse-home",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 -p 3004",
+    "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev --hostname 0.0.0.0 -p 3004",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0 -p 3005",
+    "dev:vite": "vite --host 0.0.0.0",
+    "build:vite": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "deploy": "pnpm build && firebase deploy",
+    "split:oc": "node scripts/split-html.mjs oc.html oc",
+    "split:pair": "node scripts/split-html.mjs pair.html pair",
+    "server:dev": "npm --prefix server run dev",
+    "server:install": "npm --prefix server install",
+    "r2:dev": "wrangler dev",
+    "r2:deploy": "wrangler deploy",
+    "r2:env": "node scripts/update-r2-env.mjs",
+    "r2:rotate": "node scripts/rotate-r2-token.mjs",
+    "cf:login": "wrangler login"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.888.0",
+    "firebase": "^11.6.0",
+    "next": "^15.3.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "wrangler": "^4.0.0"
+  }
+}

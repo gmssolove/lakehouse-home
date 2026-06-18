@@ -1,0 +1,1 @@
+(function(){document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.target||a.hasAttribute('download'))return;var url=new URL(a.href,location.href);if(url.origin!==location.origin||url.href===location.href)return;e.preventDefault();document.body.classList.add('lh-leaving');setTimeout(function(){location.href=url.href},180)})})();

@@ -1,0 +1,528 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pair — lakehouse</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=Noto+Serif+JP:wght@400;500&family=Noto+Sans+KR:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --gold:#c49a6c;--gold-light:#e8c99a;--gold-dim:#8a6a45;--gold-dark:#5a4228;
+  --pink:var(--gold);--pink-light:var(--gold-light);--pink-dim:var(--gold-dim);--pink-dark:var(--gold-dark);
+
+  --bg:#151210;--bg2:#1d1814;--bg3:#252018;
+  --gold-real:#c49a6c;
+  --text:#e8ddd0;--text-dim:#b8a898;--text-muted:#7a6a58;
+  --border:rgba(196,154,108,0.18);--border-strong:rgba(196,154,108,0.45);
+}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;font-weight:400;min-height:100vh;}
+nav{position:sticky;top:0;z-index:200;background:rgba(26,16,24,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;height:52px;gap:1rem;}
+.nav-back{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);text-decoration:none;transition:color .2s;}
+.nav-back:hover{color:var(--pink);}
+.nav-title{font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:var(--text);flex:1;}
+.nav-links{display:flex;list-style:none;}
+.nav-links li a{display:block;padding:0 1rem;height:52px;line-height:52px;font-size:10px;letter-spacing:.16em;color:var(--text-muted);text-decoration:none;text-transform:uppercase;}
+.nav-links li.active a{color:var(--pink);border-bottom:2px solid var(--pink);}
+
+.main-content{padding:2.5rem 2rem;max-width:1100px;margin:0 auto;}
+.pair-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px;}
+
+.pair-card{cursor:pointer;transition:transform .25s;}
+.pair-card:hover{transform:translateY(-6px);}
+.pair-card-imgs{display:grid;grid-template-columns:1fr 1fr;gap:4px;height:340px;position:relative;overflow:hidden;border:1px solid var(--border);transition:border-color .25s;}
+.pair-card:hover .pair-card-imgs{border-color:var(--pink);}
+.pair-char-wrap{position:relative;overflow:hidden;background:var(--bg3);}
+.pair-char-img{width:100%;height:100%;object-fit:cover;object-position:top;transition:filter .35s,opacity .35s;}
+.pair-char-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-style:italic;font-size:48px;color:rgba(196,154,108,.07);transition:filter .35s;}
+.pair-char-hover{position:absolute;inset:0;background:rgba(26,16,24,.7);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;flex-direction:column;gap:4px;}
+.pair-card:hover .pair-char-hover{opacity:1;}
+.pair-card:hover .pair-char-img{filter:blur(2px);opacity:.35;}
+.pair-card:hover .pair-char-placeholder{filter:blur(2px);opacity:.25;}
+.pair-char-hover-name{font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:var(--text);text-align:center;padding:0 6px;}
+.pair-char-hover-sub{font-size:9px;color:var(--pink-dim);letter-spacing:.1em;text-transform:uppercase;}
+.pair-center-line{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:1px;background:var(--border);z-index:2;}
+.pair-center-symbol{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;background:var(--bg2);border:1px solid var(--border);width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14px;color:var(--pink-dim);transition:all .25s;}
+.pair-card:hover .pair-center-symbol{border-color:var(--pink);color:var(--pink);}
+.pair-card-bottom{background:var(--bg2);border:1px solid var(--border);border-top:none;padding:14px 16px;transition:border-color .25s;}
+.pair-card:hover .pair-card-bottom{border-color:var(--pink);}
+.pair-card-names{font-family:'Playfair Display',serif;font-style:italic;font-size:17px;color:var(--text);margin-bottom:4px;}
+.pair-card-names span{color:var(--pink);margin:0 6px;}
+.pair-card-rel{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);font-family:'Cormorant Garamond',serif;font-style:italic;}
+.pair-card-keywords{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+.pair-card-keyword{padding:2px 8px;background:rgba(130,106,69,.08);border:1px solid var(--border);font-size:9px;color:var(--text-muted);font-family:'Cormorant Garamond',serif;font-style:italic;}
+
+/* FULLSCREEN DETAIL */
+#detail-screen{display:none;position:fixed;inset:0;z-index:400;background:var(--bg);overflow-y:auto;}
+#detail-screen.active{display:block;}
+#detail-screen::-webkit-scrollbar{width:4px;}
+#detail-screen::-webkit-scrollbar-thumb{background:var(--pink-dark);}
+.detail-nav{position:sticky;top:0;z-index:10;background:rgba(26,16,24,.97);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;height:52px;gap:1rem;}
+.detail-back-btn{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);background:transparent;border:none;cursor:pointer;transition:color .2s;font-family:inherit;}
+.detail-back-btn:hover{color:var(--pink);}
+.detail-nav-title{font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:var(--text-dim);flex:1;}
+.btn-edit{padding:5px 16px;background:transparent;border:1px solid var(--pink-dim);color:var(--pink-dim);font-family:inherit;font-size:10px;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+.btn-edit:hover{background:rgba(130,106,69,.15);color:var(--pink);}
+.detail-hero{height:420px;display:grid;grid-template-columns:1fr 1fr;position:relative;overflow:hidden;}
+.detail-hero-char{position:relative;overflow:hidden;}
+.detail-hero-char img{width:100%;height:100%;object-fit:cover;object-position:top;}
+.detail-hero-char-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-style:italic;font-size:100px;color:rgba(196,154,108,.05);background:var(--bg3);}
+.detail-hero-char-gradient{position:absolute;inset:0;background:linear-gradient(to top,rgba(26,16,24,1) 0%,transparent 40%);}
+.detail-hero-char-name{position:absolute;bottom:1rem;left:0;right:0;text-align:center;font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:var(--text);}
+.detail-hero-divider{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--border);z-index:2;pointer-events:none;}
+.detail-hero-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;background:var(--bg);border:1px solid var(--border);width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:16px;color:var(--pink);}
+.detail-body{max-width:860px;margin:0 auto;padding:2.5rem 2rem;}
+.detail-pair-title{font-family:'Playfair Display',serif;font-style:italic;font-size:32px;color:var(--text);margin-bottom:6px;}
+.detail-pair-title span{color:var(--pink);}
+.detail-rel-badge{display:inline-block;padding:4px 14px;border:1px solid var(--pink-dark);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--pink-dim);font-family:'Cormorant Garamond',serif;font-style:italic;margin-bottom:2rem;}
+.detail-section-title{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--pink-dim);margin-bottom:.75rem;margin-top:1.5rem;font-family:'Cormorant Garamond',serif;font-style:italic;display:flex;align-items:center;gap:10px;}
+.detail-section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.detail-desc{font-size:13px;color:var(--text-dim);line-height:1.9;}
+.detail-keywords{display:flex;flex-wrap:wrap;gap:8px;}
+.detail-keyword{padding:4px 14px;background:rgba(130,106,69,.08);border:1px solid var(--border);font-size:11px;color:var(--text-muted);font-family:'Cormorant Garamond',serif;font-style:italic;}
+
+/* EDIT PANEL */
+#edit-panel{display:none;position:fixed;top:0;right:0;bottom:0;width:400px;z-index:600;background:var(--bg2);border-left:1px solid var(--border);overflow-y:auto;padding:1.5rem;box-shadow:-4px 0 24px rgba(0,0,0,.5);}
+#edit-panel.active{display:block;}
+#edit-panel::-webkit-scrollbar{width:3px;}
+#edit-panel::-webkit-scrollbar-thumb{background:var(--pink-dark);}
+.ep-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;}
+.ep-title{font-family:'Playfair Display',serif;font-style:italic;font-size:18px;color:var(--pink-light);}
+.ep-close{background:transparent;border:1px solid var(--border);color:var(--text-muted);cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all .2s;}
+.ep-close:hover{border-color:var(--pink-dim);color:var(--pink);}
+.form-group{margin-bottom:.9rem;}
+.form-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px;display:block;}
+.form-input{width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:12px;outline:none;resize:vertical;}
+.form-input:focus{border-color:var(--pink-dim);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.btn-save{padding:8px 20px;background:rgba(130,106,69,.2);border:1px solid var(--pink-dim);color:var(--pink);font-family:inherit;font-size:10px;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+.btn-save:hover{background:rgba(130,106,69,.35);}
+.btn-del{padding:7px 14px;background:transparent;border:1px solid rgba(139,26,26,.4);color:rgba(192,57,43,.7);font-family:inherit;font-size:10px;cursor:pointer;}
+.save-msg{font-size:11px;color:var(--pink);margin-top:8px;display:none;}
+.section-sep{border-top:1px solid var(--border);margin:1.25rem 0;padding-top:1.25rem;}
+.section-sep-title{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--pink-dim);margin-bottom:.75rem;font-family:'Cormorant Garamond',serif;font-style:italic;}
+.img-upload-wrap{display:flex;flex-direction:column;gap:6px;}
+.img-preview-pair{width:100%;aspect-ratio:2/3;background:var(--bg3);border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-muted);}
+.img-preview-pair img{width:100%;height:100%;object-fit:cover;object-position:top;}
+.img-size-controls{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.file-input-label{display:block;padding:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text-muted);font-size:11px;letter-spacing:.1em;text-align:center;cursor:pointer;transition:all .2s;}
+.file-input-label:hover{border-color:var(--pink-dim);color:var(--pink);}
+input[type=file]{display:none;}
+
+/* BGM */
+#bgm-player{position:fixed;bottom:2rem;right:2rem;z-index:999;background:rgba(26,16,24,.97);border:1px solid var(--border);border-radius:16px;backdrop-filter:blur(16px);display:flex;align-items:center;gap:12px;padding:14px 18px;min-width:260px;max-width:340px;box-shadow:0 4px 24px rgba(0,0,0,.4);transition:min-width .3s,max-width .3s,padding .3s,border-radius .3s,width .3s,height .3s;cursor:move;user-select:none;overflow:hidden;}
+#bgm-player.collapsed{min-width:0;max-width:none;width:52px;height:52px;padding:0;border-radius:50%;justify-content:flex-end;}
+#bgm-player.collapsed #bgm-info,#bgm-player.collapsed #bgm-vol-wrap,#bgm-player.collapsed #bgm-toggle-collapse,#bgm-player.collapsed #bgm-play-btn{display:none;}
+#bgm-play-btn{width:34px;height:34px;flex-shrink:0;background:transparent;border:1px solid var(--pink-dim);border-radius:50%;color:var(--pink);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+#bgm-play-btn:hover{background:rgba(130,106,69,.2);}
+#bgm-info{flex:1;min-width:0;}
+#bgm-title{font-size:11px;color:var(--text-dim);letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#bgm-artist{font-size:10px;color:var(--text-muted);margin-top:2px;}
+#bgm-vol-wrap{display:flex;align-items:center;}
+#bgm-vol{width:60px;accent-color:var(--pink);cursor:pointer;}
+#bgm-toggle-collapse{background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0;transition:color .2s;}
+#bgm-toggle-collapse:hover{color:var(--pink);}
+#bgm-expand-btn{display:none;background:transparent;border:none;color:var(--pink);cursor:pointer;font-size:16px;width:100%;height:100%;align-items:center;justify-content:center;}
+#bgm-player.collapsed #bgm-expand-btn{display:flex;}
+</style>
+<style id="lakehouse-codex-css">
+:root{--lake-ink:#0b0d0c;--lake-panel:rgba(16,18,16,.86);--lake-panel-2:rgba(29,31,28,.78);--lake-copper:#d7a982;--lake-copper-soft:#f0cfad;--lake-copper-deep:#9f7358;--lake-mist:#d8d5cb;--lake-muted:rgba(216,213,203,.58);--lake-line:rgba(215,169,130,.42);--lake-line-soft:rgba(215,169,130,.18);--lake-green:#7e8a7c;--lake-rose:#b98375}
+body{letter-spacing:0!important;background:#0b0d0c!important;opacity:0;animation:lhPageIn .58s cubic-bezier(.2,.8,.2,1) forwards}body.lh-leaving{animation:lhPageOut .2s ease forwards!important}@keyframes lhPageIn{from{opacity:0;filter:blur(8px);transform:translateY(10px)}to{opacity:1;filter:blur(0);transform:none}}@keyframes lhPageOut{to{opacity:0;filter:blur(5px);transform:translateY(-6px)}}@keyframes lhPanelIn{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}@keyframes lhCardIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+#bgm-player{background:linear-gradient(135deg,rgba(13,15,13,.97),rgba(42,39,33,.94))!important;border:1px solid var(--lake-line)!important;border-radius:8px!important;box-shadow:0 18px 44px rgba(0,0,0,.52),inset 0 0 0 1px rgba(255,255,255,.04),inset 0 12px 28px rgba(215,169,130,.045)!important;touch-action:none;isolation:isolate}#bgm-player::before,#bgm-player::after{content:"";position:absolute;width:14px;height:14px;border-color:rgba(240,207,173,.7);border-style:solid;pointer-events:none}#bgm-player::before{top:5px;left:5px;border-width:1px 0 0 1px}#bgm-player::after{right:5px;bottom:5px;border-width:0 1px 1px 0}#bgm-play-btn{border-color:var(--lake-copper)!important;color:var(--lake-copper-soft)!important;background:radial-gradient(circle,rgba(240,207,173,.14),rgba(215,169,130,.045))!important;font-size:11px!important}#bgm-vol{accent-color:var(--lake-copper)!important}#bgm-title{color:var(--lake-copper-soft)!important}#bgm-artist{color:var(--lake-muted)!important}#bgm-toggle-collapse,#bgm-expand-btn{color:var(--lake-copper)!important}#bgm-player.collapsed{border-radius:50%!important;justify-content:center!important}#bgm-player.collapsed::before,#bgm-player.collapsed::after{display:none}
+.adm-overlay{background:rgba(10,12,11,.96)!important}.adm-main{max-width:980px!important;width:100%!important;padding:2rem clamp(1rem,3vw,2.5rem)!important;margin:0 auto!important}.adm-panel{max-width:920px!important}.admin-section{max-width:900px!important;border-color:rgba(215,169,130,.24)!important;background:linear-gradient(135deg,rgba(29,31,28,.78),rgba(16,18,16,.76))!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025)!important}.adm-sidebar{background:rgba(13,15,13,.98)!important}.adm-tab.active{color:var(--lake-copper-soft)!important;border-left-color:var(--lake-copper)!important}.lh-admin-subtabs{display:flex;gap:8px;margin:0 0 1rem;position:sticky;top:0;z-index:2;padding:.25rem 0 .75rem;background:linear-gradient(to bottom,rgba(10,12,11,.98),rgba(10,12,11,0))}.lh-admin-subtab{padding:7px 16px;background:rgba(215,169,130,.08);border:1px solid rgba(215,169,130,.24);color:var(--text-muted);font:inherit;font-size:10px;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}.lh-admin-subtab.active{color:var(--lake-copper-soft);border-color:var(--lake-copper);background:rgba(215,169,130,.16)}.lh-admin-grid{display:grid!important;grid-template-columns:minmax(180px,240px) minmax(0,1fr)!important;gap:1rem!important;align-items:start!important}.char-list-item{border-color:rgba(215,169,130,.22)!important;background:rgba(20,21,18,.82)!important}.char-list-item.selected{border-color:var(--lake-copper)!important;color:var(--lake-copper-soft)!important}.form-input[type=date]{color-scheme:dark;min-height:34px}.card-grid,.pair-grid{animation:lhPanelIn .56s cubic-bezier(.2,.8,.2,1) both}.char-card,.pair-card{animation:lhCardIn .5s cubic-bezier(.2,.8,.2,1) both}.char-card:nth-child(2n),.pair-card:nth-child(2n){animation-delay:.04s}.char-card:nth-child(3n),.pair-card:nth-child(3n){animation-delay:.08s}.char-card,.pair-card-imgs,.pair-card-bottom,.world-card-item,.notice-item,.admin-section{position:relative}.char-card::before,.pair-card-imgs::before,.world-card-item::before,.admin-section::before{content:"";position:absolute;inset:7px;border:1px solid rgba(215,169,130,.08);pointer-events:none}.char-card:hover,.pair-card:hover .pair-card-imgs,.world-card-item:hover{box-shadow:0 18px 42px rgba(0,0,0,.34),0 0 30px rgba(215,169,130,.08)!important}@media(max-width:760px){.adm-overlay{flex-direction:column!important}.adm-sidebar{width:100%!important;min-height:auto!important}.adm-tabs{display:grid!important;grid-template-columns:repeat(3,1fr)!important}.adm-main{padding:1rem!important}.lh-admin-grid{grid-template-columns:1fr!important}}
+</style><style id="lakehouse-pair-css">
+body{background:rgba(10,12,11,1)!important}body::before{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(rgba(10,12,11,.74),rgba(10,12,11,.9)),url('갠홈/Gemini_Generated_Image_6qoxx16qoxx16qox.png') center/cover no-repeat;filter:saturate(.92)}nav,.detail-nav{background:rgba(10,12,10,.92)!important;border-bottom-color:rgba(215,169,130,.38)!important;box-shadow:0 10px 34px rgba(0,0,0,.22)}.nav-title,.detail-nav-title{font-family:'Cormorant Garamond','Playfair Display',serif!important;font-size:12px!important;letter-spacing:.2em!important;text-transform:uppercase!important;font-style:normal!important;color:rgba(240,207,173,.82)!important}.main-content{width:min(1180px,calc(100vw - 28px));margin:12px auto 20px;border:1px solid rgba(215,169,130,.5);box-shadow:0 0 0 1px rgba(215,169,130,.1),0 24px 60px rgba(0,0,0,.5);background:rgba(10,12,11,.62);padding:2rem 2.25rem!important;position:relative;animation:lhPanelIn .58s cubic-bezier(.2,.8,.2,1) both}.main-content::before,.main-content::after{content:'';position:absolute;width:20px;height:20px;border-color:rgba(215,169,130,.78);border-style:solid;z-index:10;pointer-events:none}.main-content::before{top:-1px;left:-1px;border-width:2px 0 0 2px}.main-content::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}.pair-card-imgs,.pair-card-bottom{border-color:rgba(215,169,130,.24)!important}.pair-card-bottom{background:linear-gradient(180deg,rgba(18,21,19,.96),rgba(11,13,12,.98))!important}.pair-char-wrap{background:rgba(22,28,25,.9)!important}.pair-card:hover .pair-card-imgs,.pair-card:hover .pair-card-bottom{border-color:rgba(240,207,173,.72)!important}.pair-center-symbol,.detail-hero-center{background:rgba(14,18,16,.95)!important;border-color:rgba(215,169,130,.42)!important;box-shadow:0 0 20px rgba(215,169,130,.12)}#detail-screen.active{animation:lhPageIn .5s cubic-bezier(.2,.8,.2,1) both}.detail-body{background:linear-gradient(180deg,rgba(10,12,11,0),rgba(10,12,11,.4))}.detail-pair-title{font-family:'Cormorant Garamond','Playfair Display',serif!important;letter-spacing:.04em!important}@media(max-width:760px){.main-content{width:100%;margin:0;border-left:0;border-right:0;padding:1rem!important}.pair-grid{grid-template-columns:1fr}.detail-hero{height:320px}}
+</style>
+<script id="lakehouse-bgm-sanitize">/* BGM 상태 보존 */</script><style id="lakehouse-bgm-doubleclick-css">
+/* Keep the player shadow attached to the actual player box on OC/Pair. */
+#bgm-player{
+  overflow:hidden!important;
+  filter:none!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.42),0 0 18px rgba(215,169,130,.08),inset 0 0 0 1px rgba(255,255,255,.04)!important;
+}
+#bgm-player.collapsed{
+  width:52px!important;min-width:52px!important;max-width:52px!important;height:52px!important;padding:0!important;border-radius:50%!important;justify-content:center!important;align-items:center!important;
+  box-shadow:0 8px 20px rgba(0,0,0,.38),0 0 14px rgba(215,169,130,.1)!important;
+}
+#bgm-player.collapsed #bgm-expand-btn{display:flex!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:none!important;cursor:move!important;align-items:center!important;justify-content:center!important;}
+#bgm-player.collapsed:hover{transform:none!important;}
+</style>
+<style id="lakehouse-pair-scroll-fix-css">
+html,body{height:100%!important;min-height:100%!important;overflow:hidden!important}body{height:100vh!important;min-height:100vh!important}.main-content{height:calc(100vh - 76px)!important;min-height:0!important;overflow:auto!important;margin:12px auto 0!important;box-sizing:border-box}#detail-screen{height:100vh!important;overflow:auto!important}.pair-grid{padding-bottom:8px!important}@media(max-width:760px){html,body{height:auto!important;overflow:auto!important}body{height:auto!important}.main-content{height:auto!important;min-height:calc(100vh - 52px)!important;margin:0!important;overflow:visible!important}#detail-screen{height:auto!important;min-height:100vh!important}}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-back">← back</a>
+  <div class="nav-title">Pair — Relationships</div>
+  <ul class="nav-links">
+    <li><a href="oc.html">OC</a></li>
+    <li class="active"><a href="pair.html">Pair</a></li>
+  </ul>
+</nav>
+
+<div class="main-content">
+  <div class="pair-grid" id="pair-grid"></div>
+</div>
+
+<div id="detail-screen">
+  <div class="detail-nav">
+    <button class="detail-back-btn" onclick="closeDetail()">← 목록으로</button>
+    <div class="detail-nav-title" id="detail-nav-title">—</div>
+    <button class="btn-edit" id="btn-edit" style="display:none;" onclick="openEditPanel()">✎ 수정</button>
+  </div>
+  <div class="detail-hero" id="detail-hero"></div>
+  <div class="detail-body">
+    <div class="detail-pair-title" id="detail-names">— <span>&</span> —</div>
+    <div class="detail-rel-badge" id="detail-rel">—</div>
+    <div class="detail-section-title">About</div>
+    <div class="detail-desc" id="detail-desc">—</div>
+    <div class="detail-section-title">Keywords</div>
+    <div class="detail-keywords" id="detail-keywords"></div>
+    <div class="detail-section-title">Story</div>
+    <div class="detail-desc" id="detail-story" style="white-space:pre-wrap;">—</div>
+  </div>
+</div>
+
+<div id="edit-panel">
+  <div class="ep-header">
+    <div class="ep-title">페어 수정</div>
+    <button class="ep-close" onclick="closeEditPanel()">✕</button>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">캐릭터 1</label><input class="form-input" id="ep-char1"></div>
+    <div class="form-group"><label class="form-label">서브명</label><input class="form-input" id="ep-char1sub"></div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">캐릭터 1 이미지</label>
+    <div class="img-upload-wrap">
+      <div class="img-preview-pair" id="ep-img1-preview">이미지 없음</div>
+      <div class="img-size-controls">
+        <div class="form-group"><label class="form-label">Fit</label><select class="form-input" id="ep-img1-fit" onchange="updatePairPreview(1)"><option value="cover">Cover</option><option value="contain">Contain</option></select></div>
+        <div class="form-group"><label class="form-label">위치</label><select class="form-input" id="ep-img1-pos" onchange="updatePairPreview(1)"><option value="center top">위쪽</option><option value="center center">중앙</option><option value="center bottom">아래</option></select></div>
+      </div>
+      <label class="file-input-label">📁 파일 선택<input type="file" accept="image/*" onchange="handlePairImgUpload(this,1)"></label>
+      <input class="form-input" id="ep-img1" placeholder="또는 URL" oninput="updatePairPreview(1)">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">캐릭터 2</label><input class="form-input" id="ep-char2"></div>
+    <div class="form-group"><label class="form-label">서브명</label><input class="form-input" id="ep-char2sub"></div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">캐릭터 2 이미지</label>
+    <div class="img-upload-wrap">
+      <div class="img-preview-pair" id="ep-img2-preview">이미지 없음</div>
+      <div class="img-size-controls">
+        <div class="form-group"><label class="form-label">Fit</label><select class="form-input" id="ep-img2-fit" onchange="updatePairPreview(2)"><option value="cover">Cover</option><option value="contain">Contain</option></select></div>
+        <div class="form-group"><label class="form-label">위치</label><select class="form-input" id="ep-img2-pos" onchange="updatePairPreview(2)"><option value="center top">위쪽</option><option value="center center">중앙</option><option value="center bottom">아래</option></select></div>
+      </div>
+      <label class="file-input-label">📁 파일 선택<input type="file" accept="image/*" onchange="handlePairImgUpload(this,2)"></label>
+      <input class="form-input" id="ep-img2" placeholder="또는 URL" oninput="updatePairPreview(2)">
+    </div>
+  </div>
+  <div class="form-group"><label class="form-label">관계</label><input class="form-input" id="ep-relation"></div>
+  <div class="form-group"><label class="form-label">소개</label><textarea class="form-input" id="ep-desc" rows="3"></textarea></div>
+  <div class="form-group"><label class="form-label">키워드 (쉼표 구분)</label><input class="form-input" id="ep-keywords" placeholder="침묵, 동행"></div>
+  <div class="form-group"><label class="form-label">스토리</label><textarea class="form-input" id="ep-story" rows="5"></textarea></div>
+  <div class="section-sep" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <button class="btn-save" onclick="savePair()">저장</button>
+    <button class="btn-del" onclick="deletePair()">삭제</button>
+    <div class="save-msg" id="ep-save-msg">저장되었습니다.</div>
+  </div>
+</div>
+
+<div id="bgm-player">
+  <button id="bgm-play-btn">▶</button>
+  <div id="bgm-info"><div id="bgm-title">BGM</div><div id="bgm-artist"></div></div>
+  <div id="bgm-vol-wrap"><input type="range" id="bgm-vol" min="0" max="100" value="70"></div>
+  <button id="bgm-toggle-collapse">✕</button>
+  <button id="bgm-expand-btn">♪</button>
+</div>
+<div id="yt-container" style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{getAuth,onAuthStateChanged}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import{getDatabase,ref,get,set,onValue}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+const cfg={apiKey:"AIzaSyAdyaVA95hYEbPDfCRwNI0mretcowocGfM",authDomain:"llikebread.firebaseapp.com",databaseURL:"https://llikebread-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"llikebread",storageBucket:"llikebread.firebasestorage.app",messagingSenderId:"227317366345",appId:"1:227317366345:web:472530c2616612899e0998"};
+const app=initializeApp(cfg);
+const auth=getAuth(app);
+const db=getDatabase(app);
+window._db=db; window._fbSet=set; window._fbRef=ref; window._fbGet=get;
+// 실시간 동기화
+onValue(ref(db,'lhdata/oc_pairs'),function(snap){
+  if(snap.exists()){localStorage.setItem('oc_pairs',JSON.stringify(snap.val()));renderGrid();}
+});
+onAuthStateChanged(auth,function(user){
+  window._isAdmin=!!(user&&user.email==="gmssolove@naver.com");
+  var btn=document.getElementById('btn-edit');
+  if(btn)btn.style.display=window._isAdmin?'block':'none';
+});
+</script>
+
+<script>
+window._isAdmin=false;
+var defaultPairs=[
+  {id:'uru-toya',chars:['遠藤 潤','遠藤 斗哉'],charImgs:['',''],charSubs:['Uru','Toya'],charImgFit:['cover','cover'],charImgPos:['center top','center top'],relation:'Antagonist × Protagonist',desc:'키사라기 고교의 생도회장과 전학생.',keywords:['대립','비밀','학교'],story:'',color:'#c0392b'}
+];
+function getPairs(){try{return JSON.parse(localStorage.getItem('oc_pairs'))||defaultPairs;}catch(e){return defaultPairs;}}
+function setPairs(v){
+  localStorage.setItem('oc_pairs',JSON.stringify(v));
+  if(window._db&&window._fbSet&&window._fbRef){
+    try{window._fbSet(window._fbRef(window._db,'lhdata/oc_pairs'),v);}catch(e){}
+  }
+}
+var currentPair=null;
+
+function renderGrid(){
+  var pairs=getPairs(),grid=document.getElementById('pair-grid');
+  grid.innerHTML='';
+  pairs.forEach(function(p){
+    var card=document.createElement('div');card.className='pair-card';
+    card.onclick=function(){openDetail(p);};
+    var charImgsHtml=p.chars.map(function(name,i){
+      var img=p.charImgs&&p.charImgs[i],sub=p.charSubs&&p.charSubs[i]||'';
+      var fit=p.charImgFit&&p.charImgFit[i]||'cover',pos=p.charImgPos&&p.charImgPos[i]||'center top';
+      return'<div class="pair-char-wrap">'+(img?'<img class="pair-char-img" src="'+img+'" style="object-fit:'+fit+';object-position:'+pos+'" alt="'+name+'">':'<div class="pair-char-placeholder">'+name[0]+'</div>')
+        +'<div class="pair-char-hover"><div class="pair-char-hover-name">'+name+'</div>'+(sub?'<div class="pair-char-hover-sub">'+sub+'</div>':'')+'</div></div>';
+    }).join('');
+    var kwHtml=(p.keywords||[]).slice(0,3).map(function(k){return'<div class="pair-card-keyword">'+k+'</div>';}).join('');
+    card.innerHTML='<div class="pair-card-imgs">'+charImgsHtml+'<div class="pair-center-line"></div><div class="pair-center-symbol">&</div></div>'
+      +'<div class="pair-card-bottom"><div class="pair-card-names">'+p.chars[0]+' <span>&</span> '+p.chars[1]+'</div><div class="pair-card-rel">'+p.relation+'</div><div class="pair-card-keywords">'+kwHtml+'</div></div>';
+    grid.appendChild(card);
+  });
+}
+
+function openDetail(p){
+  currentPair=p;
+  document.getElementById('detail-nav-title').textContent=p.chars[0]+' & '+p.chars[1];
+  document.getElementById('detail-names').innerHTML=p.chars[0]+' <span>&</span> '+p.chars[1];
+  document.getElementById('detail-rel').textContent=p.relation||'—';
+  document.getElementById('detail-desc').textContent=p.desc||'—';
+  document.getElementById('detail-story').textContent=p.story||'—';
+  document.getElementById('detail-keywords').innerHTML=(p.keywords||[]).map(function(k){return'<div class="detail-keyword">'+k+'</div>';}).join('');
+  var hero=document.getElementById('detail-hero');
+  hero.innerHTML=p.chars.map(function(name,i){
+    var img=p.charImgs&&p.charImgs[i];
+    var fit=p.charImgFit&&p.charImgFit[i]||'cover',pos=p.charImgPos&&p.charImgPos[i]||'center top';
+    return'<div class="detail-hero-char">'+(img?'<img src="'+img+'" style="object-fit:'+fit+';object-position:'+pos+'" alt="'+name+'">':'<div class="detail-hero-char-placeholder">'+name[0]+'</div>')
+      +'<div class="detail-hero-char-gradient"></div><div class="detail-hero-char-name">'+name+'</div></div>';
+  }).join('')+'<div class="detail-hero-divider"></div><div class="detail-hero-center">&</div>';
+  document.getElementById('btn-edit').style.display=window._isAdmin?'block':'none';
+  document.getElementById('detail-screen').classList.add('active');
+  document.getElementById('detail-screen').scrollTop=0;
+}
+function closeDetail(){document.getElementById('detail-screen').classList.remove('active');closeEditPanel();}
+document.getElementById('detail-screen').addEventListener('click',function(e){});
+
+// IMAGE UPLOAD
+function handlePairImgUpload(input,num){
+  var file=input.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){document.getElementById('ep-img'+num).value=e.target.result;updatePairPreview(num);};
+  reader.readAsDataURL(file);
+}
+function updatePairPreview(num){
+  var src=document.getElementById('ep-img'+num).value.trim();
+  var fit=document.getElementById('ep-img'+num+'-fit').value;
+  var pos=document.getElementById('ep-img'+num+'-pos').value;
+  var preview=document.getElementById('ep-img'+num+'-preview');
+  if(src)preview.innerHTML='<img src="'+src+'" style="width:100%;height:100%;object-fit:'+fit+';object-position:'+pos+'" onerror="this.parentNode.textContent=\'불러올 수 없음\'">';
+  else preview.innerHTML='이미지 없음';
+}
+
+// EDIT PANEL
+function openEditPanel(){
+  if(!currentPair||!window._isAdmin)return;
+  var p=currentPair;
+  document.getElementById('ep-char1').value=p.chars[0]||'';
+  document.getElementById('ep-char1sub').value=p.charSubs&&p.charSubs[0]||'';
+  document.getElementById('ep-img1').value=p.charImgs&&p.charImgs[0]||'';
+  document.getElementById('ep-img1-fit').value=p.charImgFit&&p.charImgFit[0]||'cover';
+  document.getElementById('ep-img1-pos').value=p.charImgPos&&p.charImgPos[0]||'center top';
+  updatePairPreview(1);
+  document.getElementById('ep-char2').value=p.chars[1]||'';
+  document.getElementById('ep-char2sub').value=p.charSubs&&p.charSubs[1]||'';
+  document.getElementById('ep-img2').value=p.charImgs&&p.charImgs[1]||'';
+  document.getElementById('ep-img2-fit').value=p.charImgFit&&p.charImgFit[1]||'cover';
+  document.getElementById('ep-img2-pos').value=p.charImgPos&&p.charImgPos[1]||'center top';
+  updatePairPreview(2);
+  document.getElementById('ep-relation').value=p.relation||'';
+  document.getElementById('ep-desc').value=p.desc||'';
+  document.getElementById('ep-keywords').value=(p.keywords||[]).join(', ');
+  document.getElementById('ep-story').value=p.story||'';
+  document.getElementById('edit-panel').classList.add('active');
+}
+function closeEditPanel(){document.getElementById('edit-panel').classList.remove('active');}
+
+function savePair(){
+  if(!currentPair||!window._isAdmin)return;
+  var pairs=getPairs(),idx=pairs.findIndex(function(p){return p.id===currentPair.id;});if(idx<0)return;
+  var kw=document.getElementById('ep-keywords').value.split(',').map(function(k){return k.trim();}).filter(Boolean);
+  pairs[idx]={
+    id:currentPair.id,
+    chars:[document.getElementById('ep-char1').value,document.getElementById('ep-char2').value],
+    charImgs:[document.getElementById('ep-img1').value.trim(),document.getElementById('ep-img2').value.trim()],
+    charImgFit:[document.getElementById('ep-img1-fit').value,document.getElementById('ep-img2-fit').value],
+    charImgPos:[document.getElementById('ep-img1-pos').value,document.getElementById('ep-img2-pos').value],
+    charSubs:[document.getElementById('ep-char1sub').value,document.getElementById('ep-char2sub').value],
+    relation:document.getElementById('ep-relation').value,
+    desc:document.getElementById('ep-desc').value,
+    keywords:kw,
+    story:document.getElementById('ep-story').value,
+    color:currentPair.color
+  };
+  setPairs(pairs);currentPair=pairs[idx];
+  openDetail(currentPair);renderGrid();
+  var msg=document.getElementById('ep-save-msg');msg.style.display='block';setTimeout(function(){msg.style.display='none';},2000);
+}
+function deletePair(){
+  if(!currentPair||!window._isAdmin||!confirm('삭제할까요?'))return;
+  setPairs(getPairs().filter(function(p){return p.id!==currentPair.id;}));
+  closeDetail();renderGrid();
+}
+
+// BGM: LakeBGM(lakehouse-bgm-js)이 전담 처리
+var ytPlayer=null;window._bgmIsPlaying=false;
+
+renderGrid();
+</script>
+<script id="lakehouse-bgm-js">
+(function(){if(window.__lakehouseFixesLoaded)return;window.__lakehouseFixesLoaded=true;var STATE_KEY='lh_bgm_shared_state',UI_KEY='lh_bgm_ui_state',ACTIVE_KEY='lh_bgm_active_player';var ID=Date.now().toString(36)+Math.random().toString(36).slice(2),PLAY='▶',PAUSE='⏸';function $(id){return document.getElementById(id)}function read(k){try{return JSON.parse(localStorage.getItem(k)||'{}')}catch(e){return {}}}function write(k,v){try{localStorage.setItem(k,JSON.stringify(v||{}))}catch(e){}}function getVol(){var v=$('bgm-vol');return v?parseInt(v.value,10)||40:40}function setText(t,a){if($('bgm-title'))$('bgm-title').textContent=t||'BGM';if($('bgm-artist'))$('bgm-artist').textContent=a||''}function sourceFrom(src){src=src||{};var id=src.fileData||src.youtubeId||src.ytId||src.id||'';return{kind:src.fileData||src.kind==='file'?'file':'youtube',id:id,title:src.title||'BGM',artist:src.artist||'',scope:src.scope||'page'}}function same(a,b){return a&&b&&a.kind===b.kind&&a.id===b.id}function saveUI(extra){var el=$('bgm-player'),ui=Object.assign(read(UI_KEY),extra||{});if(el){ui.collapsed=el.classList.contains('collapsed');ui.posLeft=el.style.left||ui.posLeft||'';ui.posTop=el.style.top||ui.posTop||''}ui.volume=getVol();write(UI_KEY,ui)}function saveState(extra){var s=Object.assign(read(STATE_KEY),extra||{});s.updatedAt=Date.now();write(STATE_KEY,s)}function claim(){write(ACTIVE_KEY,{id:ID,at:Date.now(),href:location.href})}function release(){var a=read(ACTIVE_KEY);if(a.id===ID)write(ACTIVE_KEY,{id:'',at:Date.now()})}window.LakeBGM={yt:null,audio:null,source:{kind:'youtube',id:'',title:'BGM',artist:'',scope:'page'},playing:false,apiLoading:false,readyQueue:[],userPaused:false,getState:function(){return Object.assign({},this.source,{playing:this.playing,currentTime:this.time(),volume:getVol()})},setSource:function(src,opts){opts=opts===true?{autoplay:true}:opts||{};var next=sourceFrom(src);var was=this.playing,old=this.source;if(!next.id){this.source=next;setText(next.title,next.artist);return}if(!same(old,next))this.stop(false);this.source=next;window._bgmYtId=next.kind==='youtube'?next.id:'';setText(next.title,next.artist);saveState({kind:next.kind,id:next.id,ytId:next.kind==='youtube'?next.id:'',fileData:next.kind==='file'?next.id:'',title:next.title,artist:next.artist,scope:next.scope,playing:!!opts.autoplay,currentTime:opts.currentTime||0});if(opts.autoplay||was)this.play(opts.currentTime||0)},ensureYT:function(cb){var self=this;if(window.YT&&YT.Player){cb();return}self.readyQueue.push(cb);var prev=window.onYouTubeIframeAPIReady;window.onYouTubeIframeAPIReady=function(){if(prev)try{prev()}catch(e){}var q=self.readyQueue.splice(0);q.forEach(function(fn){try{fn()}catch(e){}})};if(!self.apiLoading){self.apiLoading=true;var sc=document.createElement('script');sc.src='https://www.youtube.com/iframe_api';document.head.appendChild(sc)}},play:function(seek){var self=this,vol=getVol();if(!self.source.id){var s=read(STATE_KEY);if(s.id||s.ytId||s.fileData)self.setSource({kind:s.kind,id:s.id||s.ytId||s.fileData,title:s.title,artist:s.artist,scope:s.scope},{autoplay:false,currentTime:s.currentTime||0});if(!self.source.id)return}claim();self.userPaused=false;if(self.source.kind==='file'){if(!self.audio){self.audio=new Audio(self.source.id);self.audio.loop=true}self.audio.volume=vol/100;if(typeof seek==='number'&&seek>0)try{self.audio.currentTime=seek}catch(e){}self.audio.play().then(function(){self.playing=true;if($('bgm-play-btn'))$('bgm-play-btn').textContent=PAUSE;saveState({playing:true,currentTime:self.time()})}).catch(function(){self.playing=false;if($('bgm-play-btn'))$('bgm-play-btn').textContent=PLAY});return}self.ensureYT(function(){var box=$('yt-container');if(!box)return;if(!self.yt){box.innerHTML='<div id="yt-iframe"></div>';self.yt=new YT.Player('yt-iframe',{height:'1',width:'1',videoId:self.source.id,playerVars:{autoplay:1,loop:1,playlist:self.source.id,start:Math.floor(seek||0),playsinline:1},events:{onReady:function(e){e.target.setVolume(vol);if(seek)e.target.seekTo(seek,true);e.target.playVideo()},onStateChange:function(e){if(e.data===1){self.playing=true;if($('bgm-play-btn'))$('bgm-play-btn').textContent=PAUSE;saveState({playing:true,currentTime:self.time()})}if(e.data===2){self.playing=false;if($('bgm-play-btn'))$('bgm-play-btn').textContent=PLAY;saveState({playing:false,currentTime:self.time()})}}}})}else{try{if(seek)self.yt.seekTo(seek,true);self.yt.playVideo()}catch(e){}}self.playing=true;if($('bgm-play-btn'))$('bgm-play-btn').textContent=PAUSE;saveState({playing:true,currentTime:self.time()})})},pause:function(mark){if(this.audio)this.audio.pause();if(this.yt)try{this.yt.pauseVideo()}catch(e){}this.playing=false;if(mark!==false)this.userPaused=true;if($('bgm-play-btn'))$('bgm-play-btn').textContent=PLAY;saveState({playing:false,currentTime:this.time()});release()},stop:function(clear){if(this.audio){this.audio.pause();this.audio=null}if(this.yt)try{this.yt.stopVideo()}catch(e){}this.yt=null;this.playing=false;if($('yt-container'))$('yt-container').innerHTML='';if(clear)saveState({playing:false,currentTime:0})},toggle:function(){this.playing?this.pause(true):this.play(this.time())},time:function(){try{if(this.audio)return this.audio.currentTime||0;if(this.yt&&this.yt.getCurrentTime)return this.yt.getCurrentTime()||0}catch(e){}return 0},volume:function(n){n=parseInt(n,10)||0;if(this.audio)this.audio.volume=n/100;if(this.yt)try{this.yt.setVolume(n)}catch(e){}saveUI({volume:n})}};function install(){var btn=$('bgm-play-btn');if(btn&&!btn.dataset.lhFixed){var nb=btn.cloneNode(true);btn.parentNode.replaceChild(nb,btn);nb.dataset.lhFixed='1';nb.textContent=PLAY;nb.addEventListener('click',function(e){e.stopPropagation();LakeBGM.toggle()})}var vol=$('bgm-vol'),ui=read(UI_KEY);if(vol){if(ui.volume!=null)vol.value=ui.volume;if(!vol.dataset.lhFixed){vol.dataset.lhFixed='1';vol.addEventListener('input',function(){LakeBGM.volume(this.value)})}}var el=$('bgm-player');if(el&&!el.dataset.lhDrag){el.dataset.lhDrag='1';var sx=0,sy=0,ox=0,oy=0,drag=false,moved=false,pid=null;function down(e){if(!el.classList.contains('collapsed')&&e.target.closest('button,input'))return;var p=e.touches?e.touches[0]:e;drag=true;moved=false;pid=e.pointerId;ox=p.clientX;oy=p.clientY;var r=el.getBoundingClientRect();sx=r.left;sy=r.top;el.style.right='auto';el.style.bottom='auto';el.style.left=sx+'px';el.style.top=sy+'px';if(el.setPointerCapture&&pid!=null)try{el.setPointerCapture(pid)}catch(x){}e.preventDefault()}function move(e){if(!drag)return;var p=e.touches?e.touches[0]:e,nx=sx+p.clientX-ox,ny=sy+p.clientY-oy;if(Math.abs(p.clientX-ox)>3||Math.abs(p.clientY-oy)>3)moved=true;nx=Math.max(0,Math.min(innerWidth-el.offsetWidth,nx));ny=Math.max(0,Math.min(innerHeight-el.offsetHeight,ny));el.style.left=nx+'px';el.style.top=ny+'px';saveUI({posLeft:el.style.left,posTop:el.style.top})}function up(){drag=false;setTimeout(function(){moved=false},40)}if(window.PointerEvent){el.addEventListener('pointerdown',down);document.addEventListener('pointermove',move);document.addEventListener('pointerup',up)}else{el.addEventListener('mousedown',down);document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);el.addEventListener('touchstart',down,{passive:false});document.addEventListener('touchmove',move,{passive:false});document.addEventListener('touchend',up)}var c=$('bgm-toggle-collapse'),x=$('bgm-expand-btn');if(c)c.addEventListener('click',function(e){e.stopPropagation();el.classList.add('collapsed');saveUI()},{capture:true});if(x)x.addEventListener('click',function(e){e.stopPropagation();if(moved)return;el.classList.remove('collapsed');saveUI()},{capture:true})}}function boot(){install();var ui=read(UI_KEY),el=$('bgm-player');if(el){if(ui.collapsed)el.classList.add('collapsed');if(ui.posLeft&&ui.posTop){el.style.right='auto';el.style.bottom='auto';el.style.left=ui.posLeft;el.style.top=ui.posTop}}var s=read(STATE_KEY);if(s.id||s.ytId||s.fileData){LakeBGM.setSource({kind:s.kind,id:s.id||s.ytId||s.fileData,title:s.title,artist:s.artist,scope:s.scope},{autoplay:false,currentTime:s.currentTime||0});if(s.playing)LakeBGM.play(s.currentTime||0)}}window.addEventListener('storage',function(e){if(e.key===ACTIVE_KEY){var a=read(ACTIVE_KEY);if(a.id&&a.id!==ID&&LakeBGM.playing)LakeBGM.pause(false)}if(e.key===STATE_KEY){var s=read(STATE_KEY);if((s.id||s.ytId||s.fileData)&&!same(LakeBGM.source,{kind:s.kind,id:s.id||s.ytId||s.fileData})){LakeBGM.setSource({kind:s.kind,id:s.id||s.ytId||s.fileData,title:s.title,artist:s.artist,scope:s.scope},{autoplay:false,currentTime:s.currentTime||0})}}});window.addEventListener('beforeunload',function(){saveUI();saveState({playing:LakeBGM.playing,currentTime:LakeBGM.time()})});window.addEventListener('pagehide',function(){saveUI();saveState({playing:LakeBGM.playing,currentTime:LakeBGM.time()})});setInterval(function(){if(LakeBGM.playing)saveState({playing:true,currentTime:LakeBGM.time()})},1000);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();setTimeout(boot,900)})();
+</script><script id="lakehouse-pair-js">
+(function(){})();
+</script>
+<script id="lakehouse-transition-js">
+(function(){document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.target||a.hasAttribute('download'))return;var url=new URL(a.href,location.href);if(url.origin!==location.origin||url.href===location.href)return;e.preventDefault();document.body.classList.add('lh-leaving');setTimeout(function(){location.href=url.href},180)})})();
+</script>
+<script id="lakehouse-page-bgm-js">
+(function(){
+  function hasSavedSource(){try{var s=JSON.parse(localStorage.getItem('lh_bgm_shared_state')||'{}');return !!(s.id||s.ytId||s.fileData)}catch(e){return false}}
+  function applyMainBGM(bgm){if(!bgm||!window.LakeBGM||hasSavedSource())return;LakeBGM.setSource({youtubeId:bgm.youtubeId||'',title:bgm.title||'BGM',artist:bgm.artist||'',scope:'main'},{autoplay:false})}
+  function tryLoad(n){if(hasSavedSource())return;if(window._db&&window._fbGet&&window._fbRef){window._fbGet(window._fbRef(window._db,'site/bgm')).then(function(s){if(s&&s.exists())applyMainBGM(s.val())}).catch(function(){})}else if(n<20){setTimeout(function(){tryLoad(n+1)},250)}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){tryLoad(0)});else tryLoad(0);
+})();
+</script>
+<script id="lakehouse-bgm-doubleclick-override-js">
+(function(){
+  var UI_KEY='lh_bgm_ui_state';
+  function read(){try{return JSON.parse(localStorage.getItem(UI_KEY)||'{}')}catch(e){return {}}}
+  function save(extra){try{localStorage.setItem(UI_KEY,JSON.stringify(Object.assign(read(),extra||{})))}catch(e){}}
+  function install(){
+    var p=document.getElementById('bgm-player');
+    if(!p)return;
+    var expand=document.getElementById('bgm-expand-btn');
+    if(expand&&!expand.dataset.lhDoubleOnly){
+      var clone=expand.cloneNode(true);
+      clone.dataset.lhDoubleOnly='1';
+      clone.style.pointerEvents='none';
+      expand.parentNode.replaceChild(clone,expand);
+    }
+    if(p.dataset.lhDoubleClickFinal)return;
+    p.dataset.lhDoubleClickFinal='1';
+    p.addEventListener('click',function(e){
+      if(p.classList.contains('collapsed')){
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },true);
+    p.addEventListener('dblclick',function(e){
+      if(!p.classList.contains('collapsed'))return;
+      e.preventDefault();
+      e.stopPropagation();
+      p.classList.remove('collapsed');
+      save({collapsed:false,posLeft:p.style.left||'',posTop:p.style.top||''});
+    },true);
+    var collapse=document.getElementById('bgm-toggle-collapse');
+    if(collapse&&!collapse.dataset.lhRightFold){
+      collapse.dataset.lhRightFold='1';
+      collapse.addEventListener('click',function(){
+        var r=p.getBoundingClientRect();
+        setTimeout(function(){
+          if(!p.classList.contains('collapsed'))return;
+          var left=Math.max(0,Math.min(window.innerWidth-52,r.right-52));
+          var top=Math.max(0,Math.min(window.innerHeight-52,r.top));
+          p.style.right='auto';
+          p.style.bottom='auto';
+          p.style.left=left+'px';
+          p.style.top=top+'px';
+          save({collapsed:true,posLeft:p.style.left,posTop:p.style.top});
+        },0);
+      },true);
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
+  setTimeout(install,300);
+  setTimeout(install,1200);
+})();
+</script>
+<script id="lakehouse-bgm-persist-guard-js">
+(function(){
+  var STATE_KEY='lh_bgm_shared_state';
+  function read(){try{return JSON.parse(localStorage.getItem(STATE_KEY)||'{}')}catch(e){return {}}}
+  function write(v){try{localStorage.setItem(STATE_KEY,JSON.stringify(Object.assign(read(),v||{},{updatedAt:Date.now()})))}catch(e){}}
+  function remember(){
+    if(!window.LakeBGM||!LakeBGM.getState)return;
+    var s=LakeBGM.getState();
+    if(s&&(s.id||s.ytId||s.fileData))write({kind:s.kind,id:s.id||s.ytId||s.fileData,ytId:s.kind==='youtube'?(s.id||s.ytId):'',fileData:s.kind==='file'?(s.id||s.fileData):'',title:s.title,artist:s.artist,scope:s.scope,playing:!!s.playing,currentTime:s.currentTime||0,volume:s.volume});
+  }
+  window.addEventListener('pagehide',remember,{capture:true});
+  window.addEventListener('beforeunload',remember,{capture:true});
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')remember()},{capture:true});
+})();
+</script>
+<script id="lakehouse-public-pair-sync-js">
+(function(){
+  function pull(){
+    if(!window._db||!window._fbGet||!window._fbRef)return false;
+    window._fbGet(window._fbRef(window._db,'lhdata/oc_pairs')).then(function(snap){
+      if(!snap||!snap.exists())return;
+      localStorage.setItem('oc_pairs',JSON.stringify(snap.val()));
+      if(typeof renderGrid==='function')renderGrid();
+    }).catch(function(e){console.warn('[lakehouse] public pair sync failed',e&&e.code?e.code:e)});
+    return true;
+  }
+  function boot(n){if(pull())return;if(n<30)setTimeout(function(){boot(n+1)},250)}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){boot(0)});else boot(0);
+  window.addEventListener('pageshow',function(){boot(0)});
+})();
+</script>
+<style id="lakehouse-bgm-expand-final-css">
+#bgm-player.collapsed{cursor:pointer!important;overflow:hidden!important;justify-content:center!important;align-items:center!important}
+#bgm-player.collapsed #bgm-expand-btn{display:flex!important;pointer-events:auto!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:5!important;align-items:center!important;justify-content:center!important;cursor:pointer!important}
+</style>
+<script id="lakehouse-bgm-expand-final-js">
+(function(){
+  var UI_KEY='lh_bgm_ui_state';
+  function read(){try{return JSON.parse(localStorage.getItem(UI_KEY)||'{}')}catch(e){return {}}}
+  function save(el){var ui=read();ui.collapsed=el.classList.contains('collapsed');ui.posLeft=el.style.left||ui.posLeft||'';ui.posTop=el.style.top||ui.posTop||'';try{localStorage.setItem(UI_KEY,JSON.stringify(ui))}catch(e){}}
+  function install(){
+    var p=document.getElementById('bgm-player');if(!p||p.dataset.lhExpandFinal)return;p.dataset.lhExpandFinal='1';
+    var moved=false,sx=0,sy=0,down=false;
+    p.addEventListener('pointerdown',function(e){down=true;moved=false;sx=e.clientX;sy=e.clientY},{capture:true});
+    document.addEventListener('pointermove',function(e){if(!down)return;if(Math.abs(e.clientX-sx)>5||Math.abs(e.clientY-sy)>5)moved=true},{capture:true});
+    document.addEventListener('pointerup',function(){setTimeout(function(){down=false;moved=false},90)},{capture:true});
+    function open(e){if(!p.classList.contains('collapsed'))return;if(moved)return;e.preventDefault();e.stopPropagation();p.classList.remove('collapsed');save(p)}
+    p.addEventListener('click',open,true);
+    p.addEventListener('dblclick',open,true);
+    var x=document.getElementById('bgm-expand-btn');if(x)x.addEventListener('click',open,true);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();setTimeout(install,900);
+})();
+</script>
+<style id="lakehouse-pair-dialog-css">
+.lh-dialog-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(2,3,3,.54);backdrop-filter:blur(8px);animation:lhDialogFade .24s ease both}.lh-dialog-box{width:min(420px,calc(100vw - 44px));padding:24px 24px 20px;background:linear-gradient(135deg,rgba(18,20,18,.96),rgba(35,32,28,.94));border:1px solid rgba(215,169,130,.34);border-radius:20px;box-shadow:0 28px 90px rgba(0,0,0,.58);animation:lhDialogRise .34s cubic-bezier(.16,1,.3,1) both}.lh-dialog-title{font-family:'Cormorant Upright','Cormorant Garamond',serif;font-size:25px;color:rgba(240,207,173,.9);margin-bottom:10px}.lh-dialog-message{font-size:13px;line-height:1.75;color:rgba(234,231,222,.82)}.lh-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.lh-dialog-actions button{border:1px solid rgba(215,169,130,.3);background:rgba(215,169,130,.08);color:rgba(240,231,220,.82);border-radius:999px;padding:7px 14px;font-size:12px;cursor:pointer}.lh-dialog-actions .danger{background:rgba(125,47,47,.2);border-color:rgba(214,116,100,.38)}@keyframes lhDialogFade{from{opacity:0}to{opacity:1}}@keyframes lhDialogRise{from{opacity:0;transform:translateY(18px) scale(.96);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+</style>
+<script id="lakehouse-pair-dialog-delete-js">
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function confirmUI(msg){return new Promise(function(resolve){var ov=document.createElement('div');ov.className='lh-dialog-overlay';ov.innerHTML='<div class="lh-dialog-box"><div class="lh-dialog-title">확인</div><div class="lh-dialog-message">'+esc(msg)+'</div><div class="lh-dialog-actions"><button type="button" data-v="0">취소</button><button type="button" class="danger" data-v="1">확인</button></div></div>';document.body.appendChild(ov);ov.querySelectorAll('button').forEach(function(b){b.onclick=function(){var ok=b.dataset.v==='1';ov.remove();resolve(ok)}});ov.onclick=function(e){if(e.target===ov){ov.remove();resolve(false)}}})}
+  var oldDelete=window.deletePair;window.deletePair=function(){if(!window.currentPair||!window._isAdmin)return;confirmUI('이 페어를 삭제할까요?').then(function(ok){if(!ok)return;if(oldDelete){var nativeConfirm=window.confirm;window.confirm=function(){return true};try{oldDelete()}finally{window.confirm=nativeConfirm}}})};
+})();
+</script>
+</body>
+</html>
+

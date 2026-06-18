@@ -1,0 +1,292 @@
+/* ===== Lakehouse Home — Layer Stack ===== */
+
+:root {
+  --lh-z-bg: 0;
+  --lh-z-shell: 10;
+  --lh-z-content: 15;
+  --lh-z-nav-panel: 40;
+  --lh-z-nav-menu: 42;
+  --lh-z-nav-interactive: 45;
+  --lh-z-auth: 500;
+  --lh-z-admin: 800;
+  --lh-z-bgm: 900;
+  --lh-z-dialog: 99999;
+  --lh-nav-width: 400px;
+}
+
+/* ── Layer 0: background (never blocks clicks) ── */
+.bg-layer,
+.bg-deco,
+.bg-deco-geo,
+.bg-layer::before,
+.bg-layer::after {
+  z-index: var(--lh-z-bg) !important;
+  pointer-events: none !important;
+}
+
+/* ── Layer 10: home grid shell ── */
+.layout.layout--home {
+  position: relative !important;
+  z-index: var(--lh-z-shell) !important;
+  display: grid !important;
+  grid-template-columns: var(--lh-nav-width) minmax(0, 1fr) !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  overflow: hidden !important;
+  isolation: isolate;
+}
+
+.layout.layout--home::before,
+.layout.layout--home::after {
+  display: none !important;
+}
+
+/* ── Layer 40–45: left navigation ── */
+.layout.layout--home > .left-panel {
+  position: relative !important;
+  z-index: var(--lh-z-nav-panel) !important;
+  width: var(--lh-nav-width) !important;
+  min-width: var(--lh-nav-width) !important;
+  height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  isolation: isolate;
+}
+
+.layout.layout--home > .left-panel::before {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.layout.layout--home #main-nav.nav-arc {
+  z-index: var(--lh-z-nav-menu) !important;
+}
+
+.layout.layout--home .nav-arc-slot,
+.layout.layout--home .nav-arc-item,
+.layout.layout--home .btn-auth {
+  z-index: var(--lh-z-nav-interactive);
+}
+
+.layout.layout--home .nav-arc-slot--group.is-open {
+  z-index: calc(var(--lh-z-nav-interactive) + 2) !important;
+}
+
+.layout.layout--home #main-nav .nav-sub--arc:not(.open) {
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* ── Layer 15: right content (clipped inside column) ── */
+.layout.layout--home > .right-panel {
+  position: relative !important;
+  z-index: var(--lh-z-content) !important;
+  min-width: 0 !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  display: block !important;
+  isolation: isolate;
+}
+
+.layout.layout--home > .right-panel::before {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.layout.layout--home .content-area {
+  position: relative !important;
+  z-index: 1 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  transform: none !important;
+  display: block !important;
+  pointer-events: auto;
+}
+
+/* no translateX bleed into nav column */
+.layout.layout--home .content-block,
+.layout.layout--home .content-block.active,
+.layout.layout--home .content-block.active:not(#page-main),
+.layout.layout--home #page-main.active,
+.layout.layout--home .content-block.active:not(#page-main) .page-heading,
+.layout.layout--home .content-block.active:not(#page-main) .page-sub,
+.layout.layout--home .content-block.active:not(#page-main) .world-cards,
+.layout.layout--home .content-block.active:not(#page-main) #notice-list,
+.layout.layout--home .content-block.active:not(#page-main) #public-diary-list,
+.layout.layout--home .content-block.active:not(#page-main) #public-gallery-grid,
+.layout.layout--home .content-block.active:not(#page-main) #public-banner-list,
+.layout.layout--home .content-block.active:not(#page-main) #guest-list,
+.layout.layout--home .content-block.active:not(#page-main) .page-coming {
+  transform: none !important;
+}
+
+.layout.layout--home .content-block.active:not(#page-main) {
+  position: absolute !important;
+  left: clamp(2rem, 5vw, 5rem) !important;
+  top: clamp(4rem, 10vh, 6rem) !important;
+  right: clamp(1.5rem, 4vw, 3rem) !important;
+  width: auto !important;
+  max-width: min(780px, calc(100% - 2rem)) !important;
+  max-height: calc(100vh - 7rem) !important;
+  overflow: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  scrollbar-width: thin;
+  animation: lhContentIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+
+@keyframes lhContentIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) !important;
+  }
+  to {
+    opacity: 1;
+    transform: none !important;
+  }
+}
+
+.layout.layout--home .content-block.active:not(#page-main) .page-heading {
+  margin: 0 0 0.75rem !important;
+  padding: 0 !important;
+}
+
+.layout.layout--home .content-block.active:not(#page-main) .page-sub {
+  margin: 0 0 1.25rem 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.layout.layout--home .content-block.active:not(#page-main) .world-cards,
+.layout.layout--home .content-block.active:not(#page-main) #notice-list,
+.layout.layout--home .content-block.active:not(#page-main) #public-diary-list,
+.layout.layout--home .content-block.active:not(#page-main) #public-gallery-grid,
+.layout.layout--home .content-block.active:not(#page-main) #public-banner-list,
+.layout.layout--home .content-block.active:not(#page-main) #guest-list,
+.layout.layout--home .content-block.active:not(#page-main) .page-coming {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-top: 0 !important;
+}
+
+.layout.layout--home #page-main.active {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  width: min(780px, 100%) !important;
+  max-width: 780px !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  margin: 0 auto !important;
+  padding: 0 clamp(2rem, 5vw, 3.5rem) !important;
+  overflow: hidden !important;
+  animation: lhContentIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+
+/* ── Overlays ── */
+#auth-modal {
+  z-index: var(--lh-z-auth) !important;
+}
+
+.adm-overlay {
+  z-index: var(--lh-z-admin) !important;
+}
+
+#bgm-player {
+  z-index: var(--lh-z-bgm) !important;
+}
+
+.lh-dialog-overlay {
+  z-index: var(--lh-z-dialog) !important;
+}
+
+.auth-tab {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+}
+
+@media (max-width: 760px) {
+  .layout.layout--home {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+  }
+
+  .layout.layout--home > .left-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+  }
+
+  .layout.layout--home > .right-panel {
+    height: auto !important;
+    min-height: 60vh !important;
+    overflow: visible !important;
+  }
+
+  .layout.layout--home .content-area {
+    height: auto !important;
+    min-height: 60vh !important;
+    overflow: visible !important;
+  }
+
+  .layout.layout--home .content-block.active:not(#page-main) {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    padding: 1.25rem !important;
+  }
+
+  .layout.layout--home #page-main.active {
+    height: auto !important;
+    min-height: 60vh !important;
+    padding: 2rem 1.25rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout.layout--home .content-block.active,
+  .layout.layout--home #page-main.active {
+    animation: none !important;
+  }
+}
+
+/* soften bg seam behind nav column — no hard black box */
+body:has(.layout--home) .bg-layer {
+  background: linear-gradient(
+      90deg,
+      rgba(7, 8, 7, 0.96) 0,
+      rgba(7, 8, 7, 0.9) 16%,
+      rgba(11, 12, 11, 0.38) 26%,
+      rgba(9, 10, 9, 0.36) 62% 100%
+    ),
+    linear-gradient(180deg, rgba(9, 10, 9, 0.18), rgba(9, 10, 9, 0.46)),
+    linear-gradient(160deg, #151715, #0b0d0c) !important;
+}
+
+body:has(.layout--home) .layout.layout--home > .left-panel {
+  box-shadow: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

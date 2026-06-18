@@ -1,0 +1,2 @@
+#bgm-player.collapsed{cursor:pointer!important;overflow:hidden!important;justify-content:center!important;align-items:center!important}
+#bgm-player.collapsed #bgm-expand-btn{display:flex!important;pointer-events:auto!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:5!important;align-items:center!important;justify-content:center!important;cursor:pointer!important}

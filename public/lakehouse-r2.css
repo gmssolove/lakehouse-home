@@ -1,0 +1,6 @@
+.lh-r2-config{border:1px solid rgba(215,169,130,.22);background:rgba(12,14,13,.42);border-radius:14px;padding:12px;margin:12px 0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025)}
+.lh-r2-config-title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--lake-copper-soft,var(--pink));margin-bottom:8px}
+.lh-r2-config-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+.lh-r2-status{font-size:11px;color:var(--text-muted);margin-top:7px;min-height:16px}
+.lh-r2-status.is-busy{color:var(--lake-copper-soft,var(--pink))}
+@media(max-width:760px){.lh-r2-config-grid{grid-template-columns:1fr}}

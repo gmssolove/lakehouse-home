@@ -1,0 +1,4 @@
+#detail-screen #game-char-img{height:100%!important;max-width:min(54vw,780px)!important;max-height:calc(100% - 4px)!important;object-fit:contain!important;object-position:center bottom!important;z-index:6!important;cursor:pointer!important;pointer-events:auto!important}
+#detail-screen .game-char-gradient{z-index:5!important;pointer-events:none!important}
+#detail-screen .lh-vn-overlay{z-index:30!important}
+@media(max-width:760px){#detail-screen #game-char-img{max-width:96vw!important;height:98%!important}}
