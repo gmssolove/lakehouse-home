@@ -33,11 +33,18 @@ export type DialogueNode = {
   choices?: DialogueChoice[];
 };
 
+export type ImageFrame = {
+  scale?: number;
+  x?: number;
+  y?: number;
+};
+
 export type AuVersion = {
   label?: string;
   img?: string;
   imgFit?: string;
   imgPos?: string;
+  imgFrame?: ImageFrame;
 };
 
 export type OcCharacter = {
@@ -53,6 +60,7 @@ export type OcCharacter = {
   img?: string;
   imgFit?: string;
   imgPos?: string;
+  imgFrame?: ImageFrame;
   desc?: string;
   profile?: ProfileField[];
   story?: string;
@@ -96,11 +104,17 @@ export type OcCharacter = {
 export type PairItem = {
   id: string;
   chars: [string, string];
+  img?: string;
+  imgFit?: string;
+  imgPos?: string;
+  imgFrame?: ImageFrame;
   charImgs?: [string, string];
   charSubs?: [string, string];
   charImgFit?: [string, string];
   charImgPos?: [string, string];
   relation?: string;
+  pairTitle?: string;
+  pairSub?: string;
   desc?: string;
   keywords?: string[];
   story?: string;

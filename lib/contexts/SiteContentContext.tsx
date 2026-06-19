@@ -2,22 +2,33 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import {
+  DEFAULT_REVIEW_CATEGORIES,
+  DEFAULT_SITE_ACCESS_SETTINGS,
   DEFAULT_SITE_BGM,
   DEFAULT_SITE_MAIN,
   DEFAULT_SITE_OC_SETTINGS,
   DEFAULT_SITE_UI_SETTINGS,
   DEFAULT_UNIVERSE,
   type BannerItem,
+  type CharArchiveItem,
   type GalleryItem,
   type GuestEntry,
+  type MusicPlaylist,
+  type MusicTrack,
+  type ReviewCategory,
+  type ReviewItem,
+  type ScrapItem,
+  type SiteAccessSettings,
   type SiteBgm,
   type SiteMain,
   type SiteOcSettings,
   type SitePost,
   type SiteUiSettings,
+  type TrpgScenario,
   type UniverseCard,
 } from '@/lib/types/site-content';
 import { useFirebaseSection } from '@/lib/hooks/useFirebaseSection';
+import { normalizeMusicPlaylists, normalizeMusicTracks } from '@/lib/music/normalize';
 
 type SiteContentValue = {
   loaded: boolean;
@@ -26,23 +37,37 @@ type SiteContentValue = {
   diary: SitePost[];
   gallery: GalleryItem[];
   universe: UniverseCard[];
-  trpg: SitePost[];
+  trpg: TrpgScenario[];
   guests: GuestEntry[];
   banners: BannerItem[];
   bgm: SiteBgm;
   ocSettings: SiteOcSettings;
   uiSettings: SiteUiSettings;
+  accessSettings: SiteAccessSettings;
+  scrap: ScrapItem[];
+  reviewCategories: ReviewCategory[];
+  reviews: ReviewItem[];
+  musicTracks: MusicTrack[];
+  musicPlaylists: MusicPlaylist[];
+  charArchive: CharArchiveItem[];
   saveMain: (next: SiteMain) => Promise<void>;
   saveNotices: (next: SitePost[]) => Promise<void>;
   saveDiary: (next: SitePost[]) => Promise<void>;
   saveGallery: (next: GalleryItem[]) => Promise<void>;
   saveUniverse: (next: UniverseCard[]) => Promise<void>;
-  saveTrpg: (next: SitePost[]) => Promise<void>;
+  saveTrpg: (next: TrpgScenario[]) => Promise<void>;
   saveGuests: (next: GuestEntry[]) => Promise<void>;
   saveBanners: (next: BannerItem[]) => Promise<void>;
   saveBgm: (next: SiteBgm) => Promise<void>;
   saveOcSettings: (next: SiteOcSettings) => Promise<void>;
   saveUiSettings: (next: SiteUiSettings) => Promise<void>;
+  saveAccessSettings: (next: SiteAccessSettings) => Promise<void>;
+  saveScrap: (next: ScrapItem[]) => Promise<void>;
+  saveReviewCategories: (next: ReviewCategory[]) => Promise<void>;
+  saveReviews: (next: ReviewItem[]) => Promise<void>;
+  saveMusicTracks: (next: MusicTrack[]) => Promise<void>;
+  saveMusicPlaylists: (next: MusicPlaylist[]) => Promise<void>;
+  saveCharArchive: (next: CharArchiveItem[]) => Promise<void>;
 };
 
 const SiteContentContext = createContext<SiteContentValue | null>(null);
@@ -80,12 +105,25 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
   const diary = useFirebaseSection<SitePost[]>('lhdata/site/diary', []);
   const gallery = useFirebaseSection<GalleryItem[]>('lhdata/site/gallery', []);
   const universe = useFirebaseSection<UniverseCard[]>('lhdata/site/universe', DEFAULT_UNIVERSE);
-  const trpg = useFirebaseSection<SitePost[]>('lhdata/site/trpg', []);
+  const trpg = useFirebaseSection<TrpgScenario[]>('lhdata/site/trpg', []);
   const guests = useFirebaseSection<GuestEntry[]>('lhdata/site/guests', []);
   const banners = useFirebaseSection<BannerItem[]>('lhdata/site/banners', []);
   const bgm = useFirebaseSection<SiteBgm>('lhdata/site/bgm', DEFAULT_SITE_BGM);
   const ocSettings = useFirebaseSection<SiteOcSettings>('lhdata/site/oc_settings', DEFAULT_SITE_OC_SETTINGS);
   const uiSettings = useFirebaseSection<SiteUiSettings>('lhdata/site/ui_settings', DEFAULT_SITE_UI_SETTINGS);
+  const accessSettings = useFirebaseSection<SiteAccessSettings>(
+    'lhdata/site/access_settings',
+    DEFAULT_SITE_ACCESS_SETTINGS,
+  );
+  const scrap = useFirebaseSection<ScrapItem[]>('lhdata/site/scrap', []);
+  const reviewCategories = useFirebaseSection<ReviewCategory[]>(
+    'lhdata/site/review_categories',
+    DEFAULT_REVIEW_CATEGORIES,
+  );
+  const reviews = useFirebaseSection<ReviewItem[]>('lhdata/site/reviews', []);
+  const musicTracks = useFirebaseSection<MusicTrack[]>('lhdata/site/music_tracks', []);
+  const musicPlaylists = useFirebaseSection<MusicPlaylist[]>('lhdata/site/music_playlists', []);
+  const charArchive = useFirebaseSection<CharArchiveItem[]>('lhdata/site/char_archive', []);
 
   const loaded =
     main.loaded &&
@@ -98,7 +136,14 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     banners.loaded &&
     bgm.loaded &&
     ocSettings.loaded &&
-    uiSettings.loaded;
+    uiSettings.loaded &&
+    accessSettings.loaded &&
+    scrap.loaded &&
+    reviewCategories.loaded &&
+    reviews.loaded &&
+    musicTracks.loaded &&
+    musicPlaylists.loaded &&
+    charArchive.loaded;
 
   const value = useMemo<SiteContentValue>(
     () => ({
@@ -114,6 +159,13 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       bgm: bgm.data,
       ocSettings: mergeOcSettings(ocSettings.data),
       uiSettings: mergeUiSettings(uiSettings.data, ocSettings.data as Record<string, unknown>),
+      accessSettings: { ...DEFAULT_SITE_ACCESS_SETTINGS, ...accessSettings.data },
+      scrap: scrap.data,
+      reviewCategories: reviewCategories.data.length ? reviewCategories.data : DEFAULT_REVIEW_CATEGORIES,
+      reviews: reviews.data,
+      musicTracks: normalizeMusicTracks(musicTracks.data),
+      musicPlaylists: normalizeMusicPlaylists(musicPlaylists.data),
+      charArchive: charArchive.data,
       saveMain: main.save,
       saveNotices: notices.save,
       saveDiary: diary.save,
@@ -125,6 +177,13 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       saveBgm: bgm.save,
       saveOcSettings: ocSettings.save,
       saveUiSettings: uiSettings.save,
+      saveAccessSettings: accessSettings.save,
+      saveScrap: scrap.save,
+      saveReviewCategories: reviewCategories.save,
+      saveReviews: reviews.save,
+      saveMusicTracks: musicTracks.save,
+      saveMusicPlaylists: musicPlaylists.save,
+      saveCharArchive: charArchive.save,
     }),
     [
       loaded,
@@ -139,6 +198,13 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       bgm.data,
       ocSettings.data,
       uiSettings.data,
+      accessSettings.data,
+      scrap.data,
+      reviewCategories.data,
+      reviews.data,
+      musicTracks.data,
+      musicPlaylists.data,
+      charArchive.data,
       main.save,
       notices.save,
       diary.save,
@@ -150,6 +216,13 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       bgm.save,
       ocSettings.save,
       uiSettings.save,
+      accessSettings.save,
+      scrap.save,
+      reviewCategories.save,
+      reviews.save,
+      musicTracks.save,
+      musicPlaylists.save,
+      charArchive.save,
     ],
   );
 

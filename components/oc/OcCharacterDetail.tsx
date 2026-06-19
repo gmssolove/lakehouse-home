@@ -10,7 +10,8 @@ import { applyCharacterTheme, characterHasBgmTheme, clearCharacterTheme, resolve
 import { gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
 import { displayCategory, isTrpgCategory } from '@/lib/oc/categories';
 import { buildDetailProfileRows, formatCardTag, formatStatDigits } from '@/lib/oc/profile';
-import type { GalleryItem, OcCharacter, StoryLog, CharacterRelation } from '@/lib/types/character';
+import { framedImageStyle } from '@/lib/shared/imageFrame';
+import type { GalleryItem, ImageFrame, OcCharacter, StoryLog, CharacterRelation } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
 
 type Props = {
@@ -19,7 +20,7 @@ type Props = {
   auIdx: number;
   isAdmin: boolean;
   categories: string[];
-  img: { src: string; fit: string; pos: string } | null;
+  img: { src: string; fit: string; pos: string; frame?: ImageFrame } | null;
   onBack: () => void;
   onBindBack?: (handler: (() => void) | null) => void;
   onAuChange: (au: number) => void;
@@ -119,16 +120,15 @@ export function OcCharacterDetail({
       src: vn.expression || img?.src || '',
       fit: img?.fit || 'contain',
       pos: img?.pos || 'center top',
+      frame: img?.frame,
     }),
-    [img?.fit, img?.pos, img?.src, vn.expression],
+    [img?.fit, img?.frame, img?.pos, img?.src, vn.expression],
   );
   const displayImgSrc = shownPortrait?.src || portraitTarget.src;
 
   const portraitImgStyle = useCallback(
-    (fit: string, pos: string): CSSProperties => ({
-      objectFit: fit as CSSProperties['objectFit'],
-      objectPosition: pos,
-    }),
+    (fit: string, pos: string, frame?: ImageFrame): CSSProperties =>
+      framedImageStyle(frame, { fit, pos }),
     [],
   );
 
@@ -514,7 +514,7 @@ export function OcCharacterDetail({
                       src={exprPortrait.layers[layer] || portraitTarget.src}
                       alt=""
                       decoding="sync"
-                      style={portraitImgStyle(portraitTarget.fit, portraitTarget.pos)}
+                      style={portraitImgStyle(portraitTarget.fit, portraitTarget.pos, portraitTarget.frame)}
                     />
                   ))}
                 </div>
@@ -528,6 +528,7 @@ export function OcCharacterDetail({
                   style={portraitImgStyle(
                     shownPortrait?.fit || portraitTarget.fit,
                     shownPortrait?.pos || portraitTarget.pos,
+                    img?.frame,
                   )}
                   onClick={(e) => {
                     e.stopPropagation();

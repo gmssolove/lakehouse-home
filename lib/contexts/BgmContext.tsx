@@ -10,21 +10,26 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import {
+  clampBgmPlayerPosition,
+  isBgmPlayerOffscreen,
+  parsePx,
+} from '@/lib/bgm/clampPlayerPosition';
+import {
+  buildPagePlaylist,
+  firstPageTrack,
+  normalizeTrack,
+  sameTrack,
+  trackFromSrc,
+  trackKey as bgmTrackKey,
+} from '@/lib/bgm/playlist';
+import type { BgmKind, BgmTrack } from '@/lib/bgm/types';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
-import type { SiteBgm } from '@/lib/types/site-content';
 
 const STATE_KEY = 'lh_bgm_shared_state';
 const UI_KEY = 'lh_bgm_ui_state';
 
-export type BgmKind = 'url' | 'youtube' | 'file';
-
-export type BgmTrack = {
-  kind: BgmKind;
-  id: string;
-  title: string;
-  artist: string;
-  scope: 'page' | 'character';
-};
+export type { BgmKind, BgmTrack } from '@/lib/bgm/types';
 
 type SavedState = {
   kind?: BgmKind;
@@ -70,6 +75,7 @@ type BgmContextValue = {
   artist: string;
   currentTime: number;
   duration: number;
+  activeTrackKey: string;
   toggle: () => void;
   setVolume: (v: number) => void;
   seek: (t: number) => void;
@@ -101,7 +107,10 @@ type BgmContextValue = {
 
 const BgmContext = createContext<BgmContextValue | null>(null);
 
+const DEFAULT_VOLUME = 40;
+
 function readJson<T>(key: string): T {
+  if (typeof window === 'undefined') return {} as T;
   try {
     return JSON.parse(localStorage.getItem(key) || '{}') as T;
   } catch {
@@ -110,126 +119,12 @@ function readJson<T>(key: string): T {
 }
 
 function writeJson(key: string, value: unknown) {
+  if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
     /* ignore */
   }
-}
-
-function parseYoutubeId(input: string): string | null {
-  const raw = input.trim();
-  if (!raw) return null;
-
-  try {
-    const u = new URL(raw);
-    const host = u.hostname.replace(/^www\./, '');
-    if (host === 'youtu.be') {
-      const id = u.pathname.split('/').filter(Boolean)[0];
-      return id || null;
-    }
-    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
-      if (u.pathname === '/watch') return u.searchParams.get('v');
-      const embed = u.pathname.match(/^\/embed\/([^/?#]+)/);
-      if (embed) return embed[1];
-      const shorts = u.pathname.match(/^\/shorts\/([^/?#]+)/);
-      if (shorts) return shorts[1];
-    }
-  } catch {
-    /* not a URL */
-  }
-
-  const loose = raw.match(
-    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{6,})/,
-  );
-  return loose?.[1] || null;
-}
-
-function normalizeTrack(track: BgmTrack): BgmTrack {
-  if (track.kind !== 'url') return track;
-  const ytId = parseYoutubeId(track.id);
-  if (!ytId) return track;
-  return { ...track, kind: 'youtube', id: ytId };
-}
-
-function trackFromSrc(src: {
-  url?: string;
-  youtubeId?: string;
-  fileData?: string;
-  title?: string;
-  artist?: string;
-  scope?: 'page' | 'character';
-}): BgmTrack | null {
-  if (src.fileData) {
-    return {
-      kind: 'file',
-      id: src.fileData,
-      title: src.title || 'BGM',
-      artist: src.artist || '',
-      scope: src.scope || 'page',
-    };
-  }
-  if (src.youtubeId) {
-    return {
-      kind: 'youtube',
-      id: src.youtubeId,
-      title: src.title || 'BGM',
-      artist: src.artist || '',
-      scope: src.scope || 'page',
-    };
-  }
-  if (src.url) {
-    const ytId = parseYoutubeId(src.url);
-    if (ytId) {
-      return {
-        kind: 'youtube',
-        id: ytId,
-        title: src.title || 'BGM',
-        artist: src.artist || '',
-        scope: src.scope || 'page',
-      };
-    }
-    return {
-      kind: 'url',
-      id: src.url,
-      title: src.title || 'BGM',
-      artist: src.artist || '',
-      scope: src.scope || 'page',
-    };
-  }
-  return null;
-}
-
-function sameTrack(a: BgmTrack | null, b: BgmTrack | null) {
-  return !!a && !!b && a.kind === b.kind && a.id === b.id;
-}
-
-function buildPagePlaylist(bgm: SiteBgm): BgmTrack[] {
-  const raw = bgm.playlist?.filter((p) => p.url?.trim()) ?? [];
-  const items = raw.length
-    ? raw
-    : bgm.url?.trim()
-      ? [{ title: bgm.title, artist: bgm.artist, url: bgm.url }]
-      : [];
-  return items
-    .map((item) =>
-      trackFromSrc({
-        url: item.url,
-        title: item.title || bgm.title || 'BGM',
-        artist: item.artist || bgm.artist || '',
-        scope: 'page',
-      }),
-    )
-    .filter((t): t is BgmTrack => !!t);
-}
-
-function firstPageTrack(bgm: SiteBgm): BgmTrack | null {
-  return buildPagePlaylist(bgm)[0] ?? null;
-}
-
-function readStoredVolume() {
-  const ui = readJson<UiState>(UI_KEY);
-  return typeof ui.volume === 'number' ? ui.volume : 40;
 }
 
 function fmtTime(sec: number) {
@@ -253,16 +148,27 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   const snapshotRef = useRef<Snapshot | null>(null);
   const pageSnapshotRef = useRef<Snapshot | null>(null);
   const siteInitRef = useRef(false);
+  const prevPlaylistLenRef = useRef(0);
   const pagePlaylistRef = useRef<BgmTrack[]>([]);
   const playlistIndexRef = useRef(0);
   const playNextRef = useRef<() => void>(() => {});
   const playPrevRef = useRef<() => void>(() => {});
   const advanceLockRef = useRef(false);
-  const volumeRef = useRef(readStoredVolume());
+  const switchingTrackRef = useRef(false);
+  const userPausedRef = useRef(false);
+  const playingRef = useRef(false);
+  const toggleBusyRef = useRef(false);
+  const volumeRef = useRef(DEFAULT_VOLUME);
+  const audioLoadGenRef = useRef(0);
+  const ytGenRef = useRef(0);
+  const ytPendingPlayRef = useRef(false);
+  const switchSerialRef = useRef(0);
+  const pendingAutoplayRef = useRef(false);
+  const playInternalRef = useRef<(seek?: number) => void>(() => {});
 
   const [playing, setPlaying] = useState(false);
   const [collapsed, setCollapsedState] = useState(false);
-  const [volume, setVolumeState] = useState(() => volumeRef.current);
+  const [volume, setVolumeState] = useState(DEFAULT_VOLUME);
   const [position, setPositionState] = useState<{ left: string; top: string } | null>(null);
   const [playerSize, setPlayerSizeState] = useState<{ width: number; height: number }>({
     width: BGM_PLAYER_SIZE.defaultW,
@@ -270,9 +176,210 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   });
   const [title, setTitle] = useState('BGM');
   const [artist, setArtist] = useState('');
+  const [activeTrackKey, setActiveTrackKey] = useState('');
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playlistActive, setPlaylistActive] = useState(false);
+
+  useEffect(() => {
+    playingRef.current = playing;
+  }, [playing]);
+
+  const destroyYtPlayer = useCallback(() => {
+    if (!ytRef.current) return;
+    switchingTrackRef.current = true;
+    ytGenRef.current += 1;
+    ytPendingPlayRef.current = false;
+    try {
+      ytRef.current?.destroy?.();
+    } catch {
+      /* ignore */
+    }
+    ytRef.current = null;
+    const box = document.getElementById('yt-container');
+    if (box) box.innerHTML = '';
+    window.setTimeout(() => {
+      switchingTrackRef.current = false;
+    }, 200);
+  }, []);
+
+  const stopAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    audioLoadGenRef.current += 1;
+  }, []);
+
+  const stopAllMedia = useCallback(async () => {
+    stopAudio();
+
+    if (!ytRef.current) {
+      switchingTrackRef.current = false;
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      switchingTrackRef.current = true;
+      ytGenRef.current += 1;
+      ytPendingPlayRef.current = false;
+      try {
+        ytRef.current?.destroy?.();
+      } catch {
+        /* ignore */
+      }
+      ytRef.current = null;
+      const box = document.getElementById('yt-container');
+      if (box) box.innerHTML = '';
+      window.setTimeout(() => {
+        switchingTrackRef.current = false;
+        resolve();
+      }, 160);
+    });
+  }, [stopAudio]);
+
+  const syncDurationFromAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const d = audio.duration;
+    if (Number.isFinite(d) && d > 0) setDuration(d);
+  }, []);
+
+  const scheduleAutoplayRetries = useCallback(() => {
+    const retry = () => {
+      if (userPausedRef.current || playingRef.current) return;
+      const track = trackRef.current;
+      if (!track?.id || track.scope !== 'page') return;
+      playInternalRef.current(0);
+    };
+    for (const ms of [150, 500, 1500]) {
+      window.setTimeout(retry, ms);
+    }
+  }, []);
+
+  const applyVolume = useCallback((v = volumeRef.current) => {
+    if (audioRef.current) audioRef.current.volume = v / 100;
+    try {
+      ytRef.current?.setVolume?.(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  /** ENDED 직후·loadVideoById 직후 동기 playVideo()는 실패하므로 지연 재시도 */
+  const deferYoutubePlay = useCallback(() => {
+    if (userPausedRef.current) {
+      ytPendingPlayRef.current = false;
+      return;
+    }
+    ytPendingPlayRef.current = true;
+    for (const delay of [0, 120, 400]) {
+      window.setTimeout(() => {
+        if (!ytPendingPlayRef.current || userPausedRef.current) return;
+        try {
+          ytRef.current?.playVideo?.();
+        } catch {
+          /* ignore */
+        }
+      }, delay);
+    }
+  }, []);
+
+  const loadYoutubeVideo = useCallback(
+    (videoId: string, startSecs: number, wantPlay: boolean) => {
+      const player = ytRef.current;
+      if (!player?.loadVideoById) return false;
+      switchingTrackRef.current = true;
+      ytPendingPlayRef.current = wantPlay && !userPausedRef.current;
+      window.setTimeout(() => {
+        if (ytPendingPlayRef.current) switchingTrackRef.current = false;
+      }, 4500);
+      try {
+        try {
+          player.pauseVideo?.();
+        } catch {
+          /* ignore */
+        }
+        playingRef.current = false;
+        setPlaying(false);
+        player.loadVideoById(videoId, Math.floor(startSecs));
+        applyVolume();
+        if (wantPlay && !userPausedRef.current) {
+          deferYoutubePlay();
+        } else {
+          ytPendingPlayRef.current = false;
+          player.pauseVideo?.();
+          playingRef.current = false;
+          setPlaying(false);
+          switchingTrackRef.current = false;
+        }
+        return true;
+      } catch {
+        ytPendingPlayRef.current = false;
+        switchingTrackRef.current = false;
+        return false;
+      }
+    },
+    [applyVolume, deferYoutubePlay],
+  );
+
+  const handleYtStateChange = useCallback((state: number) => {
+    if ((state === 5 || state === -1 || state === 3) && ytPendingPlayRef.current && !userPausedRef.current) {
+      try {
+        ytRef.current?.playVideo?.();
+      } catch {
+        /* wait for next state */
+      }
+      return;
+    }
+    if (state === 1) {
+      ytPendingPlayRef.current = false;
+      switchingTrackRef.current = false;
+      if (userPausedRef.current) {
+        try {
+          ytRef.current?.pauseVideo?.();
+        } catch {
+          /* ignore */
+        }
+        playingRef.current = false;
+        setPlaying(false);
+        return;
+      }
+      playingRef.current = true;
+      setPlaying(true);
+      return;
+    }
+    if (state === 2) {
+      if (switchingTrackRef.current || ytPendingPlayRef.current) return;
+      playingRef.current = false;
+      setPlaying(false);
+      return;
+    }
+    if (state === 0) {
+      if (switchingTrackRef.current) return;
+      if (userPausedRef.current) return;
+      const track = trackRef.current;
+      if (track?.scope !== 'page') return;
+
+      const pl = pagePlaylistRef.current;
+      if (pl.length <= 1) {
+        if (track.kind === 'youtube' && !userPausedRef.current) {
+          try {
+            ytRef.current?.seekTo(0, true);
+            deferYoutubePlay();
+          } catch {
+            /* ignore */
+          }
+        }
+        return;
+      }
+
+      playingRef.current = false;
+      setPlaying(false);
+      window.setTimeout(() => playNextRef.current(), 80);
+    }
+  }, [deferYoutubePlay]);
 
   const syncPlaylistLoop = useCallback((track: BgmTrack | null = trackRef.current) => {
     const pl = pagePlaylistRef.current;
@@ -285,12 +392,49 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     return active;
   }, []);
 
-  const applyVolume = useCallback((v = volumeRef.current) => {
-    if (audioRef.current) audioRef.current.volume = v / 100;
+  const commitTrackUi = useCallback(
+    (next: BgmTrack, resetTime = true) => {
+      trackRef.current = next;
+      setTitle(next.title);
+      setArtist(next.artist);
+      setActiveTrackKey(bgmTrackKey(next));
+      if (resetTime) {
+        setCurrentTime(0);
+        setDuration(0);
+      }
+      syncPlaylistLoop(next);
+      if (next.scope === 'page') {
+        const idx = pagePlaylistRef.current.findIndex((t) => sameTrack(t, next));
+        if (idx >= 0) playlistIndexRef.current = idx;
+      }
+    },
+    [syncPlaylistLoop],
+  );
+
+  const maybeAdvanceNearEnd = useCallback(() => {
+    if (advanceLockRef.current || switchingTrackRef.current || userPausedRef.current) return;
+    const track = trackRef.current;
+    if (track?.scope !== 'page') return;
+    const pl = pagePlaylistRef.current;
+    if (pl.length <= 1) return;
+    if (!playingRef.current) return;
+
+    let t = 0;
+    let d = 0;
     try {
-      ytRef.current?.setVolume?.(v);
+      if (track.kind === 'youtube' && ytRef.current) {
+        t = ytRef.current.getCurrentTime?.() || 0;
+        d = ytRef.current.getDuration?.() || 0;
+      } else if (audioRef.current) {
+        t = audioRef.current.currentTime;
+        d = audioRef.current.duration;
+        if (!Number.isFinite(d)) d = 0;
+      }
     } catch {
-      /* ignore */
+      return;
+    }
+    if (d > 1 && t >= d - 0.45) {
+      playNextRef.current();
     }
   }, []);
 
@@ -328,6 +472,8 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
   const pauseInternal = useCallback(
     (markPaused = true) => {
+      if (markPaused) userPausedRef.current = true;
+      playingRef.current = false;
       audioRef.current?.pause();
       try {
         ytRef.current?.pauseVideo?.();
@@ -350,25 +496,43 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       if (track.kind === 'youtube') {
         const ensureYt = () => {
-          if (ytRef.current) {
-            try {
-              if (typeof seek === 'number' && seek > 0) ytRef.current.seekTo(seek, true);
-              ytRef.current.playVideo();
-              setPlaying(true);
-            } catch {
-              /* ignore */
-            }
-            return;
-          }
           const box = document.getElementById('yt-container');
           if (!box) return;
+
+          if (ytRef.current) {
+            try {
+              const currentId = ytRef.current.getVideoData?.()?.video_id;
+              if (!currentId || currentId !== track.id) {
+                if (loadYoutubeVideo(track.id, seek || 0, !userPausedRef.current)) return;
+              }
+              if (typeof seek === 'number' && seek > 0) ytRef.current.seekTo(seek, true);
+              if (userPausedRef.current) {
+                ytRef.current.pauseVideo();
+                playingRef.current = false;
+                setPlaying(false);
+              } else {
+                ytPendingPlayRef.current = false;
+                ytRef.current.playVideo();
+                playingRef.current = true;
+                setPlaying(true);
+              }
+            } catch {
+              ytRef.current = null;
+              ytGenRef.current += 1;
+              box.innerHTML = '';
+            }
+            if (ytRef.current) return;
+          }
+
+          if (box.querySelector('iframe, #yt-iframe')) box.innerHTML = '';
           box.innerHTML = '<div id="yt-iframe"></div>';
+          const ytGen = ++ytGenRef.current;
           ytRef.current = new window.YT!.Player('yt-iframe', {
             height: '1',
             width: '1',
             videoId: track.id,
             playerVars: {
-              autoplay: 1,
+              autoplay: userPausedRef.current ? 0 : 1,
               loop: pageMulti ? 0 : 1,
               playlist: pageMulti ? undefined : track.id,
               start: Math.floor(seek || 0),
@@ -378,12 +542,18 @@ export function BgmProvider({ children }: { children: ReactNode }) {
               onReady: (e: { target: YTPlayer }) => {
                 e.target.setVolume(volumeRef.current);
                 if (seek) e.target.seekTo(seek, true);
-                e.target.playVideo();
+                if (userPausedRef.current) {
+                  e.target.pauseVideo();
+                  playingRef.current = false;
+                  setPlaying(false);
+                } else {
+                  ytPendingPlayRef.current = false;
+                  e.target.playVideo();
+                }
               },
               onStateChange: (e: { data: number }) => {
-                if (e.data === 1) setPlaying(true);
-                if (e.data === 2) setPlaying(false);
-                if (e.data === 0) playNextRef.current();
+                if (ytGen !== ytGenRef.current) return;
+                handleYtStateChange(e.data);
               },
             },
           });
@@ -408,108 +578,224 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       if (!audioRef.current) return;
       applyVolume();
+      const audio = audioRef.current;
       if (typeof seek === 'number' && seek > 0) {
         try {
-          audioRef.current.currentTime = seek;
+          audio.currentTime = seek;
         } catch {
           /* ignore */
         }
       }
-      audioRef.current
-        .play()
-        .then(() => {
-          setPlaying(true);
-          persistState({ playing: true, currentTime: getTime() });
-        })
-        .catch(() => setPlaying(false));
+
+      const markPlaying = () => {
+        if (userPausedRef.current) {
+          audio.pause();
+          playingRef.current = false;
+          setPlaying(false);
+          return;
+        }
+        playingRef.current = true;
+        setPlaying(true);
+        pendingAutoplayRef.current = false;
+        syncDurationFromAudio();
+        persistState({ playing: true, currentTime: getTime() });
+      };
+
+      const tryPlay = (allowMuted: boolean): Promise<void> => {
+        audio.muted = allowMuted;
+        return audio
+          .play()
+          .then(() => {
+            if (allowMuted) {
+              audio.muted = false;
+              applyVolume();
+            }
+            markPlaying();
+          })
+          .catch(() => {
+            if (!allowMuted) return tryPlay(true);
+            playingRef.current = false;
+            setPlaying(false);
+            if (!userPausedRef.current) {
+              pendingAutoplayRef.current = true;
+              scheduleAutoplayRetries();
+            }
+          });
+      };
+
+      void tryPlay(false);
     },
-    [applyVolume, getTime, persistState],
+    [applyVolume, deferYoutubePlay, getTime, handleYtStateChange, loadYoutubeVideo, persistState, scheduleAutoplayRetries, syncDurationFromAudio],
   );
+
+  playInternalRef.current = playInternal;
 
   const applyTrack = useCallback(
     (next: BgmTrack | null, opts?: { autoplay?: boolean; currentTime?: number; force?: boolean }) => {
       if (!next?.id) return;
 
       next = normalizeTrack(next);
-
+      const serial = ++switchSerialRef.current;
       const prev = trackRef.current;
-      const changed = opts?.force || !sameTrack(prev, next);
+      const changed = !!opts?.force || !sameTrack(prev, next);
+      const wantPlay = opts?.autoplay !== false && !userPausedRef.current;
+      const seek = opts?.currentTime ?? 0;
+
+      commitTrackUi(next, changed);
+      advanceLockRef.current = false;
 
       if (!changed) {
-        trackRef.current = next;
-        setTitle(next.title);
-        setArtist(next.artist);
-        syncPlaylistLoop(next);
-        if (opts?.autoplay) {
-          if (typeof opts.currentTime === 'number' && opts.currentTime > 0 && audioRef.current && next.kind !== 'youtube') {
+        if (wantPlay && !playingRef.current) playInternal(seek);
+        return;
+      }
+
+      const persist = (playingNow: boolean) => {
+        persistState({
+          kind: next.kind,
+          id: next.id,
+          title: next.title,
+          artist: next.artist,
+          scope: next.scope,
+          currentTime: seek,
+          playing: playingNow,
+        });
+      };
+
+      // YouTube → YouTube: 클릭 제스처 유지를 위해 async 없이 동기 전환
+      if (next.kind === 'youtube' && ytRef.current?.loadVideoById) {
+        stopAudio();
+        switchingTrackRef.current = true;
+        ytPendingPlayRef.current = wantPlay && !userPausedRef.current;
+        try {
+          ytRef.current.pauseVideo?.();
+        } catch {
+          /* ignore */
+        }
+        try {
+          ytRef.current.loadVideoById(next.id, Math.floor(seek));
+          applyVolume();
+          if (wantPlay && !userPausedRef.current) {
             try {
-              audioRef.current.currentTime = opts.currentTime;
+              ytRef.current.playVideo();
+              playingRef.current = true;
+              setPlaying(true);
+              ytPendingPlayRef.current = false;
+              switchingTrackRef.current = false;
+            } catch {
+              deferYoutubePlay();
+            }
+          } else {
+            ytPendingPlayRef.current = false;
+            switchingTrackRef.current = false;
+            playingRef.current = false;
+            setPlaying(false);
+          }
+          persist(wantPlay && !userPausedRef.current);
+          return;
+        } catch {
+          ytPendingPlayRef.current = false;
+          switchingTrackRef.current = false;
+        }
+      }
+
+      const loadAndPlayAudio = (serial: number, pageMulti: boolean) => {
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const loadGen = ++audioLoadGenRef.current;
+        audio.src = next.id;
+        applyVolume();
+        audio.loop = next.scope === 'character' ? true : !pageMulti;
+        audio.load();
+
+        const start = () => {
+          if (serial !== switchSerialRef.current) return;
+          if (audioLoadGenRef.current !== loadGen) return;
+          syncDurationFromAudio();
+          if (seek > 0) {
+            try {
+              audio.currentTime = seek;
             } catch {
               /* ignore */
             }
           }
-          if (!playing) playInternal(opts.currentTime);
+          playInternal(seek);
+        };
+
+        audio.addEventListener('loadedmetadata', syncDurationFromAudio, { once: true });
+
+        if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+          start();
+        } else {
+          audio.addEventListener('canplay', start, { once: true });
+          audio.addEventListener('loadeddata', start, { once: true });
+          audio.addEventListener(
+            'error',
+            () => {
+              if (serial !== switchSerialRef.current) return;
+              playingRef.current = false;
+              setPlaying(false);
+            },
+            { once: true },
+          );
         }
+      };
+
+      // MP3/URL 전환 — YouTube 160ms 대기 없이 즉시 (자동 넘김·⏭)
+      if (next.kind !== 'youtube' && prev?.kind !== 'youtube') {
+        persist(wantPlay);
+        if (!wantPlay) {
+          playingRef.current = false;
+          setPlaying(false);
+          return;
+        }
+        if (prev) stopAudio();
+        const pageMulti = next.scope === 'page' && pagePlaylistRef.current.length > 1;
+        loadAndPlayAudio(serial, pageMulti);
+        if (wantPlay) scheduleAutoplayRetries();
         return;
       }
 
-      if (changed) {
-        pauseInternal(false);
-        try {
-          ytRef.current?.stopVideo?.();
-        } catch {
-          /* ignore */
+      const runSwitch = async () => {
+        const pageMulti = next.scope === 'page' && pagePlaylistRef.current.length > 1;
+
+        if (prev?.kind === 'youtube' || next.kind !== 'youtube') {
+          await stopAllMedia();
+        } else {
+          stopAudio();
         }
-        ytRef.current = null;
-        const box = document.getElementById('yt-container');
-        if (box) box.innerHTML = '';
+        if (serial !== switchSerialRef.current) return;
 
-        if (next.kind !== 'youtube' && audioRef.current) {
-          audioRef.current.src = next.id;
-          applyVolume();
-          audioRef.current.load();
-          if (opts?.currentTime) {
-            audioRef.current.addEventListener(
-              'loadedmetadata',
-              () => {
-                if (audioRef.current && opts.currentTime) {
-                  try {
-                    audioRef.current.currentTime = opts.currentTime;
-                  } catch {
-                    /* ignore */
-                  }
-                }
-              },
-              { once: true },
-            );
-          }
+        persist(wantPlay);
+        if (!wantPlay) {
+          playingRef.current = false;
+          setPlaying(false);
+          return;
         }
-      }
 
-      trackRef.current = next;
-      setTitle(next.title);
-      setArtist(next.artist);
-      syncPlaylistLoop(next);
-      advanceLockRef.current = false;
+        if (next.kind === 'youtube') {
+          playInternal(seek);
+          if (wantPlay) scheduleAutoplayRetries();
+          return;
+        }
 
-      if (next.scope === 'page') {
-        const idx = pagePlaylistRef.current.findIndex((t) => sameTrack(t, next));
-        if (idx >= 0) playlistIndexRef.current = idx;
-      }
+        loadAndPlayAudio(serial, pageMulti);
+        if (wantPlay) scheduleAutoplayRetries();
+      };
 
-      persistState({
-        kind: next.kind,
-        id: next.id,
-        title: next.title,
-        artist: next.artist,
-        scope: next.scope,
-        currentTime: opts?.currentTime || getTime(),
-        playing: !!opts?.autoplay,
-      });
-
-      if (opts?.autoplay) playInternal(opts.currentTime);
+      void runSwitch();
     },
-    [applyVolume, getTime, pauseInternal, persistState, playInternal, playing, syncPlaylistLoop],
+    [
+      applyVolume,
+      commitTrackUi,
+      deferYoutubePlay,
+      persistState,
+      playInternal,
+      scheduleAutoplayRetries,
+      stopAllMedia,
+      stopAudio,
+      syncDurationFromAudio,
+    ],
   );
 
   const jumpPlaylist = useCallback(
@@ -524,30 +810,48 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const nextIdx = (playlistIndexRef.current + delta + pl.length) % pl.length;
+      let currentIdx = playlistIndexRef.current;
+      const track = trackRef.current;
+      if (track?.scope === 'page') {
+        const found = pl.findIndex((t) => sameTrack(t, track));
+        if (found >= 0) currentIdx = found;
+      }
+
+      const nextIdx = (currentIdx + delta + pl.length) % pl.length;
       playlistIndexRef.current = nextIdx;
+      userPausedRef.current = false;
+      advanceLockRef.current = false;
+      try {
+        ytRef.current?.pauseVideo?.();
+      } catch {
+        /* ignore */
+      }
+      playingRef.current = false;
+      setPlaying(false);
       applyTrack(pl[nextIdx], { autoplay: true, currentTime: 0, force: true });
     },
     [applyTrack],
   );
 
   const tryAdvancePlaylist = useCallback(() => {
-    if (advanceLockRef.current) return;
+    if (advanceLockRef.current || switchingTrackRef.current) return;
     const pl = pagePlaylistRef.current;
     if (pl.length <= 1) return;
     if (trackRef.current?.scope !== 'page') return;
     advanceLockRef.current = true;
     window.setTimeout(() => {
       advanceLockRef.current = false;
-    }, 1500);
+    }, 800);
     jumpPlaylist(1);
   }, [jumpPlaylist]);
 
   const playNextInPlaylist = useCallback(() => {
+    if (switchingTrackRef.current) return;
     jumpPlaylist(1);
   }, [jumpPlaylist]);
 
   const playPrevInPlaylist = useCallback(() => {
+    if (switchingTrackRef.current) return;
     jumpPlaylist(-1);
   }, [jumpPlaylist]);
 
@@ -573,16 +877,27 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   );
 
   const toggle = useCallback(() => {
+    if (toggleBusyRef.current) return;
+    toggleBusyRef.current = true;
+    window.setTimeout(() => {
+      toggleBusyRef.current = false;
+    }, 400);
+
     if (!trackRef.current?.id) {
       const first = firstPageTrack(siteBgm);
       if (first) {
+        userPausedRef.current = false;
         applyTrack(first, { autoplay: true });
-        return;
       }
+      return;
     }
-    if (playing) pauseInternal(true);
-    else playInternal(getTime());
-  }, [applyTrack, getTime, pauseInternal, playInternal, playing, siteBgm]);
+    if (playingRef.current) {
+      pauseInternal(true);
+    } else {
+      userPausedRef.current = false;
+      playInternal(getTime());
+    }
+  }, [applyTrack, getTime, pauseInternal, playInternal, siteBgm]);
 
   const setVolume = useCallback(
     (v: number) => {
@@ -596,23 +911,27 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
   const seek = useCallback(
     (t: number) => {
+      const clamped = Math.max(0, t);
       if (trackRef.current?.kind === 'youtube') {
         try {
-          ytRef.current?.seekTo?.(t, true);
+          ytRef.current?.seekTo?.(clamped, true);
         } catch {
           /* ignore */
         }
       } else if (audioRef.current) {
         try {
-          audioRef.current.currentTime = t;
+          const d = audioRef.current.duration;
+          audioRef.current.currentTime =
+            Number.isFinite(d) && d > 0 ? Math.min(clamped, d) : clamped;
+          syncDurationFromAudio();
         } catch {
           /* ignore */
         }
       }
-      setCurrentTime(t);
-      persistState({ currentTime: t });
+      setCurrentTime(clamped);
+      persistState({ currentTime: clamped });
     },
-    [persistState],
+    [persistState, syncDurationFromAudio],
   );
 
   const setCollapsed = useCallback(
@@ -625,8 +944,8 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
   const setPosition = useCallback(
     (left: string, top: string) => {
-      setPositionState({ left, top });
-      persistUi({ posLeft: left, posTop: top });
+      setPositionState(left && top ? { left, top } : null);
+      persistUi({ posLeft: left || undefined, posTop: top || undefined });
     },
     [persistUi],
   );
@@ -660,14 +979,11 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       if (trackRef.current?.scope === 'character') {
         pauseInternal(false);
-        try {
-          ytRef.current?.stopVideo?.();
-        } catch {
-          /* ignore */
+        if (trackRef.current.kind === 'youtube') {
+          destroyYtPlayer();
+        } else {
+          stopAudio();
         }
-        ytRef.current = null;
-        const box = document.getElementById('yt-container');
-        if (box) box.innerHTML = '';
       }
 
       if (snap && snap.track.scope !== 'character') {
@@ -704,7 +1020,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       applyTrack(first, { autoplay: shouldPlay, currentTime: 0, force: true });
     },
-    [applyTrack, pauseInternal, persistState, playing, siteBgm],
+    [applyTrack, destroyYtPlayer, pauseInternal, persistState, playing, siteBgm, stopAudio],
   );
 
   const resumePageBgmIfNeeded = useCallback(() => {
@@ -715,7 +1031,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   const playCharacterTheme = useCallback(
     (
       src: { fileData?: string; youtubeId?: string; title?: string; artist?: string },
-      wasPlaying: boolean,
+      _wasPlaying: boolean,
     ) => {
       const id = src.fileData || src.youtubeId;
       if (!id) return;
@@ -730,7 +1046,9 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       if (!next) return;
 
       if (sameTrack(trackRef.current, next)) {
-        if (wasPlaying && !playing) playInternal(getTime());
+        if (!userPausedRef.current && !playingRef.current) {
+          applyTrack(next, { autoplay: true, currentTime: getTime() });
+        }
         return;
       }
 
@@ -742,25 +1060,17 @@ export function BgmProvider({ children }: { children: ReactNode }) {
           const fallback: Snapshot = {
             track: { ...first },
             currentTime: 0,
-            playing: wasPlaying,
+            playing: playingRef.current,
           };
           snapshotRef.current = fallback;
           pageSnapshotRef.current = fallback;
         }
       }
 
-      setTrack(
-        {
-          fileData: src.fileData,
-          youtubeId: src.youtubeId,
-          title: src.title || 'Theme',
-          artist: src.artist || '',
-          scope: 'character',
-        },
-        { autoplay: wasPlaying },
-      );
+      userPausedRef.current = false;
+      applyTrack(next, { autoplay: true, currentTime: 0, force: true });
     },
-    [getTime, playInternal, playing, pushPageSnapshot, setTrack, siteBgm],
+    [applyTrack, getTime, pushPageSnapshot, siteBgm],
   );
 
   const applyTrackRef = useRef(applyTrack);
@@ -778,7 +1088,18 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       setVolumeState(ui.volume);
       applyVolume(ui.volume);
     }
-    if (ui.posLeft && ui.posTop) setPositionState({ left: ui.posLeft, top: ui.posTop });
+    if (ui.posLeft && ui.posTop) {
+      const left = parsePx(ui.posLeft);
+      const top = parsePx(ui.posTop);
+      const w = ui.collapsed ? 52 : ui.playerWidth || BGM_PLAYER_SIZE.defaultW;
+      const h = ui.collapsed ? 52 : ui.playerHeight || BGM_PLAYER_SIZE.defaultH;
+      if (left != null && top != null && !isBgmPlayerOffscreen(left, top, w, h)) {
+        const next = clampBgmPlayerPosition(left, top, w, h);
+        setPositionState({ left: `${next.left}px`, top: `${next.top}px` });
+      } else {
+        persistUi({ posLeft: undefined, posTop: undefined });
+      }
+    }
     if (ui.playerWidth && ui.playerHeight) {
       setPlayerSizeState({
         width: Math.max(BGM_PLAYER_SIZE.minW, Math.min(BGM_PLAYER_SIZE.maxW, ui.playerWidth)),
@@ -805,112 +1126,135 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   }, [applyVolume]);
 
   useEffect(() => {
-    if (siteInitRef.current) return;
+    const pl = buildPagePlaylist(siteBgm);
+    const prevLen = prevPlaylistLenRef.current;
+    pagePlaylistRef.current = pl;
+    prevPlaylistLenRef.current = pl.length;
+    syncPlaylistLoop(trackRef.current);
 
-    const saved = readJson<SavedState>(STATE_KEY);
-    if (saved.id) {
+    const hasBgm = pl.length > 0;
+    const track = trackRef.current;
+
+    if (!siteInitRef.current) {
+      if (!hasBgm || !pl[0]?.id) return;
+
       siteInitRef.current = true;
-      const scope = (saved.scope as 'page' | 'character') || 'page';
-      if (scope === 'character') {
-        const first = firstPageTrack(siteBgm);
-        if (first) applyTrackRef.current(first, { autoplay: false });
-        return;
-      }
-      applyTrackRef.current(
-        normalizeTrack({
-          kind: saved.kind || 'url',
-          id: saved.id,
-          title: saved.title || 'BGM',
-          artist: saved.artist || '',
-          scope: 'page',
-        }),
-        { autoplay: !!saved.playing, currentTime: saved.currentTime || 0 },
-      );
+      userPausedRef.current = false;
+      playlistIndexRef.current = 0;
+      applyTrackRef.current(pl[0], { autoplay: true, currentTime: 0, force: true });
+      scheduleAutoplayRetries();
       return;
     }
 
-    if (!siteBgm.url && !siteBgm.playlist?.some((p) => p.url?.trim())) return;
-
-    siteInitRef.current = true;
-    const first = firstPageTrack(siteBgm);
-    if (first) applyTrackRef.current(first, { autoplay: true });
-  }, [siteBgm]);
-
-  useEffect(() => {
-    if (playing || !trackRef.current?.id) return;
-    const unlock = () => {
-      if (!trackRef.current?.id) return;
-      playInternal(getTime());
-      document.removeEventListener('pointerdown', unlock);
-      document.removeEventListener('keydown', unlock);
-    };
-    document.addEventListener('pointerdown', unlock, { once: true });
-    document.addEventListener('keydown', unlock, { once: true });
-    return () => {
-      document.removeEventListener('pointerdown', unlock);
-      document.removeEventListener('keydown', unlock);
-    };
-  }, [getTime, playInternal, playing, siteBgm.url, siteBgm.playlist]);
-
-  useEffect(() => {
-    pagePlaylistRef.current = buildPagePlaylist(siteBgm);
-    const track = trackRef.current;
-    syncPlaylistLoop(track);
-    if (track?.scope === 'page') {
-      const idx = pagePlaylistRef.current.findIndex((t) => sameTrack(t, track));
-      if (idx >= 0) playlistIndexRef.current = idx;
+    if (!track?.id && hasBgm) {
+      applyTrackRef.current(pl[0], { autoplay: !userPausedRef.current, currentTime: 0, force: true });
+      return;
     }
-  }, [siteBgm, syncPlaylistLoop]);
+
+    if (track?.scope === 'page' && hasBgm) {
+      const idx = pl.findIndex((t) => sameTrack(t, track));
+      if (idx >= 0) playlistIndexRef.current = idx;
+
+      // 1곡→다곡 플레이리스트로 갱신되면 loop:1 플레이어를 다시 만들어 ENDED/다음곡이 동작하게
+      if (prevLen <= 1 && pl.length > 1 && track.kind === 'youtube') {
+        applyTrackRef.current(pl[playlistIndexRef.current] ?? pl[0], {
+          autoplay: playingRef.current && !userPausedRef.current,
+          currentTime: 0,
+          force: true,
+        });
+      }
+    }
+  }, [siteBgm, syncPlaylistLoop, scheduleAutoplayRetries]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const onTime = () => {
+      syncDurationFromAudio();
       setCurrentTime(audio.currentTime);
-      setDuration(audio.duration || 0);
       const pl = pagePlaylistRef.current;
       const track = trackRef.current;
+      const d = audio.duration;
       if (
         track?.scope === 'page' &&
         pl.length > 1 &&
-        audio.duration > 1 &&
-        audio.currentTime >= audio.duration - 0.35
+        Number.isFinite(d) &&
+        d > 1 &&
+        audio.currentTime >= d - 0.35
       ) {
         playNextRef.current();
       }
     };
     const onMeta = () => {
-      setDuration(audio.duration || 0);
+      syncDurationFromAudio();
       applyVolumeRef.current();
+    };
+    const onDurationChange = () => syncDurationFromAudio();
+    const onPlay = () => {
+      if (userPausedRef.current) {
+        audio.pause();
+        return;
+      }
+      playingRef.current = true;
+      setPlaying(true);
+    };
+    const onPause = () => {
+      playingRef.current = false;
+      setPlaying(false);
     };
     const onEnded = () => playNextRef.current();
 
     audio.addEventListener('timeupdate', onTime);
     audio.addEventListener('loadedmetadata', onMeta);
+    audio.addEventListener('durationchange', onDurationChange);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
     return () => {
       audio.removeEventListener('timeupdate', onTime);
       audio.removeEventListener('loadedmetadata', onMeta);
+      audio.removeEventListener('durationchange', onDurationChange);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };
-  }, []);
+  }, [syncDurationFromAudio]);
+
+  useEffect(() => {
+    const unlock = () => {
+      if (userPausedRef.current || playingRef.current) return;
+      if (!pendingAutoplayRef.current && !trackRef.current?.id) return;
+      pendingAutoplayRef.current = false;
+      playInternalRef.current(getTime());
+    };
+    document.addEventListener('pointerdown', unlock, { capture: true, passive: true });
+    document.addEventListener('keydown', unlock, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', unlock, { capture: true });
+      document.removeEventListener('keydown', unlock, { capture: true });
+    };
+  }, [getTime]);
 
   useEffect(() => {
     if (!playing) return;
     const id = window.setInterval(() => {
-      setCurrentTime(getTime());
+      const t = getTime();
+      setCurrentTime(t);
       if (trackRef.current?.kind === 'youtube' && ytRef.current?.getDuration) {
         try {
           setDuration(ytRef.current.getDuration() || 0);
         } catch {
           /* ignore */
         }
+      } else if (trackRef.current && trackRef.current.kind !== 'youtube') {
+        syncDurationFromAudio();
       }
-      persistState({ playing: true, currentTime: getTime() });
-    }, 1000);
+      maybeAdvanceNearEnd();
+      persistState({ playing: true, currentTime: t });
+    }, 500);
     return () => window.clearInterval(id);
-  }, [getTime, persistState, playing]);
+  }, [getTime, maybeAdvanceNearEnd, persistState, playing, syncDurationFromAudio]);
 
   useEffect(() => {
     const save = () => persistState({ playing, currentTime: getTime() });
@@ -931,6 +1275,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       playerSize,
       title,
       artist,
+      activeTrackKey,
       currentTime,
       duration,
       toggle,
@@ -956,6 +1301,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       playerSize,
       title,
       artist,
+      activeTrackKey,
       currentTime,
       duration,
       toggle,
@@ -977,7 +1323,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
   return (
     <BgmContext.Provider value={contextValue}>
-      <audio ref={audioRef} preload="metadata" style={{ display: 'none' }} />
+      <audio ref={audioRef} preload="auto" style={{ display: 'none' }} />
       <div id="yt-container" style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
       {children}
     </BgmContext.Provider>
@@ -988,10 +1334,13 @@ type YTPlayer = {
   playVideo: () => void;
   pauseVideo: () => void;
   stopVideo: () => void;
+  loadVideoById: (videoId: string, startSeconds?: number) => void;
+  getVideoData?: () => { video_id?: string };
   seekTo: (s: number, allowSeek: boolean) => void;
   setVolume: (n: number) => void;
   getCurrentTime: () => number;
   getDuration: () => number;
+  destroy?: () => void;
 };
 
 declare global {

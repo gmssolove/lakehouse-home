@@ -3,6 +3,12 @@
 @import '../styles/home-layers.css';
 @import '../styles/home-nav-arc.css';
 @import '../styles/guest-book.css';
+@import '../styles/trpg-tickets.css';
+@import '../styles/trpg-scenario.css';
+@import '../styles/records.css';
+@import '../styles/main-vinyl-deck.css';
+@import '../styles/main-game-stage.css';
+@import '../styles/main-stage-perf.css';
 @import '../styles/lake-perf.css';
 
 /* Admin overlay enter animation */
@@ -57,10 +63,34 @@
 
 /* BGM progress bar */
 #bgm-player {
+  position: fixed !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: var(--lh-z-bgm, 900) !important;
   flex-wrap: wrap;
   align-content: flex-start;
   align-items: center;
   touch-action: none;
+  cursor: grab;
+  bottom: auto;
+}
+
+body:has(.layout--home) #bgm-player {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+#bgm-player.lh-bgm-suppressed {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+#bgm-player:active {
+  cursor: grabbing;
 }
 
 #bgm-player:not(.collapsed) {
@@ -68,6 +98,7 @@
   overflow: hidden !important;
   box-sizing: border-box !important;
   padding: 10px 12px !important;
+  max-height: min(260px, calc(100vh - 20px)) !important;
 }
 
 #bgm-controls-row {
@@ -89,8 +120,8 @@
 }
 
 #bgm-vol-wrap {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 48px;
+  min-width: 48px;
   display: flex;
   align-items: center;
 }
@@ -123,10 +154,20 @@
   border-bottom: 1px solid rgba(215, 169, 130, 0.16);
 }
 
+#bgm-progress-wrap,
+#bgm-progress,
+#bgm-vol-wrap,
+#bgm-vol {
+  touch-action: pan-x;
+}
+
 #bgm-progress {
   width: 100%;
   accent-color: var(--lake-copper, var(--gold));
   cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 6;
 }
 
 #bgm-progress-footer {
@@ -187,9 +228,9 @@
 }
 
 #bgm-player.collapsed #bgm-expand-btn {
-  pointer-events: none !important;
-  z-index: 1 !important;
-  cursor: inherit !important;
+  pointer-events: auto !important;
+  z-index: 5 !important;
+  cursor: pointer !important;
 }
 
 /* BGM player — lakehouse palette + resize handle */
@@ -206,6 +247,7 @@
   border-color: rgba(215, 169, 130, 0.45) !important;
   color: rgba(240, 207, 173, 0.9) !important;
   background: radial-gradient(circle, rgba(215, 169, 130, 0.14), rgba(8, 10, 9, 0.4)) !important;
+  touch-action: manipulation;
 }
 
 #bgm-player:not(.collapsed) .bgm-skip-btn {
@@ -220,6 +262,7 @@
   font-size: 11px;
   line-height: 1;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 #bgm-player:not(.collapsed) .bgm-skip-btn:hover {

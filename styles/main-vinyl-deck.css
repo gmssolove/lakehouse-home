@@ -1,0 +1,273 @@
+/* Main — LP turntable */
+
+.main-vinyl-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  perspective: 900px;
+  perspective-origin: 48% 44%;
+  contain: layout;
+  filter: drop-shadow(-14px 22px 36px rgba(0, 0, 0, 0.48));
+}
+
+.main-vinyl-deck {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.main-vinyl-tilt {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform:
+    rotateY(calc(-14deg + var(--vinyl-ry, 0deg)))
+    rotateX(calc(20deg + var(--vinyl-rx, 0deg)))
+    rotateZ(-3deg);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.main-vinyl-deck.is-hovered .main-vinyl-tilt {
+  transition: transform 0.12s ease-out;
+  will-change: transform;
+}
+
+.main-vinyl-disc {
+  position: absolute;
+  inset: 6% 6% 10% 6%;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.main-vinyl-disc__rotor {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.main-vinyl-disc.is-animated .main-vinyl-disc__rotor {
+  animation: mainVinylSpin 5.5s linear infinite;
+  animation-play-state: paused;
+}
+
+.main-vinyl-disc.is-running .main-vinyl-disc__rotor {
+  animation-play-state: running;
+  will-change: transform;
+}
+
+@keyframes mainVinylSpin {
+  from {
+    transform: translateZ(0) rotate(0deg);
+  }
+  to {
+    transform: translateZ(0) rotate(360deg);
+  }
+}
+
+.main-vinyl-disc__face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, #141414 0 6%, #242424 6% 16%, #181818 16% 100%),
+    repeating-radial-gradient(
+      circle at 50% 50%,
+      #161616 0 2px,
+      #282828 2px 3.5px,
+      #141414 3.5px 5px
+    );
+  box-shadow: inset 0 0 36px rgba(0, 0, 0, 0.5);
+}
+
+.main-vinyl-disc__grooves {
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  opacity: 0.35;
+  background: repeating-radial-gradient(
+    circle at 50% 50%,
+    transparent 0 2px,
+    rgba(255, 255, 255, 0.04) 2px 3px
+  );
+}
+
+.main-vinyl-disc__label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32%;
+  height: 32%;
+  margin: -16% 0 0 -16%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #0a0908 0%, #050505 100%);
+  border: 1px solid rgba(80, 74, 66, 0.4);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.65);
+}
+
+.main-vinyl-disc__spindle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11%;
+  height: 11%;
+  margin: -5.5% 0 0 -5.5%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #3a3530, #000 75%);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.12);
+}
+
+.main-vinyl-disc__specular {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  background: conic-gradient(
+    from 210deg at 46% 42%,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.05) 20deg,
+    rgba(255, 252, 246, 0.18) 34deg,
+    rgba(255, 255, 255, 0.07) 44deg,
+    transparent 62deg,
+    transparent 125deg,
+    rgba(255, 255, 255, 0.04) 142deg,
+    rgba(255, 255, 255, 0.1) 152deg,
+    transparent 168deg,
+    transparent 360deg
+  );
+}
+
+.main-vinyl-deck:not(.is-live) .main-vinyl-disc__specular {
+  opacity: 0.72;
+}
+
+.main-vinyl-deck.is-live .main-vinyl-disc__specular {
+  opacity: 1;
+}
+
+.main-vinyl-disc__shine {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: 50%;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.02) 44%,
+    rgba(255, 252, 246, 0.14) 50%,
+    rgba(255, 255, 255, 0.02) 56%,
+    transparent 62%
+  );
+  transform: translateX(calc(var(--vinyl-shine, 38%) - 50%));
+  opacity: 0.42;
+  transition: opacity 0.25s ease;
+}
+
+.main-vinyl-deck.is-hovered .main-vinyl-disc__shine {
+  opacity: 1;
+}
+
+.main-vinyl-disc__rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 4;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.11),
+    inset 0 0 0 3px rgba(50, 46, 42, 0.6),
+    0 0 0 1px rgba(100, 90, 78, 0.35);
+}
+
+.main-vinyl-deck.is-live .main-vinyl-disc__rim {
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.14),
+    inset 0 0 0 3px rgba(50, 46, 42, 0.6),
+    0 0 0 1px rgba(215, 169, 130, 0.25),
+    0 0 24px rgba(215, 169, 130, 0.1);
+}
+
+.main-vinyl-arm {
+  position: absolute;
+  right: 0;
+  top: -2%;
+  width: 50%;
+  height: 50%;
+  transform-origin: 86% 14%;
+  transform: rotate(-28deg);
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 5;
+}
+
+.main-vinyl-arm.is-playing {
+  transform: rotate(-2deg);
+}
+
+.main-vinyl-arm__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.main-vinyl-arm__pivot {
+  fill: url(#main-vinyl-brass);
+  stroke: #3f3328;
+  stroke-width: 1;
+}
+
+.main-vinyl-arm__pivot-ring {
+  fill: none;
+  stroke: rgba(196, 168, 130, 0.35);
+  stroke-width: 1;
+}
+
+.main-vinyl-arm__bar {
+  fill: none;
+  stroke: url(#main-vinyl-brass);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.main-vinyl-arm__bar-shine {
+  fill: none;
+  stroke: rgba(232, 212, 176, 0.45);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.main-vinyl-arm__cart {
+  fill: url(#main-vinyl-brass-shine);
+  stroke: #4a3c2e;
+  stroke-width: 0.8;
+}
+
+.main-vinyl-arm__needle {
+  fill: #d8d0c8;
+}
+
+.main-vinyl-deck__shadow {
+  position: absolute;
+  left: 10%;
+  right: 6%;
+  bottom: 4%;
+  height: 14%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.55) 0%, transparent 72%);
+  transform: rotateX(82deg);
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-vinyl-disc.is-animated .main-vinyl-disc__rotor {
+    animation: none;
+  }
+
+  .main-vinyl-arm,
+  .main-vinyl-tilt {
+    transition: none;
+  }
+}

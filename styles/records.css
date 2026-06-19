@@ -1,0 +1,745 @@
+/* Records · Scrap · Review · Music · Character Archive */
+
+.lh-secret-lock {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px dashed rgba(215, 169, 130, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(240, 207, 173, 0.75);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.lh-secret-lock__hint {
+  line-height: 1.45;
+  opacity: 0.88;
+}
+
+.lh-secret-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(240, 207, 173, 0.82);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.lh-secret-badge--compact {
+  padding: 2px 5px;
+  margin-left: 6px;
+}
+
+.lh-secret-badge__icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.lh-secret-badge__label {
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-style: italic;
+}
+
+.lh-secret-fields {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.lh-secret-fields__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.lh-image-field {
+  margin-top: 8px;
+}
+
+.lh-image-field__label {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.lh-image-field__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lh-image-field__url {
+  flex: 1;
+  min-width: 140px;
+}
+
+.lh-image-field__preview {
+  margin-top: 8px;
+  max-width: 180px;
+  max-height: 120px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+/* Diary */
+.lh-diary-list {
+  display: grid;
+  gap: 14px;
+}
+
+.lh-diary-card {
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(215, 169, 130, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lh-diary-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.lh-diary-card__head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.lh-diary-card__head time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.lh-diary-card__body {
+  white-space: pre-wrap;
+  line-height: 1.65;
+  font-size: 13px;
+}
+
+/* Scrap — Twitter-like */
+.lh-scrap-feed {
+  display: grid;
+  gap: 12px;
+  max-width: 520px;
+}
+
+.lh-tweet-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 10, 9, 0.55);
+}
+
+.lh-tweet-card__head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.lh-tweet-card__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.lh-tweet-card__avatar--ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(215, 169, 130, 0.2);
+  color: rgba(240, 207, 173, 0.9);
+  font-weight: 600;
+}
+
+.lh-tweet-card__head strong {
+  display: block;
+  font-size: 13px;
+}
+
+.lh-tweet-card__handle,
+.lh-tweet-card__head time {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.lh-tweet-card__body {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.lh-tweet-card__media {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lh-tweet-card__link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  color: rgba(240, 207, 173, 0.75);
+}
+
+/* Review */
+.lh-review-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.lh-review-filter {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(215, 169, 130, 0.25);
+  background: transparent;
+  color: rgba(236, 232, 224, 0.75);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.lh-review-filter.is-active {
+  background: rgba(215, 169, 130, 0.18);
+  border-color: rgba(215, 169, 130, 0.45);
+}
+
+.lh-review-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.lh-review-grid--book {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+.lh-review-card {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 220px;
+}
+
+.lh-review-card--book {
+  aspect-ratio: 2 / 3;
+  min-height: 0;
+}
+
+.lh-review-card--wide {
+  max-width: 320px;
+  min-height: 180px;
+}
+
+.lh-review-card__cover {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+
+.lh-review-card__cover--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(40, 36, 32, 0.9), rgba(20, 18, 16, 0.95));
+  font-size: 32px;
+  color: rgba(240, 207, 173, 0.5);
+}
+
+.lh-review-card__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 12px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.35) 55%, transparent 100%);
+  text-align: left;
+}
+
+.lh-review-card__status {
+  align-self: flex-end;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 6px;
+}
+
+.lh-review-stars span {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+}
+
+.lh-review-stars span.is-on {
+  color: #e8c547;
+}
+
+.lh-review-card__overlay h3 {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+.lh-review-card__author {
+  margin: 2px 0 0;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.lh-review-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.lh-review-card__tags span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  font-size: 9px;
+}
+
+.lh-review-card__body {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.9;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Music archive */
+.lh-music-archive {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.lh-music-archive__playlists {
+  display: grid;
+  gap: 8px;
+}
+
+.lh-music-pl {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lh-music-pl.is-active {
+  border-color: rgba(215, 169, 130, 0.45);
+  background: rgba(215, 169, 130, 0.1);
+}
+
+.lh-music-pl img,
+.lh-music-pl__ph {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.lh-music-pl__ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(215, 169, 130, 0.15);
+}
+
+.lh-music-pl strong {
+  display: block;
+  font-size: 12px;
+}
+
+.lh-music-pl em {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: normal;
+}
+
+.lh-music-player {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  background: rgba(8, 10, 9, 0.65);
+  margin-bottom: 16px;
+}
+
+.lh-music-player__cover {
+  width: 100%;
+  max-width: 200px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  object-fit: cover;
+  margin-bottom: 12px;
+}
+
+.lh-music-player__cover--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(215, 169, 130, 0.12);
+  font-size: 40px;
+}
+
+.lh-music-player__meta h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.lh-music-player__meta p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.lh-music-player__lyric {
+  margin: 12px 0;
+  min-height: 48px;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  color: rgba(240, 207, 173, 0.88);
+}
+
+.lh-music-player__seek {
+  width: 100%;
+}
+
+.lh-music-player__times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.lh-music-player__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.lh-music-player__controls button {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.lh-music-player__controls button.is-on {
+  border-color: rgba(215, 169, 130, 0.5);
+}
+
+.lh-music-player__play {
+  width: 44px !important;
+}
+
+.lh-music-player__vol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.lh-music-player__vol input {
+  flex: 1;
+}
+
+.lh-music-tracklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.lh-music-track {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.lh-music-track.is-active {
+  background: rgba(215, 169, 130, 0.12);
+}
+
+.lh-music-comments {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lh-music-comment {
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.lh-music-comment header {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.lh-music-comment__reply {
+  margin: 4px 0 0;
+  padding-left: 12px;
+  color: rgba(240, 207, 173, 0.75);
+}
+
+.lh-music-comment-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Character archive */
+.lh-char-archive {
+  display: grid;
+  gap: 14px;
+}
+
+.lh-char-archive-card {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(215, 169, 130, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: left;
+}
+
+.lh-char-archive-card__cover {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.lh-char-archive-card__kind {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(240, 207, 173, 0.65);
+}
+
+.lh-char-archive-card h3 {
+  margin: 4px 0;
+  font-size: 15px;
+}
+
+.lh-char-archive-card time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.lh-char-archive-card p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* TRPG log film board */
+.trpg-log-film-board {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.trpg-log-film {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.trpg-log-film.is-active {
+  border-color: rgba(215, 169, 130, 0.45);
+}
+
+.trpg-log-film__thumb {
+  position: relative;
+}
+
+.trpg-log-film__thumb img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.trpg-log-film__thumb-empty {
+  aspect-ratio: 2 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  font-size: 24px;
+}
+
+.trpg-log-film__spoiler {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border: none;
+  border-radius: 6px;
+  background: rgba(80, 20, 20, 0.85);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.trpg-log-film__spoiler span {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.trpg-log-film__avatars {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.trpg-log-film__avatars img,
+.trpg-log-film__avatars span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(215, 169, 130, 0.2);
+}
+
+.trpg-log-film__sub {
+  font-size: 10px;
+  color: rgba(240, 207, 173, 0.6);
+}
+
+.trpg-log-film h3 {
+  margin: 4px 0;
+  font-size: 16px;
+  color: rgba(255, 232, 180, 0.95);
+}
+
+.trpg-log-film__summary {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: rgba(220, 216, 208, 0.75);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.trpg-log-film__meta {
+  margin: 8px 0 0;
+  font-size: 10px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+}
+
+.trpg-log-film__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.trpg-log-film__tags span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 9px;
+}
+
+.nav-sub-item {
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+@media (max-width: 760px) {
+  .lh-music-archive {
+    grid-template-columns: 1fr;
+  }
+
+  .lh-char-archive-card {
+    grid-template-columns: 1fr;
+  }
+
+  .trpg-log-film {
+    grid-template-columns: 100px 1fr;
+  }
+}

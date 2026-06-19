@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
 import { useBgm } from '@/lib/contexts/BgmContext';
@@ -13,11 +14,13 @@ import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
 import { displayCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
 import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
-import { isOcProfileUnlocked } from '@/lib/oc/profileAccess';
-import { OcProfilePasswordModal } from '@/components/oc/OcProfilePasswordModal';
+import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
+import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
+import { AuthModal } from '@/components/auth/AuthModal';
 import { buildCharacterNumberMap } from '@/lib/oc/characterOrder';
 import { collectProfileFieldValues, formatCardTag, getProfileFieldValue } from '@/lib/oc/profile';
 import type { OcCharacter } from '@/lib/types/character';
+import { ImageFrameView } from '@/components/ui/ImageFrameView';
 
 const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -27,25 +30,29 @@ type IntroState = { character: OcCharacter; auIdx: number };
 
 function charImg(c: OcCharacter, auIdx: number) {
   if (auIdx >= 0 && c.auVersions?.[auIdx]) {
+    const au = c.auVersions[auIdx];
     return {
-      src: c.auVersions[auIdx].img || c.img || '',
-      fit: c.auVersions[auIdx].imgFit || c.imgFit || 'contain',
-      pos: c.auVersions[auIdx].imgPos || c.imgPos || 'center top',
+      src: au.img || c.img || '',
+      fit: au.imgFit || c.imgFit || 'contain',
+      pos: au.imgPos || c.imgPos || 'center top',
+      frame: au.imgFrame || c.imgFrame,
     };
   }
   return {
     src: c.img || '',
     fit: c.imgFit || 'contain',
     pos: c.imgPos || 'center top',
+    frame: c.imgFrame,
   };
 }
 
 export function OcPageClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { characters, categories, saveCharacters } = useOcData();
-  const { ocSettings } = useSiteContent();
+  const { ocSettings, accessSettings } = useSiteContent();
   const { restorePageSnapshot, pushPageSnapshot, resumePageBgmIfNeeded } = useBgm();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const wasInDetailRef = useRef(false);
   const detailUsedThemeRef = useRef(false);
   const [activeCat, setActiveCat] = useState('all');
@@ -57,6 +64,7 @@ export function OcPageClient() {
   const [intro, setIntro] = useState<IntroState | null>(null);
   const [auIdx, setAuIdx] = useState(-1);
   const [passwordGate, setPasswordGate] = useState<{ character: OcCharacter; au: number } | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
 
   const charNumberMap = useMemo(() => buildCharacterNumberMap(characters), [characters]);
   const activeCharacter = detail ?? intro?.character ?? null;
@@ -104,10 +112,18 @@ export function OcPageClient() {
     wasInDetailRef.current = !!(detail || intro);
   }, [detail, intro]);
 
-  const completeIntro = useCallback((payload: IntroState) => {
-    setDetail(payload.character);
-    setAuIdx(payload.auIdx);
+  const introRef = useRef(intro);
+  introRef.current = intro;
+  const [detailRevealKey, setDetailRevealKey] = useState(0);
+
+  const finishIntro = useCallback(() => {
+    const payload = introRef.current;
     setIntro(null);
+    if (payload) {
+      setDetail(payload.character);
+      setAuIdx(payload.auIdx);
+      setDetailRevealKey((k) => k + 1);
+    }
   }, []);
 
   const genders = useMemo(() => collectProfileFieldValues(characters, '성별'), [characters]);
@@ -159,28 +175,30 @@ export function OcPageClient() {
   }
 
   function requestOpenDetail(c: OcCharacter, au: number) {
-    if (isAdmin || isOcProfileUnlocked()) {
+    if (isAdmin || isLakeAccessUnlocked('oc')) {
       openDetail(c, au);
       return;
     }
     setPasswordGate({ character: c, au });
   }
 
-  const finishIntro = useCallback(() => {
-    setIntro((current) => {
-      if (!current) return null;
-      completeIntro(current);
-      return null;
-    });
-  }, [completeIntro]);
+  useEffect(() => {
+    const charId = searchParams.get('c');
+    if (!charId || !characters.length || detail || intro) return;
+    const c = characters.find((ch) => String(ch.id) === charId);
+    if (c) requestOpenDetail(c, -1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from URL
+  }, [characters, searchParams, detail, intro]);
 
   const detailImg = detail ? charImg(detail, auIdx) : null;
 
   return (
     <>
-      <nav className="oc-topbar">
-        <div className="oc-topbar-left">
-          {detail || intro ? (
+      <LakeArchiveTopbar
+        title="OC — Original Characters"
+        active="oc"
+        back={
+          detail || intro ? (
             <button type="button" className="nav-back" onClick={handleDetailBack}>
               ← back
             </button>
@@ -188,18 +206,9 @@ export function OcPageClient() {
             <Link href="/" replace className="nav-back">
               ← back
             </Link>
-          )}
-          <div className="nav-title">OC — Original Characters</div>
-        </div>
-        <ul className="nav-links">
-          <li className="active">
-            <Link href="/oc">OC</Link>
-          </li>
-          <li>
-            <Link href="/pair">Pair</Link>
-          </li>
-        </ul>
-      </nav>
+          )
+        }
+      />
 
       <div className="layout oc-archive-layout">
         <div className="sidebar">
@@ -334,14 +343,13 @@ export function OcPageClient() {
                 return (
                   <div key={c.id} className="char-card" onClick={() => requestOpenDetail(c, -1)}>
                     {c.img ? (
-                      <img
-                        className="char-card-img"
+                      <ImageFrameView
                         src={c.img}
-                        alt=""
-                        style={{
-                          objectFit: (c.imgFit as React.CSSProperties['objectFit']) || 'cover',
-                          objectPosition: c.imgPos || 'center top',
-                        }}
+                        frame={c.imgFrame}
+                        fit={(c.imgFit as React.CSSProperties['objectFit']) || 'cover'}
+                        pos={c.imgPos || 'center top'}
+                        className="char-card-img-wrap"
+                        imgClassName="char-card-img"
                       />
                     ) : (
                       <div className="char-card-placeholder">{ROMANS[i] || ''}</div>
@@ -368,16 +376,26 @@ export function OcPageClient() {
         </div>
       </div>
 
-      <OcProfilePasswordModal
+      <LakeAccessGateModal
         open={!!passwordGate}
-        characterName={passwordGate?.character.name}
+        scope="oc"
+        accessSettings={accessSettings}
+        title="Profile Access"
+        description={
+          passwordGate?.character.name
+            ? `${passwordGate.character.name} 프로필 — 로그인 후 비밀번호를 입력하세요.`
+            : '프로필 — 로그인 후 비밀번호를 입력하세요.'
+        }
+        loggedIn={!!user}
         onClose={() => setPasswordGate(null)}
+        onRequestLogin={() => setAuthOpen(true)}
         onSuccess={() => {
           const pending = passwordGate;
           setPasswordGate(null);
           if (pending) openDetail(pending.character, pending.au);
         }}
       />
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
 
       <div id="detail-screen" className={detail || intro ? 'active' : ''}>
         {intro && (
@@ -390,6 +408,7 @@ export function OcPageClient() {
         )}
         {detail && !intro && (
           <OcCharacterDetail
+            key={`${detail.id}-${detailRevealKey}`}
             character={detail}
             charNo={activeCharNo}
             auIdx={auIdx}

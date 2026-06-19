@@ -21,11 +21,54 @@
   box-shadow: none !important;
   overflow-x: visible !important;
   overflow-y: hidden !important;
+  isolation: isolate;
 }
 
-.layout.layout--home > .left-panel::before,
 .layout.layout--home > .left-panel::after {
   display: none !important;
+}
+
+/* 아치형 nav 그림자 — left-panel 전체 배경 (중앙으로 갈수록 투명) */
+.layout.layout--home > .left-panel::before {
+  display: block !important;
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(
+      ellipse 115% 88% at -18% 50%,
+      rgba(0, 0, 0, 0.58) 0%,
+      rgba(0, 0, 0, 0.32) 38%,
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 72% 34% at 8% 20%,
+      rgba(0, 0, 0, 0.42) 0%,
+      rgba(0, 0, 0, 0.16) 48%,
+      transparent 78%
+    ),
+    radial-gradient(
+      ellipse 72% 34% at 8% 80%,
+      rgba(0, 0, 0, 0.42) 0%,
+      rgba(0, 0, 0, 0.16) 48%,
+      transparent 78%
+    ),
+    radial-gradient(
+      ellipse 55% 28% at 12% 50%,
+      rgba(0, 0, 0, 0.38) 0%,
+      rgba(0, 0, 0, 0.12) 52%,
+      transparent 80%
+    );
+  mask-image: linear-gradient(90deg, #000 0%, #000 52%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 52%, transparent 100%);
+}
+
+/* nav 내부 박스 그림자 제거 — 패널 ::before 로 통합 */
+.layout.layout--home #main-nav.nav-arc::before {
+  display: none !important;
+  content: none;
 }
 
 .layout.layout--home .site-title-wrap {
@@ -34,6 +77,19 @@
   flex-shrink: 0;
   padding-left: var(--lh-nav-inset-x);
   margin-bottom: clamp(0.75rem, 1.8vh, 1.25rem) !important;
+}
+
+.layout.layout--home .site-subtitle--latin {
+  max-width: 17rem;
+  margin-top: 0.45rem;
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-size: clamp(9px, 1.05vh, 11px);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  line-height: 1.45;
+  text-transform: none;
+  color: rgba(196, 154, 108, 0.42);
 }
 
 .layout.layout--home .site-title-wrap--clickable {
@@ -99,7 +155,7 @@
   justify-content: flex-start;
   min-height: 0;
   height: auto !important;
-  margin-top: clamp(0.65rem, 2vh, 1.35rem);
+  margin-top: clamp(1.85rem, 4.2vh, 3rem);
   margin-bottom: clamp(0.75rem, 2vh, 1.5rem);
   padding: 0 !important;
   overflow: hidden;
@@ -125,12 +181,12 @@
 .layout.layout--home .nav-arc-scroll--clip {
   mask-image: linear-gradient(
     to bottom,
-    #000 calc(100% - 48px),
+    #000 calc(100% - 36px),
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
-    #000 calc(100% - 48px),
+    #000 calc(100% - 36px),
     transparent 100%
   );
 }
@@ -148,19 +204,17 @@
   left: 0;
   right: 0;
   display: block;
-  height: 42px;
-  margin-top: -42px;
+  height: 36px;
+  margin-top: -36px;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.22s ease;
   background: linear-gradient(
     to bottom,
     rgba(9, 10, 9, 0) 0%,
-    rgba(9, 10, 9, 0.55) 45%,
-    rgba(9, 10, 9, 0.88) 100%
+    rgba(9, 10, 9, 0.28) 55%,
+    rgba(9, 10, 9, 0.5) 100%
   );
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .layout.layout--home .nav-arc-scroll--fade::after {

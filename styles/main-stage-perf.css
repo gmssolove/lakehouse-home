@@ -1,0 +1,17 @@
+/* Main stage — paint / layer isolation */
+
+.main-game-stage {
+  contain: layout style;
+}
+
+.main-game-stage__torch,
+.main-game-stage__vignette {
+  contain: strict;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-vinyl-disc.is-running .main-vinyl-disc__rotor {
+    animation: none !important;
+    will-change: auto !important;
+  }
+}

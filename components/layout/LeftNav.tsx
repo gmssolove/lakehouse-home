@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   useEffect,
   useMemo,
@@ -10,11 +10,17 @@ import {
   type CSSProperties,
 } from 'react';
 import type { User } from 'firebase/auth';
+import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { DEFAULT_SITE_MAIN } from '@/lib/types/site-content';
 
 export type HomePageId =
   | 'main'
   | 'notice'
   | 'diary'
+  | 'scrap'
+  | 'review'
+  | 'music'
+  | 'charArchive'
   | 'gallery'
   | 'universe'
   | 'trpg'
@@ -40,7 +46,7 @@ type PageEntry = {
 
 type GroupEntry = {
   kind: 'group';
-  id: 'character' | 'archive';
+  id: 'character' | 'records';
   roman: string;
   label: string;
 };
@@ -50,17 +56,22 @@ type NavEntry = PageEntry | GroupEntry;
 const NAV_ENTRIES: NavEntry[] = [
   { kind: 'page', id: 'main', roman: 'I', label: 'Main' },
   { kind: 'page', id: 'notice', roman: 'II', label: 'Notice' },
-  { kind: 'page', id: 'diary', roman: 'III', label: 'Diary' },
+  { kind: 'group', id: 'records', roman: 'III', label: 'Records' },
   { kind: 'page', id: 'gallery', roman: 'IV', label: 'Gallery' },
   { kind: 'group', id: 'character', roman: 'V', label: 'Character' },
   { kind: 'page', id: 'universe', roman: 'VI', label: 'Universe' },
   { kind: 'page', id: 'trpg', roman: 'VII', label: 'TRPG' },
-  { kind: 'group', id: 'archive', roman: 'VIII', label: 'Archive' },
-  { kind: 'page', id: 'guest', roman: 'IX', label: 'Guest' },
-  { kind: 'page', id: 'banner', roman: 'X', label: 'Banner' },
+  { kind: 'page', id: 'guest', roman: 'VIII', label: 'Guest' },
+  { kind: 'page', id: 'banner', roman: 'IX', label: 'Banner' },
 ];
 
-/** reversed arc: center pulls left, top/bottom swing right */
+const RECORDS_PAGES: { id: HomePageId; label: string }[] = [
+  { id: 'diary', label: 'Diary' },
+  { id: 'scrap', label: 'Scrap' },
+  { id: 'review', label: 'Review' },
+  { id: 'music', label: 'Music' },
+];
+
 const NAV_SHIFT_X = 36;
 const SUB_CLOSE_MS = 680;
 
@@ -131,12 +142,17 @@ export function LeftNav({
   onLogout,
 }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { main } = useSiteContent();
+  const siteSubtitle = main.latin?.trim() || DEFAULT_SITE_MAIN.latin;
   const charMenu = useSubmenu(pathname.startsWith('/oc') || pathname.startsWith('/pair'));
-  const archiveMenu = useSubmenu(false);
-  const [unfolded, setUnfolded] = useState(false);
+  const recordsMenu = useSubmenu(
+    RECORDS_PAGES.some((p) => p.id === activePage) && pathname === '/',
+  );
+  const [unfolded, setUnfolded] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollFade, setScrollFade] = useState(false);
-  const submenuExpanded = charMenu.expanded || archiveMenu.expanded;
+  const submenuExpanded = charMenu.expanded || recordsMenu.expanded;
 
   const navCount = NAV_ENTRIES.length + (isAdmin ? 1 : 0);
   const stackX = useMemo(() => arcOffset(0, navCount), [navCount]);
@@ -157,9 +173,7 @@ export function LeftNav({
       }
       const { scrollTop, scrollHeight, clientHeight } = el!;
       const overflow = scrollHeight - clientHeight > 4;
-      setScrollFade(
-        overflow && scrollTop + clientHeight < scrollHeight - 4,
-      );
+      setScrollFade(overflow && scrollTop + clientHeight < scrollHeight - 4);
     }
 
     updateFade();
@@ -171,7 +185,7 @@ export function LeftNav({
       el.removeEventListener('scroll', updateFade);
       ro.disconnect();
     };
-  }, [isAdmin, charMenu.expanded, archiveMenu.expanded, unfolded, submenuExpanded]);
+  }, [isAdmin, charMenu.expanded, recordsMenu.expanded, unfolded, submenuExpanded]);
 
   function arcStyle(index: number): CSSProperties {
     const x = arcOffset(index, navCount);
@@ -187,12 +201,15 @@ export function LeftNav({
     return activePage === id && pathname === '/';
   }
 
-  function renderSubmenu(
-    entry: GroupEntry,
-    menu: ReturnType<typeof useSubmenu>,
-    active: boolean,
-    isChar: boolean,
-  ) {
+  function goHomeTab(page: HomePageId) {
+    if (pathname !== '/') {
+      router.push(`/?p=${page}`);
+      return;
+    }
+    onPageChange(page);
+  }
+
+  function renderSubmenu(entry: GroupEntry, menu: ReturnType<typeof useSubmenu>, active: boolean, kind: 'character' | 'records') {
     return (
       <li
         key={entry.id}
@@ -215,7 +232,7 @@ export function LeftNav({
           </span>
         </div>
 
-        {isChar ? (
+        {kind === 'character' ? (
           <div ref={menu.subRef} className={menu.subClass('nav-sub nav-sub--arc')} id="char-sub">
             <div className="nav-sub-inner">
               <Link href="/oc" className={`nav-sub-item${pathname === '/oc' ? ' active' : ''}`}>
@@ -224,14 +241,28 @@ export function LeftNav({
               <Link href="/pair" className={`nav-sub-item${pathname === '/pair' ? ' active' : ''}`}>
                 Pair
               </Link>
+              <button
+                type="button"
+                className={`nav-sub-item${isPageActive('charArchive') ? ' active' : ''}`}
+                onClick={() => goHomeTab('charArchive')}
+              >
+                Archive
+              </button>
             </div>
           </div>
         ) : (
-          <div ref={menu.subRef} className={menu.subClass('nav-sub nav-sub--arc')} id="archive-sub">
+          <div ref={menu.subRef} className={menu.subClass('nav-sub nav-sub--arc')} id="records-sub">
             <div className="nav-sub-inner">
-              <span className="nav-sub-item">Review</span>
-              <span className="nav-sub-item">Scrap</span>
-              <span className="nav-sub-item">Music</span>
+              {RECORDS_PAGES.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`nav-sub-item${isPageActive(p.id) ? ' active' : ''}`}
+                  onClick={() => goHomeTab(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -245,11 +276,11 @@ export function LeftNav({
         className="site-title-wrap site-title-wrap--clickable"
         role="button"
         tabIndex={0}
-        onClick={() => onPageChange('main')}
+        onClick={() => goHomeTab('main')}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onPageChange('main');
+            goHomeTab('main');
           }
         }}
         aria-label="메인 메뉴로 이동"
@@ -257,7 +288,7 @@ export function LeftNav({
         <div className="site-title">
           lake<span>house</span>
         </div>
-        <div className="site-subtitle">archive &amp; stories</div>
+        <div className="site-subtitle site-subtitle--latin">{siteSubtitle}</div>
       </div>
 
       <div className="auth-area">
@@ -295,10 +326,10 @@ export function LeftNav({
                   <li key={entry.id} className="nav-arc-slot" style={style}>
                     <div
                       className={`nav-arc-item nav-item${active ? ' active' : ''}`}
-                      onClick={() => onPageChange(entry.id)}
+                      onClick={() => goHomeTab(entry.id)}
                       role="button"
                       tabIndex={0}
-                      onKeyDown={(e) => e.key === 'Enter' && onPageChange(entry.id)}
+                      onKeyDown={(e) => e.key === 'Enter' && goHomeTab(entry.id)}
                     >
                       <span className="nav-arc-roman" aria-hidden="true">
                         {entry.roman}
@@ -312,12 +343,12 @@ export function LeftNav({
               }
 
               const isChar = entry.id === 'character';
-              const menu = isChar ? charMenu : archiveMenu;
+              const menu = isChar ? charMenu : recordsMenu;
               const active = isChar
-                ? menu.expanded || pathname.startsWith('/oc') || pathname.startsWith('/pair')
-                : menu.expanded;
+                ? menu.expanded || pathname.startsWith('/oc') || pathname.startsWith('/pair') || activePage === 'charArchive'
+                : menu.expanded || RECORDS_PAGES.some((p) => p.id === activePage);
 
-              return renderSubmenu(entry, menu, active, isChar);
+              return renderSubmenu(entry, menu, active, isChar ? 'character' : 'records');
             })}
           </ul>
 
@@ -336,7 +367,7 @@ export function LeftNav({
                   onKeyDown={(e) => e.key === 'Enter' && onPageChange('admin')}
                 >
                   <span className="nav-arc-roman nav-arc-roman--admin" aria-hidden="true">
-                    XI
+                    X
                   </span>
                   <span className="nav-item-inner">
                     <span className="nav-label" style={{ color: 'var(--pink-dim)' }}>

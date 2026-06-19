@@ -1,0 +1,152 @@
+/* ── OC / Pair archive 상단바 (legacy oc.html nav 구조와 동일) ── */
+
+.archive-layout {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.archive-layout > .oc-topbar {
+  flex-shrink: 0;
+}
+
+.archive-layout > .layout,
+.archive-layout > .main-content.pair-main {
+  flex: 1;
+  min-height: 0;
+}
+
+/* nav = back · title · (tabs absolute) — sidebar .75rem 과 같은 왼쪽 기준 */
+.trpg-layout > nav.oc-topbar.lh-archive-topbar,
+.pair-layout > nav.oc-topbar.lh-archive-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  box-sizing: border-box;
+  width: calc(100vw - 24px) !important;
+  max-width: none !important;
+  margin: 10px 12px 0 !important;
+  padding: 0.75rem 7.5rem 0.65rem 0.75rem !important;
+  min-height: 46px !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: clamp(0.55rem, 1vw, 0.85rem) !important;
+  background: rgba(10, 12, 10, 0.92) !important;
+  border-bottom: 1px solid rgba(215, 169, 130, 0.38) !important;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.22);
+}
+
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-back,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-back {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  order: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: nowrap;
+  line-height: 1.2;
+  font-family: var(--font-cormorant-upright), 'Cormorant Garamond', serif;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-title,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-title {
+  flex: 0 0 auto !important;
+  flex-grow: 0 !important;
+  flex-shrink: 1 !important;
+  order: 1;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  font-family: var(--font-cormorant-upright), 'Cormorant Garamond', serif !important;
+  font-size: clamp(11px, 1.35vw, 14px) !important;
+  letter-spacing: 0.16em;
+  line-height: 1.2 !important;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(240, 207, 173, 0.78) !important;
+}
+
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links {
+  position: absolute !important;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  order: 2;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 0.35rem 0 0 !important;
+  gap: 0 !important;
+}
+
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li {
+  display: flex;
+  align-items: center;
+}
+
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box;
+  width: 54px !important;
+  min-width: 54px !important;
+  height: 100% !important;
+  min-height: 46px !important;
+  padding: 0 !important;
+  line-height: 1.2 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+  text-decoration: none !important;
+  color: var(--text-muted, rgba(216, 213, 203, 0.55)) !important;
+  border-bottom: 2px solid transparent !important;
+}
+
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover {
+  color: rgba(240, 207, 173, 0.82) !important;
+}
+
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a {
+  color: var(--pink, rgba(240, 207, 173, 0.92)) !important;
+  border-bottom-color: var(--pink, rgba(215, 169, 130, 0.85)) !important;
+}
+
+@media (max-width: 760px) {
+  .archive-layout > nav.oc-topbar.lh-archive-topbar,
+  .pair-layout > nav.oc-topbar.lh-archive-topbar {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0.75rem 6.75rem 0.65rem 0.75rem !important;
+  }
+
+  .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+  .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a {
+    width: 48px !important;
+    min-width: 48px !important;
+    font-size: 10px !important;
+  }
+}

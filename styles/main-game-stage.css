@@ -1,0 +1,317 @@
+/* Main — game UI stage */
+
+.layout.layout--home #page-main.active:has(.main-game-stage) {
+  align-items: stretch !important;
+  justify-content: center !important;
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.layout.layout--home:has(#page-main.active) > .right-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: none;
+}
+
+.main-game-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.main-game-stage__torch {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(
+      ellipse 52% 48% at 46% 40%,
+      rgba(215, 169, 130, 0.07) 0%,
+      transparent 38%
+    ),
+    radial-gradient(
+      ellipse 90% 85% at 48% 42%,
+      transparent 0%,
+      transparent 28%,
+      rgba(0, 0, 0, 0.18) 52%,
+      rgba(0, 0, 0, 0.48) 78%,
+      rgba(0, 0, 0, 0.68) 100%
+    );
+}
+
+.main-game-stage__vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.12) 0%,
+    transparent 26%,
+    transparent 74%,
+    rgba(0, 0, 0, 0.18) 100%
+  );
+}
+
+.main-game-stage__spotlight {
+  display: none;
+}
+
+.main-game-stage__corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.main-game-stage__corner::before,
+.main-game-stage__corner::after {
+  content: '';
+  position: absolute;
+  background: rgba(196, 154, 108, 0.32);
+}
+
+.main-game-stage__corner--tl {
+  top: 1.75rem;
+  left: 1.5rem;
+}
+
+.main-game-stage__corner--tl::before {
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 1px;
+}
+
+.main-game-stage__corner--tl::after {
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 16px;
+}
+
+.main-game-stage__corner--tr {
+  top: 1.75rem;
+  right: 1.5rem;
+}
+
+.main-game-stage__corner--tr::before {
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 1px;
+}
+
+.main-game-stage__corner--tr::after {
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 16px;
+}
+
+.main-game-stage__corner--bl {
+  bottom: 1.75rem;
+  left: 1.5rem;
+}
+
+.main-game-stage__corner--bl::before {
+  bottom: 0;
+  left: 0;
+  width: 16px;
+  height: 1px;
+}
+
+.main-game-stage__corner--bl::after {
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 16px;
+}
+
+.main-game-stage__corner--br {
+  bottom: 1.75rem;
+  right: 1.5rem;
+}
+
+.main-game-stage__corner--br::before {
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 1px;
+}
+
+.main-game-stage__corner--br::after {
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  height: 16px;
+}
+
+/* ── Center (latin only) ── */
+.main-game-stage__center {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  width: min(420px, 64vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.main-game-stage__latin {
+  margin: 0;
+  max-width: 300px;
+  text-align: center;
+  font-family: var(--font-cormorant), serif;
+  font-style: italic;
+  font-size: clamp(11px, 1.15vw, 13px);
+  letter-spacing: 0.05em;
+  line-height: 1.5;
+  color: rgba(196, 154, 108, 0.34);
+}
+
+/* ── LP zone — 우하단 ── */
+.main-game-stage__vinyl-zone {
+  position: absolute;
+  right: -10%;
+  bottom: -5%;
+  width: min(880px, 78vh);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.main-game-stage__vinyl-zone .main-vinyl-deck-wrap {
+  pointer-events: auto;
+}
+
+body:has(.layout--home) #bgm-player {
+  display: flex !important;
+  z-index: calc(var(--lh-z-bgm) + 2) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.main-game-stage__cue {
+  position: absolute;
+  left: 8%;
+  bottom: 14%;
+  width: min(280px, 70%);
+  text-align: left;
+  pointer-events: none;
+}
+
+.main-game-stage__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0.4rem;
+}
+
+.main-game-stage__status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(196, 154, 108, 0.4);
+}
+
+.main-game-stage__cue.is-live .main-game-stage__status-dot {
+  background: #d7a982;
+  box-shadow: 0 0 8px rgba(215, 169, 130, 0.45);
+}
+
+.main-game-stage__status-label {
+  font-family: var(--font-marcellus), serif;
+  font-size: 9px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(196, 154, 108, 0.65);
+}
+
+.main-game-stage__cue.is-live .main-game-stage__status-label {
+  color: rgba(240, 207, 173, 0.85);
+}
+
+.main-game-stage__track-title {
+  font-size: 13px;
+  color: rgba(228, 218, 205, 0.82);
+  letter-spacing: 0.03em;
+}
+
+.main-game-stage__track-artist {
+  margin-top: 0.15rem;
+  font-size: 10px;
+  color: rgba(196, 154, 108, 0.5);
+}
+
+.main-game-stage__progress {
+  position: relative;
+  height: 2px;
+  margin-top: 0.55rem;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.main-game-stage__progress-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgba(196, 154, 108, 0.3), rgba(215, 169, 130, 0.7));
+  transition: transform 0.35s linear;
+  will-change: transform;
+}
+
+.main-game-stage__times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  font-size: 8px;
+  color: rgba(196, 154, 108, 0.4);
+}
+
+/* ── Left nav (main) — 박스 배경 없음, 아치 그림자는 home-nav-arc.css ── */
+.layout.layout--home:has(#page-main.active) > .left-panel {
+  background: transparent !important;
+}
+
+.layout.layout--home:has(#page-main.active) > .left-panel::after {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .main-game-stage__center {
+    top: 40%;
+    width: min(320px, 82vw);
+  }
+
+  .main-game-stage__vinyl-zone {
+    right: -22%;
+    bottom: -8%;
+    width: min(600px, 96vw);
+  }
+
+  .main-game-stage__cue {
+    left: 6%;
+    bottom: 10%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-vinyl-disc.is-running .main-vinyl-disc__rotor {
+    animation: none !important;
+  }
+}

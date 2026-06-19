@@ -1,1 +1,42 @@
+@import '../styles/shared/image-frame.css';
 @import '../styles/legacy/pair.css';
+@import '../styles/pair/pair-archive.css';
+@import '../styles/shared/archive-topbar.css';
+
+/* BGM — pair.css 레거시 row 레이아웃 + 화면 밖 좌표 보정 */
+#bgm-player {
+  position: fixed !important;
+  z-index: 900 !important;
+  flex-wrap: wrap !important;
+  align-content: flex-start !important;
+  align-items: center !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+#bgm-player:not(.collapsed) {
+  height: auto !important;
+  min-height: 128px !important;
+  max-height: min(260px, calc(100vh - 20px)) !important;
+}
+
+#bgm-player.collapsed #bgm-expand-btn {
+  pointer-events: none !important;
+}
+
+#bgm-controls-row {
+  display: flex !important;
+}
+
+#bgm-play-btn,
+.bgm-skip-btn {
+  position: relative;
+  z-index: 6;
+  pointer-events: auto !important;
+}
+
+#detail-screen.pair-detail-screen.active {
+  display: block !important;
+  z-index: 450 !important;
+}

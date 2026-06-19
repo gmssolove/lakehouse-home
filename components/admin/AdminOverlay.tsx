@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { OcCharacter } from '@/lib/types/character';
 import { ADMIN_SECTIONS, type AdminSectionId } from '@/lib/types/site-content';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
@@ -18,10 +18,21 @@ import {
   MainAdminPanel,
   OcSettingsAdminPanel,
   PostListAdminPanel,
+  TrpgAdminPanel,
   UxAdminPanel,
   UniverseAdminPanel,
 } from '@/components/admin/AdminSectionPanels';
+import {
+  AccessAdminPanel,
+  CharArchiveAdminPanel,
+  MusicAdminPanel,
+  ReviewAdminPanel,
+  ScrapAdminPanel,
+} from '@/components/admin/RecordsAdminPanels';
 import { OcEditForm } from '@/components/admin/OcEditForm';
+import { PairEditForm } from '@/components/pair/PairEditForm';
+import { createEmptyPair } from '@/lib/oc/pairDefaults';
+import { movePairInList, pairOrderMeta } from '@/lib/oc/pairOrder';
 
 type Props = {
   phase: 'open' | 'closing';
@@ -31,12 +42,27 @@ type Props = {
 
 export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const site = useSiteContent();
   const { characters, categories, saveCharacters } = useOcData();
   const { pairs, savePairs } = usePairData();
   const [section, setSection] = useState<AdminSectionId>('main');
+  const [trpgEditId, setTrpgEditId] = useState<string | null>(null);
   const [ocEditId, setOcEditId] = useState<string | number | null>(null);
   const [pairEditId, setPairEditId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (phase !== 'open') return;
+    const nextSection = searchParams.get('section');
+    const edit = searchParams.get('edit');
+    if (nextSection && ADMIN_SECTIONS.some((s) => s.id === nextSection)) {
+      setSection(nextSection as AdminSectionId);
+    }
+    if (edit && (nextSection === 'trpg' || !nextSection)) {
+      setSection('trpg');
+      setTrpgEditId(edit);
+    }
+  }, [phase, searchParams]);
 
   const handleAdminBack = useCallback(() => {
     if (ocEditId != null) {
@@ -112,25 +138,41 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
         )}
         {section === 'diary' && (
           <PostListAdminPanel
-            title="Diary — 일기"
+            title="Records · Diary"
             items={site.diary}
             onSave={site.saveDiary}
             emptyLabel="등록된 일기가 없습니다."
           />
         )}
+        {section === 'scrap' && <ScrapAdminPanel items={site.scrap} onSave={site.saveScrap} />}
+        {section === 'review' && (
+          <ReviewAdminPanel
+            categories={site.reviewCategories}
+            items={site.reviews}
+            onSaveCategories={site.saveReviewCategories}
+            onSaveItems={site.saveReviews}
+          />
+        )}
+        {section === 'music' && (
+          <MusicAdminPanel
+            tracks={site.musicTracks}
+            playlists={site.musicPlaylists}
+            onSaveTracks={site.saveMusicTracks}
+            onSavePlaylists={site.saveMusicPlaylists}
+          />
+        )}
+        {section === 'charArchive' && (
+          <CharArchiveAdminPanel items={site.charArchive} onSave={site.saveCharArchive} />
+        )}
         {section === 'gallery' && <GalleryAdminPanel items={site.gallery} onSave={site.saveGallery} />}
         {section === 'universe' && <UniverseAdminPanel items={site.universe} onSave={site.saveUniverse} />}
         {section === 'trpg' && (
-          <PostListAdminPanel
-            title="TRPG — 시나리오"
-            items={site.trpg}
-            onSave={site.saveTrpg}
-            emptyLabel="등록된 시나리오가 없습니다."
-          />
+          <TrpgAdminPanel items={site.trpg} onSave={site.saveTrpg} initialEditId={trpgEditId} />
         )}
         {section === 'guest' && <GuestAdminPanel items={site.guests} onSave={site.saveGuests} />}
         {section === 'banner' && <BannerAdminPanel items={site.banners} onSave={site.saveBanners} />}
         {section === 'bgm' && <BgmAdminPanel data={site.bgm} onSave={site.saveBgm} />}
+        {section === 'access' && <AccessAdminPanel data={site.accessSettings} onSave={site.saveAccessSettings} />}
         {section === 'ux' && <UxAdminPanel data={site.uiSettings} onSave={site.saveUiSettings} />}
         {section === 'oc' && (
           <>
@@ -271,27 +313,86 @@ function PairAdminPanel({
     if (toast === 'delete') showDeleteToast();
   }
 
+  async function movePair(id: string, direction: -1 | 1) {
+    const next = movePairInList(pairs, id, direction);
+    if (next === pairs) return;
+    await persist(next, 'save');
+  }
+
+  const selectedOrder = selected ? pairOrderMeta(pairs, selected.id) : null;
+
   return (
     <>
-      <div style={{ marginBottom: '.75rem', fontSize: 12, color: 'var(--lake-copper-soft)' }}>Pair — 페어</div>
+      <div style={{ marginBottom: '.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: 'var(--lake-copper-soft)' }}>Pair — 페어</span>
+        <button
+          type="button"
+          className="btn-save"
+            onClick={() => {
+            const item = createEmptyPair();
+            void persist([...pairs, item]);
+            onSelect(item.id);
+          }}
+        >
+          + 페어 추가
+        </button>
+      </div>
       <div className="lh-admin-grid">
         <div id="pair-list-panel">
-          {pairs.map((p) => (
-            <div
-              key={p.id}
-              className={`char-list-item${editId === p.id ? ' selected' : ''}`}
-              style={{ fontSize: 11 }}
-              onClick={() => onSelect(p.id)}
-            >
-              {p.chars[0]} & {p.chars[1]}
-            </div>
-          ))}
+          {pairs.map((p) => {
+            const order = pairOrderMeta(pairs, p.id);
+            return (
+              <div
+                key={p.id}
+                className={`char-list-item${editId === p.id ? ' selected' : ''}`}
+                style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}
+                onClick={() => onSelect(p.id)}
+              >
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  {p.chars[0]} & {p.chars[1]}
+                </span>
+                {pairs.length > 1 && (
+                  <span className="pair-order-controls__btns" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="pair-order-btn pair-order-btn--mini"
+                      disabled={!order.canUp}
+                      aria-label="앞으로"
+                      onClick={() => void movePair(p.id, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="pair-order-btn pair-order-btn--mini"
+                      disabled={!order.canDown}
+                      aria-label="뒤로"
+                      onClick={() => void movePair(p.id, 1)}
+                    >
+                      ↓
+                    </button>
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
         <div id="pair-edit-panel">
           {selected ? (
             <PairEditForm
               pair={selected}
-              onSave={(item) => persist(pairs.map((p) => (p.id === item.id ? item : p)))}
+              onSave={(item) => void persist(pairs.map((p) => (p.id === item.id ? item : p)))}
+              order={
+                selectedOrder && selectedOrder.index >= 0
+                  ? {
+                      canUp: selectedOrder.canUp,
+                      canDown: selectedOrder.canDown,
+                      position: selectedOrder.index + 1,
+                      total: selectedOrder.total,
+                    }
+                  : undefined
+              }
+              onMove={(dir) => void movePair(selected.id, dir)}
               onDelete={async () => {
                 if (!(await confirm('이 페어 항목을 삭제할까요?'))) return;
                 await persist(pairs.filter((p) => p.id !== selected.id), 'delete');
@@ -302,70 +403,6 @@ function PairAdminPanel({
             <span style={{ color: 'var(--text-muted)' }}>페어를 선택하세요.</span>
           )}
         </div>
-      </div>
-    </>
-  );
-}
-
-function PairEditForm({
-  pair,
-  onSave,
-  onDelete,
-}: {
-  pair: import('@/lib/types/character').PairItem;
-  onSave: (p: import('@/lib/types/character').PairItem) => void | Promise<void>;
-  onDelete: () => void | Promise<void>;
-}) {
-  const { showSaveToast } = useSaveToast();
-  const [form, setForm] = useState(pair);
-
-  async function handleSave() {
-    await onSave(form);
-    showSaveToast();
-  }
-
-  return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <span style={{ fontSize: 12, color: 'var(--lake-copper-soft)' }}>Pair Detail Edit</span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button type="button" className="btn-save" onClick={() => void handleSave()}>
-            저장
-          </button>
-          <button type="button" className="btn-del" onClick={() => void onDelete()}>
-            삭제
-          </button>
-        </div>
-      </div>
-      <div className="form-row">
-        <div className="form-group">
-          <label className="form-label">캐릭터 1</label>
-          <input
-            className="form-input"
-            value={form.chars[0]}
-            onChange={(e) => setForm({ ...form, chars: [e.target.value, form.chars[1]] })}
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label">캐릭터 2</label>
-          <input
-            className="form-input"
-            value={form.chars[1]}
-            onChange={(e) => setForm({ ...form, chars: [form.chars[0], e.target.value] })}
-          />
-        </div>
-      </div>
-      <div className="form-group">
-        <label className="form-label">관계</label>
-        <input className="form-input" value={form.relation || ''} onChange={(e) => setForm({ ...form, relation: e.target.value })} />
-      </div>
-      <div className="form-group">
-        <label className="form-label">소개</label>
-        <textarea className="form-input" rows={3} value={form.desc || ''} onChange={(e) => setForm({ ...form, desc: e.target.value })} />
-      </div>
-      <div className="form-group">
-        <label className="form-label">스토리</label>
-        <textarea className="form-input" rows={5} value={form.story || ''} onChange={(e) => setForm({ ...form, story: e.target.value })} />
       </div>
     </>
   );

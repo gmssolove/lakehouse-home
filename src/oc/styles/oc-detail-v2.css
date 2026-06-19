@@ -1,59 +1,4 @@
-/* OC top bar — flush left, slightly lower */
-.oc-topbar {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 0 !important;
-  padding: 0.78rem clamp(0.65rem, 1.5vw, 1rem) 0.68rem !important;
-  height: auto !important;
-  min-height: 46px !important;
-  border-bottom: 1px solid rgba(215, 169, 130, 0.18) !important;
-}
-
-.oc-topbar-left {
-  display: flex;
-  align-items: baseline;
-  gap: clamp(0.7rem, 1.4vw, 1rem);
-  min-width: 0;
-  flex: 0 1 auto;
-  margin-right: auto;
-}
-
-.oc-topbar .nav-back {
-  flex-shrink: 0;
-  white-space: nowrap;
-  line-height: 1.2;
-  font-family: var(--font-cormorant-upright), 'Cormorant Garamond', serif;
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
-.oc-topbar .nav-title {
-  flex: 0 1 auto;
-  text-align: left;
-  font-family: var(--font-cormorant-upright), 'Cormorant Garamond', serif !important;
-  font-size: clamp(11px, 1.35vw, 14px) !important;
-  letter-spacing: 0.16em;
-  line-height: 1.2 !important;
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: rgba(240, 207, 173, 0.78) !important;
-}
-
-.oc-topbar .nav-links {
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.oc-topbar .nav-links li a {
-  height: auto !important;
-  line-height: 1.2 !important;
-  padding: 0 1rem !important;
-  font-size: 11px;
-}
+/* OC top bar — see styles/shared/archive-topbar.css */
 
 /* Archive list */
 .oc-archive-layout {
@@ -95,6 +40,14 @@
 
 .oc-archive-layout .main-content {
   padding-top: 1.35rem !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.oc-archive-layout .main-content::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .oc-archive-layout .main-content::before {

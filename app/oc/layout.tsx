@@ -1,5 +1,5 @@
 import '../oc-route.css';
 
 export default function OcLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <div className="archive-layout">{children}</div>;
 }

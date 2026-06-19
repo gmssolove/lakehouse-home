@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import {
   applyCharacterTheme,
@@ -613,22 +614,15 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
         <label className="form-label">이미지 URL</label>
         <input className="form-input" value={form.img || ''} onChange={(e) => set('img', e.target.value)} />
       </div>
-      <div className="lh-oc-admin-grid">
-        <div className="form-group">
-          <label className="form-label">Fit</label>
-          <select className="form-input" value={form.imgFit || 'contain'} onChange={(e) => set('imgFit', e.target.value)}>
-            <option value="contain">Contain</option>
-            <option value="cover">Cover</option>
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label">위치</label>
-          <select className="form-input" value={form.imgPos || 'center top'} onChange={(e) => set('imgPos', e.target.value)}>
-            <option value="center top">위쪽</option>
-            <option value="center center">중앙</option>
-            <option value="center bottom">아래</option>
-          </select>
-        </div>
+      <div className="form-group">
+        <ImageFrameEditor
+          src={form.img || ''}
+          value={form.imgFrame}
+          onChange={(imgFrame) => set('imgFrame', imgFrame)}
+          fit={form.imgFit || 'contain'}
+          pos={form.imgPos || 'center top'}
+          aspectRatio="3 / 4.45"
+        />
       </div>
       <label className="file-input-label" style={{ marginBottom: 8 }}>
         이미지 파일 업로드

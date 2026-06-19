@@ -35,6 +35,9 @@ export function BackgroundDecor() {
       </div>
       <div className="bg-deco bg-deco-1">d</div>
       <div className="bg-deco bg-deco-2">世</div>
+      <div className="bg-home-wordmark" aria-hidden="true">
+        lake<span>house</span>
+      </div>
     </>
   );
 }

@@ -1,1 +1,13 @@
+@import '../styles/shared/image-frame.css';
 @import '../src/oc/styles/index.css';
+@import '../styles/shared/archive-topbar.css';
+
+/* archive-layout: 상단바 아래 그리드가 남은 높이 채움 */
+.archive-layout > .layout.oc-archive-layout {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  width: calc(100vw - 24px) !important;
+  max-width: none !important;
+  margin: 6px 12px 12px !important;
+  height: auto !important;
+}

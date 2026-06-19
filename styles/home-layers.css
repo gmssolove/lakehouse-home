@@ -59,7 +59,8 @@
   isolation: isolate;
 }
 
-.layout.layout--home > .left-panel::before {
+/* 아치형 그림자는 home-nav-arc.css (.left-panel::before) */
+.layout.layout--home > .left-panel::after {
   display: none !important;
   pointer-events: none !important;
 }
@@ -271,13 +272,13 @@
   }
 }
 
-/* soften bg seam behind nav column — no hard black box */
+/* soften bg seam behind nav column — hard box 제거 */
 body:has(.layout--home) .bg-layer {
   background: linear-gradient(
       90deg,
-      rgba(7, 8, 7, 0.96) 0,
-      rgba(7, 8, 7, 0.9) 16%,
-      rgba(11, 12, 11, 0.38) 26%,
+      rgba(7, 8, 7, 0.82) 0,
+      rgba(7, 8, 7, 0.48) 14%,
+      rgba(11, 12, 11, 0.2) 28%,
       rgba(9, 10, 9, 0.36) 62% 100%
     ),
     linear-gradient(180deg, rgba(9, 10, 9, 0.18), rgba(9, 10, 9, 0.46)),
@@ -289,4 +290,91 @@ body:has(.layout--home) .layout.layout--home > .left-panel {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+/* 홈 — 예전 배경 패턴 (조금 더 선명하게) */
+body:has(.layout--home) .bg-deco-geo {
+  display: block !important;
+  opacity: 0.68;
+}
+
+body:has(.layout--home) .bg-deco {
+  opacity: 0.4;
+}
+
+body:has(.layout--home) .bg-layer::before {
+  display: block !important;
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.94;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(240, 207, 173, 0.2), transparent 22%),
+    radial-gradient(circle at 76% 58%, rgba(215, 169, 130, 0.15), transparent 32%),
+    repeating-radial-gradient(
+      circle at 50% 18%,
+      rgba(240, 207, 173, 0.11) 0 1px,
+      transparent 1px 9px
+    );
+  mask-image: linear-gradient(90deg, transparent 0 22%, black 34%, black 100%);
+}
+
+body:has(.layout--home) .bg-layer::after {
+  display: block !important;
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 60% 22%, rgba(215, 169, 130, 0.15), transparent 28%),
+    radial-gradient(circle at 82% 54%, rgba(126, 138, 124, 0.12), transparent 34%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.1), transparent 44%, rgba(0, 0, 0, 0.04));
+  mix-blend-mode: screen;
+}
+
+/* 홈 — 콘텐츠 영역 왼쪽 아래 lakehouse (필기체 워드마크, 메인만) */
+body:has(.layout--home):has(#page-main.active) .bg-home-wordmark {
+  display: block;
+}
+
+body:has(.layout--home) .bg-home-wordmark {
+  display: none;
+  position: fixed;
+  left: calc(var(--lh-nav-width) + clamp(3rem, 7vw, 5.5rem));
+  bottom: clamp(0.85rem, 4.5vh, 2.5rem);
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-my-soul), var(--font-pinyon), 'My Soul', 'Pinyon Script', cursive;
+  font-size: clamp(3.6rem, 9.5vw, 6.8rem);
+  line-height: 0.86;
+  letter-spacing: 0.012em;
+  font-weight: 400;
+  font-style: normal;
+  color: rgba(228, 210, 188, 0.16);
+  text-shadow:
+    0 0 32px rgba(215, 169, 130, 0.1),
+    0 20px 44px rgba(0, 0, 0, 0.38);
+}
+
+body:has(.layout--home) .bg-home-wordmark span {
+  color: rgba(215, 169, 130, 0.26);
+}
+
+body:has(.layout--home) .bg-home-wordmark::after {
+  content: '';
+  display: block;
+  width: min(76px, 18vw);
+  height: 1px;
+  margin-top: 0.7rem;
+  background: linear-gradient(90deg, rgba(196, 154, 108, 0.42), transparent);
+}
+
+@media (max-width: 760px) {
+  body:has(.layout--home) .bg-home-wordmark {
+    left: clamp(1.75rem, 7vw, 2.75rem);
+    bottom: clamp(0.6rem, 3.5vh, 1.5rem);
+    font-size: clamp(2.75rem, 15vw, 4.2rem);
+  }
 }
