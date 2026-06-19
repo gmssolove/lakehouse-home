@@ -294,7 +294,8 @@ export function BgmPlayer() {
               }}
               onInput={(e) => {
                 if (progressMax <= 0) return;
-                setScrubValue(parseFloat(e.currentTarget.value));
+                const next = parseFloat(e.currentTarget.value);
+                setScrubValue(next);
               }}
               onChange={(e) => {
                 if (progressMax <= 0) return;
@@ -302,7 +303,15 @@ export function BgmPlayer() {
                 setScrubValue(next);
                 seek(next);
               }}
-              onPointerUp={() => setScrubbing(false)}
+              onPointerUp={(e) => {
+                e.stopPropagation();
+                if (scrubbing && progressMax > 0) {
+                  const next = parseFloat(e.currentTarget.value);
+                  setScrubValue(next);
+                  seek(next);
+                }
+                setScrubbing(false);
+              }}
               onPointerCancel={() => setScrubbing(false)}
             />
             <div id="bgm-progress-footer">

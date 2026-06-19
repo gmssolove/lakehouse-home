@@ -36,6 +36,8 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
   const [duration, setDuration] = useState(0);
   const [commentDraft, setCommentDraft] = useState('');
   const [revealedTracks, setRevealedTracks] = useState<Set<string>>(() => new Set());
+  const [seeking, setSeeking] = useState(false);
+  const [seekValue, setSeekValue] = useState(0);
 
   const playlist = musicPlaylists.find((p) => p.id === playlistId) ?? musicPlaylists[0] ?? null;
 
@@ -140,6 +142,21 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
     return isAdmin || !track.secret || revealedTracks.has(track.id);
   }
 
+  const progressMax = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const progressValue = seeking
+    ? seekValue
+    : progressMax > 0
+      ? Math.min(currentTime, progressMax)
+      : 0;
+
+  function applySeek(t: number) {
+    if (progressMax <= 0) return;
+    const next = Math.max(0, Math.min(t, progressMax));
+    setSeekValue(next);
+    setCurrentTime(next);
+    if (audioRef.current) audioRef.current.currentTime = next;
+  }
+
   if (!musicPlaylists.length) {
     return <div className="page-coming">— 플레이리스트가 없습니다 —</div>;
   }
@@ -182,8 +199,16 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
         <div className="lh-music-player">
           <audio
             ref={audioRef}
-            onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+            onTimeUpdate={(e) => {
+              if (seeking) return;
+              setCurrentTime(e.currentTarget.currentTime);
+            }}
             onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+            onDurationChange={(e) => setDuration(e.currentTarget.duration)}
+            onSeeked={(e) => {
+              if (seeking) return;
+              setCurrentTime(e.currentTarget.currentTime);
+            }}
             onEnded={onEnded}
           />
           {current?.coverUrl ? (
@@ -200,14 +225,30 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
             className="lh-music-player__seek"
             type="range"
             min={0}
-            max={duration || 0}
+            max={progressMax > 0 ? progressMax : 100}
             step={0.1}
-            value={currentTime}
-            onChange={(e) => {
-              const t = Number(e.target.value);
-              setCurrentTime(t);
-              if (audioRef.current) audioRef.current.currentTime = t;
+            value={progressMax > 0 ? progressValue : 0}
+            disabled={!current || progressMax <= 0}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              if (progressMax <= 0) return;
+              setSeeking(true);
+              setSeekValue(parseFloat(e.currentTarget.value));
             }}
+            onInput={(e) => {
+              if (progressMax <= 0) return;
+              setSeekValue(parseFloat(e.currentTarget.value));
+            }}
+            onChange={(e) => {
+              applySeek(parseFloat(e.target.value));
+            }}
+            onPointerUp={(e) => {
+              if (seeking && progressMax > 0) {
+                applySeek(parseFloat(e.currentTarget.value));
+              }
+              setSeeking(false);
+            }}
+            onPointerCancel={() => setSeeking(false)}
           />
           <div className="lh-music-player__times">
             <span>{formatTime(currentTime)}</span>

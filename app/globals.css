@@ -99,6 +99,7 @@ body:has(.layout--home) #bgm-player {
   box-sizing: border-box !important;
   padding: 10px 12px !important;
   max-height: min(260px, calc(100vh - 20px)) !important;
+  touch-action: auto;
 }
 
 #bgm-controls-row {

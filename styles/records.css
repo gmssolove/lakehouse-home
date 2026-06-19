@@ -439,6 +439,12 @@
 
 .lh-music-player__seek {
   width: 100%;
+  accent-color: var(--lake-copper, var(--gold));
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+  touch-action: pan-x;
 }
 
 .lh-music-player__times {
