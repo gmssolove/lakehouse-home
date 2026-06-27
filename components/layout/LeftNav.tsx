@@ -351,7 +351,7 @@ export function LeftNav({
               const menu = isChar ? charMenu : recordsMenu;
               const active = isChar
                 ? menu.expanded || pathname.startsWith('/oc') || pathname.startsWith('/pair') || activePage === 'charArchive'
-                : menu.expanded || RECORDS_PAGES.some((p) => p.id === activePage);
+                : menu.expanded || isRecordsGroupActive();
 
               return renderSubmenu(entry, menu, active, isChar ? 'character' : 'records');
             })}

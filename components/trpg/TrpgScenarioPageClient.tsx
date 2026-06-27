@@ -27,6 +27,7 @@ import { lakeNavigate, peekPendingLakeRouteDir, beginLakeRouteEnter } from '@/li
 import { trpgFontFamily } from '@/lib/trpg/fonts';
 import { TrpgScenarioEditDrawer, type TrpgEditTabId } from '@/components/trpg/TrpgScenarioEditDrawer';
 import { formatTrpgDateRange, normalizeTrpgScenario } from '@/lib/trpg/normalize';
+import { highlightLogPlainText } from '@/lib/trpg/logHighlight';
 import type { TrpgScenario, TrpgSessionLog } from '@/lib/types/site-content';
 
 type Props = {
