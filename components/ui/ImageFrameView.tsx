@@ -29,6 +29,7 @@ export function ImageFrameView({
         src={src}
         alt={alt}
         draggable={false}
+        referrerPolicy="no-referrer"
         style={framedImageStyle(frame, { fit, pos })}
       />
     </div>

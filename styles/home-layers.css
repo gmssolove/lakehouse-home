@@ -211,6 +211,20 @@
   z-index: var(--lh-z-bgm) !important;
 }
 
+#bgm-player.collapsed #bgm-expand-btn {
+  display: flex !important;
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 18px !important;
+  pointer-events: none !important;
+  color: var(--lake-copper-soft, #d7a982);
+  user-select: none;
+}
+
 .lh-dialog-overlay {
   z-index: var(--lh-z-dialog) !important;
 }

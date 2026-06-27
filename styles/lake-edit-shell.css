@@ -1,0 +1,282 @@
+/* Shared tabbed edit shell — OC / Pair (TRPG uses trpg-edit-panel.css) */
+
+.lake-edit-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lake-edit-shell__tabs {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 0.5px solid rgba(215, 169, 130, 0.14);
+  background: rgba(12, 14, 13, 0.96);
+  overflow-x: auto;
+}
+
+.lake-edit-shell__tab {
+  font-size: 11px;
+  padding: 9px 14px;
+  color: rgba(168, 164, 156, 0.55);
+  cursor: pointer;
+  border: none;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  background: transparent;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.lake-edit-shell__tab:hover {
+  color: rgba(216, 213, 203, 0.78);
+}
+
+.lake-edit-shell__tab.is-active {
+  color: rgba(240, 207, 173, 0.95);
+  border-bottom-color: rgba(240, 207, 173, 0.72);
+}
+
+.lake-edit-shell__body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 18px 24px;
+}
+
+.lake-edit-modal--oc .lake-edit-shell__body,
+.lake-edit-modal--pair .lake-edit-shell__body {
+  padding: 16px 0 8px;
+}
+
+.lake-edit-modal--oc .lake-edit-modal__body,
+.lake-edit-modal--pair .lake-edit-modal__body {
+  padding: 0 18px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.lake-edit-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(168, 164, 156, 0.55);
+  margin: 0 0 10px;
+  padding-bottom: 7px;
+  border-bottom: 0.5px solid rgba(215, 169, 130, 0.1);
+}
+
+.lake-edit-add-btn {
+  font-size: 11px;
+  color: rgba(200, 168, 130, 0.88);
+  border: 0.5px dashed rgba(215, 169, 130, 0.35);
+  background: transparent;
+  border-radius: 6px;
+  padding: 7px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 4px;
+  font-family: inherit;
+}
+
+.lake-edit-add-btn:hover {
+  background: rgba(215, 169, 130, 0.08);
+}
+
+.lake-edit-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.lake-edit-row3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.lake-edit-card {
+  background: rgba(18, 20, 18, 0.92);
+  border: 0.5px solid rgba(215, 169, 130, 0.14);
+  border-radius: 8px;
+  padding: 11px 13px;
+  margin-bottom: 8px;
+}
+
+.lake-edit-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.lake-edit-card__label {
+  font-size: 11px;
+  color: rgba(190, 186, 178, 0.72);
+}
+
+.lake-edit-mini-del {
+  background: none;
+  border: none;
+  color: rgba(168, 164, 156, 0.45);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-family: inherit;
+}
+
+.lake-edit-mini-del:hover {
+  color: rgba(224, 112, 112, 0.92);
+}
+
+.pair-char-pick {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pair-char-card {
+  width: 80px;
+  background: rgba(18, 20, 18, 0.92);
+  border: 0.5px solid rgba(215, 169, 130, 0.14);
+  border-radius: 8px;
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  font-family: inherit;
+  color: inherit;
+}
+
+.pair-char-card:hover {
+  border-color: rgba(215, 169, 130, 0.35);
+}
+
+.pair-char-card.is-selected {
+  border-color: rgba(240, 207, 173, 0.65);
+  background: rgba(215, 169, 130, 0.08);
+}
+
+.pair-char-card__img {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  background: rgba(10, 12, 11, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  overflow: hidden;
+}
+
+.pair-char-card__img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pair-char-card__name {
+  font-size: 10px;
+  color: rgba(168, 164, 156, 0.68);
+  text-align: center;
+}
+
+.pair-char-card.is-selected .pair-char-card__name {
+  color: rgba(240, 207, 173, 0.9);
+}
+
+.pair-dday-edit {
+  background: rgba(12, 14, 13, 0.92);
+  border: 0.5px solid rgba(215, 169, 130, 0.14);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.pair-dday-preview {
+  margin-top: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(240, 207, 173, 0.92);
+  letter-spacing: -0.01em;
+}
+
+.pair-dday-since {
+  font-size: 11px;
+  color: rgba(168, 164, 156, 0.55);
+  margin-top: 2px;
+}
+
+.pair-chem-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pair-chem-edit-row:last-child {
+  margin-bottom: 0;
+}
+
+.pair-chem-edit-lbl {
+  font-size: 11px;
+  color: rgba(190, 186, 178, 0.72);
+  width: 54px;
+  flex-shrink: 0;
+}
+
+.pair-chem-slider {
+  flex: 1;
+  accent-color: #d7a982;
+}
+
+.pair-chem-num {
+  width: 40px;
+  background: rgba(18, 20, 18, 0.92);
+  border: 0.5px solid rgba(215, 169, 130, 0.18);
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: #ccc;
+  outline: none;
+  text-align: center;
+  font-family: inherit;
+}
+
+.pair-gal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pair-gal-item {
+  border-radius: 7px;
+  background: rgba(18, 20, 18, 0.92);
+  border: 0.5px solid rgba(215, 169, 130, 0.14);
+  overflow: hidden;
+}
+
+.pair-gal-item__ph {
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pair-gal-item__ph img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pair-gal-item__cap {
+  padding: 5px 8px;
+  font-size: 10px;
+  color: rgba(168, 164, 156, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}

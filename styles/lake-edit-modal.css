@@ -1,0 +1,132 @@
+/* Centered edit popup — TRPG / OC / Pair */
+
+.lake-edit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 14px;
+}
+
+.lake-edit-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.62);
+  cursor: pointer;
+}
+
+.lake-edit-modal__dialog {
+  position: relative;
+  width: min(920px, 100%);
+  max-height: min(90vh, 780px);
+  display: flex;
+  flex-direction: column;
+  background: #111;
+  border-radius: 12px;
+  border: 0.5px solid rgba(215, 169, 130, 0.18);
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.lake-edit-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #161616;
+  border-bottom: 0.5px solid rgba(215, 169, 130, 0.14);
+  flex-shrink: 0;
+}
+
+.lake-edit-modal__head-left {
+  min-width: 0;
+}
+
+.lake-edit-modal__eyebrow {
+  font-size: 10px;
+  color: rgba(168, 164, 156, 0.55);
+  letter-spacing: 0.08em;
+  margin: 0 0 2px;
+}
+
+.lake-edit-modal__title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #e8e8e8;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lake-edit-modal__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lake-edit-modal__btn {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 0.5px solid rgba(215, 169, 130, 0.22);
+  background: #1e1e1e;
+  color: #aaa;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.lake-edit-modal__btn:hover {
+  background: #2a2a2a;
+  color: #ddd;
+}
+
+.lake-edit-modal__btn.is-primary {
+  background: rgba(215, 169, 130, 0.14);
+  border-color: rgba(240, 207, 173, 0.35);
+  color: rgba(240, 207, 173, 0.95);
+}
+
+.lake-edit-modal__btn.is-danger {
+  border-color: rgba(160, 80, 80, 0.45);
+  color: rgba(224, 112, 112, 0.92);
+}
+
+.lake-edit-modal__close {
+  font-size: 14px;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: rgba(168, 164, 156, 0.72);
+  cursor: pointer;
+}
+
+.lake-edit-modal__close:hover {
+  color: #ddd;
+}
+
+.lake-edit-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.lake-edit-modal--trpg .lake-edit-modal__body {
+  padding: 0;
+}
+
+.lake-edit-modal--oc .lake-edit-modal__body,
+.lake-edit-modal--pair .lake-edit-modal__body {
+  padding: 16px 18px 24px;
+}
+
+.lake-edit-modal .oc-edit-scroll-top {
+  right: 18px;
+  bottom: 18px;
+}

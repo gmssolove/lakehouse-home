@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { OcCharacter } from '@/lib/types/character';
-import { ADMIN_SECTIONS, type AdminSectionId } from '@/lib/types/site-content';
+import { ADMIN_NAV_GROUPS, ADMIN_SECTIONS, type AdminSectionId } from '@/lib/types/site-content';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { useOcData } from '@/lib/hooks/useOcData';
 import { usePairData } from '@/lib/hooks/usePairData';
@@ -25,14 +25,17 @@ import {
 import {
   AccessAdminPanel,
   CharArchiveAdminPanel,
+  GuestSettingsAdminPanel,
   MusicAdminPanel,
   ReviewAdminPanel,
   ScrapAdminPanel,
+  TimelineAdminPanel,
 } from '@/components/admin/RecordsAdminPanels';
 import { OcEditForm } from '@/components/admin/OcEditForm';
 import { PairEditForm } from '@/components/pair/PairEditForm';
 import { createEmptyPair } from '@/lib/oc/pairDefaults';
 import { movePairInList, pairOrderMeta } from '@/lib/oc/pairOrder';
+import { AdminNavIcon } from '@/components/admin/AdminNavIcon';
 
 type Props = {
   phase: 'open' | 'closing';
@@ -114,15 +117,23 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
           ✕
         </button>
         <div className="adm-tabs">
-          {ADMIN_SECTIONS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`adm-tab${section === item.id ? ' active' : ''}`}
-              onClick={() => setSection(item.id)}
-            >
-              {item.label}
-            </button>
+          {ADMIN_NAV_GROUPS.map((group) => (
+            <div key={group.key} className="adm-nav-group">
+              <p className="adm-nav-group__label">{group.label}</p>
+              {ADMIN_SECTIONS.filter((item) => item.group === group.key).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`adm-tab${section === item.id ? ' active' : ''}`}
+                  onClick={() => setSection(item.id)}
+                >
+                  <span className="adm-tab__icon">
+                    <AdminNavIcon name={item.icon} />
+                  </span>
+                  <span className="adm-tab__label">{item.label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       </div>
@@ -144,7 +155,15 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
             emptyLabel="등록된 일기가 없습니다."
           />
         )}
-        {section === 'scrap' && <ScrapAdminPanel items={site.scrap} onSave={site.saveScrap} />}
+        {section === 'scrap' && (
+          <ScrapAdminPanel
+            items={site.scrap}
+            categories={site.scrapCategories}
+            onSave={site.saveScrap}
+            onSaveCategories={site.saveScrapCategories}
+          />
+        )}
+        {section === 'timeline' && <TimelineAdminPanel items={site.timeline} onSave={site.saveTimeline} />}
         {section === 'review' && (
           <ReviewAdminPanel
             categories={site.reviewCategories}
@@ -169,7 +188,13 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
         {section === 'trpg' && (
           <TrpgAdminPanel items={site.trpg} onSave={site.saveTrpg} initialEditId={trpgEditId} />
         )}
-        {section === 'guest' && <GuestAdminPanel items={site.guests} onSave={site.saveGuests} />}
+        {section === 'guest' && (
+          <>
+            <GuestSettingsAdminPanel data={site.guestSettings} onSave={site.saveGuestSettings} />
+            <div style={{ height: 16 }} />
+            <GuestAdminPanel items={site.guests} onSave={site.saveGuests} />
+          </>
+        )}
         {section === 'banner' && <BannerAdminPanel items={site.banners} onSave={site.saveBanners} />}
         {section === 'bgm' && <BgmAdminPanel data={site.bgm} onSave={site.saveBgm} />}
         {section === 'access' && <AccessAdminPanel data={site.accessSettings} onSave={site.saveAccessSettings} />}
@@ -188,7 +213,7 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
           </>
         )}
         {section === 'pair' && (
-          <PairAdminPanel pairs={pairs} editId={pairEditId} onSelect={setPairEditId} onSave={savePairs} />
+          <PairAdminPanel pairs={pairs} characters={characters} editId={pairEditId} onSelect={setPairEditId} onSave={savePairs} />
         )}
       </div>
     </div>
@@ -294,11 +319,13 @@ function OcAdminPanel({
 
 function PairAdminPanel({
   pairs,
+  characters,
   editId,
   onSelect,
   onSave,
 }: {
   pairs: import('@/lib/types/character').PairItem[];
+  characters: import('@/lib/types/character').OcCharacter[];
   editId: string | null;
   onSelect: (id: string | null) => void;
   onSave: (next: import('@/lib/types/character').PairItem[]) => Promise<void>;
@@ -381,6 +408,7 @@ function PairAdminPanel({
           {selected ? (
             <PairEditForm
               pair={selected}
+              characters={characters}
               onSave={(item) => void persist(pairs.map((p) => (p.id === item.id ? item : p)))}
               order={
                 selectedOrder && selectedOrder.index >= 0

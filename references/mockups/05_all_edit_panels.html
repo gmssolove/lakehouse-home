@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>Admin Panels</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Helvetica Neue',sans-serif;background:#0a0a0a;color:#ccc;padding:16px;display:flex;flex-direction:column;gap:20px;}
+
+/* ── 공통 shell ── */
+.shell{background:#111;border-radius:12px;overflow:hidden;border:.5px solid #2a2a2a;display:flex;flex-direction:column;height:660px;}
+.topbar{background:#161616;border-bottom:.5px solid #2a2a2a;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.topbar-l{display:flex;flex-direction:column;gap:2px;}
+.bc{font-size:10px;color:#555;letter-spacing:.08em;}
+.tt{font-size:14px;font-weight:500;color:#e0e0e0;}
+.topbar-r{display:flex;gap:6px;}
+.btn{font-size:11px;padding:5px 11px;border-radius:6px;border:.5px solid #333;background:#1e1e1e;color:#aaa;cursor:pointer;white-space:nowrap;}
+.btn:hover{background:#2a2a2a;}
+.btn.p{background:#27204a;border-color:#3d2f7a;color:#a98ef5;}
+.btn.p:hover{background:#32286a;}
+.btn.d{border-color:#4a2020;color:#c07070;}
+.btn.sm{font-size:10px;padding:3px 8px;}
+.tabs{display:flex;border-bottom:.5px solid #2a2a2a;background:#141414;flex-shrink:0;overflow-x:auto;}
+.tab{font-size:11px;padding:9px 14px;color:#555;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s;}
+.tab:hover{color:#999;}
+.tab.active{color:#a98ef5;border-bottom-color:#a98ef5;}
+.body{flex:1;overflow-y:auto;padding:18px;}
+
+/* ── 공통 필드 ── */
+.sec{margin-bottom:20px;}
+.sec-t{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:10px;padding-bottom:7px;border-bottom:.5px solid #1e1e1e;}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;padding-bottom:7px;border-bottom:.5px solid #1e1e1e;margin-bottom:10px;}
+.sec-hd .sec-t{margin:0;padding:0;border:none;}
+.f{margin-bottom:10px;}
+.f label{font-size:10px;color:#666;display:block;margin-bottom:4px;}
+.f input,.f select,.f textarea{width:100%;background:#1a1a1a;border:.5px solid #2e2e2e;border-radius:6px;padding:7px 10px;font-size:12px;color:#ccc;outline:none;font-family:inherit;transition:border-color .15s;}
+.f input:focus,.f textarea:focus{border-color:#6a5ab0;}
+.f select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;}
+.f textarea{resize:vertical;min-height:72px;line-height:1.7;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.file-row{display:flex;gap:7px;align-items:center;}
+.fbtn{font-size:11px;padding:6px 9px;border-radius:6px;border:.5px solid #333;background:#1e1e1e;color:#777;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.furl{flex:1;background:#1a1a1a;border:.5px solid #2e2e2e;border-radius:6px;padding:6px 9px;font-size:11px;color:#666;outline:none;font-family:inherit;}
+.card{background:#181818;border:.5px solid #252525;border-radius:8px;padding:11px 13px;margin-bottom:8px;}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+.card-lbl{font-size:11px;color:#888;}
+.card-actions{display:flex;gap:4px;align-items:center;}
+.xbtn{background:none;border:none;color:#444;font-size:12px;cursor:pointer;padding:2px 4px;line-height:1;}
+.xbtn:hover{color:#c07070;}
+.arrbtn{background:none;border:.5px solid #2a2a2a;color:#555;font-size:10px;cursor:pointer;padding:3px 6px;border-radius:4px;}
+.addbtn{font-size:11px;color:#7a6ab0;border:.5px dashed #3d2f7a;background:none;border-radius:6px;padding:7px;cursor:pointer;width:100%;margin-top:4px;}
+.addbtn:hover{background:#1e1a2e;}
+.toggle-row{display:flex;align-items:center;gap:9px;}
+.tr{width:34px;height:19px;background:#2a2a2a;border-radius:99px;position:relative;cursor:pointer;border:.5px solid #333;flex-shrink:0;}
+.tr.on{background:#3d2f7a;border-color:#6a5ab0;}
+.th{width:13px;height:13px;background:#555;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .18s,background .18s;}
+.tr.on .th{left:18px;background:#a98ef5;}
+.tl{font-size:12px;color:#888;}
+.color-row{display:flex;gap:7px;align-items:center;}
+.color-row input[type=color]{width:32px;height:32px;border:none;background:none;cursor:pointer;padding:0;border-radius:4px;flex-shrink:0;}
+.tag-pill{font-size:10px;padding:2px 8px;border-radius:99px;background:#27204a;color:#a98ef5;border:.5px solid #3d2f7a;display:inline-flex;align-items:center;gap:4px;margin:2px;}
+.tag-x{background:none;border:none;color:#7a5ab0;cursor:pointer;font-size:10px;padding:0;}
+.tag-inp{background:#1a1a1a;border:.5px dashed #3d2f7a;border-radius:99px;padding:3px 10px;font-size:10px;color:#888;outline:none;width:72px;font-family:inherit;}
+.divider{height:.5px;background:#1e1e1e;margin:14px 0;}
+.info-box{background:#161616;border:.5px solid #2a2a2a;border-radius:8px;padding:10px 12px;font-size:11px;color:#666;line-height:1.6;margin-bottom:10px;}
+
+/* ── 섹션 구분 라벨 ── */
+.panel-label{font-size:11px;letter-spacing:.1em;color:#444;text-transform:uppercase;margin:8px 0 6px;padding:6px 0;border-top:.5px solid #1a1a1a;}
+
+/* ── 미리보기 썸네일 ── */
+.preview-thumb{width:100%;height:80px;background:#1a1a1a;border:.5px solid #2a2a2a;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#444;margin-top:6px;overflow:hidden;}
+.preview-thumb img{width:100%;height:100%;object-fit:cover;}
+
+/* ── 배너 아이템 ── */
+.banner-item{background:#181818;border:.5px solid #252525;border-radius:8px;padding:10px 13px;margin-bottom:6px;display:flex;align-items:center;gap:10px;}
+.banner-item.divider-item{border-style:dashed;border-color:#3a3a3a;background:#141414;}
+.banner-drag{color:#333;font-size:14px;cursor:grab;flex-shrink:0;}
+.banner-info{flex:1;}
+.banner-type{font-size:9px;color:#555;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px;}
+.banner-title{font-size:12px;color:#aaa;}
+
+/* ── 타임라인 미리보기 ── */
+.tweet-preview{background:#181818;border:.5px solid #252525;border-radius:10px;padding:13px 14px;margin-top:8px;}
+.tweet-avatar{width:34px;height:34px;border-radius:50%;background:#2a2a2a;border:.5px solid #333;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.tweet-header{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;}
+.tweet-name{font-size:13px;font-weight:500;color:#e0e0e0;}
+.tweet-id{font-size:11px;color:#555;}
+.tweet-body{font-size:13px;color:#aaa;line-height:1.6;margin-bottom:8px;}
+.tweet-img-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;}
+.tweet-img{height:60px;background:#222;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#333;}
+.tweet-footer{display:flex;gap:16px;}
+.tweet-action{font-size:11px;color:#555;display:flex;align-items:center;gap:4px;cursor:pointer;}
+.tweet-action:hover{color:#a98ef5;}
+.tweet-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;}
+.tweet-tag{font-size:10px;color:#7a6ab0;}
+
+/* ── 방명록 이모티콘 ── */
+.emoji-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px;}
+.emoji-slot{background:#1a1a1a;border:.5px solid #252525;border-radius:7px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;}
+.emoji-slot:hover{border-color:#4a3a6a;}
+.emoji-icon{font-size:20px;}
+.emoji-cmd{font-size:9px;color:#555;}
+.emoji-slot.add{border-style:dashed;border-color:#3d2f7a;color:#7a6ab0;}
+
+/* ── 스크랩 카테고리 ── */
+.cat-list{display:flex;flex-direction:column;gap:6px;}
+.cat-item{background:#181818;border:.5px solid #252525;border-radius:7px;padding:8px 12px;display:flex;align-items:center;gap:8px;}
+.cat-drag{color:#333;font-size:12px;cursor:grab;}
+.cat-name-input{flex:1;background:transparent;border:none;font-size:12px;color:#aaa;outline:none;font-family:inherit;}
+.cat-count{font-size:10px;color:#444;}
+
+/* ── 스크랩 인용 프로필 ── */
+.quote-profile{display:flex;align-items:center;gap:12px;background:#181818;border:.5px solid #252525;border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+.qp-avatar{width:42px;height:42px;border-radius:50%;background:#222;border:.5px solid #333;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden;}
+.qp-info{flex:1;}
+.qp-name{font-size:13px;font-weight:500;color:#e0e0e0;margin-bottom:2px;}
+.qp-id{font-size:11px;color:#555;}
+
+/* ── TRPG 로그 프로필 ── */
+.log-profile-preview{display:flex;gap:10px;padding:10px;background:#161616;border-radius:8px;border:.5px solid #222;margin-bottom:8px;}
+.log-av{width:36px;height:36px;border-radius:50%;background:#222;border:.5px solid #333;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.log-content{flex:1;}
+.log-speaker{font-size:12px;font-weight:500;color:#a98ef5;margin-bottom:3px;}
+.log-text{font-size:12px;color:#888;line-height:1.6;}
+
+/* ── 섹션 타이틀 (패널 구분) ── */
+h3{font-size:12px;letter-spacing:.08em;color:#666;text-transform:uppercase;margin:0 0 8px;padding:10px 0 8px;border-bottom:.5px solid #1e1e1e;}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════
+     1. TRPG — 배경·BGM + 후기 + 로그프로필
+════════════════════════════════ -->
+<div class="shell" id="trpg">
+  <div class="topbar">
+    <div class="topbar-l"><span class="bc">ADMIN · TRPG</span><span class="tt">어항 속 금붕어는 항해하는 법을 안다</span></div>
+    <div class="topbar-r"><button class="btn p">저장</button><button class="btn d">삭제</button><button class="btn">✕</button></div>
+  </div>
+  <div class="tabs">
+    <div class="tab">기본</div><div class="tab">세션</div>
+    <div class="tab active">배경·BGM</div>
+    <div class="tab">탐사자</div><div class="tab">로그</div>
+    <div class="tab">후기</div>
+    <div class="tab">갤러리</div><div class="tab">판정</div><div class="tab">핸드아웃</div>
+  </div>
+  <div class="body" id="trpg-body"></div>
+</div>
+
+<!-- ════════════════════════════════
+     2. Records — 타임라인
+════════════════════════════════ -->
+<div class="shell" id="timeline">
+  <div class="topbar">
+    <div class="topbar-l"><span class="bc">ADMIN · RECORDS</span><span class="tt">타임라인</span></div>
+    <div class="topbar-r"><button class="btn p">글 저장</button><button class="btn">✕</button></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="tlSw(0)">글 작성</div>
+    <div class="tab" onclick="tlSw(1)">글 목록</div>
+    <div class="tab" onclick="tlSw(2)">설정</div>
+  </div>
+  <div class="body" id="tl-body"></div>
+</div>
+
+<!-- ════════════════════════════════
+     3. 방명록
+════════════════════════════════ -->
+<div class="shell" id="guestbook">
+  <div class="topbar">
+    <div class="topbar-l"><span class="bc">ADMIN · GUEST</span><span class="tt">방명록</span></div>
+    <div class="topbar-r"><button class="btn p">저장</button><button class="btn">✕</button></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="gbSw(0)">안내 문구</div>
+    <div class="tab" onclick="gbSw(1)">이모티콘 관리</div>
+    <div class="tab" onclick="gbSw(2)">글 목록</div>
+  </div>
+  <div class="body" id="gb-body"></div>
+</div>
+
+<!-- ════════════════════════════════
+     4. 스크랩 (북마크)
+════════════════════════════════ -->
+<div class="shell" id="scrap">
+  <div class="topbar">
+    <div class="topbar-l"><span class="bc">ADMIN · SCRAP</span><span class="tt">스크랩 · 북마크</span></div>
+    <div class="topbar-r"><button class="btn p">저장</button><button class="btn">✕</button></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="scSw(0)">인용 프로필</div>
+    <div class="tab" onclick="scSw(1)">카테고리</div>
+    <div class="tab" onclick="scSw(2)">글 작성</div>
+    <div class="tab" onclick="scSw(3)">글 목록</div>
+  </div>
+  <div class="body" id="sc-body"></div>
+</div>
+
+<!-- ════════════════════════════════
+     5. 배너
+════════════════════════════════ -->
+<div class="shell" id="banner">
+  <div class="topbar">
+    <div class="topbar-l"><span class="bc">ADMIN · BANNER</span><span class="tt">배너 관리</span></div>
+    <div class="topbar-r"><button class="btn p">저장</button><button class="btn">✕</button></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="bnSw(0)">배너 목록</div>
+    <div class="tab" onclick="bnSw(1)">배너 추가</div>
+  </div>
+  <div class="body" id="bn-body"></div>
+</div>
+
+<script>
+/* ════════ TRPG ════════ */
+(function(){
+  const tabs = ['기본','세션','배경·BGM','탐사자','로그','후기','갤러리','판정','핸드아웃'];
+  const shell = document.getElementById('trpg');
+  shell.querySelectorAll('.tab').forEach((t,i)=>{
+    t.onclick=()=>{
+      shell.querySelectorAll('.tab').forEach((x,j)=>x.classList.toggle('active',i===j));
+      const body = document.getElementById('trpg-body');
+      if(i===2) body.innerHTML = trpgBGM();
+      else if(i===4) body.innerHTML = trpgLog();
+      else if(i===5) body.innerHTML = trpgReview();
+      else body.innerHTML = `<div style="font-size:12px;color:#444;padding:20px;text-align:center;">← 이 탭은 기존 구현 참고</div>`;
+    };
+  });
+  document.getElementById('trpg-body').innerHTML = trpgBGM();
+})();
+
+function trpgBGM(){return`
+  <div class="sec">
+    <div class="sec-t">시나리오 배경</div>
+    <div class="info-box">시나리오 페이지 전체에 적용되는 배경입니다. 미설정 시 사이트 기본 배경을 따릅니다.</div>
+    <div class="f"><label>배경 이미지</label>
+      <div class="file-row"><button class="fbtn">📁 파일</button><input class="furl" placeholder="이미지 URL (선택)"></div>
+      <div class="preview-thumb">배경 미리보기</div>
+    </div>
+    <div class="f"><label>배경 색상 오버레이</label>
+      <div class="color-row"><input type="color" value="#0a0a14"><input value="#0a0a14" style="flex:1;"></div>
+    </div>
+    <div class="f"><label>오버레이 불투명도</label><input type="range" min="0" max="100" value="60"></div>
+    <div class="f"><label>배경 블러</label>
+      <select><option>없음</option><option selected>약하게</option><option>강하게</option></select>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">시나리오 BGM</div>
+    <div class="info-box">이 시나리오 페이지에 진입했을 때 자동 재생되는 BGM입니다. 사이트 BGM 설정을 덮어씁니다.</div>
+    <div class="f"><label>BGM 파일</label>
+      <div class="file-row"><button class="fbtn">📁 MP3 업로드</button><input class="furl" placeholder="오디오 URL (선택)"></div>
+    </div>
+    <div class="row2">
+      <div class="f"><label>곡명</label><input placeholder="곡명 (선택)"></div>
+      <div class="f"><label>아티스트</label><input placeholder="아티스트 (선택)"></div>
+    </div>
+    <div class="f"><label>자동재생</label>
+      <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">페이지 진입 시 자동 재생</span></div>
+    </div>
+    <div class="f"><label>루프</label>
+      <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">반복 재생</span></div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">세션 바로가기</div>
+    <div class="info-box">시나리오 Overview 위에 표시되는 버튼입니다. 배포 원본 링크 등을 연결할 수 있습니다.</div>
+    <div class="card">
+      <div class="card-hd"><span class="card-lbl">바로가기 1</span><button class="xbtn">✕</button></div>
+      <div class="row2">
+        <div class="f"><label>버튼 텍스트</label><input value="시나리오 원본 보기"></div>
+        <div class="f"><label>링크 URL</label><input placeholder="https://..."></div>
+      </div>
+      <div class="f"><label>새 탭에서 열기</label>
+        <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">target="_blank"</span></div>
+      </div>
+    </div>
+    <button class="addbtn">+ 바로가기 추가</button>
+  </div>`;}
+
+function trpgLog(){return`
+  <div class="sec">
+    <div class="sec-t">로그 프로필 설정</div>
+    <div class="info-box">세션 로그에서 화자 이름 옆에 표시되는 프로필 사진입니다. 화자 이름으로 매칭됩니다.</div>
+    <div class="log-profile-preview">
+      <div class="log-av">🧍</div>
+      <div class="log-content">
+        <div class="log-speaker">Patient zero</div>
+        <div class="log-text">라네는 그렇게 얘기하며 당신을 잡아끌며 짐을 챙기곤 현관문 밖으로 나섭니다.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-lbl">화자 프로필 1</span><button class="xbtn">✕</button></div>
+      <div class="row2">
+        <div class="f"><label>화자 이름 (로그에 쓴 이름과 동일)</label><input value="Patient zero"></div>
+        <div class="f"><label>프로필 이미지</label>
+          <div class="file-row"><button class="fbtn">📁 파일</button><input class="furl" placeholder="이미지 URL"></div>
+        </div>
+      </div>
+      <div class="f"><label>화자 색상</label>
+        <div class="color-row"><input type="color" value="#7a9ad0"><input value="#7a9ad0" style="flex:1;"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-lbl">화자 프로필 2</span><button class="xbtn">✕</button></div>
+      <div class="row2">
+        <div class="f"><label>화자 이름</label><input value="라네"></div>
+        <div class="f"><label>프로필 이미지</label>
+          <div class="file-row"><button class="fbtn">📁 파일</button><input class="furl" placeholder="이미지 URL"></div>
+        </div>
+      </div>
+      <div class="f"><label>화자 색상</label>
+        <div class="color-row"><input type="color" value="#a98ef5"><input value="#a98ef5" style="flex:1;"></div>
+      </div>
+    </div>
+    <button class="addbtn">+ 화자 추가</button>
+  </div>`;}
+
+function trpgReview(){return`
+  <div class="sec">
+    <div class="sec-t">후기</div>
+    <div class="info-box">시나리오 Overview 위치에 표시됩니다. 개요 대신 후기를 적을 수 있습니다.</div>
+    <div class="f"><label>후기 본문</label>
+      <textarea style="min-height:200px;" placeholder="시나리오 후기를 자유롭게 적어주세요. 마크다운 지원.">세상이 멸망하고 남은 것들 속에서, 우리는 서로를 붙잡았다.
+짧은 하루였지만 — 아니, 어쩌면 충분히 긴 하루였는지도 모른다.</textarea>
+    </div>
+    <div class="f"><label>공개 여부</label>
+      <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">후기 공개</span></div>
+    </div>
+    <div class="f"><label>Overview 섹션 제목 (기본: OVERVIEW)</label><input value="REVIEW"></div>
+  </div>`;}
+
+/* ════════ 타임라인 ════════ */
+function tlSw(i){
+  document.querySelectorAll('#timeline .tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  const b=document.getElementById('tl-body');
+  if(i===0) b.innerHTML=tlWrite();
+  else if(i===1) b.innerHTML=tlList();
+  else b.innerHTML=tlSettings();
+}
+tlSw(0);
+
+function tlWrite(){return`
+  <div class="sec">
+    <div class="sec-t">새 글 작성</div>
+    <div class="f"><label>본문</label><textarea style="min-height:100px;" placeholder="무슨 생각을 하고 있나요?"></textarea></div>
+    <div class="f"><label>이미지 첨부</label>
+      <div class="file-row"><button class="fbtn">📁 이미지</button><input class="furl" placeholder="또는 URL 직접 입력"></div>
+    </div>
+    <div class="f"><label>태그</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:5px;">
+        <span class="tag-pill">#사담 <button class="tag-x">✕</button></span>
+        <span class="tag-pill">#일상 <button class="tag-x">✕</button></span>
+        <input class="tag-inp" placeholder="+ 추가" onkeydown="if(event.key==='Enter'){}">
+      </div>
+    </div>
+    <div class="f"><label>비밀글</label>
+      <div class="toggle-row"><div class="tr" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">나만 보기</span></div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">미리보기</div>
+    <div class="tweet-preview">
+      <div class="tweet-header">
+        <div class="tweet-avatar">🐣</div>
+        <div><div class="tweet-name">빵</div><div class="tweet-id">@Akari · 방금</div></div>
+      </div>
+      <div class="tweet-tags"><span class="tweet-tag">#사담</span><span class="tweet-tag">#일상</span></div>
+      <div class="tweet-body">무슨 생각을 하고 있나요?</div>
+      <div class="tweet-footer">
+        <span class="tweet-action">💬 0</span>
+        <span class="tweet-action">🤍 0</span>
+      </div>
+    </div>
+  </div>`;}
+
+function tlList(){return`
+  <div class="sec">
+    <div class="sec-t">글 목록</div>
+    <div class="card">
+      <div class="card-hd">
+        <div><div style="font-size:11px;color:#888;">2026-06-16 03:40</div><div style="font-size:12px;color:#ccc;margin-top:2px;">반속님이 주신 거 정말 귀여워</div></div>
+        <div class="card-actions"><button class="btn sm">수정</button><button class="xbtn">✕</button></div>
+      </div>
+      <div style="display:flex;gap:5px;"><span class="tag-pill">#사담</span></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">
+        <div><div style="font-size:11px;color:#888;">2026-06-15 04:08 · 🔒비밀글</div><div style="font-size:12px;color:#ccc;margin-top:2px;">비밀글입니다.</div></div>
+        <div class="card-actions"><button class="btn sm">수정</button><button class="xbtn">✕</button></div>
+      </div>
+    </div>
+  </div>`;}
+
+function tlSettings(){return`
+  <div class="sec">
+    <div class="sec-t">검색 설정</div>
+    <div class="f"><label>기본 검색 모드</label>
+      <select><option selected>전체</option><option>내용</option><option>태그</option></select>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">반응(맘찍) 설정</div>
+    <div class="info-box">글에 표시되는 반응 이모지를 설정합니다.</div>
+    <div class="row3">
+      <div class="f"><label>반응 1</label><input value="🤍"></div>
+      <div class="f"><label>반응 2</label><input value="😂"></div>
+      <div class="f"><label>반응 3</label><input value="😮"></div>
+    </div>
+    <button class="addbtn">+ 반응 추가</button>
+  </div>
+  <div class="sec">
+    <div class="sec-t">카테고리 (탭)</div>
+    <div class="card">
+      <div class="card-hd"><span class="card-lbl">전체보기</span><span style="font-size:10px;color:#444;">기본값, 삭제불가</span></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-lbl">사담</span><button class="xbtn">✕</button></div>
+      <div class="f" style="margin:0;"><label>태그 연결 (해당 태그 글만 표시)</label><input value="#사담"></div>
+    </div>
+    <button class="addbtn">+ 카테고리 추가</button>
+  </div>`;}
+
+/* ════════ 방명록 ════════ */
+function gbSw(i){
+  document.querySelectorAll('#guestbook .tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  const b=document.getElementById('gb-body');
+  if(i===0) b.innerHTML=gbNotice();
+  else if(i===1) b.innerHTML=gbEmoji();
+  else b.innerHTML=gbList();
+}
+gbSw(0);
+
+function gbNotice(){return`
+  <div class="sec">
+    <div class="sec-t">상단 안내 문구</div>
+    <div class="info-box">방명록 상단에 고정 표시되는 안내 박스입니다.</div>
+    <div class="f"><label>안내 아이콘 (이모지)</label><input value="🌿" style="width:80px;"></div>
+    <div class="f"><label>안내 문구 본문</label>
+      <textarea style="min-height:140px;">배너 교환은 초면 지인 상관 없이 받습니다.
+
+제게 답을 요구하는 방명록을 전부 답변하지 않습니다.
+편하게 방명록 남겨주세요. 편하게 답변 남기겠습니다.
+
+익명 창구를 열어둔 곳이 아니니 익명으로 ID를 설정하실 경우 읽지 않고 삭제합니다.</textarea>
+    </div>
+    <div class="f"><label>안내 박스 표시</label>
+      <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">방명록 상단에 표시</span></div>
+    </div>
+    <div class="f"><label>검색창 표시</label>
+      <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">방명록 검색창 활성화</span></div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">글쓰기 옵션</div>
+    <div class="f"><label>비밀글 허용</label>
+      <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">방문자 비밀글 허용 (관리자만 열람)</span></div>
+    </div>
+    <div class="f"><label>이미지 첨부 허용</label>
+      <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">방문자 이미지 첨부 허용</span></div>
+    </div>
+    <div class="f"><label>영상 첨부 허용</label>
+      <div class="toggle-row"><div class="tr" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">YouTube / 영상 URL 첨부 허용</span></div>
+    </div>
+    <div class="f"><label>이모티콘 사용 허용</label>
+      <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">슬래시 커맨드로 이모티콘 사용 허용</span></div>
+    </div>
+    <div class="f"><label>답글 표시 방식</label>
+      <select><option selected>펼치기/닫기 (기본 닫힘)</option><option>항상 표시</option><option>항상 숨김</option></select>
+    </div>
+  </div>`;}
+
+function gbEmoji(){return`
+  <div class="sec">
+    <div class="sec-t">슬래시 이모티콘 관리</div>
+    <div class="info-box">글쓰기 창에서 /커맨드 를 입력하면 등록된 이모티콘이 자동완성됩니다.<br>예: <b style="color:#a98ef5;">/최고</b> → 해당 이모지 또는 이미지로 변환</div>
+    <div class="emoji-grid">
+      <div class="emoji-slot"><div class="emoji-icon">🎉</div><div class="emoji-cmd">/파티</div></div>
+      <div class="emoji-slot"><div class="emoji-icon">💜</div><div class="emoji-cmd">/하트</div></div>
+      <div class="emoji-slot"><div class="emoji-icon">✨</div><div class="emoji-cmd">/반짝</div></div>
+      <div class="emoji-slot"><div class="emoji-icon">😂</div><div class="emoji-cmd">/ㅋㅋ</div></div>
+      <div class="emoji-slot add">＋<div class="emoji-cmd">추가</div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-lbl">이모티콘 추가</span></div>
+      <div class="row3">
+        <div class="f"><label>커맨드 (/제외)</label><input placeholder="최고"></div>
+        <div class="f"><label>이모지</label><input placeholder="🌟"></div>
+        <div class="f"><label>또는 이미지</label><button class="fbtn" style="width:100%;margin-top:18px;">📁 파일</button></div>
+      </div>
+    </div>
+  </div>`;}
+
+function gbList(){return`
+  <div class="sec">
+    <div class="sec-t">글 목록</div>
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div style="font-size:10px;color:#555;">No.6 · 따따 · 01.20 00:28</div>
+          <div style="font-size:12px;color:#ccc;margin-top:2px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">차향님, 배너 교환 해주셔서 너무 감사합니다!! 회원가입 겸 배너 가지러 다시 방문했습니다</div>
+        </div>
+        <div class="card-actions"><button class="btn sm">답글</button><button class="xbtn">✕</button></div>
+      </div>
+      <div style="font-size:10px;color:#444;">답글 1개 · 이미지 없음</div>
+    </div>
+    <div class="card" style="border-color:#3a2a5a;">
+      <div class="card-hd">
+        <div>
+          <div style="font-size:10px;color:#7a5ab0;">🔒 비밀글 · 손님 · 2026-06-15</div>
+          <div style="font-size:12px;color:#888;margin-top:2px;">비밀글입니다.</div>
+        </div>
+        <div class="card-actions"><button class="btn sm">열람</button><button class="xbtn">✕</button></div>
+      </div>
+    </div>
+  </div>`;}
+
+/* ════════ 스크랩 ════════ */
+function scSw(i){
+  document.querySelectorAll('#scrap .tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  const b=document.getElementById('sc-body');
+  if(i===0) b.innerHTML=scProfile();
+  else if(i===1) b.innerHTML=scCat();
+  else if(i===2) b.innerHTML=scWrite();
+  else b.innerHTML=scList();
+}
+scSw(0);
+
+function scProfile(){return`
+  <div class="sec">
+    <div class="sec-t">인용 프로필 설정</div>
+    <div class="info-box">트위터/X 형식으로 표시되는 내 인용 프로필입니다. 스크랩 글에서 공통으로 사용됩니다.</div>
+    <div class="quote-profile">
+      <div class="qp-avatar">🐣</div>
+      <div class="qp-info">
+        <div class="qp-name">빵</div>
+        <div class="qp-id">@Akari</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="f"><label>닉네임</label><input value="빵"></div>
+      <div class="f"><label>아이디 (@제외)</label><input value="Akari"></div>
+    </div>
+    <div class="f"><label>프로필 이미지</label>
+      <div class="file-row"><button class="fbtn">📁 파일</button><input class="furl" placeholder="이미지 URL"></div>
+    </div>
+  </div>`;}
+
+function scCat(){return`
+  <div class="sec">
+    <div class="sec-hd"><span class="sec-t">카테고리 관리</span><button class="btn sm">+ 추가</button></div>
+    <div class="info-box">드래그로 순서를 변경할 수 있습니다. 왼쪽 사이드바에 표시됩니다.</div>
+    <div class="cat-list">
+      <div class="cat-item"><span class="cat-drag">⠿</span><input class="cat-name-input" value="전체"><span class="cat-count">82</span></div>
+      <div class="cat-item"><span class="cat-drag">⠿</span><input class="cat-name-input" value="드림-셀"><span class="cat-count">1</span><button class="xbtn">✕</button></div>
+      <div class="cat-item"><span class="cat-drag">⠿</span><input class="cat-name-input" value="북마크-일반"><span class="cat-count">21</span><button class="xbtn">✕</button></div>
+      <div class="cat-item"><span class="cat-drag">⠿</span><input class="cat-name-input" value="북마크-오타쿠"><span class="cat-count">14</span><button class="xbtn">✕</button></div>
+      <div class="cat-item"><span class="cat-drag">⠿</span><input class="cat-name-input" value="북마크-자료"><span class="cat-count">9</span><button class="xbtn">✕</button></div>
+    </div>
+    <button class="addbtn">+ 카테고리 추가</button>
+  </div>`;}
+
+function scWrite(){return`
+  <div class="sec">
+    <div class="sec-t">새 스크랩 작성</div>
+    <div class="f"><label>카테고리</label>
+      <select><option>전체</option><option>북마크-일반</option><option>북마크-오타쿠</option><option>북마크-자료</option></select>
+    </div>
+    <div class="f"><label>링크 URL</label>
+      <input placeholder="https://x.com/... 또는 일반 URL" oninput="previewLink(this.value)">
+    </div>
+    <div id="link-preview" style="margin-bottom:10px;"></div>
+    <div class="f"><label>제목</label><input placeholder="제목 (선택, 트위터 링크는 자동 입력)"></div>
+    <div class="f"><label>내용 / 메모</label><textarea placeholder="내용 또는 메모"></textarea></div>
+    <div class="f"><label>태그</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:5px;">
+        <span class="tag-pill">#오타쿠 <button class="tag-x">✕</button></span>
+        <input class="tag-inp" placeholder="+ 추가">
+      </div>
+    </div>
+  </div>`;}
+
+function scList(){return`
+  <div class="sec">
+    <div class="sec-t">글 목록</div>
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div style="display:flex;gap:5px;margin-bottom:3px;"><span class="tag-pill" style="font-size:9px;">북마크-오타쿠</span></div>
+          <div style="font-size:12px;color:#ccc;">필즈 오브 미스트리아</div>
+          <div style="font-size:10px;color:#555;margin-top:2px;">2026.06.15</div>
+        </div>
+        <div class="card-actions"><button class="btn sm">수정</button><button class="xbtn">✕</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div style="display:flex;gap:5px;margin-bottom:3px;"><span class="tag-pill" style="font-size:9px;">북마크-자료</span></div>
+          <div style="font-size:12px;color:#ccc;">X에서 빵(조금 일한) 님 : "채수련을 좋아해..."</div>
+          <div style="font-size:10px;color:#7a9ad0;margin-top:2px;">🐦 트위터 카드</div>
+        </div>
+        <div class="card-actions"><button class="btn sm">수정</button><button class="xbtn">✕</button></div>
+      </div>
+    </div>
+  </div>`;}
+
+function previewLink(v){
+  const el=document.getElementById('link-preview');
+  if(!el) return;
+  if(v.includes('x.com')||v.includes('twitter.com')){
+    el.innerHTML=`
+      <div class="tweet-preview">
+        <div class="tweet-header">
+          <div class="tweet-avatar">🐣</div>
+          <div><div class="tweet-name">빵</div><div class="tweet-id">@Akari · X</div></div>
+          <div style="margin-left:auto;font-size:10px;color:#1da1f2;">𝕏</div>
+        </div>
+        <div class="tweet-body">트위터 URL이 감지되었습니다. 저장 시 트위터 카드로 표시됩니다.</div>
+        <div class="tweet-footer"><span class="tweet-action">💬</span><span class="tweet-action">🔁</span><span class="tweet-action">🤍</span></div>
+      </div>`;
+  } else if(v.startsWith('http')){
+    el.innerHTML=`<div class="info-box">🔗 일반 링크가 감지되었습니다. 저장 시 링크 카드로 표시됩니다.</div>`;
+  } else {
+    el.innerHTML='';
+  }
+}
+
+/* ════════ 배너 ════════ */
+function bnSw(i){
+  document.querySelectorAll('#banner .tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  const b=document.getElementById('bn-body');
+  if(i===0) b.innerHTML=bnList();
+  else b.innerHTML=bnAdd();
+}
+bnSw(0);
+
+function bnList(){return`
+  <div class="sec">
+    <div class="sec-hd"><span class="sec-t">배너 목록</span><div style="display:flex;gap:5px;"><button class="btn sm">+ 배너</button><button class="btn sm" style="border-style:dashed;">+ 구분선</button></div></div>
+    <div class="info-box">드래그로 순서를 변경할 수 있습니다. 구분선은 배너 사이에 시각적 구분을 추가합니다.</div>
+
+    <div class="banner-item">
+      <span class="banner-drag">⠿</span>
+      <div class="banner-info"><div class="banner-type">배너</div><div class="banner-title">친구 · 하늘달</div></div>
+      <div style="width:88px;height:31px;background:#1e1e1e;border:.5px solid #333;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#444;">88×31</div>
+      <button class="xbtn">✕</button>
+    </div>
+    <div class="banner-item">
+      <span class="banner-drag">⠿</span>
+      <div class="banner-info"><div class="banner-type">배너</div><div class="banner-title">친구 · 별빛</div></div>
+      <div style="width:88px;height:31px;background:#1e1e1e;border:.5px solid #333;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#444;">88×31</div>
+      <button class="xbtn">✕</button>
+    </div>
+    <div class="banner-item divider-item">
+      <span class="banner-drag">⠿</span>
+      <div class="banner-info"><div class="banner-type">구분선</div><div class="banner-title">— 선 구분 (텍스트 없음)</div></div>
+      <button class="btn sm">수정</button>
+      <button class="xbtn">✕</button>
+    </div>
+    <div class="banner-item">
+      <span class="banner-drag">⠿</span>
+      <div class="banner-info"><div class="banner-type">배너</div><div class="banner-title">지인 · 솔빛</div></div>
+      <div style="width:88px;height:31px;background:#1e1e1e;border:.5px solid #333;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#444;">88×31</div>
+      <button class="xbtn">✕</button>
+    </div>
+  </div>`;}
+
+function bnAdd(){return`
+  <div class="sec">
+    <div class="sec-t">항목 추가</div>
+    <div class="f"><label>유형</label>
+      <select id="bn-type" onchange="document.getElementById('bn-extra').innerHTML=this.value==='divider'?bnDividerExtra():bnBannerExtra()">
+        <option value="banner">배너</option>
+        <option value="divider">구분선 / 아이콘</option>
+      </select>
+    </div>
+    <div id="bn-extra">${bnBannerExtra()}</div>
+  </div>`;}
+
+function bnBannerExtra(){return`
+  <div class="f"><label>이름 / 설명</label><input placeholder="친구 이름 또는 설명"></div>
+  <div class="f"><label>배너 이미지</label>
+    <div class="file-row"><button class="fbtn">📁 파일</button><input class="furl" placeholder="이미지 URL"></div>
+  </div>
+  <div class="f"><label>링크 URL</label><input placeholder="https://..."></div>
+  <div class="f"><label>새 탭에서 열기</label>
+    <div class="toggle-row"><div class="tr on" onclick="this.classList.toggle('on')"><div class="th"></div></div><span class="tl">target="_blank"</span></div>
+  </div>
+  <button class="addbtn" style="margin-top:8px;">+ 배너 추가</button>`;}
+
+function bnDividerExtra(){return`
+  <div class="f"><label>구분선 스타일</label>
+    <select><option>가는 선 (—)</option><option>아이콘 + 선</option><option>텍스트 라벨</option><option>여백만</option></select>
+  </div>
+  <div class="f"><label>아이콘 또는 텍스트 (선택)</label><input placeholder="예: ✦  /  친구  /  FRIENDS"></div>
+  <button class="addbtn" style="margin-top:8px;">+ 구분선 추가</button>`;}
+</script>
+</body>
+</html>

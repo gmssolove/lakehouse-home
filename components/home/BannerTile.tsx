@@ -1,4 +1,5 @@
 import type { BannerItem } from '@/lib/types/site-content';
+import { BannerDividerIcon } from '@/lib/banner/dividerIcons';
 
 type BannerLegacy = BannerItem & { name?: string; url?: string };
 
@@ -11,6 +12,17 @@ function bannerHref(b: BannerLegacy) {
 }
 
 export function BannerTile({ banner }: { banner: BannerItem }) {
+  if (banner.divider) {
+    const iconId = banner.dividerIcon || 'diamond';
+    return (
+      <div className="lh-banner-divider" aria-hidden="true">
+        <span className="lh-banner-divider__icon">
+          <BannerDividerIcon id={iconId} />
+        </span>
+      </div>
+    );
+  }
+
   const b = banner as BannerLegacy;
   const owner = bannerOwner(b);
   const tip = owner;

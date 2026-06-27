@@ -26,6 +26,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
   const musicPlaylists = rawPlaylists ?? [];
   const musicTracks = rawTracks ?? [];
   const audioRef = useRef<HTMLAudioElement>(null);
+  const loadedSrcRef = useRef<string | null>(null);
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [trackIndex, setTrackIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -53,6 +54,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
   }, [musicTracks, playlist]);
 
   const current = tracks[trackIndex] ?? null;
+  const currentSrc = current?.fileUrl ?? '';
 
   const activeLyric = useMemo(() => {
     if (!current?.lyricLines?.length) return current?.lyrics || '';
@@ -65,49 +67,58 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
     return text;
   }, [current, currentTime]);
 
-  const loadTrack = useCallback(
-    (index: number, autoplay = true) => {
-      if (!tracks.length) return;
-      const next = ((index % tracks.length) + tracks.length) % tracks.length;
-      setTrackIndex(next);
-      const el = audioRef.current;
-      if (!el) return;
-      el.src = tracks[next].fileUrl;
-      el.load();
-      if (autoplay) void el.play().catch(() => setPlaying(false));
-    },
-    [tracks],
-  );
+  useEffect(() => {
+    if (!tracks.length) {
+      setTrackIndex(0);
+      return;
+    }
+    if (trackIndex >= tracks.length) setTrackIndex(0);
+  }, [tracks.length, trackIndex]);
 
   useEffect(() => {
-    if (!tracks.length) return;
-    loadTrack(trackIndex, false);
-  }, [tracks, trackIndex, loadTrack]);
+    const el = audioRef.current;
+    if (!el || !currentSrc) {
+      loadedSrcRef.current = null;
+      return;
+    }
+    if (loadedSrcRef.current === currentSrc) return;
+
+    loadedSrcRef.current = currentSrc;
+    el.src = currentSrc;
+    el.load();
+    setCurrentTime(0);
+    setDuration(0);
+    if (playing) void el.play().catch(() => setPlaying(false));
+  }, [currentSrc, playing]);
 
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
     el.volume = volume;
-  }, [volume, current?.fileUrl]);
+  }, [volume]);
 
   useEffect(() => {
     const el = audioRef.current;
-    if (!el) return;
+    if (!el || !currentSrc) return;
     if (playing) void el.play().catch(() => setPlaying(false));
     else el.pause();
-  }, [playing, current?.fileUrl]);
+  }, [playing, currentSrc]);
+
+  const selectTrack = useCallback((index: number, autoplay = true) => {
+    setTrackIndex(index);
+    if (autoplay) setPlaying(true);
+  }, []);
 
   function pickNext(delta: number) {
     if (!tracks.length) return;
     if (shuffle && tracks.length > 1) {
       let idx = trackIndex;
       while (idx === trackIndex) idx = Math.floor(Math.random() * tracks.length);
-      loadTrack(idx);
-      setPlaying(true);
+      selectTrack(idx);
       return;
     }
-    loadTrack(trackIndex + delta);
-    setPlaying(true);
+    const next = ((trackIndex + delta) % tracks.length + tracks.length) % tracks.length;
+    selectTrack(next);
   }
 
   function onEnded() {
@@ -180,6 +191,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
               onClick={() => {
                 setPlaylistId(pl.id);
                 setTrackIndex(0);
+                setPlaying(false);
               }}
             >
               {pl.coverUrl ? <img src={pl.coverUrl} alt="" /> : <span className="lh-music-pl__ph">♪</span>}
@@ -239,11 +251,9 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
               if (progressMax <= 0) return;
               setSeekValue(parseFloat(e.currentTarget.value));
             }}
-            onChange={(e) => {
-              applySeek(parseFloat(e.target.value));
-            }}
             onPointerUp={(e) => {
-              if (seeking && progressMax > 0) {
+              e.stopPropagation();
+              if (progressMax > 0) {
                 applySeek(parseFloat(e.currentTarget.value));
               }
               setSeeking(false);
@@ -281,6 +291,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
               onClick={() => {
                 setPlaying(false);
                 setTrackIndex(0);
+                loadedSrcRef.current = null;
                 if (audioRef.current) audioRef.current.removeAttribute('src');
               }}
             >
@@ -294,6 +305,11 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
         </div>
 
         <ol className="lh-music-tracklist">
+          {tracks.length === 0 ? (
+            <li className="lh-music-tracklist__empty">
+              수록곡이 없습니다. 관리자에서 곡을 추가하고 오디오 파일을 업로드한 뒤 플레이리스트에 체크하세요.
+            </li>
+          ) : null}
           {tracks.map((track, idx) => (
             <li key={track.id}>
               <SecretItemGate
@@ -308,8 +324,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
                   className={`lh-music-track${idx === trackIndex ? ' is-active' : ''}`}
                   onClick={() => {
                     if (!trackUnlocked(track)) return;
-                    loadTrack(idx);
-                    setPlaying(true);
+                    selectTrack(idx);
                   }}
                 >
                   <span>{idx + 1}</span>

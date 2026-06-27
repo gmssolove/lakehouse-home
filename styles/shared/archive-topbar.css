@@ -19,8 +19,11 @@
 }
 
 /* nav = back · title · (tabs absolute) — sidebar .75rem 과 같은 왼쪽 기준 */
+.archive-layout > nav.oc-topbar.lh-archive-topbar,
 .trpg-layout > nav.oc-topbar.lh-archive-topbar,
-.pair-layout > nav.oc-topbar.lh-archive-topbar {
+.pair-layout > nav.oc-topbar.lh-archive-topbar,
+.records-layout > nav.oc-topbar.lh-archive-topbar,
+.records-layout > nav.oc-topbar.lh-records-topbar {
   position: sticky;
   top: 0;
   z-index: 200;
@@ -42,7 +45,9 @@
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-back,
-.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-back {
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-back,
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-back,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-back {
   flex: 0 0 auto !important;
   flex-shrink: 0 !important;
   order: 0;
@@ -62,7 +67,9 @@
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-title,
-.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-title {
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-title,
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-title,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-title {
   flex: 0 0 auto !important;
   flex-grow: 0 !important;
   flex-shrink: 1 !important;
@@ -83,7 +90,9 @@
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links,
-.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links {
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links,
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links {
   position: absolute !important;
   top: 0;
   right: 0;
@@ -99,13 +108,17 @@
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li,
-.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li {
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li,
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li {
   display: flex;
   align-items: center;
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
-.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a {
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -125,26 +138,34 @@
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover,
-.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover {
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover,
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a:hover {
   color: rgba(240, 207, 173, 0.82) !important;
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a,
-.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a {
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a,
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li.active a {
   color: var(--pink, rgba(240, 207, 173, 0.92)) !important;
   border-bottom-color: var(--pink, rgba(215, 169, 130, 0.85)) !important;
 }
 
 @media (max-width: 760px) {
   .archive-layout > nav.oc-topbar.lh-archive-topbar,
-  .pair-layout > nav.oc-topbar.lh-archive-topbar {
+  .pair-layout > nav.oc-topbar.lh-archive-topbar,
+  .records-layout > nav.oc-topbar.lh-archive-topbar,
+  .records-layout > nav.oc-topbar.lh-records-topbar {
     width: 100% !important;
     margin: 0 !important;
     padding: 0.75rem 6.75rem 0.65rem 0.75rem !important;
   }
 
   .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
-  .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a {
+  .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+  .records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+  .records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a {
     width: 48px !important;
     min-width: 48px !important;
     font-size: 10px !important;

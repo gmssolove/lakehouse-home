@@ -8,23 +8,30 @@ import { AdminOverlay } from '@/components/admin/AdminOverlay';
 import { HomeContent } from '@/components/home/HomeContent';
 import { BackgroundDecor } from '@/components/layout/BackgroundDecor';
 import { LeftNav, type HomePageId } from '@/components/layout/LeftNav';
+import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { lakeBackClearAll, lakeBackConfigureGuard } from '@/lib/hooks/lakeBackStack';
 import { useMainBgmVisibility } from '@/lib/contexts/MainBgmVisibilityContext';
+import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
+import { lakeNavigate } from '@/lib/lake/routeTransition';
 import { auth } from '@/lib/firebase/client';
+import type { TrpgScenario } from '@/lib/types/site-content';
 
 type AdminPhase = 'idle' | 'open' | 'closing';
 
-const TAB_PARAMS: HomePageId[] = ['trpg', 'diary', 'scrap', 'review', 'music', 'charArchive'];
+const TAB_PARAMS: HomePageId[] = ['trpg', 'charArchive'];
 
 export function HomePageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAdmin } = useAuth();
+  const { trpg, accessSettings, loaded: siteLoaded } = useSiteContent();
   const { setHidden: setMainBgmHidden } = useMainBgmVisibility();
   const [page, setPage] = useState<HomePageId>('main');
   const [authOpen, setAuthOpen] = useState(false);
+  const [trpgGate, setTrpgGate] = useState<TrpgScenario | null>(null);
   const [adminPhase, setAdminPhase] = useState<AdminPhase>('idle');
 
   const requestCloseAdmin = useCallback(() => {
@@ -45,17 +52,23 @@ export function HomePageClient() {
   }, [router]);
 
   useEffect(() => {
-    const tab = searchParams.get('p') as HomePageId | null;
-    if (tab && TAB_PARAMS.includes(tab)) setPage(tab);
+    const tab = searchParams.get('p');
+    if (tab && ['diary', 'timeline', 'scrap', 'review', 'music', 'sadam'].includes(tab)) {
+      const target = tab === 'sadam' ? 'timeline' : tab;
+      router.replace(`/records/${target}`, { scroll: false });
+      return;
+    }
+    const pageTab = tab as HomePageId | null;
+    if (pageTab && TAB_PARAMS.includes(pageTab)) setPage(pageTab);
     if (searchParams.get('admin') === '1' && isAdmin && adminPhase === 'idle') {
       setAdminPhase('open');
     }
-  }, [adminPhase, isAdmin, searchParams]);
+  }, [adminPhase, isAdmin, router, searchParams]);
 
   useEffect(() => {
-    setMainBgmHidden(page === 'music');
+    setMainBgmHidden(false);
     return () => setMainBgmHidden(false);
-  }, [page, setMainBgmHidden]);
+  }, [setMainBgmHidden]);
 
   useLakeBackNavigation(
     page !== 'main' && adminPhase === 'idle',
@@ -83,6 +96,37 @@ export function HomePageClient() {
     if (adminPhase !== 'idle') setAdminPhase('idle');
   }
 
+  const trpgUnlocked = isAdmin || isLakeAccessUnlocked('trpg');
+
+  const closeTrpgGate = useCallback(() => {
+    setTrpgGate(null);
+    if (searchParams.get('trpg')) {
+      router.replace('/?p=trpg', { scroll: false });
+    }
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (!siteLoaded || trpgUnlocked) return;
+    const gateId = searchParams.get('trpg');
+    if (!gateId) return;
+    const item = trpg.find((s) => s.id === gateId);
+    if (!item) return;
+    setPage('trpg');
+    setTrpgGate(item);
+  }, [searchParams, siteLoaded, trpg, trpgUnlocked]);
+
+  const openTrpgScenario = useCallback(
+    (item: TrpgScenario) => {
+      if (!trpgUnlocked) {
+        setPage('trpg');
+        setTrpgGate(item);
+        return;
+      }
+      lakeNavigate(router, `/trpg/${encodeURIComponent(item.id)}`, '/');
+    },
+    [router, trpgUnlocked],
+  );
+
   return (
     <>
       <BackgroundDecor />
@@ -101,6 +145,7 @@ export function HomePageClient() {
             user={user}
             isAdmin={isAdmin}
             onOpenAuth={() => setAuthOpen(true)}
+            onTicketClick={openTrpgScenario}
           />
         </div>
       </div>
@@ -113,7 +158,30 @@ export function HomePageClient() {
           />
         </Suspense>
       )}
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+      <LakeAccessGateModal
+        open={!!trpgGate}
+        scope="trpg"
+        accessSettings={accessSettings}
+        title="TRPG Archive"
+        description={
+          trpgGate?.title
+            ? `${trpgGate.title} — 로그인 후 비밀번호를 입력하세요.`
+            : '로그인 후 비밀번호를 입력해야 열람할 수 있습니다.'
+        }
+        loggedIn={!!user}
+        onClose={closeTrpgGate}
+        onRequestLogin={() => {
+          setTrpgGate(null);
+          setAuthOpen(true);
+        }}
+        onSuccess={() => {
+          const pending = trpgGate;
+          setTrpgGate(null);
+          if (!pending) return;
+          lakeNavigate(router, `/trpg/${encodeURIComponent(pending.id)}`, '/');
+        }}
+      />
+      <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
 }

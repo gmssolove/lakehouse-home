@@ -1,4 +1,5 @@
 const db = require('../shared/db');
+const { verifyPassword } = require('../shared/password');
 
 function findUserByEmail(email) {
   for (const user of db.users.values()) {
@@ -19,7 +20,7 @@ function getSession(token) {
 
 async function login({ email, password }) {
   const user = findUserByEmail(email);
-  if (!user || user.passwordHash !== password) {
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
     const err = new Error('Invalid email or password');
     err.status = 401;
     throw err;

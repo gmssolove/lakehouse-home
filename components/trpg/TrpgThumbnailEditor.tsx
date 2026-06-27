@@ -1,105 +1,54 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type PointerEvent,
-} from 'react';
-import {
-  clampFrameOffset,
-  clampFrameScale,
-  DEFAULT_IMAGE_FRAME,
-  normalizeImageFrame,
-  type ImageFrame,
-} from '@/lib/shared/imageFrame';
+import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
+import { ImageFrameView } from '@/components/ui/ImageFrameView';
+import { normalizeImageFrame, type ImageFrame } from '@/lib/shared/imageFrame';
+import { formatTrpgDateRange, normalizeTrpgScenario } from '@/lib/trpg/normalize';
 import { TRPG_THUMB_ASPECT } from '@/lib/trpg/constants';
+import type { TrpgScenario } from '@/lib/types/site-content';
+
+type PreviewData = Partial<
+  Pick<
+    TrpgScenario,
+    'title' | 'author' | 'kp' | 'system' | 'dateStart' | 'dateEnd' | 'players' | 'cleared' | 'id'
+  >
+>;
 
 type Props = {
   src: string;
   frame?: ImageFrame;
   onChange: (frame: ImageFrame) => void;
+  preview?: PreviewData;
 };
 
-export function TrpgThumbnailEditor({ src, frame, onChange }: Props) {
+function systemClass(system: string) {
+  const s = system.toLowerCase();
+  if (s.includes('coc') || s.includes('call of cthulhu') || s.includes('크툴루')) {
+    return 'trpg-ticket__system--coc';
+  }
+  if (s.includes('insane')) {
+    return 'trpg-ticket__system--insane';
+  }
+  return 'trpg-ticket__system--default';
+}
+
+export function TrpgThumbnailEditor({ src, frame, onChange, preview }: Props) {
   const f = normalizeImageFrame(frame);
-  const frameRef = useRef(f);
-  frameRef.current = f;
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-
-  const stageRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0 });
-  const [dragging, setDragging] = useState(false);
-
-  const patch = useCallback((partial: Partial<ImageFrame>) => {
-    onChangeRef.current({ ...frameRef.current, ...partial });
-  }, []);
-
-  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = {
-      active: true,
-      sx: e.clientX,
-      sy: e.clientY,
-      ox: frameRef.current.x,
-      oy: frameRef.current.y,
-    };
-    setDragging(true);
-  };
-
-  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) return;
-    const dx = ((e.clientX - dragRef.current.sx) / r.width) * 100;
-    const dy = ((e.clientY - dragRef.current.sy) / r.height) * 100;
-    patch({
-      x: clampFrameOffset(dragRef.current.ox + dx),
-      y: clampFrameOffset(dragRef.current.oy + dy),
-    });
-  };
-
-  const endDrag = (e: PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active) return;
-    dragRef.current.active = false;
-    setDragging(false);
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-  };
-
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el || !src) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const delta = e.deltaY > 0 ? -0.06 : 0.06;
-      patch({ scale: clampFrameScale(frameRef.current.scale + delta) });
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [patch, src]);
-
-  const imgStyle: CSSProperties = {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    objectPosition: 'center center',
-    transform: `translate(${f.x}%, ${f.y}%) scale(${f.scale})`,
-    transformOrigin: 'center center',
-    pointerEvents: 'none',
-    userSelect: 'none',
-    display: 'block',
-  };
+  const ticket = normalizeTrpgScenario({
+    id: preview?.id || 'preview',
+    title: preview?.title || '미리보기',
+    author: preview?.author || '',
+    kp: preview?.kp || '',
+    system: preview?.system || 'TRPG',
+    dateStart: preview?.dateStart || '',
+    dateEnd: preview?.dateEnd || '',
+    players: preview?.players || '',
+    cleared: preview?.cleared ?? false,
+    thumbnail: src,
+    thumbnailFrame: f,
+  });
+  const dates = formatTrpgDateRange(ticket);
+  const serial = ticket.id.replace(/\D/g, '').slice(-12).padStart(12, '0') || '000000000000';
 
   if (!src) {
     return <div className="trpg-thumb-editor trpg-thumb-editor--empty">썸네일 URL을 입력하거나 업로드하세요.</div>;
@@ -107,41 +56,69 @@ export function TrpgThumbnailEditor({ src, frame, onChange }: Props) {
 
   return (
     <div className="trpg-thumb-editor">
-      <div
-        ref={stageRef}
-        className={`trpg-thumb-editor__stage${dragging ? ' is-dragging' : ''}`}
-        style={{ aspectRatio: TRPG_THUMB_ASPECT }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="" draggable={false} style={imgStyle} />
+      <div className="trpg-thumb-editor__layout">
+        <div className="trpg-thumb-editor__work">
+          <p className="trpg-thumb-editor__label">노출 영역 조정</p>
+          <div className="trpg-thumb-editor__viewport-host">
+            <ImageFrameEditor
+              src={src}
+              value={f}
+              onChange={onChange}
+              fit="cover"
+              pos="center center"
+              aspectRatio={TRPG_THUMB_ASPECT}
+              allowWheelZoom={false}
+              className="trpg-thumb-editor__frame-editor"
+            />
+          </div>
+        </div>
+
+        <div className="trpg-thumb-editor__ticket-preview">
+          <p className="trpg-thumb-editor__label">사이트 미리보기</p>
+          <div className="trpg-thumb-editor__ticket-scale">
+            <article className="trpg-ticket trpg-ticket--editor-preview">
+              <div className="trpg-ticket__hit">
+                <div className="trpg-ticket__visual">
+                  <ImageFrameView
+                    src={src}
+                    frame={f}
+                    fit="cover"
+                    pos="center center"
+                    className="trpg-ticket__visual-frame"
+                    imgClassName="trpg-ticket__visual-img"
+                  />
+                </div>
+                <div className="trpg-ticket__perforation" aria-hidden="true" />
+                <div className="trpg-ticket__info">
+                  <div className="trpg-ticket__info-main">
+                    {ticket.author ? <p className="trpg-ticket__author">w. {ticket.author}</p> : null}
+                    <h3 className="trpg-ticket__title">{ticket.title}</h3>
+                    <div className="trpg-ticket__meta-block">
+                      {ticket.kp ? <p className="trpg-ticket__kp">KP {ticket.kp}</p> : null}
+                      {ticket.system ? (
+                        <span className={`trpg-ticket__system ${systemClass(ticket.system)}`}>
+                          {ticket.system}
+                        </span>
+                      ) : null}
+                      {dates ? <p className="trpg-ticket__dates">{dates}</p> : null}
+                      {ticket.players ? <p className="trpg-ticket__players">{ticket.players}</p> : null}
+                    </div>
+                  </div>
+                  <div className="trpg-ticket__footer">
+                    <div className="trpg-ticket__barcode" aria-hidden="true">
+                      {Array.from({ length: 30 }, (_, i) => (
+                        <span key={i} />
+                      ))}
+                    </div>
+                    <span className="trpg-ticket__serial">{serial}</span>
+                  </div>
+                  {ticket.cleared ? <span className="trpg-ticket__stamp">Cleared</span> : null}
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
       </div>
-      <div className="trpg-thumb-editor__controls">
-        <label className="trpg-thumb-editor__slider">
-          <span>확대</span>
-          <input
-            type="range"
-            min={55}
-            max={300}
-            step={1}
-            value={Math.round(f.scale * 100)}
-            onPointerDown={(e) => e.stopPropagation()}
-            onChange={(e) => patch({ scale: clampFrameScale(Number(e.target.value) / 100) })}
-          />
-          <span>{Math.round(f.scale * 100)}%</span>
-        </label>
-        <button
-          type="button"
-          className="trpg-thumb-editor__reset"
-          onClick={() => onChangeRef.current({ ...DEFAULT_IMAGE_FRAME })}
-        >
-          위치 초기화
-        </button>
-      </div>
-      <p className="trpg-thumb-editor__hint">드래그로 이동 · 휠로 확대/축소</p>
     </div>
   );
 }

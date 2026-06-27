@@ -1,6 +1,7 @@
 @import '../styles/shared/image-frame.css';
 @import '../styles/shared/archive-topbar.css';
 @import '../styles/trpg-scenario.css';
+@import '../styles/trpg-investigator.css';
 
 .trpg-layout > .trpg-scenario-layout {
   flex: 1 1 auto;

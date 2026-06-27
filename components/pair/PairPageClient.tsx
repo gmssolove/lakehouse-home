@@ -6,20 +6,23 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBgm } from '@/lib/contexts/BgmContext';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { PairRevolveStage } from '@/components/pair/PairRevolveStage';
+import { PairArchiveDetail } from '@/components/pair/PairArchiveDetail';
 import { PairEditForm } from '@/components/pair/PairEditForm';
-import { PairSlantHero } from '@/components/pair/PairSlantHero';
+import { LakeEditModal } from '@/components/ui/LakeEditModal';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { createEmptyPair } from '@/lib/oc/pairDefaults';
 import { pairCardTitle } from '@/lib/oc/pairCover';
 import { movePairInList, pairOrderMeta } from '@/lib/oc/pairOrder';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
+import { useOcData } from '@/lib/hooks/useOcData';
 import { usePairData } from '@/lib/hooks/usePairData';
 import type { PairItem } from '@/lib/types/character';
 
 export function PairPageClient() {
   const router = useRouter();
   const { pairs, savePairs } = usePairData();
+  const { characters } = useOcData();
   const { resumePageBgmIfNeeded } = useBgm();
   const { isAdmin } = useAuth();
   const { confirm } = useLakeDialog();
@@ -141,71 +144,44 @@ export function PairPageClient() {
               )}
             </div>
 
-            <div className="pair-detail-layout">
-              <aside className="pair-detail-aside">
-                <PairSlantHero pair={detail} variant="detail" showMeta />
-              </aside>
-
-              <div className="pair-detail-sheet">
-                {detail.relation && <div className="pair-detail-rel-badge">{detail.relation}</div>}
-
-                <div className="pair-detail-grid">
-                  <section className="pair-detail-block">
-                    <h3 className="pair-detail-section">About</h3>
-                    <p className="pair-detail-copy">{detail.desc || '—'}</p>
-                  </section>
-
-                  {(detail.keywords?.length ?? 0) > 0 && (
-                    <section className="pair-detail-block">
-                      <h3 className="pair-detail-section">Keywords</h3>
-                      <div className="pair-detail-keywords">
-                        {detail.keywords!.map((k) => (
-                          <span key={k} className="pair-detail-keyword">
-                            {k}
-                          </span>
-                        ))}
-                      </div>
-                    </section>
-                  )}
-
-                  <section className="pair-detail-block pair-detail-block--wide">
-                    <h3 className="pair-detail-section">Story</h3>
-                    <p className="pair-detail-copy pair-detail-copy--story">{detail.story || '—'}</p>
-                  </section>
-                </div>
-              </div>
+            <div className="pair-detail-layout pair-detail-layout--archive">
+              <PairArchiveDetail pair={detail} />
             </div>
 
-            <aside id="edit-panel" className={`pair-edit-panel${editOpen ? ' active' : ''}`}>
-              <div className="ep-header">
-                <div className="ep-title">페어 수정</div>
-                <button type="button" className="ep-close" onClick={() => setEditOpen(false)}>
-                  ✕
-                </button>
-              </div>
-              <PairEditForm
-                pair={detail}
-                onSave={persistPair}
-                order={
-                  detailOrder && detailOrder.index >= 0
-                    ? {
-                        canUp: detailOrder.canUp,
-                        canDown: detailOrder.canDown,
-                        position: detailOrder.index + 1,
-                        total: detailOrder.total,
-                      }
-                    : undefined
-                }
-                onMove={(dir) => void movePair(detail.id, dir)}
-                onDelete={async () => {
-                  if (!(await confirm('이 페어 항목을 삭제할까요?'))) return;
-                  await deletePair(detail.id);
-                }}
-              />
-            </aside>
           </>
         )}
       </div>
+
+      {detail && editOpen ? (
+        <LakeEditModal
+          open={editOpen}
+          className="lake-edit-modal--pair"
+          eyebrow="ADMIN · PAIR"
+          title="페어 수정"
+          onClose={() => setEditOpen(false)}
+        >
+          <PairEditForm
+            pair={detail}
+            characters={characters}
+            onSave={persistPair}
+            order={
+              detailOrder && detailOrder.index >= 0
+                ? {
+                    canUp: detailOrder.canUp,
+                    canDown: detailOrder.canDown,
+                    position: detailOrder.index + 1,
+                    total: detailOrder.total,
+                  }
+                : undefined
+            }
+            onMove={(dir) => void movePair(detail.id, dir)}
+            onDelete={async () => {
+              if (!(await confirm('이 페어 항목을 삭제할까요?'))) return;
+              await deletePair(detail.id);
+            }}
+          />
+        </LakeEditModal>
+      ) : null}
     </>
   );
 }

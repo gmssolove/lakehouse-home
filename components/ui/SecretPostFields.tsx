@@ -1,6 +1,7 @@
 'use client';
 
 import type { WithSecret } from '@/lib/types/secret-content';
+import { LakeToggle } from '@/components/ui/LakeToggle';
 
 type Props = {
   value: WithSecret;
@@ -10,14 +11,7 @@ type Props = {
 export function SecretPostFields({ value, onChange }: Props) {
   return (
     <div className="lh-secret-fields">
-      <label className="lh-secret-fields__check">
-        <input
-          type="checkbox"
-          checked={!!value.secret}
-          onChange={(e) => onChange({ secret: e.target.checked })}
-        />
-        비밀글
-      </label>
+      <LakeToggle checked={!!value.secret} onChange={(secret) => onChange({ secret })} label="비밀글" />
       {value.secret ? (
         <input
           className="form-input"

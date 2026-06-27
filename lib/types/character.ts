@@ -101,6 +101,18 @@ export type OcCharacter = {
   relationships?: CharacterRelation[];
 };
 
+export type PairChemistry = {
+  label: string;
+  value: number;
+};
+
+export type PairGalleryItem = {
+  id: string;
+  src: string;
+  title?: string;
+  credit?: string;
+};
+
 export type PairItem = {
   id: string;
   chars: [string, string];
@@ -119,6 +131,13 @@ export type PairItem = {
   keywords?: string[];
   story?: string;
   color?: string;
+  /** D-Day 기준일 (YYYY-MM-DD) */
+  dday?: string;
+  chemistry?: PairChemistry[];
+  /** 납작캐해 본문 */
+  flatLore?: string;
+  flatLoreKeywords?: string[];
+  gallery?: PairGalleryItem[];
 };
 
 export const DEFAULT_OC: OcCharacter[] = [];
@@ -127,4 +146,5 @@ export { DEFAULT_CATEGORIES } from '@/lib/oc/categories';
 
 export const DEFAULT_PAIRS: PairItem[] = [];
 
+export const ADMIN_USERNAME = 'gmssolove';
 export const ADMIN_EMAIL = 'gmssolove@naver.com';

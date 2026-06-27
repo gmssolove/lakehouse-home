@@ -1,0 +1,120 @@
+@import '../styles/shared/archive-topbar.css';
+
+.records-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg, #0b0d0c);
+  color: var(--text, #ece8e0);
+}
+
+.records-layout > nav.oc-topbar.lh-records-topbar {
+  padding-right: clamp(18rem, 42vw, 22rem) !important;
+}
+
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a {
+  width: auto !important;
+  min-width: 48px !important;
+  padding: 0 5px !important;
+  font-size: 10px !important;
+}
+
+.records-layout > .records-section-main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  width: 100%;
+  max-width: min(920px, 100%);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 4vw, 2.75rem) clamp(1rem, 4vw, 2rem) 3rem;
+}
+
+.records-layout .records-section-head {
+  margin-bottom: 1.5rem;
+}
+
+.records-layout .records-section-head .page-heading {
+  margin: 0 0 0.35rem;
+}
+
+.records-layout .records-section-head .page-sub {
+  margin: 0;
+}
+
+.records-layout .lh-records-composer {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(215, 169, 130, 0.14);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.records-layout .lh-records-composer__title {
+  margin: 0 0 0.75rem;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(196, 154, 108, 0.72);
+}
+
+.records-layout .lh-records-composer .form-input,
+.records-layout .lh-records-composer textarea {
+  width: 100%;
+  margin-bottom: 0.65rem;
+}
+
+.records-layout .lh-records-composer__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 0.35rem;
+}
+
+.records-layout .lh-gallery-credit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.records-layout .lh-gallery-credit__mark {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: rgba(196, 154, 108, 0.75);
+  user-select: none;
+}
+
+.records-layout .lh-gallery-credit__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.lh-gallery-credit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lh-gallery-credit__mark {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: rgba(196, 154, 108, 0.75);
+  user-select: none;
+}
+
+.lh-gallery-credit__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.records-layout > nav.oc-topbar.lh-archive-topbar,
+.records-layout > nav.oc-topbar.lh-records-topbar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .records-layout > nav.oc-topbar.lh-records-topbar > .nav-links {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px 8px;
+  }
+}

@@ -31,5 +31,6 @@ export function isBgmPlayerOffscreen(
 
   const visibleW = Math.min(leftPx + width, window.innerWidth) - Math.max(leftPx, 0);
   const visibleH = Math.min(topPx + height, window.innerHeight) - Math.max(topPx, 0);
-  return visibleW < 48 || visibleH < 48;
+  const minVisible = Math.min(48, width * 0.55, height * 0.55);
+  return visibleW < minVisible || visibleH < minVisible;
 }

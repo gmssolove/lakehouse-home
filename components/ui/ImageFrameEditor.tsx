@@ -19,6 +19,8 @@ type Props = {
   aspectRatio?: string;
   clipPath?: string;
   className?: string;
+  /** false면 휠 확대 비활성 (Pair 썸네일 등) */
+  allowWheelZoom?: boolean;
 };
 
 export function ImageFrameEditor({
@@ -30,6 +32,7 @@ export function ImageFrameEditor({
   aspectRatio = '10 / 16.5',
   clipPath,
   className = '',
+  allowWheelZoom = true,
 }: Props) {
   const frame = normalizeImageFrame(value);
   const frameRef = useRef(frame);
@@ -68,9 +71,10 @@ export function ImageFrameEditor({
     if (r.width <= 0 || r.height <= 0) return;
     const dx = ((e.clientX - dragRef.current.sx) / r.width) * 100;
     const dy = ((e.clientY - dragRef.current.sy) / r.height) * 100;
+    const scale = frameRef.current.scale;
     patch({
-      x: clampFrameOffset(dragRef.current.ox + dx),
-      y: clampFrameOffset(dragRef.current.oy + dy),
+      x: clampFrameOffset(dragRef.current.ox + dx, scale),
+      y: clampFrameOffset(dragRef.current.oy + dy, scale),
     });
   };
 
@@ -85,7 +89,7 @@ export function ImageFrameEditor({
 
   useEffect(() => {
     const el = viewportRef.current;
-    if (!el || !src) return;
+    if (!el || !src || !allowWheelZoom) return;
     const onWheelNative = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -94,7 +98,7 @@ export function ImageFrameEditor({
     };
     el.addEventListener('wheel', onWheelNative, { passive: false });
     return () => el.removeEventListener('wheel', onWheelNative);
-  }, [patch, src]);
+  }, [allowWheelZoom, patch, src]);
 
   const viewportStyle = {
     aspectRatio,
@@ -143,7 +147,9 @@ export function ImageFrameEditor({
           위치 초기화
         </button>
       </div>
-      <p className="image-frame-editor__hint">드래그로 이동 · 휠로 확대/축소</p>
+      <p className="image-frame-editor__hint">
+        {allowWheelZoom ? '드래그로 이동 · 휠로 확대/축소' : '드래그로 이동 · 슬라이더로 확대'}
+      </p>
     </div>
   );
 }

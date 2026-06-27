@@ -38,6 +38,8 @@
   background: #f6f3ed;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
   transform-origin: 50% 50%;
+  appearance: none;
+  -webkit-appearance: none;
   transition:
     transform 0.34s cubic-bezier(0.16, 1, 0.3, 1),
     border-color 0.34s ease,
@@ -232,10 +234,13 @@
 }
 
 .trpg-ticket__system--coc {
-  background: linear-gradient(180deg, rgba(168, 214, 238, 0.92), rgba(120, 186, 220, 0.82));
-  color: #0f3348;
-  border: 1px solid rgba(80, 150, 190, 0.38);
-  box-shadow: 0 0 8px rgba(120, 186, 220, 0.22);
+  background: rgba(215, 169, 130, 0.16);
+  color: rgba(58, 48, 40, 0.92);
+  border: 1px solid rgba(180, 140, 100, 0.32);
+  box-shadow: none;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
 }
 
 .trpg-ticket__system--insane {

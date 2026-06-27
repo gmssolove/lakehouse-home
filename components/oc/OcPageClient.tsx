@@ -116,13 +116,18 @@ export function OcPageClient() {
   introRef.current = intro;
   const [detailRevealKey, setDetailRevealKey] = useState(0);
 
-  const finishIntro = useCallback(() => {
+  const finishIntro = useCallback((instant?: boolean) => {
     const payload = introRef.current;
     setIntro(null);
     if (payload) {
       setDetail(payload.character);
       setAuIdx(payload.auIdx);
       setDetailRevealKey((k) => k + 1);
+      if (instant) {
+        requestAnimationFrame(() => {
+          document.querySelector('#detail-screen .oc-detail-right')?.classList.add('is-ready');
+        });
+      }
     }
   }, []);
 
@@ -388,14 +393,17 @@ export function OcPageClient() {
         }
         loggedIn={!!user}
         onClose={() => setPasswordGate(null)}
-        onRequestLogin={() => setAuthOpen(true)}
+        onRequestLogin={() => {
+          setPasswordGate(null);
+          setAuthOpen(true);
+        }}
         onSuccess={() => {
           const pending = passwordGate;
           setPasswordGate(null);
           if (pending) openDetail(pending.character, pending.au);
         }}
       />
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+      <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />
 
       <div id="detail-screen" className={detail || intro ? 'active' : ''}>
         {intro && (

@@ -5,15 +5,11 @@ import type { HomePageId } from '@/components/layout/LeftNav';
 import { GuestBookPanel } from '@/components/home/GuestBookPanel';
 import { BannerTile } from '@/components/home/BannerTile';
 import { TrpgScenarioList } from '@/components/home/TrpgScenarioList';
-import { RecordsDiaryPanel } from '@/components/records/RecordsDiaryPanel';
-import { ScrapTab } from '@/components/records/ScrapTab';
-import { ReviewTab } from '@/components/records/ReviewTab';
-import { MusicArchiveTab } from '@/components/records/MusicArchiveTab';
 import { CharArchivePanel } from '@/components/character/CharArchivePanel';
 import { MainGameStage } from '@/components/home/MainGameStage';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
-import type { SitePost } from '@/lib/types/site-content';
+import type { SitePost, TrpgScenario } from '@/lib/types/site-content';
 import type { LakeAccessScope } from '@/lib/types/secret-content';
 import type { User } from 'firebase/auth';
 
@@ -22,6 +18,7 @@ type Props = {
   user: User | null;
   isAdmin: boolean;
   onOpenAuth: () => void;
+  onTicketClick: (item: TrpgScenario) => void;
 };
 
 function PostList({
@@ -65,7 +62,7 @@ function PostList({
   );
 }
 
-export function HomeContent({ page, user, isAdmin, onOpenAuth }: Props) {
+export function HomeContent({ page, user, isAdmin, onOpenAuth, onTicketClick }: Props) {
   const site = useSiteContent();
 
   return (
@@ -89,41 +86,9 @@ export function HomeContent({ page, user, isAdmin, onOpenAuth }: Props) {
         </div>
       </div>
 
-      <div className={`content-block${page === 'diary' ? ' active' : ''}`} id="page-diary">
-        <div className="page-heading">Records</div>
-        <div className="page-sub">Diary · 일기</div>
-        <RecordsDiaryPanel
-          items={site.diary}
-          user={user}
-          isAdmin={isAdmin}
-          onOpenAuth={onOpenAuth}
-          empty="— 준비 중입니다 —"
-        />
-      </div>
-
-      <div className={`content-block${page === 'scrap' ? ' active' : ''}`} id="page-scrap">
-        <div className="page-heading">Records</div>
-        <div className="page-sub">Scrap · 스크랩</div>
-        <ScrapTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} />
-      </div>
-
-      <div className={`content-block${page === 'review' ? ' active' : ''}`} id="page-review">
-        <div className="page-heading">Records</div>
-        <div className="page-sub">Review · 리뷰</div>
-        <ReviewTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} />
-      </div>
-
-      <div className={`content-block${page === 'music' ? ' active' : ''}`} id="page-music">
-        <div className="page-heading">Records</div>
-        <div className="page-sub">Music · 플레이리스트</div>
-        {page === 'music' ? (
-          <MusicArchiveTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} />
-        ) : null}
-      </div>
-
       <div className={`content-block${page === 'charArchive' ? ' active' : ''}`} id="page-char-archive">
-        <div className="page-heading">Character</div>
-        <div className="page-sub">Archive · 캐릭터 글 아카이브</div>
+        <div className="page-heading">Character Archive</div>
+        <div className="page-sub">캐릭터 글 아카이브</div>
         <CharArchivePanel user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} />
       </div>
 
@@ -191,7 +156,7 @@ export function HomeContent({ page, user, isAdmin, onOpenAuth }: Props) {
       <div className={`content-block${page === 'trpg' ? ' active' : ''}`} id="page-trpg">
         <div className="page-heading">TRPG</div>
         <div className="page-sub">시나리오</div>
-        <TrpgScenarioList items={site.trpg} empty="— 준비 중입니다 —" />
+        <TrpgScenarioList items={site.trpg} empty="— 준비 중입니다 —" onTicketClick={onTicketClick} />
       </div>
 
       <div className={`content-block${page === 'guest' ? ' active' : ''}`} id="page-guest">

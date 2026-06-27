@@ -3,20 +3,39 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase/client';
-import { ADMIN_EMAIL } from '@/lib/types/character';
+import {
+  ensureAdminProfile,
+  getUserProfile,
+  isAdminUser,
+  type UserProfile,
+} from '@/lib/auth/userProfile';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
+    let cancelled = false;
+
+    return onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      setReady(true);
+      if (u) {
+        try {
+          await ensureAdminProfile(u);
+          const p = await getUserProfile(u.uid);
+          if (!cancelled) setProfile(p);
+        } catch {
+          if (!cancelled) setProfile(null);
+        }
+      } else {
+        setProfile(null);
+      }
+      if (!cancelled) setReady(true);
     });
   }, []);
 
-  const isAdmin = !!(user && user.email === ADMIN_EMAIL);
+  const isAdmin = isAdminUser(user, profile);
 
-  return { user, isAdmin, ready };
+  return { user, profile, isAdmin, ready };
 }

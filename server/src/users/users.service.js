@@ -1,4 +1,5 @@
 const db = require('../shared/db');
+const { hashPassword } = require('../shared/password');
 
 async function listUsers() {
   return Array.from(db.users.values()).map(({ id, email, name }) => ({ id, email, name }));
@@ -28,7 +29,7 @@ async function createUser({ email, name, password }) {
     }
   }
   const id = db.users.size + 1;
-  const user = { id, email, name, passwordHash: password };
+  const user = { id, email, name, passwordHash: hashPassword(password) };
   db.users.set(id, user);
   return { id, email, name };
 }

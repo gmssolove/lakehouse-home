@@ -16,6 +16,8 @@ type Props = {
   loggedIn: boolean;
   accessSettings?: Partial<SiteAccessSettings>;
   item?: WithSecret;
+  /** dim = 어두운 전체 배경, clear = 배경 없음(박스만), popup = 가벼운 스크림 + 팝업 */
+  backdrop?: 'dim' | 'clear' | 'popup';
   onClose: () => void;
   onSuccess: () => void;
   onRequestLogin: () => void;
@@ -31,6 +33,7 @@ export function LakeAccessGateModal({
   loggedIn,
   accessSettings,
   item,
+  backdrop = 'popup',
   onClose,
   onSuccess,
   onRequestLogin,
@@ -47,8 +50,7 @@ export function LakeAccessGateModal({
       return;
     }
     if (loggedIn) {
-      const t = window.setTimeout(() => inputRef.current?.focus(), 40);
-      return () => window.clearTimeout(t);
+      inputRef.current?.focus();
     }
   }, [loggedIn, open]);
 
@@ -81,9 +83,20 @@ export function LakeAccessGateModal({
     onSuccess();
   }
 
+  function handleLogin() {
+    onRequestLogin();
+  }
+
   return (
-    <div className="oc-profile-gate" role="dialog" aria-modal="true" aria-label="접근 잠금">
-      <button type="button" className="oc-profile-gate-backdrop" aria-label="닫기" onClick={onClose} />
+    <div
+      className={`oc-profile-gate oc-profile-gate--${backdrop}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="접근 잠금"
+    >
+      {backdrop !== 'clear' ? (
+        <button type="button" className="oc-profile-gate-backdrop" aria-label="닫기" onClick={onClose} />
+      ) : null}
       <div className="oc-profile-gate-box">
         <div className="oc-profile-gate-title">{title ?? 'Archive Access'}</div>
         <p className="oc-profile-gate-desc">
@@ -98,7 +111,7 @@ export function LakeAccessGateModal({
               <button type="button" className="oc-profile-gate-cancel" onClick={onClose}>
                 취소
               </button>
-              <button type="button" className="oc-profile-gate-submit" onClick={onRequestLogin}>
+              <button type="button" className="oc-profile-gate-submit" onClick={handleLogin}>
                 로그인
               </button>
             </div>

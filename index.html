@@ -167,6 +167,8 @@ nav{display:flex;flex-direction:column;gap:2px;}
 .auth-btn{width:100%;padding:10px;background:rgba(196,154,108,0.25);border:1px solid var(--gold-dim);color:var(--gold);font-family:inherit;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;margin-top:4px;}
 .auth-btn:hover{background:rgba(130,106,69,0.4);}
 .auth-error{font-size:11px;color:rgba(192,57,43,0.8);margin-top:8px;display:none;}
+.lh-save-toast{position:fixed;left:50%;bottom:44px;z-index:100000;transform:translate(-50%,12px);padding:10px 18px;font-size:12px;letter-spacing:.06em;color:var(--pink);background:linear-gradient(135deg,rgba(18,20,18,.96),rgba(35,32,28,.94));border:1px solid rgba(215,169,130,.34);border-radius:999px;box-shadow:0 18px 48px rgba(0,0,0,.42);opacity:0;pointer-events:none;transition:opacity .24s ease,transform .34s cubic-bezier(.16,1,.3,1)}
+.lh-save-toast.is-visible{opacity:1;transform:translate(-50%,0)}
 .auth-close{float:right;background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;margin-top:-0.5rem;}
 
 /* BGM PLAYER */
@@ -905,15 +907,35 @@ html,body{overflow:hidden!important;}
       <div class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</div>
     </div>
     <div class="auth-form active" id="form-login">
-      <input class="auth-input" id="login-email" type="email" placeholder="이메일">
-      <input class="auth-input" id="login-pw" type="password" placeholder="비밀번호">
+      <label class="auth-label">아이디 <span class="auth-required">*</span></label>
+      <input class="auth-input" id="login-id" type="text" placeholder="user_id" autocomplete="username">
+      <label class="auth-label">비밀번호 <span class="auth-required">*</span></label>
+      <input class="auth-input" id="login-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+      <button type="button" class="auth-forgot" onclick="window.doPasswordReset()">비밀번호 찾기</button>
+      <div class="auth-reset-note" id="login-reset-info" style="display:none;"></div>
       <button class="auth-btn" onclick="window.doLogin()">로그인</button>
       <div class="auth-error" id="login-error"></div>
     </div>
     <div class="auth-form" id="form-signup">
-      <input class="auth-input" id="signup-email" type="email" placeholder="이메일">
-      <input class="auth-input" id="signup-pw" type="password" placeholder="비밀번호 (6자 이상)">
-      <input class="auth-input" id="signup-nick" type="text" placeholder="닉네임">
+      <label class="auth-label">아이디 <span class="auth-required">*</span></label>
+      <input class="auth-input" id="signup-id" type="text" placeholder="user_id" autocomplete="username">
+      <p class="auth-hint">영문자, 숫자, _(밑줄)만 입력 가능 · 최소 3자 이상</p>
+      <label class="auth-label">비밀번호 <span class="auth-required">*</span></label>
+      <input class="auth-input" id="signup-pw" type="password" placeholder="6자 이상" autocomplete="new-password">
+      <label class="auth-label">비밀번호 확인 <span class="auth-required">*</span></label>
+      <input class="auth-input" id="signup-pw2" type="password" placeholder="비밀번호 다시 입력" autocomplete="new-password">
+      <label class="auth-label">닉네임 <span class="auth-required">*</span></label>
+      <input class="auth-input" id="signup-nick" type="text" placeholder="닉네임" autocomplete="nickname">
+      <label class="auth-label">E-mail <span class="auth-required">*</span></label>
+      <input class="auth-input" id="signup-email" type="email" placeholder="example@email.com" autocomplete="email">
+      <div class="auth-privacy">
+        <label class="auth-privacy__check">
+          <input type="checkbox" id="signup-privacy">
+          <span>개인정보 수집 및 이용에 동의합니다</span>
+          <button type="button" class="auth-privacy__toggle" onclick="window.togglePrivacyPolicy()">보기</button>
+        </label>
+        <div class="auth-privacy__body" id="signup-privacy-body" style="display:none;"></div>
+      </div>
       <button class="auth-btn" onclick="window.doSignup()">회원가입</button>
       <div class="auth-error" id="signup-error"></div>
     </div>
@@ -929,12 +951,13 @@ html,body{overflow:hidden!important;}
   <button id="bgm-expand-btn">♪</button>
 </div>
 <div id="yt-container" style="position:fixed;bottom:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
+<div class="lh-save-toast" id="lake-toast" role="status" aria-live="polite" aria-hidden="true"></div>
 
 <!-- FIREBASE -->
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import{getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,onAuthStateChanged,signOut,sendPasswordResetEmail}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import{getDatabase,ref,set,get,push,remove,onValue}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import{getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,onAuthStateChanged,signOut,sendPasswordResetEmail,updateProfile,deleteUser}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import{getDatabase,ref,set,get,push,remove,onValue,runTransaction}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 const cfg={apiKey:"AIzaSyAdyaVA95hYEbPDfCRwNI0mretcowocGfM",authDomain:"llikebread.firebaseapp.com",databaseURL:"https://llikebread-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"llikebread",storageBucket:"llikebread.firebasestorage.app",messagingSenderId:"227317366345",appId:"1:227317366345:web:472530c2616612899e0998"};
 const app=initializeApp(cfg);
 const auth=getAuth(app);
@@ -963,31 +986,67 @@ syncKeys.forEach(function(key){
     if(keyRenderMap[key])keyRenderMap[key]();
   });
 });
-const ADMIN="gmssolove@naver.com";
+const ADMIN_USERNAME="gmssolove";
+const ADMIN_EMAIL="gmssolove@naver.com";
 
-onAuthStateChanged(auth,function(user){
-  window._isAdmin=!!(user&&user.email===ADMIN);
-  window._currentUser = user;
+function ensureAdminProfile(user){
+  return new Promise(function(resolve){
+    if(!user||!user.email||user.email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){resolve();return;}
+    var key=ADMIN_USERNAME;
+    get(ref(db,'lhdata/users_by_username/'+key)).then(function(mapSnap){
+      if(mapSnap.exists()&&mapSnap.val()!==user.uid){resolve();return;}
+      return get(ref(db,'lhdata/users/'+user.uid)).then(function(profSnap){
+        var profile=profSnap.exists()?profSnap.val():null;
+        if(profile&&String(profile.username||'').toLowerCase()===ADMIN_USERNAME){resolve();return;}
+        var saveProfile=function(){
+          return set(ref(db,'lhdata/users/'+user.uid),{
+            username:ADMIN_USERNAME,
+            nickname:(profile&&profile.nickname)||user.displayName||ADMIN_USERNAME,
+            email:user.email,
+            createdAt:(profile&&profile.createdAt)||new Date().toISOString()
+          }).then(resolve);
+        };
+        if(mapSnap.exists())return saveProfile();
+        return runTransaction(ref(db,'lhdata/users_by_username/'+key),function(cur){
+          if(cur===null)return user.uid;return;
+        }).then(function(tx){
+          if(!tx.committed){resolve();return;}
+          return saveProfile();
+        });
+      });
+    }).catch(function(){resolve();});
+  });
+}
+
+function applyAuthUser(user){
+  window._currentUser=user;
   if(user){
-    document.getElementById('auth-user-info').innerHTML='<span>'+(user.displayName||user.email.split('@')[0])+'</span>';
-    document.getElementById('auth-btn').textContent='Logout';
-    document.getElementById('auth-btn').onclick=function(){window.doLogout();};
-    if(window._isAdmin){document.getElementById('admin-nav-item').style.display='block';}
-    document.getElementById('adm-email-display').textContent='현재 계정: '+user.email;
-    // 방명록 폼 표시
-    var gf=document.getElementById('guest-form-inner');if(gf)gf.style.display='block';
-    var gn=document.getElementById('guest-login-notice');if(gn)gn.style.display='none';
+    ensureAdminProfile(user).then(function(){
+      get(ref(db,'lhdata/users/'+user.uid)).then(function(snap){
+        var profile=snap.exists()?snap.val():null;
+        window._isAdmin=!!(profile&&String(profile.username||'').toLowerCase()===ADMIN_USERNAME)||(user.email&&user.email.toLowerCase()===ADMIN_EMAIL.toLowerCase());
+      document.getElementById('auth-user-info').innerHTML='<span>'+(profile&&profile.nickname?profile.nickname:(user.displayName||profile&&profile.username||'회원'))+'</span>';
+      document.getElementById('auth-btn').textContent='Logout';
+      document.getElementById('auth-btn').onclick=function(){window.doLogout();};
+      if(window._isAdmin){document.getElementById('admin-nav-item').style.display='block';}
+      else{document.getElementById('admin-nav-item').style.display='none';}
+      document.getElementById('adm-email-display').textContent='현재 계정: '+(profile&&profile.username?profile.username:user.email);
+      var gf=document.getElementById('guest-form-inner');if(gf)gf.style.display='block';
+      var gn=document.getElementById('guest-login-notice');if(gn)gn.style.display='none';
+      });
+    });
   } else {
-    window._currentUser=null;
+    window._isAdmin=false;
     document.getElementById('auth-user-info').innerHTML='<span>Guest</span>';
     document.getElementById('auth-btn').textContent='Login';
     document.getElementById('auth-btn').onclick=openAuthModal;
     document.getElementById('admin-nav-item').style.display='none';
-    // 방명록 폼 숨김
     var gf=document.getElementById('guest-form-inner');if(gf)gf.style.display='none';
     var gn=document.getElementById('guest-login-notice');if(gn)gn.style.display='block';
   }
-});
+}
+
+onAuthStateChanged(auth,function(user){applyAuthUser(user);});
 
 get(ref(db,'site')).then(function(snap){
   if(!snap.exists())return;
@@ -1065,25 +1124,135 @@ onValue(ref(db,'site/guest'),function(snap){
 });
 window.deleteGuest=function(k){if(!window._isAdmin)return;remove(ref(db,'site/guest/'+k));};
 
+window.showLakeToast=function(msg){
+  var el=document.getElementById('lake-toast');
+  if(!el)return;
+  el.textContent=msg;
+  el.classList.add('is-visible');
+  el.setAttribute('aria-hidden','false');
+  clearTimeout(window._lakeToastTimer);
+  window._lakeToastTimer=setTimeout(function(){
+    el.classList.remove('is-visible');
+    el.setAttribute('aria-hidden','true');
+  },1800);
+};
+function resolveEmailByUsername(id){
+  var key=id.trim().toLowerCase();
+  if(!key)return Promise.resolve(null);
+  return get(ref(db,'lhdata/users_by_username/'+key)).then(function(snap){
+    if(snap.exists()){
+      return get(ref(db,'lhdata/users/'+snap.val())).then(function(ps){
+        if(ps.exists()&&ps.val().email)return ps.val().email;
+        if(key===ADMIN_USERNAME)return ADMIN_EMAIL;
+        return null;
+      });
+    }
+    if(key===ADMIN_USERNAME)return ADMIN_EMAIL;
+    return null;
+  });
+}
 window.doLogin=function(){
-  var email=document.getElementById('login-email').value,pw=document.getElementById('login-pw').value;
-  signInWithEmailAndPassword(auth,email,pw).then(function(){closeAuthModal();}).catch(function(err){
+  var id=document.getElementById('login-id').value.trim();
+  var pw=document.getElementById('login-pw').value;
+  var errEl=document.getElementById('login-error');
+  errEl.style.display='none';errEl.textContent='';
+  if(!id){errEl.textContent='아이디를 입력해 주세요.';errEl.style.display='block';return;}
+  if(id.length<3){errEl.textContent='아이디는 3자 이상이어야 합니다.';errEl.style.display='block';return;}
+  if(!/^[a-zA-Z0-9_]+$/.test(id)){errEl.textContent='아이디 형식이 올바르지 않습니다.';errEl.style.display='block';return;}
+  if(!pw){errEl.textContent='비밀번호를 입력해 주세요.';errEl.style.display='block';return;}
+  resolveEmailByUsername(id).then(function(email){
+    if(!email){errEl.textContent='등록된 아이디가 아닙니다.';errEl.style.display='block';return;}
+    return signInWithEmailAndPassword(auth,email,pw).then(function(){closeAuthModal();});
+  }).catch(function(err){
     var msg='로그인 실패: '+err.code;
-    if(err.code==='auth/user-not-found')msg='등록된 이메일이 아닙니다.';
+    if(err.code==='auth/user-not-found')msg='등록된 아이디가 아닙니다.';
     else if(err.code==='auth/wrong-password')msg='비밀번호가 올바르지 않습니다.';
-    else if(err.code==='auth/invalid-email')msg='이메일 형식이 올바르지 않습니다.';
-    else if(err.code==='auth/invalid-credential')msg='이메일 또는 비밀번호가 올바르지 않습니다.';
+    else if(err.code==='auth/invalid-credential')msg='아이디 또는 비밀번호가 올바르지 않습니다.';
     else if(err.code==='auth/too-many-requests')msg='너무 많은 시도. 잠시 후 다시 시도해 주세요.';
     else if(err.code==='auth/network-request-failed')msg='네트워크 오류. 인터넷 연결을 확인해 주세요.';
-    var el=document.getElementById('login-error');
-    el.textContent=msg;el.style.display='block';
+    errEl.textContent=msg;errEl.style.display='block';
     console.error('Login error:',err.code,err.message);
   });
 };
 window.doSignup=function(){
-  var email=document.getElementById('signup-email').value,pw=document.getElementById('signup-pw').value;
-  createUserWithEmailAndPassword(auth,email,pw).then(function(){closeAuthModal();}).catch(function(e){var m=e.code==='auth/email-already-in-use'?'이미 사용 중인 이메일입니다.':e.code==='auth/weak-password'?'비밀번호는 6자 이상이어야 합니다.':'오류가 발생했습니다.';document.getElementById('signup-error').textContent=m;document.getElementById('signup-error').style.display='block';});
+  var errEl=document.getElementById('signup-error');
+  errEl.style.display='none';errEl.textContent='';
+  var id=document.getElementById('signup-id').value.trim();
+  var email=document.getElementById('signup-email').value.trim();
+  var pw=document.getElementById('signup-pw').value;
+  var pw2=document.getElementById('signup-pw2').value;
+  var nick=document.getElementById('signup-nick').value.trim();
+  if(!id){errEl.textContent='아이디를 입력해 주세요.';errEl.style.display='block';return;}
+  if(id.toLowerCase()===ADMIN_USERNAME){errEl.textContent='이 아이디는 로그인 전용입니다. 로그인 탭에서 이용해 주세요.';errEl.style.display='block';return;}
+  if(id.length<3){errEl.textContent='아이디는 3자 이상이어야 합니다.';errEl.style.display='block';return;}
+  if(!/^[a-zA-Z0-9_]+$/.test(id)){errEl.textContent='아이디는 영문자, 숫자, _(밑줄)만 사용할 수 있습니다.';errEl.style.display='block';return;}
+  if(!pw||pw.length<6){errEl.textContent='비밀번호는 6자 이상이어야 합니다.';errEl.style.display='block';return;}
+  if(pw!==pw2){errEl.textContent='비밀번호 확인이 일치하지 않습니다.';errEl.style.display='block';return;}
+  if(!nick){errEl.textContent='닉네임을 입력해 주세요.';errEl.style.display='block';return;}
+  if(!email){errEl.textContent='이메일을 입력해 주세요.';errEl.style.display='block';return;}
+  if(!document.getElementById('signup-privacy').checked){window.showLakeToast('개인정보 수집 및 이용에 동의해야 가입할 수 있습니다');return;}
+  var key=id.toLowerCase();
+  get(ref(db,'lhdata/users_by_username/'+key)).then(function(snap){
+    if(snap.exists()){errEl.textContent='이미 사용 중인 아이디입니다.';errEl.style.display='block';return;}
+    return createUserWithEmailAndPassword(auth,email,pw).then(function(cred){
+      var uid=cred.user.uid;
+      return runTransaction(ref(db,'lhdata/users_by_username/'+key),function(cur){if(cur===null)return uid;return;}).then(function(tx){
+        if(!tx.committed){return deleteUser(cred.user).then(function(){throw new Error('username-taken');});}
+        return updateProfile(cred.user,{displayName:nick}).then(function(){
+          return set(ref(db,'lhdata/users/'+uid),{username:id,nickname:nick,email:email,createdAt:new Date().toISOString()});
+        }).catch(function(e){return deleteUser(cred.user).then(function(){throw e;});});
+      });
+    }).then(function(){closeAuthModal();});
+  }).catch(function(e){
+    var m='오류가 발생했습니다.';
+    if(e&&e.message==='username-taken')m='이미 사용 중인 아이디입니다.';
+    else if(e&&e.code==='auth/email-already-in-use'){
+      m=(email.toLowerCase()===ADMIN_EMAIL.toLowerCase())
+        ?'이미 가입된 관리자 계정입니다. 로그인 탭에서 아이디 gmssolove로 로그인해 주세요.'
+        :'이미 사용 중인 이메일입니다.';
+    }
+    else if(e&&e.code==='auth/weak-password')m='비밀번호는 6자 이상이어야 합니다.';
+    errEl.textContent=m;errEl.style.display='block';
+  });
 };
+window.doPasswordReset=function(){
+  var id=document.getElementById('login-id').value.trim();
+  var email=document.getElementById('signup-email').value.trim();
+  var info=document.getElementById('login-reset-info');
+  var errEl=document.getElementById('login-error');
+  errEl.style.display='none';if(info)info.style.display='none';
+  var loginActive=document.getElementById('form-login').classList.contains('active');
+  if(loginActive){
+    if(!id){errEl.textContent='비밀번호 재설정을 위해 로그인 아이디를 입력해 주세요.';errEl.style.display='block';return;}
+    resolveEmailByUsername(id).then(function(resolved){
+      if(!resolved){errEl.textContent='등록된 아이디가 아닙니다.';errEl.style.display='block';return;}
+      return sendPasswordResetEmail(auth,resolved).then(function(){
+        if(info){info.textContent='비밀번호 재설정 링크를 이메일로 보냈습니다.';info.style.display='block';}
+      });
+    }).catch(function(e){
+      errEl.textContent=e.code==='auth/invalid-email'?'이메일 형식이 올바르지 않습니다.':'오류가 발생했습니다.';
+      errEl.style.display='block';
+    });
+    return;
+  }
+  if(!email){errEl.textContent='비밀번호 재설정을 위해 가입 이메일을 입력해 주세요.';errEl.style.display='block';return;}
+  sendPasswordResetEmail(auth,email).then(function(){
+    if(info){info.textContent='비밀번호 재설정 링크를 이메일로 보냈습니다.';info.style.display='block';}
+  }).catch(function(e){
+    errEl.textContent=e.code==='auth/invalid-email'?'이메일 형식이 올바르지 않습니다.':'오류가 발생했습니다.';
+    errEl.style.display='block';
+  });
+};
+window.togglePrivacyPolicy=function(){
+  var body=document.getElementById('signup-privacy-body');
+  var btn=document.querySelector('.auth-privacy__toggle');
+  if(!body)return;
+  var open=body.style.display!=='block';
+  body.style.display=open?'block':'none';
+  if(btn)btn.textContent=open?'닫기':'보기';
+  if(open&&!body.textContent)body.textContent=window._privacyPolicyText||'';
+};
+window._privacyPolicyText=`lakehouse 개인정보 처리방침\n\n' lakehouse '(이하 '사이트')은 이용자의 개인정보를 중요시하며, 개인정보 보호법을 준수하고 있습니다. 사이트는 개인정보 처리방침을 통하여 이용자가 제공하는 개인정보가 어떠한 용도와 방식으로 이용되고 있으며, 개인정보 보호를 위해 어떠한 조치가 취해지고 있는지 알려드립니다.\n\n1. 수집하는 개인정보 항목 및 수집 방법\n사이트는 회원가입 및 관리 등을 위해 아래와 같은 개인정보를 수집합니다.\n- 수집 항목: 아이디(이용자명), 닉네임, 이메일, 비밀번호\n- 수집 방법: 홈페이지 회원가입\n\n2. 개인정보의 수집 및 이용 목적\n사이트는 수집한 개인정보를 다음의 목적을 위해 활용합니다.\n- 회원제 서비스 이용에 따른 본인 식별, 가입 의사 확인, 불량 회원의 부정 이용 방지, 고지사항 전달\n\n3. 개인정보의 보유 및 이용 기간\n이용자의 개인정보는 원칙적으로 개인정보의 수집 및 이용 목적이 달성되면 지체 없이 파기합니다.\n- 보유 기간: 회원 탈퇴 시까지 (단, 법령에 회원정보를 보존해야 하는 규정이 있는 경우 해당 기간 동안 보존합니다.)\n\n4. 개인정보의 파기 절차 및 방법\n사이트는 목적이 달성된 개인정보를 아래의 방법으로 파기합니다.\n- 전자적 파일 형태로 저장된 개인정보는 기록을 재생할 수 없는 기술적 방법을 사용하여 삭제합니다.\n\n5. 이용자의 권리와 그 행사 방법\n이용자는 언제든지 등록되어 있는 자신의 개인정보를 조회하거나 수정할 수 있으며, 회원 탈퇴를 통해 개인정보의 삭제를 요청할 수 있습니다. 관리자에게 문의하시면 지체 없이 조치하겠습니다.\n\n6. 개인정보 보호책임자 및 문의처\n사이트는 이용자의 개인정보를 보호하고 관련 불만을 처리하기 위하여 아래와 같이 관리자를 지정하고 있습니다.\n- 관리자(운영자) 닉네임 또는 이름: lakehouse\n- 문의 이메일 / 연락처: e47201@naver.com\n\n공고일자: 2026년 06월 25일\n시행일자: 2026년 06월 25일`;
 window.doLogout=function(){signOut(auth);showPage('main',document.querySelector('.nav-item'));};
 window.sendPasswordReset=function(){var user=auth.currentUser;if(!user)return;sendPasswordResetEmail(auth,user.email).then(function(){showSaveMsg('msg-pw');});};
 
@@ -1672,8 +1841,6 @@ document.addEventListener('click',function(){if(window._clickSoundUrl){try{var c
 renderTrpgCards();
 
 // AUTH MODAL
-document.getElementById('auth-modal').addEventListener('click',function(e){if(e.target===this)closeAuthModal();});
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAuthModal();});
 document.querySelectorAll('.auth-input').forEach(function(inp){inp.addEventListener('keydown',function(e){if(e.key==='Enter'){if(document.getElementById('form-login').classList.contains('active'))window.doLogin();else window.doSignup();}});});
 </script>
 <script id="lakehouse-bgm-js">

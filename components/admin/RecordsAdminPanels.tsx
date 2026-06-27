@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import {
   DEFAULT_REVIEW_CATEGORIES,
+  DEFAULT_SCRAP_CATEGORIES,
+  DEFAULT_SITE_GUEST_SETTINGS,
   newId,
   type CharArchiveItem,
   type LakeAccessScope,
@@ -10,13 +12,18 @@ import {
   type MusicTrack,
   type ReviewCategory,
   type ReviewItem,
+  type ScrapCategory,
   type ScrapItem,
   type SiteAccessSettings,
+  type SiteGuestSettings,
+  type TimelinePost,
 } from '@/lib/types/site-content';
 import { DEFAULT_SITE_ACCESS_SETTINGS } from '@/lib/types/secret-content';
 import { ImageFileField } from '@/components/ui/ImageFileField';
+import { LakeToggle } from '@/components/ui/LakeToggle';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { uploadMediaFile } from '@/lib/r2/client';
+import { normalizeUploadFile } from '@/lib/r2/mime';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { AdminPanelShell } from '@/components/admin/AdminSectionPanels';
 
@@ -66,12 +73,18 @@ export function AccessAdminPanel({ data, onSave }: AccessProps) {
   );
 }
 
-type ScrapProps = { items: ScrapItem[]; onSave: (next: ScrapItem[]) => Promise<void> };
+type ScrapProps = {
+  items: ScrapItem[];
+  categories: ScrapCategory[];
+  onSave: (next: ScrapItem[]) => Promise<void>;
+  onSaveCategories: (next: ScrapCategory[]) => Promise<void>;
+};
 
-export function ScrapAdminPanel({ items, onSave }: ScrapProps) {
+export function ScrapAdminPanel({ items, categories, onSave, onSaveCategories }: ScrapProps) {
   const { showSaveToast, showDeleteToast } = useSaveToast();
   const [editId, setEditId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [cats, setCats] = useState(categories.length ? categories : DEFAULT_SCRAP_CATEGORIES);
   const selected = items.find((i) => i.id === editId);
 
   function add() {
@@ -88,6 +101,38 @@ export function ScrapAdminPanel({ items, onSave }: ScrapProps) {
 
   return (
     <>
+      <AdminPanelShell
+        title="스크랩 카테고리"
+        onSave={async () => {
+          await onSaveCategories(cats);
+          showSaveToast();
+        }}
+      >
+        {cats.map((c, idx) => (
+          <div key={c.id} className="lh-oc-admin-grid" style={{ marginBottom: 6 }}>
+            <input
+              className="form-input"
+              value={c.label}
+              onChange={(e) => setCats(cats.map((x, i) => (i === idx ? { ...x, label: e.target.value } : x)))}
+            />
+            {c.id !== 'all' ? (
+              <button type="button" className="btn-del" onClick={() => setCats(cats.filter((_, i) => i !== idx))}>
+                삭제
+              </button>
+            ) : (
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center' }}>기본</span>
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          className="btn-edit"
+          onClick={() => setCats([...cats, { id: newId(), label: '새 카테고리' }])}
+        >
+          + 카테고리
+        </button>
+      </AdminPanelShell>
+      <div style={{ height: 12 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.75rem' }}>
         <span style={{ fontSize: 12, color: 'var(--lake-copper-soft, var(--pink))' }}>Scrap</span>
         <button type="button" className="btn-save" onClick={add}>
@@ -158,6 +203,23 @@ function ScrapEditForm({
       <ImageFileField label="아바타" value={form.avatarUrl || ''} folder="site/scrap" uploading={uploading} onUploadStart={onUploadStart} onUploadEnd={onUploadEnd} onChange={(avatarUrl) => setForm({ ...form, avatarUrl })} />
       <ImageFileField label="첨부 이미지" value={form.imageUrl || ''} folder="site/scrap" uploading={uploading} onUploadStart={onUploadStart} onUploadEnd={onUploadEnd} onChange={(imageUrl) => setForm({ ...form, imageUrl })} />
       <input className="form-input" placeholder="원문 URL" value={form.sourceUrl || ''} onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })} style={{ marginTop: 6 }} />
+      <div className="form-group" style={{ marginTop: 8 }}>
+        <label className="form-label">카테고리 ID</label>
+        <input
+          className="form-input"
+          placeholder="예: general, dream"
+          value={form.categoryId || ''}
+          onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+        />
+      </div>
+      <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '12px 0 6px' }}>인용 트윗 (선택)</p>
+      <div className="lh-oc-admin-grid">
+        <input className="form-input" placeholder="인용 닉네임" value={form.quotedAuthor || ''} onChange={(e) => setForm({ ...form, quotedAuthor: e.target.value })} />
+        <input className="form-input" placeholder="인용 @핸들" value={form.quotedHandle || ''} onChange={(e) => setForm({ ...form, quotedHandle: e.target.value })} />
+      </div>
+      <ImageFileField label="인용 아바타" value={form.quotedAvatarUrl || ''} folder="site/scrap" uploading={uploading} onUploadStart={onUploadStart} onUploadEnd={onUploadEnd} onChange={(quotedAvatarUrl) => setForm({ ...form, quotedAvatarUrl })} />
+      <textarea className="form-input" rows={3} placeholder="인용 본문" value={form.quotedBody || ''} onChange={(e) => setForm({ ...form, quotedBody: e.target.value })} style={{ marginTop: 6 }} />
+      <ImageFileField label="인용 이미지" value={form.quotedImageUrl || ''} folder="site/scrap" uploading={uploading} onUploadStart={onUploadStart} onUploadEnd={onUploadEnd} onChange={(quotedImageUrl) => setForm({ ...form, quotedImageUrl })} />
       <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
     </AdminPanelShell>
   );
@@ -308,6 +370,29 @@ export function MusicAdminPanel({ tracks, playlists, onSaveTracks, onSavePlaylis
   const trackSel = tracks.find((t) => t.id === trackEditId);
   const plSel = playlists.find((p) => p.id === plEditId);
 
+  async function saveTrack(item: MusicTrack) {
+    await onSaveTracks(tracks.map((t) => (t.id === item.id ? item : t)));
+    if (item.fileUrl?.trim()) {
+      const targetPlId = plEditId ?? playlists[0]?.id;
+      if (targetPlId) {
+        const pl = playlists.find((p) => p.id === targetPlId);
+        if (pl && !(pl.trackIds ?? []).includes(item.id)) {
+          await onSavePlaylists(
+            playlists.map((p) =>
+              p.id === targetPlId ? { ...p, trackIds: [...(p.trackIds ?? []), item.id] } : p,
+            ),
+          );
+        }
+      }
+    }
+    showSaveToast();
+  }
+
+  async function savePlaylist(item: MusicPlaylist) {
+    await onSavePlaylists(playlists.map((p) => (p.id === item.id ? item : p)));
+    showSaveToast();
+  }
+
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.75rem' }}>
@@ -317,9 +402,19 @@ export function MusicAdminPanel({ tracks, playlists, onSaveTracks, onSavePlaylis
           className="btn-save"
           onClick={() => {
             const t: MusicTrack = { id: newId(), title: '새 곡', artist: '', fileUrl: '' };
-            void onSaveTracks([...tracks, t]);
-            setTrackEditId(t.id);
-            showSaveToast();
+            void (async () => {
+              await onSaveTracks([...tracks, t]);
+              if (playlists.length) {
+                const targetPlId = plEditId ?? playlists[0].id;
+                await onSavePlaylists(
+                  playlists.map((p) =>
+                    p.id === targetPlId ? { ...p, trackIds: [...(p.trackIds ?? []), t.id] } : p,
+                  ),
+                );
+              }
+              setTrackEditId(t.id);
+              showSaveToast();
+            })();
           }}
         >
           + 곡
@@ -341,7 +436,7 @@ export function MusicAdminPanel({ tracks, playlists, onSaveTracks, onSavePlaylis
               uploading={uploading}
               onUploadStart={() => setUploading(true)}
               onUploadEnd={() => setUploading(false)}
-              onSave={(item) => void onSaveTracks(tracks.map((t) => (t.id === item.id ? item : t)))}
+              onSave={(item) => void saveTrack(item)}
               onDelete={() => {
                 void onSaveTracks(tracks.filter((t) => t.id !== trackSel.id));
                 setTrackEditId(null);
@@ -385,7 +480,7 @@ export function MusicAdminPanel({ tracks, playlists, onSaveTracks, onSavePlaylis
               uploading={uploading}
               onUploadStart={() => setUploading(true)}
               onUploadEnd={() => setUploading(false)}
-              onSave={(item) => void onSavePlaylists(playlists.map((p) => (p.id === item.id ? item : p)))}
+              onSave={(item) => void savePlaylist(item)}
               onDelete={() => {
                 void onSavePlaylists(playlists.filter((p) => p.id !== plSel.id));
                 setPlEditId(null);
@@ -420,8 +515,11 @@ function TrackEditForm({
   async function uploadAudio(file: File) {
     onUploadStart();
     try {
-      const url = await uploadMediaFile(file, 'site/music');
-      setForm((f) => ({ ...f, fileUrl: url }));
+      const normalized = normalizeUploadFile(file, 'audio/mpeg');
+      const url = await uploadMediaFile(normalized, 'site/music');
+      const next = { ...form, fileUrl: url };
+      setForm(next);
+      onSave(next);
     } catch (err) {
       alert(err instanceof Error ? err.message : '업로드 실패');
     } finally {
@@ -505,17 +603,18 @@ function PlaylistEditForm({
         const checked = (form.trackIds ?? []).includes(t.id);
         return (
           <div key={t.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-            <input
-              type="checkbox"
+            <LakeToggle
               checked={checked}
-              onChange={(e) => {
-                const ids = e.target.checked
+              onChange={(next) => {
+                const ids = next
                   ? [...(form.trackIds ?? []), t.id]
                   : (form.trackIds ?? []).filter((id) => id !== t.id);
-                setForm({ ...form, trackIds: ids });
+                const updated = { ...form, trackIds: ids };
+                setForm(updated);
+                onSave(updated);
               }}
+              label={t.title}
             />
-            <span style={{ flex: 1, fontSize: 11 }}>{t.title}</span>
             {checked ? (
               <>
                 <button type="button" className="btn-edit" onClick={() => moveTrack(t.id, -1)}>
@@ -624,6 +723,136 @@ function CharArchiveEditForm({
       <ImageFileField value={form.coverUrl || ''} folder="site/char_archive" uploading={uploading} onUploadStart={onUploadStart} onUploadEnd={onUploadEnd} onChange={(coverUrl) => setForm({ ...form, coverUrl })} />
       <textarea className="form-input" rows={8} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} style={{ marginTop: 6 }} />
       <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+    </AdminPanelShell>
+  );
+}
+
+type TimelineProps = {
+  items: TimelinePost[];
+  onSave: (next: TimelinePost[]) => Promise<void>;
+};
+
+export function TimelineAdminPanel({ items, onSave }: TimelineProps) {
+  const { showSaveToast, showDeleteToast } = useSaveToast();
+  const [editId, setEditId] = useState<string | null>(null);
+  const selected = items.find((i) => i.id === editId);
+
+  function add() {
+    const item: TimelinePost = {
+      id: newId(),
+      authorName: '작성자',
+      body: '',
+      date: new Date().toISOString(),
+      tags: [],
+      replies: [],
+      reactions: {},
+    };
+    void onSave([...items, item]);
+    setEditId(item.id);
+    showSaveToast();
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.75rem' }}>
+        <span style={{ fontSize: 12, color: 'var(--lake-copper-soft, var(--pink))' }}>Timeline</span>
+        <button type="button" className="btn-save" onClick={add}>
+          + 글
+        </button>
+      </div>
+      <div className="lh-admin-grid">
+        <div>
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              onClick={() => setEditId(item.id)}
+            >
+              <div>{item.authorName}</div>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{item.body.slice(0, 40)}</div>
+            </div>
+          ))}
+        </div>
+        <div className="lh-oc-admin-block">
+          {selected ? (
+            <TimelineEditForm
+              key={selected.id}
+              item={selected}
+              onSave={(item) => void onSave(items.map((i) => (i.id === item.id ? item : i)))}
+              onDelete={() => {
+                void onSave(items.filter((i) => i.id !== selected.id));
+                showDeleteToast();
+                setEditId(null);
+              }}
+            />
+          ) : (
+            <span style={{ color: 'var(--text-muted)' }}>항목 선택</span>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TimelineEditForm({
+  item,
+  onSave,
+  onDelete,
+}: {
+  item: TimelinePost;
+  onSave: (item: TimelinePost) => void;
+  onDelete: () => void;
+}) {
+  const [form, setForm] = useState(item);
+  const [uploading, setUploading] = useState(false);
+  return (
+    <AdminPanelShell title="타임라인 편집" onSave={() => onSave(form)} onDelete={onDelete}>
+      <input className="form-input" placeholder="작성자" value={form.authorName} onChange={(e) => setForm({ ...form, authorName: e.target.value })} />
+      <ImageFileField
+        label="프로필 사진"
+        value={form.authorAvatarUrl || ''}
+        folder="site/timeline"
+        uploading={uploading}
+        onUploadStart={() => setUploading(true)}
+        onUploadEnd={() => setUploading(false)}
+        onChange={(authorAvatarUrl) => setForm({ ...form, authorAvatarUrl })}
+      />
+      <input className="form-input" type="datetime-local" value={form.date?.slice(0, 16) || ''} onChange={(e) => setForm({ ...form, date: new Date(e.target.value).toISOString() })} style={{ marginTop: 6 }} />
+      <textarea className="form-input" rows={5} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} style={{ marginTop: 6 }} />
+      <input className="form-input" placeholder="태그 (쉼표)" value={(form.tags ?? []).join(', ')} onChange={(e) => setForm({ ...form, tags: e.target.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean) })} style={{ marginTop: 6 }} />
+      <input className="form-input" placeholder="이미지 URL" value={form.imageUrl || ''} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} style={{ marginTop: 6 }} />
+      <LakeToggle checked={!!form.secret} onChange={(secret) => setForm({ ...form, secret })} label="비밀글 (관리자만)" />
+    </AdminPanelShell>
+  );
+}
+
+type GuestSettingsProps = {
+  data: SiteGuestSettings;
+  onSave: (next: SiteGuestSettings) => Promise<void>;
+};
+
+export function GuestSettingsAdminPanel({ data, onSave }: GuestSettingsProps) {
+  const { showSaveToast } = useSaveToast();
+  const [form, setForm] = useState({ ...DEFAULT_SITE_GUEST_SETTINGS, ...data });
+
+  return (
+    <AdminPanelShell
+      title="방명록 안내"
+      onSave={async () => {
+        await onSave(form);
+        showSaveToast();
+      }}
+    >
+      <div className="form-group">
+        <label className="form-label">안내 문구</label>
+        <textarea
+          className="form-input"
+          rows={8}
+          value={form.guideText || ''}
+          onChange={(e) => setForm({ ...form, guideText: e.target.value })}
+          placeholder="방명록 상단에 표시할 안내 문구"
+        />
+      </div>
     </AdminPanelShell>
   );
 }

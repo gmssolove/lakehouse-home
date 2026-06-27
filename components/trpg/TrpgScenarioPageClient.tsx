@@ -1,84 +1,166 @@
 'use client';
 
-import Link from 'next/link';
-import { notFound, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { notFound, usePathname, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { AuthModal } from '@/components/auth/AuthModal';
-import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
+import { TrpgInvestigatorBoard } from '@/components/trpg/TrpgInvestigatorBoard';
+import { TrpgLogSpeakerBody } from '@/components/trpg/TrpgLogSpeakerBody';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { TrpgTopbar } from '@/components/layout/TrpgTopbar';
-import { TrpgLogFilmBoard } from '@/components/trpg/TrpgLogFilmBoard';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
+import { useLakeDialog } from '@/components/ui/LakeDialog';
+import {
+  LakeEditIcon,
+  LakeIconToolButton,
+  LakeSaveIcon,
+  LakeCancelIcon,
+  LakeTrashIcon,
+} from '@/components/ui/LakeActionIcons';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useBgm } from '@/lib/contexts/BgmContext';
+import { parseYoutubeId } from '@/lib/bgm/playlist';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
+import { lakeNavigate, peekPendingLakeRouteDir, beginLakeRouteEnter } from '@/lib/lake/routeTransition';
 import { trpgFontFamily } from '@/lib/trpg/fonts';
-import { highlightLogPlainText } from '@/lib/trpg/logHighlight';
-import { formatTrpgDateRange, normalizeTrpgScenario, playerNameMap } from '@/lib/trpg/normalize';
+import { TrpgScenarioEditDrawer, type TrpgEditTabId } from '@/components/trpg/TrpgScenarioEditDrawer';
+import { formatTrpgDateRange, normalizeTrpgScenario } from '@/lib/trpg/normalize';
 import type { TrpgScenario, TrpgSessionLog } from '@/lib/types/site-content';
 
 type Props = {
   id: string;
 };
 
-function LogBody({ log }: { log: TrpgSessionLog }) {
+function LogBody({
+  log,
+  style,
+}: {
+  log: TrpgSessionLog;
+  style?: CSSProperties;
+}) {
   if (log.html) {
-    return <div className="trpg-log__html" dangerouslySetInnerHTML={{ __html: log.html }} />;
+    return (
+      <div
+        className="trpg-log__html lh-scroll"
+        style={style}
+        dangerouslySetInnerHTML={{ __html: log.html }}
+      />
+    );
   }
   return (
     <div
-      className="trpg-log__text"
+      className="trpg-log__text lh-scroll"
+      style={style}
       dangerouslySetInnerHTML={{ __html: highlightLogPlainText(log.body || '') }}
     />
   );
 }
 
-function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+type TrpgPanel =
+  | 'overview'
+  | 'story'
+  | 'credits'
+  | 'players'
+  | 'gallery'
+  | 'dice'
+  | 'handouts'
+  | `log:${string}`;
+
+function panelFromLogId(logId: string): TrpgPanel {
+  return `log:${logId}`;
+}
+
+function logIdFromPanel(panel: TrpgPanel): string | null {
+  return panel.startsWith('log:') ? panel.slice(4) : null;
 }
 
 export function TrpgScenarioPageClient({ id }: Props) {
   const router = useRouter();
   const { user, isAdmin } = useAuth();
-  const { trpg, loaded, saveTrpg, accessSettings } = useSiteContent();
+  const { confirm } = useLakeDialog();
+  const { trpg, loaded, saveTrpg } = useSiteContent();
+  const { playCharacterTheme, restorePageSnapshot } = useBgm();
+  const bgmActionsRef = useRef({ playCharacterTheme, restorePageSnapshot });
+  bgmActionsRef.current = { playCharacterTheme, restorePageSnapshot };
   const raw = trpg.find((s) => s.id === id);
-  const [gateOpen, setGateOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [activeLogId, setActiveLogId] = useState<string | null>(null);
+  const [activePanel, setActivePanel] = useState<TrpgPanel>('overview');
   const [draft, setDraft] = useState<TrpgScenario | null>(null);
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const [editInitialTab, setEditInitialTab] = useState<TrpgEditTabId>('basic');
+  const [invUploading, setInvUploading] = useState(false);
+  const pathname = usePathname();
+
+  const openScenarioEdit = useCallback((tab: TrpgEditTabId = 'basic') => {
+    setEditInitialTab(tab);
+    setEditDrawerOpen(true);
+  }, []);
   const [revealedHandouts, setRevealedHandouts] = useState<Set<string>>(() => new Set());
 
   const routeGuard = useMemo(() => ({ guardPath: `/trpg/${id}`, router }), [id, router]);
 
   const goBack = useCallback(() => {
-    router.replace('/?p=trpg', { scroll: false });
-  }, [router]);
+    lakeNavigate(router, '/?p=trpg', `/trpg/${id}`);
+  }, [id, router]);
+
+  const requestLogin = useCallback(() => {
+    setAuthOpen(true);
+  }, []);
 
   useLakeBackNavigation(loaded && !!raw && unlocked, goBack, `trpg-${id}`, routeGuard);
 
   useEffect(() => {
+    const dir = peekPendingLakeRouteDir();
+    if (dir !== 'forward') return;
+    const timer = window.setTimeout(() => {
+      if (document.body.classList.contains('lh-route-trpg-enter')) return;
+      beginLakeRouteEnter(pathname, dir);
+    }, 48);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
+
+  useEffect(() => {
     if (!loaded) return;
-    if (isAdmin || isLakeAccessUnlocked('trpg')) {
-      setUnlocked(true);
-      setGateOpen(false);
-      return;
+    const ok = isAdmin || isLakeAccessUnlocked('trpg');
+    setUnlocked(ok);
+    if (!ok) {
+      router.replace(`/?p=trpg&trpg=${encodeURIComponent(id)}`, { scroll: false });
     }
-    setUnlocked(false);
-    setGateOpen(true);
-  }, [isAdmin, loaded]);
+  }, [id, isAdmin, loaded, router]);
 
   const item = useMemo(() => (raw ? normalizeTrpgScenario(raw) : null), [raw]);
   const dates = item ? formatTrpgDateRange(item) : '';
-  const names = useMemo(() => playerNameMap(item?.playerProfiles ?? []), [item?.playerProfiles]);
 
   useEffect(() => {
     if (item && !activeLogId && item.logs?.length) setActiveLogId(item.logs[0].id);
   }, [activeLogId, item]);
 
-  const editing = isAdmin && draft?.id === id;
+  useEffect(() => {
+    if (!item || !unlocked) return;
+    const bgm = item.pageBgm;
+    const fileUrl = bgm?.fileUrl?.trim();
+    const extUrl = bgm?.url?.trim();
+    const ytId = extUrl ? parseYoutubeId(extUrl) : null;
+    if (!fileUrl && !extUrl) return;
+
+    bgmActionsRef.current.playCharacterTheme(
+      {
+        fileData: fileUrl || (ytId ? undefined : extUrl),
+        youtubeId: ytId || undefined,
+        title: bgm?.title || item.title,
+        artist: bgm?.artist || '',
+      },
+      false,
+    );
+
+    return () => {
+      bgmActionsRef.current.restorePageSnapshot(true);
+    };
+  }, [item?.id, item?.pageBgm?.fileUrl, item?.pageBgm?.url, unlocked]);
 
   if (!loaded) {
     return (
@@ -92,7 +174,30 @@ export function TrpgScenarioPageClient({ id }: Props) {
   }
   if (!raw || !item) notFound();
 
+  if (!unlocked) {
+    return (
+      <>
+        <TrpgTopbar />
+        <main className="trpg-scenario-shell trpg-scenario-layout trpg-scenario-layout--loading">
+          <p className="trpg-scenario-loading">불러오는 중…</p>
+        </main>
+      </>
+    );
+  }
+
   const scenario = item;
+  const canEdit = unlocked && isAdmin;
+  const editing = canEdit && draft?.id === id;
+  const view = editing && draft ? draft : scenario;
+  const activeLog = (view.logs ?? []).find((l) => l.id === activeLogId) ?? view.logs?.[0] ?? null;
+  const logStyle = {
+    ['--trpg-log-font-size' as string]: `${activeLog?.logFontSize ?? 12}px`,
+    ['--trpg-log-line-height' as string]: String(activeLog?.logLineHeight ?? 1.72),
+  } as CSSProperties;
+  const titleFont = trpgFontFamily(view.titleFont);
+  const subtitleFont = trpgFontFamily(view.subtitleFont);
+  const titleStyle = titleFont ? ({ ['--trpg-title-font' as string]: titleFont } as const) : undefined;
+  const subtitleStyle = subtitleFont ? ({ ['--trpg-subtitle-font' as string]: subtitleFont } as const) : undefined;
 
   async function persistScenario(next: TrpgScenario) {
     await saveTrpg(trpg.map((s) => (s.id === next.id ? next : s)));
@@ -100,8 +205,27 @@ export function TrpgScenarioPageClient({ id }: Props) {
   }
 
   function startEditLog(log: TrpgSessionLog) {
-    setDraft({ ...scenario, logs: scenario.logs ?? [] });
+    const base = editing && draft ? draft : scenario;
+    setDraft({ ...base, logs: base.logs ?? [] });
     setActiveLogId(log.id);
+  }
+
+  async function handleDeleteLog() {
+    if (!activeLog || !canEdit) return;
+    if (!(await confirm('이 세션 로그를 삭제할까요?'))) return;
+    const base = editing && draft ? draft : scenario;
+    const nextLogs = (base.logs ?? []).filter((l) => l.id !== activeLog.id);
+    const next = { ...base, logs: nextLogs };
+    await persistScenario(next);
+    const nextId = nextLogs[0]?.id ?? null;
+    setActiveLogId(nextId);
+    setActivePanel(nextId ? panelFromLogId(nextId) : 'overview');
+  }
+
+  function goPanel(panel: TrpgPanel) {
+    setActivePanel(panel);
+    const logId = logIdFromPanel(panel);
+    if (logId) setActiveLogId(logId);
   }
 
   function updateDraftLog(logId: string, patch: Partial<TrpgSessionLog>) {
@@ -114,154 +238,161 @@ export function TrpgScenarioPageClient({ id }: Props) {
     });
   }
 
-  if (!unlocked) {
-    return (
-      <>
-        <TrpgTopbar />
-        <LakeAccessGateModal
-          open={gateOpen}
-          scope="trpg"
-          accessSettings={accessSettings}
-          title="TRPG Archive"
-          description={`${scenario.title} — 로그인 후 비밀번호를 입력해야 열람할 수 있습니다.`}
-          loggedIn={!!user}
-          onClose={goBack}
-          onSuccess={() => {
-            setUnlocked(true);
-            setGateOpen(false);
-          }}
-          onRequestLogin={() => setAuthOpen(true)}
-        />
-        <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
-      </>
-    );
-  }
-
-  const view = editing && draft ? draft : scenario;
-
-  const activeLog = (view.logs ?? []).find((l) => l.id === activeLogId) ?? view.logs?.[0] ?? null;
-  const titleStyle = { fontFamily: trpgFontFamily(view.titleFont) };
-  const subtitleStyle = { fontFamily: trpgFontFamily(view.subtitleFont) };
-  const adminHref = `/?p=trpg&admin=1&section=trpg&edit=${encodeURIComponent(id)}`;
-
   function revealHandout(handoutId: string) {
     setRevealedHandouts((prev) => new Set(prev).add(handoutId));
   }
 
   return (
     <>
-      <TrpgTopbar
-        actions={
-          isAdmin ? (
-            <Link href={adminHref} className="trpg-topbar__edit">
-              수정
-            </Link>
-          ) : null
+      <TrpgTopbar />
+
+      <main
+        className="trpg-scenario-shell trpg-scenario-layout"
+        style={
+          view.pageBackground
+            ? ({
+                background: view.pageBackground.includes('url(') || view.pageBackground.includes('gradient')
+                  ? view.pageBackground
+                  : view.pageBackground.startsWith('#') || view.pageBackground.startsWith('rgb')
+                    ? view.pageBackground
+                    : `url(${view.pageBackground}) center/cover no-repeat fixed`,
+              } as CSSProperties)
+            : undefined
         }
-      />
-
-      <main className="trpg-scenario-shell trpg-scenario-layout">
+      >
         <div className="trpg-scenario-page">
-          {view.system ? <p className="trpg-scenario-page__system">{view.system}</p> : null}
+          {activePanel === 'overview' && (
+            <>
+              {view.system ? <p className="trpg-scenario-page__system">{view.system}</p> : null}
 
-          <div className="trpg-scenario-page__hero-wrap">
-            <span className="trpg-scenario-page__glow trpg-scenario-page__glow--left" aria-hidden="true" />
-            <div className="trpg-scenario-page__hero">
-              {view.thumbnail ? (
-                <ImageFrameView
-                  src={view.thumbnail}
-                  frame={view.thumbnailFrame}
-                  fit={view.thumbnailFit || 'cover'}
-                  pos={view.thumbnailPos || 'center center'}
-                  className="trpg-scenario-page__hero-frame"
-                  imgClassName="trpg-scenario-page__hero-img"
-                />
-              ) : (
-                <div className="trpg-scenario-page__hero-fallback">{view.title}</div>
-              )}
-              {view.cleared ? <span className="trpg-scenario-page__stamp">CLEARED</span> : null}
-            </div>
-          </div>
-
-          <header className="trpg-scenario-page__head">
-            <h1 className="trpg-scenario-page__title" style={titleStyle}>
-              {view.title}
-            </h1>
-            {view.subtitle ? (
-              <p className="trpg-scenario-page__subtitle" style={subtitleStyle}>
-                {view.subtitle}
-              </p>
-            ) : null}
-            <div className="trpg-scenario-page__meta">
-              {dates ? (
-                <p className="trpg-scenario-page__meta-row">
-                  <span className="trpg-scenario-page__meta-icon" aria-hidden="true">
-                    📅
-                  </span>
-                  {dates}
-                </p>
-              ) : null}
-              {(view.kp || view.players) && (
-                <p className="trpg-scenario-page__meta-row">
-                  <span className="trpg-scenario-page__meta-icon" aria-hidden="true">
-                    👥
-                  </span>
-                  {[view.kp ? `KPC ${view.kp}` : null, view.players].filter(Boolean).join(' · ')}
-                </p>
-              )}
-              {view.author ? <p className="trpg-scenario-page__author">w. {view.author}</p> : null}
-            </div>
-          </header>
-
-          <section className="trpg-scenario-page__section">
-            <h2 className="trpg-scenario-page__section-title">Overview</h2>
-            <div className="trpg-scenario-page__prose">
-              {view.summary || view.body || '시나리오 개요가 아직 등록되지 않았습니다.'}
-            </div>
-          </section>
-
-          {view.playerProfiles && view.playerProfiles.length > 0 && (
-            <section className="trpg-scenario-page__section" id="trpg-players">
-              <h2 className="trpg-scenario-page__section-title">Investigators</h2>
-              <div className="trpg-scenario-page__players">
-                {view.playerProfiles.map((p) => (
-                  <article key={p.id} className="trpg-player-card">
-                    {p.img ? (
-                      <img src={p.img} alt="" className="trpg-player-card__img" />
-                    ) : (
-                      <span className="trpg-player-card__ph">{p.name[0]}</span>
-                    )}
-                    <div className="trpg-player-card__body">
-                      {p.role ? <span className="trpg-player-card__role">{p.role}</span> : null}
-                      <h3>{p.name}</h3>
-                      {p.bio ? <p>{p.bio}</p> : null}
-                    </div>
-                  </article>
-                ))}
+              <div className="trpg-scenario-page__hero-wrap">
+                <span className="trpg-scenario-page__glow trpg-scenario-page__glow--left" aria-hidden="true" />
+                <div className="trpg-scenario-page__hero">
+                  {view.thumbnail ? (
+                    <ImageFrameView
+                      src={view.thumbnail}
+                      frame={view.thumbnailFrame}
+                      fit={view.thumbnailFit || 'cover'}
+                      pos={view.thumbnailPos || 'center center'}
+                      className="trpg-scenario-page__hero-frame"
+                      imgClassName="trpg-scenario-page__hero-img"
+                    />
+                  ) : (
+                    <div className="trpg-scenario-page__hero-fallback">{view.title}</div>
+                  )}
+                  {view.cleared ? <span className="trpg-scenario-page__stamp">CLEARED</span> : null}
+                </div>
               </div>
-            </section>
-          )}
 
-          {view.relationships && view.relationships.length > 0 && (
-            <section className="trpg-scenario-page__section" id="trpg-relations">
-              <h2 className="trpg-scenario-page__section-title">Relations</h2>
-              <div className="trpg-relation-map">
-                {view.relationships.map((rel) => (
-                  <div key={rel.id} className="trpg-relation-map__edge">
-                    <span>{names.get(rel.fromId) ?? rel.fromId}</span>
-                    <span className="trpg-relation-map__line">{rel.label || '—'}</span>
-                    <span>{names.get(rel.toId) ?? rel.toId}</span>
+              <header className="trpg-scenario-page__head">
+                <h1 className="trpg-scenario-page__title" style={titleStyle}>
+                  {view.title}
+                </h1>
+                {view.subtitle ? (
+                  <p className="trpg-scenario-page__subtitle" style={subtitleStyle}>
+                    {view.subtitle}
+                  </p>
+                ) : null}
+                <div className="trpg-scenario-page__meta">
+                  {dates ? (
+                    <p className="trpg-scenario-page__meta-row">
+                      <span className="trpg-scenario-page__meta-icon" aria-hidden="true">
+                        📅
+                      </span>
+                      {dates}
+                    </p>
+                  ) : null}
+                  {(view.kp || view.players) && (
+                    <p className="trpg-scenario-page__meta-row">
+                      <span className="trpg-scenario-page__meta-icon" aria-hidden="true">
+                        👥
+                      </span>
+                      {[view.kp ? `KP ${view.kp}` : null, view.players].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                  {view.author ? <p className="trpg-scenario-page__author">w. {view.author}</p> : null}
+                </div>
+              </header>
+
+              <section className="trpg-scenario-page__section trpg-scenario-page__section--overview">
+                {view.sessionUrl ? (
+                  <div className="trpg-scenario-session-link">
+                    <a href={view.sessionUrl} target="_blank" rel="noreferrer" className="trpg-scenario-session-link__btn">
+                      세션 바로가기 ↗
+                    </a>
                   </div>
-                ))}
+                ) : null}
+                <h2 className="trpg-scenario-page__section-title">후기</h2>
+                <div className="trpg-scenario-page__prose">
+                  {view.review || view.summary || '플레이 후기가 아직 등록되지 않았습니다.'}
+                </div>
+              </section>
+            </>
+          )}
+
+          {activePanel === 'story' && (view.body || view.summary) && (
+            <section className="trpg-scenario-page__section">
+              <h2 className="trpg-scenario-page__section-title">Story</h2>
+              <div className="trpg-scenario-page__prose trpg-scenario-page__prose--story">
+                {view.body || view.summary}
               </div>
-              {view.relationshipNotes ? (
-                <p className="trpg-scenario-page__prose trpg-scenario-page__prose--muted">{view.relationshipNotes}</p>
-              ) : null}
             </section>
           )}
 
-          {view.gallery && view.gallery.length > 0 && (
-            <section className="trpg-scenario-page__section" id="trpg-gallery">
+          {activePanel === 'credits' && (
+            <section className="trpg-scenario-page__section">
+              <h2 className="trpg-scenario-page__section-title">Credits</h2>
+              <dl className="trpg-credits-list">
+                {view.system ? (
+                  <>
+                    <dt>System</dt>
+                    <dd>{view.system}</dd>
+                  </>
+                ) : null}
+                {view.author ? (
+                  <>
+                    <dt>Writer</dt>
+                    <dd>w. {view.author}</dd>
+                  </>
+                ) : null}
+                {view.kp ? (
+                  <>
+                    <dt>KP</dt>
+                    <dd>{view.kp}</dd>
+                  </>
+                ) : null}
+                {dates ? (
+                  <>
+                    <dt>Play period</dt>
+                    <dd>{dates}</dd>
+                  </>
+                ) : null}
+                {view.players ? (
+                  <>
+                    <dt>Players</dt>
+                    <dd>{view.players}</dd>
+                  </>
+                ) : null}
+              </dl>
+            </section>
+          )}
+
+          {activePanel === 'players' && ((view.playerProfiles?.length ?? 0) > 0 || canEdit) && (
+            <section className="trpg-scenario-page__section">
+              <h2 className="trpg-scenario-page__section-title trpg-scenario-page__section-title--players">탐사자</h2>
+              <TrpgInvestigatorBoard
+                players={view.playerProfiles ?? []}
+                editable={canEdit}
+                uploading={invUploading}
+                onUploadStart={() => setInvUploading(true)}
+                onUploadEnd={() => setInvUploading(false)}
+                onChange={(playerProfiles) => void persistScenario({ ...view, playerProfiles })}
+              />
+            </section>
+          )}
+
+          {activePanel === 'gallery' && view.gallery && view.gallery.length > 0 && (
+            <section className="trpg-scenario-page__section">
               <h2 className="trpg-scenario-page__section-title">After · Gallery</h2>
               <div className="trpg-scenario-page__gallery">
                 {view.gallery.map((g) => (
@@ -280,8 +411,8 @@ export function TrpgScenarioPageClient({ id }: Props) {
             </section>
           )}
 
-          {view.diceHighlights && view.diceHighlights.length > 0 && (
-            <section className="trpg-scenario-page__section" id="trpg-dice">
+          {activePanel === 'dice' && view.diceHighlights && view.diceHighlights.length > 0 && (
+            <section className="trpg-scenario-page__section">
               <h2 className="trpg-scenario-page__section-title">Key Rolls</h2>
               <div className="trpg-dice-grid">
                 {view.diceHighlights.map((d) => (
@@ -301,8 +432,8 @@ export function TrpgScenarioPageClient({ id }: Props) {
             </section>
           )}
 
-          {view.handouts && view.handouts.length > 0 && (
-            <section className="trpg-scenario-page__section" id="trpg-handouts">
+          {activePanel === 'handouts' && view.handouts && view.handouts.length > 0 && (
+            <section className="trpg-scenario-page__section">
               <h2 className="trpg-scenario-page__section-title">Handouts</h2>
               <div className="trpg-handout-grid">
                 {view.handouts.map((h) => {
@@ -330,186 +461,217 @@ export function TrpgScenarioPageClient({ id }: Props) {
             </section>
           )}
 
-          {(view.logs?.length ?? 0) > 0 && (
-            <section className="trpg-scenario-page__section" id="trpg-logs">
-              <h2 className="trpg-scenario-page__section-title">Session Logs</h2>
-              <TrpgLogFilmBoard
-                logs={view.logs ?? []}
-                players={view.playerProfiles ?? []}
-                activeLogId={activeLog?.id ?? null}
-                onSelect={setActiveLogId}
-                user={user}
+          {activePanel.startsWith('log:') && activeLog ? (
+            <section className="trpg-scenario-page__section">
+              <h2 className="trpg-scenario-page__section-title">Session Log</h2>
+              <SecretItemGate
+                scope="trpg"
+                item={activeLog}
                 isAdmin={isAdmin}
-                onOpenAuth={() => setAuthOpen(true)}
-              />
-              <div className="trpg-log-layout">
-                <aside className="trpg-log-list">
-                  {(view.logs ?? []).map((log) => (
-                    <SecretItemGate
-                      key={log.id}
-                      scope="trpg"
-                      item={log}
-                      isAdmin={isAdmin}
-                      loggedIn={!!user}
-                      onRequestLogin={() => setAuthOpen(true)}
-                      lockedLabel={log.title}
-                    >
-                      <button
-                        type="button"
-                        className={`trpg-log-list__item${activeLog?.id === log.id ? ' is-active' : ''}`}
-                        onClick={() => setActiveLogId(log.id)}
-                      >
-                        <span>
-                          {log.title}
-                          {log.secret ? <SecretLockBadge compact /> : null}
-                        </span>
-                        {log.date ? <time>{log.date}</time> : null}
-                      </button>
-                    </SecretItemGate>
-                  ))}
-                </aside>
-                {activeLog ? (
-                  <SecretItemGate
-                    scope="trpg"
-                    item={activeLog}
-                    isAdmin={isAdmin}
-                    loggedIn={!!user}
-                    onRequestLogin={() => setAuthOpen(true)}
-                    lockedLabel={activeLog.title}
-                  >
-                    <article className="trpg-log-view">
-                      <header className="trpg-log-view__head">
-                        <div>
-                          <h3>
-                            {activeLog.title}
-                            {activeLog.secret ? <SecretLockBadge compact /> : null}
-                          </h3>
-                          {activeLog.date ? <time>{activeLog.date}</time> : null}
-                        </div>
-                      {isAdmin ? (
-                        <div className="trpg-log-view__admin">
-                          {editing ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn-edit"
-                                onClick={() => void persistScenario(draft!)}
-                              >
-                                저장
-                              </button>
-                              <button type="button" className="btn-edit" onClick={() => setDraft(null)}>
-                                취소
-                              </button>
-                            </>
-                          ) : (
-                            <button type="button" className="btn-edit" onClick={() => startEditLog(activeLog)}>
-                              수정
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn-del"
-                            onClick={() => {
-                              const next = {
-                                ...scenario,
-                                logs: (scenario.logs ?? []).filter((l) => l.id !== activeLog.id),
-                              };
-                              void persistScenario(next);
-                            }}
-                          >
-                            삭제
-                          </button>
-                        </div>
+                loggedIn={!!user}
+                onRequestLogin={requestLogin}
+                lockedLabel={activeLog.title}
+              >
+                <article className="trpg-log-view" style={logStyle}>
+                  <header className="trpg-log-view__head">
+                    <div className="trpg-log-view__titleblock">
+                      <div className="trpg-log-view__title-row">
+                        {activeLog.secret ? <SecretLockBadge compact /> : null}
+                        <h3>{activeLog.title}</h3>
+                      </div>
+                      {activeLog.subtitle ? (
+                        <p className="trpg-log-view__subtitle">{activeLog.subtitle}</p>
                       ) : null}
-                    </header>
-                    {editing ? (
-                      <>
-                        <input
-                          className="form-input"
-                          value={draft?.logs?.find((l) => l.id === activeLog.id)?.title ?? ''}
-                          onChange={(e) => updateDraftLog(activeLog.id, { title: e.target.value })}
-                        />
-                        <input
-                          className="form-input"
-                          type="date"
-                          value={draft?.logs?.find((l) => l.id === activeLog.id)?.date ?? ''}
-                          onChange={(e) => updateDraftLog(activeLog.id, { date: e.target.value })}
-                        />
-                        <textarea
-                          className="form-input"
-                          rows={12}
-                          value={draft?.logs?.find((l) => l.id === activeLog.id)?.body ?? ''}
-                          onChange={(e) => updateDraftLog(activeLog.id, { body: e.target.value })}
-                        />
-                      </>
-                    ) : (
-                      <LogBody log={activeLog} />
-                    )}
-                    </article>
-                  </SecretItemGate>
-                ) : null}
-              </div>
+                      {activeLog.date ? (
+                        <span className="trpg-log-view__date">
+                          <time>{activeLog.date}</time>
+                        </span>
+                      ) : null}
+                    </div>
+                    {canEdit ? (
+                      <div className="trpg-log-view__admin">
+                        {editing ? (
+                          <div className="trpg-log-view__admin-actions">
+                            <LakeIconToolButton label="저장" onClick={() => void persistScenario(draft!)}>
+                              <LakeSaveIcon />
+                            </LakeIconToolButton>
+                            <LakeIconToolButton label="취소" onClick={() => setDraft(null)}>
+                              <LakeCancelIcon />
+                            </LakeIconToolButton>
+                            <LakeIconToolButton label="삭제" onClick={() => void handleDeleteLog()}>
+                              <LakeTrashIcon />
+                            </LakeIconToolButton>
+                          </div>
+                        ) : (
+                          <LakeIconToolButton label="수정" onClick={() => startEditLog(activeLog)}>
+                            <LakeEditIcon />
+                          </LakeIconToolButton>
+                        )}
+                      </div>
+                    ) : null}
+                  </header>
+                  {editing ? (
+                    <>
+                      <input
+                        className="form-input"
+                        placeholder="제목"
+                        value={draft?.logs?.find((l) => l.id === activeLog.id)?.title ?? ''}
+                        onChange={(e) => updateDraftLog(activeLog.id, { title: e.target.value })}
+                      />
+                      <input
+                        className="form-input"
+                        placeholder="부제 (캠페인)"
+                        value={draft?.logs?.find((l) => l.id === activeLog.id)?.subtitle ?? ''}
+                        onChange={(e) => updateDraftLog(activeLog.id, { subtitle: e.target.value })}
+                      />
+                      <input
+                        className="form-input"
+                        type="date"
+                        value={draft?.logs?.find((l) => l.id === activeLog.id)?.date ?? ''}
+                        onChange={(e) => updateDraftLog(activeLog.id, { date: e.target.value })}
+                      />
+                      <textarea
+                        className="form-input"
+                        rows={12}
+                        value={draft?.logs?.find((l) => l.id === activeLog.id)?.body ?? ''}
+                        onChange={(e) => updateDraftLog(activeLog.id, { body: e.target.value })}
+                      />
+                    </>
+                  ) : (
+                    <TrpgLogSpeakerBody log={activeLog} players={view.playerProfiles ?? []} style={logStyle} />
+                  )}
+                </article>
+              </SecretItemGate>
             </section>
-          )}
+          ) : null}
         </div>
 
-        <aside className="trpg-scenario-dock" aria-label="빠른 이동">
-          {(view.logs?.length ?? 0) > 0 && (
+        <aside className="trpg-scenario-rail lh-scroll" aria-label="섹션 이동" onClick={(e) => e.stopPropagation()}>
+          <button type="button" className="trpg-scenario-rail__btn trpg-scenario-rail__btn--back" onClick={goBack}>
+            ← TRPG 목록
+          </button>
+          <div className="trpg-scenario-rail__group">
+            <span className="trpg-scenario-rail__label">Scenario</span>
             <button
               type="button"
-              className="trpg-scenario-dock__btn"
-              title="로그"
-              onClick={() => scrollToSection('trpg-logs')}
+              className={`trpg-scenario-rail__btn${activePanel === 'overview' ? ' is-active' : ''}`}
+              onClick={() => goPanel('overview')}
             >
-              📖
+              개요
+            </button>
+            {(view.body || view.summary) && (
+              <button
+                type="button"
+                className={`trpg-scenario-rail__btn${activePanel === 'story' ? ' is-active' : ''}`}
+                onClick={() => goPanel('story')}
+              >
+                스토리
+              </button>
+            )}
+            <button
+              type="button"
+              className={`trpg-scenario-rail__btn${activePanel === 'credits' ? ' is-active' : ''}`}
+              onClick={() => goPanel('credits')}
+            >
+              크레딧
+            </button>
+          </div>
+          <div className="trpg-scenario-rail__group">
+            <span className="trpg-scenario-rail__label">Archive</span>
+          {(view.playerProfiles?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              className={`trpg-scenario-rail__btn${activePanel === 'players' ? ' is-active' : ''}`}
+              onClick={() => goPanel('players')}
+            >
+              탐사자
+            </button>
+          )}
+          {(view.gallery?.length ?? 0) > 0 && (
+            <button
+              type="button"
+              className={`trpg-scenario-rail__btn${activePanel === 'gallery' ? ' is-active' : ''}`}
+              onClick={() => goPanel('gallery')}
+            >
+              Gallery
             </button>
           )}
           {(view.diceHighlights?.length ?? 0) > 0 && (
             <button
               type="button"
-              className="trpg-scenario-dock__btn"
-              title="주요 판정"
-              onClick={() => scrollToSection('trpg-dice')}
+              className={`trpg-scenario-rail__btn${activePanel === 'dice' ? ' is-active' : ''}`}
+              onClick={() => goPanel('dice')}
             >
-              🎲
+              Key Rolls
             </button>
           )}
           {(view.handouts?.length ?? 0) > 0 && (
             <button
               type="button"
-              className="trpg-scenario-dock__btn"
-              title="핸드아웃"
-              onClick={() => scrollToSection('trpg-handouts')}
+              className={`trpg-scenario-rail__btn${activePanel === 'handouts' ? ' is-active' : ''}`}
+              onClick={() => goPanel('handouts')}
             >
-              📄
+              Handouts
             </button>
           )}
-          {isAdmin && (
-            <Link href={adminHref} className="trpg-scenario-dock__btn" title="수정">
-              ✎
-            </Link>
-          )}
-          {(view.gallery?.length ?? 0) > 0 && (
+          </div>
+          {(view.logs?.length ?? 0) > 0 ? (
+            <div className="trpg-scenario-rail__group">
+              <span className="trpg-scenario-rail__label">Session Logs</span>
+              {(view.logs ?? []).map((log) => (
+                <SecretItemGate
+                  key={log.id}
+                  scope="trpg"
+                  item={log}
+                  isAdmin={isAdmin}
+                  loggedIn={!!user}
+                  onRequestLogin={requestLogin}
+                  lockedLabel={log.title}
+                >
+                  <button
+                    type="button"
+                    className={`trpg-scenario-rail__btn trpg-scenario-rail__btn--log${
+                      activePanel === panelFromLogId(log.id) ? ' is-active' : ''
+                    }`}
+                    onClick={() => goPanel(panelFromLogId(log.id))}
+                  >
+                    <span className="trpg-scenario-rail__log-head">
+                      {log.secret ? <SecretLockBadge compact /> : null}
+                      <span className="trpg-scenario-rail__log-title">{log.title}</span>
+                    </span>
+                    {log.subtitle ? (
+                      <span className="trpg-scenario-rail__log-sub">{log.subtitle}</span>
+                    ) : null}
+                    {log.date ? (
+                      <span className="trpg-scenario-rail__log-meta">
+                        <time>{log.date}</time>
+                      </span>
+                    ) : null}
+                  </button>
+                </SecretItemGate>
+              ))}
+            </div>
+          ) : null}
+          {isAdmin ? (
             <button
               type="button"
-              className="trpg-scenario-dock__btn"
-              title="갤러리"
-              onClick={() => scrollToSection('trpg-gallery')}
+              className="trpg-scenario-rail__btn trpg-scenario-rail__btn--admin"
+              onClick={() => openScenarioEdit(activePanel.startsWith('log:') ? 'logs' : 'basic')}
             >
-              🖼
+              ✎ 시나리오 수정
             </button>
-          )}
-          <button
-            type="button"
-            className="trpg-scenario-dock__btn"
-            title="맨 위"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          >
-            ↑
-          </button>
+          ) : null}
         </aside>
       </main>
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+      <TrpgScenarioEditDrawer
+        open={editDrawerOpen && isAdmin}
+        initialTab={editInitialTab}
+        scenario={scenario}
+        allScenarios={trpg}
+        onClose={() => setEditDrawerOpen(false)}
+        onSave={saveTrpg}
+      />
+      <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
 }

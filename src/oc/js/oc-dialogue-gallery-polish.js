@@ -38,10 +38,12 @@
   var typingTimer=0,typingDone=true,dialoguePos=0;
 
   function typeText(el,text){
+    if(!el)return;
     clearInterval(typingTimer);
     typingDone=false;
-    el.textContent='';
     el.classList.add('lh-typing');
+    el.textContent='';
+    el.setAttribute('aria-busy','true');
     var i=0;
     typingTimer=setInterval(function(){
       i++;
@@ -49,6 +51,7 @@
       if(i>=text.length){
         clearInterval(typingTimer);
         el.classList.remove('lh-typing');
+        el.removeAttribute('aria-busy');
         typingDone=true;
       }
     },42);
@@ -81,11 +84,19 @@
     if(typeof window.ensureStage==='function')window.ensureStage();
     var c=window.currentChar,box=$('lh-vn');
     if(!box||!c)return;
+    var textEl=$('lh-vn-text');
+    if(textEl){
+      clearInterval(typingTimer);
+      typingDone=false;
+      textEl.textContent='';
+      textEl.classList.add('lh-typing');
+      textEl.setAttribute('aria-busy','true');
+    }
     var list=dialogueList(c);
     if(!list.length){
       box.classList.add('active');
       $('lh-vn-speaker').textContent=c.name||'';
-      typeText($('lh-vn-text'),c.desc||'...');
+      typeText(textEl,c.desc||'...');
       $('lh-vn-choices').innerHTML='<button class="lh-vn-choice" onclick="closeDialogue()">닫기</button>';
       return;
     }
@@ -100,7 +111,7 @@
     }
     box.classList.add('active');
     $('lh-vn-speaker').textContent=node.speaker||(c.name||'');
-    typeText($('lh-vn-text'),node.text||'');
+    typeText(textEl,node.text||'');
     var choices=arr(node.choices);
     $('lh-vn-choices').innerHTML=choices.length?choices.map(function(ch){
       return '<button class="lh-vn-choice" onclick="showDialogueNode(\''+esc(ch.next||'')+'\')">'+esc(ch.label||'...')+'</button>';
@@ -135,6 +146,18 @@
     if(e.target.closest('#lh-vn')||e.target.closest('.game-left')){
       e.preventDefault();
       advanceDialogue();
+    }
+  },true);
+
+  document.addEventListener('copy',function(e){
+    if(e.target.closest&&e.target.closest('#lh-vn,.lh-vn-overlay')){
+      e.preventDefault();
+    }
+  },true);
+
+  document.addEventListener('contextmenu',function(e){
+    if(e.target.closest&&e.target.closest('#lh-vn-text')){
+      e.preventDefault();
     }
   },true);
 

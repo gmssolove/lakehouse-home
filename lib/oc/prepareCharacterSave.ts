@@ -1,4 +1,4 @@
-import { normalizeGallery } from '@/lib/oc/gallery';
+import { formatGalleryCredit, normalizeGallery } from '@/lib/oc/gallery';
 import { uploadImageUrl, waitR2Pending } from '@/lib/r2/client';
 import { stripEmptyThemeFields } from '@/lib/oc/characterTheme';
 import type { GalleryItem, OcCharacter } from '@/lib/types/character';
@@ -10,7 +10,7 @@ async function prepareGallery(items: (string | GalleryItem)[]): Promise<GalleryI
     const item = rows[i];
     const src = await uploadImageUrl(item.src, 'oc/gallery', `gallery-${i + 1}.png`);
     const credit = item.credit?.trim();
-    out.push(credit ? { src, credit } : { src });
+    out.push(credit ? { src, credit: formatGalleryCredit(credit) } : { src });
   }
   return out;
 }

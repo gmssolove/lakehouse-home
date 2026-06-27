@@ -12,14 +12,11 @@ import {
 import type { User } from 'firebase/auth';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { DEFAULT_SITE_MAIN } from '@/lib/types/site-content';
+import { RECORDS_SECTIONS, type RecordsSectionId } from '@/lib/records/sections';
 
 export type HomePageId =
   | 'main'
   | 'notice'
-  | 'diary'
-  | 'scrap'
-  | 'review'
-  | 'music'
   | 'charArchive'
   | 'gallery'
   | 'universe'
@@ -65,8 +62,9 @@ const NAV_ENTRIES: NavEntry[] = [
   { kind: 'page', id: 'banner', roman: 'IX', label: 'Banner' },
 ];
 
-const RECORDS_PAGES: { id: HomePageId; label: string }[] = [
+const RECORDS_PAGES: { id: RecordsSectionId; label: string }[] = [
   { id: 'diary', label: 'Diary' },
+  { id: 'timeline', label: 'Timeline' },
   { id: 'scrap', label: 'Scrap' },
   { id: 'review', label: 'Review' },
   { id: 'music', label: 'Music' },
@@ -146,9 +144,7 @@ export function LeftNav({
   const { main } = useSiteContent();
   const siteSubtitle = main.latin?.trim() || DEFAULT_SITE_MAIN.latin;
   const charMenu = useSubmenu(pathname.startsWith('/oc') || pathname.startsWith('/pair'));
-  const recordsMenu = useSubmenu(
-    RECORDS_PAGES.some((p) => p.id === activePage) && pathname === '/',
-  );
+  const recordsMenu = useSubmenu(pathname.startsWith('/records/'));
   const [unfolded, setUnfolded] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollFade, setScrollFade] = useState(false);
@@ -197,6 +193,14 @@ export function LeftNav({
     };
   }
 
+  function isRecordsActive(id: RecordsSectionId) {
+    return pathname === `/records/${id}`;
+  }
+
+  function isRecordsGroupActive() {
+    return RECORDS_SECTIONS.some((id) => pathname === `/records/${id}`);
+  }
+
   function isPageActive(id: HomePageId) {
     return activePage === id && pathname === '/';
   }
@@ -210,6 +214,8 @@ export function LeftNav({
   }
 
   function renderSubmenu(entry: GroupEntry, menu: ReturnType<typeof useSubmenu>, active: boolean, kind: 'character' | 'records') {
+    const recordsActive = kind === 'records' && isRecordsGroupActive();
+    const headActive = kind === 'records' ? recordsActive : active;
     return (
       <li
         key={entry.id}
@@ -217,7 +223,7 @@ export function LeftNav({
         style={arcStyle(NAV_ENTRIES.indexOf(entry))}
       >
         <div
-          className={`nav-arc-item nav-item nav-group-head${active ? ' active' : ''}`}
+          className={`nav-arc-item nav-item nav-group-head${headActive ? ' active' : ''}`}
           onClick={menu.toggle}
           role="button"
           tabIndex={0}
@@ -254,14 +260,13 @@ export function LeftNav({
           <div ref={menu.subRef} className={menu.subClass('nav-sub nav-sub--arc')} id="records-sub">
             <div className="nav-sub-inner">
               {RECORDS_PAGES.map((p) => (
-                <button
+                <Link
                   key={p.id}
-                  type="button"
-                  className={`nav-sub-item${isPageActive(p.id) ? ' active' : ''}`}
-                  onClick={() => goHomeTab(p.id)}
+                  href={`/records/${p.id}`}
+                  className={`nav-sub-item${isRecordsActive(p.id) ? ' active' : ''}`}
                 >
                   {p.label}
-                </button>
+                </Link>
               ))}
             </div>
           </div>

@@ -1,0 +1,699 @@
+/* ===== Neocities / miserabledolly-style home shell ===== */
+
+@import url('https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=VT323&display=swap');
+
+:root {
+  --neo-bg: #b8b8b8;
+  --neo-bg-pattern: #9a9a9a;
+  --neo-surface: #d4d4d4;
+  --neo-surface-dark: #1a1a1a;
+  --neo-border: #111;
+  --neo-border-soft: #666;
+  --neo-text: #111;
+  --neo-text-dim: #444;
+  --neo-text-inv: #e8e8e8;
+  --neo-accent: #333;
+  --neo-font-gothic: 'UnifrakturMaguntia', var(--font-im-fell), serif;
+  --neo-font-pixel: 'VT323', 'Courier New', monospace;
+  --neo-nav-width: 200px;
+  --neo-aside-width: 230px;
+}
+
+/* ── page background ── */
+.layout.layout--home.layout--neo {
+  --lh-nav-width: var(--neo-nav-width);
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: unset !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+  background-color: var(--neo-bg) !important;
+  background-image:
+    linear-gradient(var(--neo-bg-pattern) 1px, transparent 1px),
+    linear-gradient(90deg, var(--neo-bg-pattern) 1px, transparent 1px);
+  background-size: 12px 12px;
+  color: var(--neo-text);
+  font-family: var(--neo-font-pixel);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.layout.layout--neo .bg-layer,
+.layout.layout--neo .bg-deco,
+.layout.layout--neo .bg-deco-geo,
+.layout.layout--neo .bg-home-wordmark {
+  display: none !important;
+}
+
+/* ── header banner ── */
+.neo-header {
+  position: relative;
+  width: min(1080px, calc(100% - 24px));
+  margin: 16px auto 12px;
+  border: 1px solid var(--neo-border);
+  background: #888;
+  overflow: hidden;
+}
+
+.neo-header__banner {
+  height: 140px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.45)),
+    repeating-linear-gradient(90deg, #6a6a6a 0 40px, #5a5a5a 40px 80px);
+  filter: grayscale(0.85) contrast(1.1);
+}
+
+.neo-header__title {
+  position: absolute;
+  right: 24px;
+  bottom: 12px;
+  margin: 0;
+  font-family: var(--neo-font-gothic);
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  font-weight: 400;
+  color: #fff;
+  text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.neo-header__latin {
+  position: absolute;
+  left: 16px;
+  bottom: 10px;
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ── 3-column body ── */
+.neo-site-body {
+  display: grid;
+  grid-template-columns: var(--neo-nav-width) minmax(0, 1fr) var(--neo-aside-width);
+  gap: 14px;
+  width: min(1080px, calc(100% - 24px));
+  margin: 0 auto 28px;
+  align-items: start;
+}
+
+/* ── left nav: flat buttons ── */
+.layout.layout--neo .left-panel {
+  width: var(--neo-nav-width) !important;
+  min-width: var(--neo-nav-width) !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.layout.layout--neo > .left-panel::before,
+.layout.layout--neo > .left-panel::after {
+  display: none !important;
+}
+
+.layout.layout--neo .site-title-wrap {
+  display: none !important;
+}
+
+.layout.layout--neo .left-top {
+  margin-bottom: 8px;
+}
+
+.layout.layout--neo .btn-auth {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--neo-border);
+  background: linear-gradient(180deg, #e8e8e8, #b0b0b0);
+  color: var(--neo-text);
+  font-family: var(--neo-font-pixel);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: inset 1px 1px 0 #fff;
+}
+
+.layout.layout--neo .btn-auth:hover {
+  background: linear-gradient(180deg, #f4f4f4, #c0c0c0);
+}
+
+.layout.layout--neo #main-nav.nav-arc {
+  position: static !important;
+  width: 100% !important;
+  height: auto !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.layout.layout--neo .nav-arc-scroll {
+  overflow: visible !important;
+  max-height: none !important;
+  mask-image: none !important;
+}
+
+.layout.layout--neo .nav-arc-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  list-style: none !important;
+}
+
+.layout.layout--neo .nav-arc-slot {
+  position: static !important;
+  transform: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.layout.layout--neo .nav-arc-item,
+.layout.layout--neo .nav-item {
+  display: block !important;
+  width: 100% !important;
+  padding: 5px 10px !important;
+  border: 1px solid var(--neo-border) !important;
+  background: linear-gradient(180deg, #ececec, #b8b8b8) !important;
+  box-shadow: inset 1px 1px 0 #fff !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  cursor: pointer;
+  text-align: left;
+}
+
+.layout.layout--neo .nav-arc-item:hover,
+.layout.layout--neo .nav-item:hover {
+  background: linear-gradient(180deg, #f8f8f8, #ccc) !important;
+}
+
+.layout.layout--neo .nav-arc-item.active,
+.layout.layout--neo .nav-item.active {
+  background: #888 !important;
+  color: #fff !important;
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.35) !important;
+}
+
+.layout.layout--neo .nav-arc-roman {
+  display: none !important;
+}
+
+.layout.layout--neo .nav-label {
+  font-family: var(--neo-font-pixel) !important;
+  font-size: 15px !important;
+  letter-spacing: 0.04em !important;
+  color: inherit !important;
+}
+
+.layout.layout--neo .nav-sub--arc {
+  position: static !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  margin: 4px 0 8px 8px !important;
+  padding: 0 !important;
+  border-left: 2px solid var(--neo-border-soft) !important;
+  transform: none !important;
+}
+
+.layout.layout--neo .nav-sub--arc:not(.open) {
+  display: none !important;
+}
+
+.layout.layout--neo .nav-sub-item {
+  display: block !important;
+  width: calc(100% - 4px) !important;
+  margin: 2px 0 !important;
+  padding: 3px 8px !important;
+  border: 1px solid var(--neo-border-soft) !important;
+  background: #c8c8c8 !important;
+  font-family: var(--neo-font-pixel) !important;
+  font-size: 14px !important;
+  color: var(--neo-text) !important;
+  text-align: left !important;
+  cursor: pointer;
+}
+
+.layout.layout--neo .nav-sub-item.active,
+.layout.layout--neo .nav-sub-item:hover {
+  background: #a0a0a0 !important;
+}
+
+.layout.layout--neo .left-bottom {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--neo-text-dim);
+  letter-spacing: 0.06em;
+}
+
+/* ── center column ── */
+.layout.layout--neo .neo-site-center {
+  position: relative !important;
+  z-index: var(--lh-z-content) !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 480px;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+.layout.layout--neo .content-area {
+  position: relative !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.layout.layout--neo .content-block {
+  display: none !important;
+}
+
+.layout.layout--home.layout--neo .content-block.active,
+.layout.layout--home.layout--neo .content-block.active:not(#page-main) {
+  display: block !important;
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  right: auto !important;
+  width: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  transform: none !important;
+  animation: neoFadeIn 0.35s ease both !important;
+}
+
+@keyframes neoFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.layout.layout--home.layout--neo #page-main.active {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+}
+
+/* ── neo boxes ── */
+.neo-box {
+  border: 1px solid var(--neo-border);
+  background: var(--neo-surface);
+  margin-bottom: 12px;
+}
+
+.neo-box--dark {
+  background: var(--neo-surface-dark);
+  color: var(--neo-text-inv);
+}
+
+.neo-box__title {
+  margin: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--neo-border);
+  font-family: var(--neo-font-gothic);
+  font-size: 1.35rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #c0c0c0, #a8a8a8);
+}
+
+.neo-box--dark .neo-box__title {
+  background: #2a2a2a;
+  color: var(--neo-text-inv);
+}
+
+.neo-box__body {
+  padding: 10px 12px;
+}
+
+.neo-lead {
+  margin: 0 0 8px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.neo-kicker,
+.neo-small,
+.neo-muted {
+  margin: 0;
+  font-size: 14px;
+  color: var(--neo-text-dim);
+}
+
+.neo-home {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.neo-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.neo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 31px;
+  border: 1px solid var(--neo-border);
+  background: linear-gradient(180deg, #eee, #999);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  box-shadow: inset 1px 1px 0 #fff;
+}
+
+/* ── page shell ── */
+.neo-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.neo-page__head {
+  border: 1px solid var(--neo-border);
+  background: #a0a0a0;
+  padding: 8px 12px;
+}
+
+.neo-page__title {
+  margin: 0;
+  font-family: var(--neo-font-gothic);
+  font-size: 1.8rem;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.neo-page__sub {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--neo-text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.layout.layout--neo .page-heading {
+  display: none !important;
+}
+
+.layout.layout--neo .page-sub {
+  display: none !important;
+}
+
+.layout.layout--neo .page-coming {
+  padding: 16px;
+  border: 1px dashed var(--neo-border-soft);
+  color: var(--neo-text-dim);
+  text-align: center;
+  font-size: 14px;
+}
+
+/* ── aside widgets ── */
+.neo-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.neo-widget {
+  border: 1px solid var(--neo-border);
+  background: var(--neo-surface);
+}
+
+.neo-widget--dark {
+  background: var(--neo-surface-dark);
+  color: var(--neo-text-inv);
+}
+
+.neo-widget__title {
+  margin: 0;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--neo-border);
+  font-family: var(--neo-font-gothic);
+  font-size: 1.1rem;
+  font-weight: 400;
+  text-transform: lowercase;
+  background: linear-gradient(180deg, #bbb, #999);
+}
+
+.neo-widget--dark .neo-widget__title {
+  background: #222;
+  color: var(--neo-text-inv);
+}
+
+.neo-widget__body {
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.neo-counter {
+  font-family: var(--neo-font-pixel);
+  font-size: 22px;
+  letter-spacing: 0.2em;
+  text-align: center;
+  padding: 6px 0;
+  background: #111;
+  color: #0f0;
+  border: 2px inset #444;
+}
+
+.neo-nowplaying {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.neo-nowplaying strong {
+  font-weight: 400;
+  font-size: 15px;
+}
+
+.neo-nowplaying span {
+  color: var(--neo-text-dim);
+}
+
+.neo-widget--dark .neo-nowplaying span {
+  color: #999;
+}
+
+.neo-nowplaying__bar {
+  height: 6px;
+  background: #333;
+  border: 1px solid #000;
+}
+
+.neo-nowplaying__bar span {
+  display: block;
+  height: 100%;
+  background: #6a6;
+}
+
+.neo-nowplaying em {
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.neo-updates {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.neo-updates li {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dotted var(--neo-border-soft);
+}
+
+.neo-updates li:last-child {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.neo-updates time {
+  display: block;
+  font-size: 11px;
+  color: var(--neo-text-dim);
+  margin-bottom: 2px;
+}
+
+.neo-widget--dark .neo-updates time {
+  color: #888;
+}
+
+/* ── guest book neo overrides ── */
+.layout.layout--neo .guest-card {
+  border-bottom-color: var(--neo-border-soft);
+}
+
+.layout.layout--neo .guest-card__name {
+  font-family: var(--neo-font-pixel);
+  color: var(--neo-text);
+  font-size: 14px;
+}
+
+.layout.layout--neo .guest-card__date {
+  color: var(--neo-text-dim);
+  font-family: var(--neo-font-pixel);
+}
+
+.layout.layout--neo .guest-card__body {
+  font-family: var(--neo-font-pixel);
+  color: var(--neo-text);
+  font-size: 15px;
+}
+
+.layout.layout--neo .guest-form textarea,
+.layout.layout--neo .guest-form input {
+  border: 1px solid var(--neo-border);
+  background: #e8e8e8;
+  color: var(--neo-text);
+  font-family: var(--neo-font-pixel);
+}
+
+.layout.layout--neo .guest-form button {
+  border: 1px solid var(--neo-border);
+  background: linear-gradient(180deg, #ececec, #aaa);
+  font-family: var(--neo-font-pixel);
+  color: var(--neo-text);
+}
+
+/* ── records neo overrides ── */
+.layout.layout--neo .records-diary-item,
+.layout.layout--neo .lh-timeline-entry,
+.layout.layout--neo .scrap-card,
+.layout.layout--neo .review-card {
+  border-color: var(--neo-border-soft) !important;
+  background: #ccc !important;
+  color: var(--neo-text) !important;
+}
+
+.layout.layout--neo .records-diary-item__title,
+.layout.layout--neo .scrap-card__title,
+.layout.layout--neo .review-card__title {
+  color: var(--neo-text) !important;
+  font-family: var(--neo-font-gothic) !important;
+}
+
+/* ── world cards ── */
+.layout.layout--neo .world-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layout.layout--neo .world-card-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--neo-border);
+  background: #c8c8c8;
+  color: var(--neo-text);
+  text-decoration: none;
+}
+
+.layout.layout--neo .world-card-item:hover {
+  background: #b0b0b0;
+}
+
+.layout.layout--neo .world-card-name {
+  font-family: var(--neo-font-gothic);
+  font-size: 1.2rem;
+}
+
+.layout.layout--neo .world-card-sub {
+  font-size: 13px;
+  color: var(--neo-text-dim);
+}
+
+/* ── post list in neo ── */
+.neo-post {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dotted var(--neo-border-soft);
+}
+
+.neo-post:last-child {
+  border-bottom: none;
+}
+
+.neo-post__title {
+  margin: 0 0 4px;
+  font-family: var(--neo-font-gothic);
+  font-size: 1.25rem;
+}
+
+.neo-post__date {
+  font-size: 12px;
+  color: var(--neo-text-dim);
+  margin-bottom: 6px;
+}
+
+.neo-post__body {
+  white-space: pre-wrap;
+  line-height: 1.55;
+  font-size: 15px;
+}
+
+/* ── BGM player on neo pages ── */
+.layout.layout--neo ~ .lh-bgm-dock,
+body:has(.layout--neo) .lh-bgm-dock {
+  filter: grayscale(0.2);
+}
+
+/* ── responsive ── */
+@media (max-width: 900px) {
+  .neo-site-body {
+    grid-template-columns: 1fr;
+    width: calc(100% - 16px);
+  }
+
+  .neo-aside {
+    order: 3;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .layout.layout--neo .left-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .layout.layout--neo .nav-arc-list {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+  }
+
+  .layout.layout--neo .nav-arc-slot {
+    width: auto !important;
+    flex: 1 1 calc(50% - 4px);
+  }
+}

@@ -1,0 +1,55 @@
+/* 공통 네비·액션 버튼 타이포 */
+
+.game-back,
+.detail-back-btn {
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: none !important;
+}
+
+.btn-edit {
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: none !important;
+}
+
+.lake-icon-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(168, 164, 156, 0.68);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.lake-icon-tool:hover {
+  color: rgba(215, 169, 130, 0.92);
+  background: rgba(215, 169, 130, 0.07);
+}
+
+.lake-icon-tool--plain {
+  color: rgba(228, 224, 216, 0.72);
+}
+
+.lake-icon-tool--plain:hover {
+  color: rgba(255, 252, 246, 0.95);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lake-icon-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

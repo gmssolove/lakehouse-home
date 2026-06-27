@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Helvetica Neue',sans-serif;background:#0a0a0a;display:flex;align-items:flex-start;justify-content:center;padding:30px;gap:20px;}
+
+/* ── 사이드바 ── */
+.sidebar{width:220px;background:#111;border-radius:12px;overflow:hidden;border:.5px solid #2a2a2a;flex-shrink:0;}
+.sb-header{padding:14px 16px 12px;border-bottom:.5px solid #2a2a2a;display:flex;align-items:center;justify-content:space-between;}
+.sb-title{font-size:16px;font-weight:500;color:#c8b97a;letter-spacing:.02em;}
+.sb-close{background:none;border:none;color:#444;font-size:14px;cursor:pointer;padding:2px;}
+.sb-close:hover{color:#888;}
+
+.group{padding:8px 0 2px;}
+.group-label{font-size:9px;letter-spacing:.14em;color:#3a3a3a;padding:0 16px 5px;text-transform:uppercase;}
+.menu-item{padding:7px 16px;font-size:12px;color:#666;cursor:pointer;display:flex;align-items:center;gap:9px;transition:color .15s,background .15s;position:relative;}
+.menu-item:hover{color:#bbb;background:#181818;}
+.menu-item.active{color:#c8b97a;background:#1e1c14;}
+.menu-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:2px;height:16px;background:#c8b97a;border-radius:99px;}
+.menu-icon{font-size:13px;opacity:.7;width:16px;text-align:center;flex-shrink:0;}
+.menu-badge{margin-left:auto;font-size:9px;padding:1px 6px;border-radius:99px;background:#27204a;color:#a98ef5;border:.5px solid #3d2f7a;}
+.group-divider{height:.5px;background:#1a1a1a;margin:4px 0;}
+
+/* ── 메인 영역 (더미) ── */
+.main{flex:1;max-width:600px;background:#111;border-radius:12px;border:.5px solid #2a2a2a;padding:28px;min-height:500px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;}
+.main-hint{font-size:13px;color:#444;}
+.main-sub{font-size:11px;color:#333;}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sb-header">
+    <span class="sb-title">Admin</span>
+    <button class="sb-close">✕</button>
+  </div>
+
+  <div class="group">
+    <div class="group-label">콘텐츠</div>
+    <div class="menu-item"><span class="menu-icon">🏠</span>Main</div>
+    <div class="menu-item"><span class="menu-icon">📢</span>Notice</div>
+  </div>
+
+  <div class="group-divider"></div>
+
+  <div class="group">
+    <div class="group-label">Records</div>
+    <div class="menu-item"><span class="menu-icon">📓</span>Diary</div>
+    <div class="menu-item"><span class="menu-icon">✂️</span>Scrap</div>
+    <div class="menu-item"><span class="menu-icon">⭐</span>Review</div>
+    <div class="menu-item"><span class="menu-icon">🎵</span>Music</div>
+    <div class="menu-item active"><span class="menu-icon">💬</span>Timeline<span class="menu-badge">NEW</span></div>
+  </div>
+
+  <div class="group-divider"></div>
+
+  <div class="group">
+    <div class="group-label">창작</div>
+    <div class="menu-item"><span class="menu-icon">🎭</span>TRPG</div>
+    <div class="menu-item"><span class="menu-icon">🌍</span>Universe</div>
+    <div class="menu-item"><span class="menu-icon">👤</span>Character · Archive</div>
+    <div class="menu-item"><span class="menu-icon">💞</span>OC / Pair</div>
+    <div class="menu-item"><span class="menu-icon">🖼</span>Gallery</div>
+  </div>
+
+  <div class="group-divider"></div>
+
+  <div class="group">
+    <div class="group-label">사이트 설정</div>
+    <div class="menu-item"><span class="menu-icon">🖼</span>Banner</div>
+    <div class="menu-item"><span class="menu-icon">🎧</span>BGM</div>
+    <div class="menu-item"><span class="menu-icon">✨</span>UX · 효과</div>
+  </div>
+
+  <div class="group-divider"></div>
+
+  <div class="group" style="padding-bottom:10px;">
+    <div class="group-label">운영</div>
+    <div class="menu-item"><span class="menu-icon">💌</span>Guest</div>
+    <div class="menu-item"><span class="menu-icon">🔒</span>접근 · 비밀번호</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="main-hint">← 메뉴를 선택하세요</div>
+  <div class="main-sub">선택한 항목의 수정 패널이 여기에 표시됩니다</div>
+</div>
+
+</body>
+</html>

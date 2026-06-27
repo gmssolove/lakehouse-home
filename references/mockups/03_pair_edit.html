@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Helvetica Neue',sans-serif;background:#0a0a0a;padding:20px;}
+.shell{background:#111;border-radius:12px;overflow:hidden;border:.5px solid #2a2a2a;display:flex;flex-direction:column;height:680px;}
+.topbar{background:#161616;border-bottom:.5px solid #2a2a2a;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.topbar-l{display:flex;flex-direction:column;gap:2px;}
+.bc{font-size:10px;color:#555;letter-spacing:.08em;}
+.tt{font-size:14px;font-weight:500;color:#e0e0e0;}
+.topbar-r{display:flex;gap:7px;}
+.btn{font-size:11px;padding:5px 11px;border-radius:6px;border:.5px solid #333;background:#1e1e1e;color:#aaa;cursor:pointer;}
+.btn.p{background:#27204a;border-color:#3d2f7a;color:#a98ef5;}
+.btn.d{border-color:#4a2020;color:#c07070;}
+.tabs{display:flex;border-bottom:.5px solid #2a2a2a;background:#141414;flex-shrink:0;}
+.tab{font-size:11px;padding:9px 15px;color:#555;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;}
+.tab.active{color:#a98ef5;border-bottom-color:#a98ef5;}
+.body{flex:1;overflow-y:auto;padding:18px;}
+.sec{margin-bottom:20px;}
+.sec-t{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:10px;padding-bottom:7px;border-bottom:.5px solid #1e1e1e;}
+.f{margin-bottom:10px;}
+.f label{font-size:10px;color:#666;display:block;margin-bottom:4px;}
+.f input,.f select,.f textarea{width:100%;background:#1a1a1a;border:.5px solid #2e2e2e;border-radius:6px;padding:7px 10px;font-size:12px;color:#ccc;outline:none;font-family:inherit;}
+.f input:focus,.f textarea:focus{border-color:#6a5ab0;}
+.f textarea{resize:vertical;min-height:70px;line-height:1.7;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.card{background:#181818;border:.5px solid #252525;border-radius:8px;padding:11px 13px;margin-bottom:8px;}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+.card-lbl{font-size:11px;color:#888;}
+.xbtn{background:none;border:none;color:#444;font-size:12px;cursor:pointer;}
+.xbtn:hover{color:#c07070;}
+.addbtn{font-size:11px;color:#7a6ab0;border:.5px dashed #3d2f7a;background:none;border-radius:6px;padding:7px;cursor:pointer;width:100%;margin-top:4px;}
+.addbtn:hover{background:#1e1a2e;}
+
+/* char selector */
+.char-pick{display:flex;gap:8px;margin-bottom:12px;}
+.char-card{width:80px;background:#181818;border:.5px solid #2a2a2a;border-radius:8px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:border-color .15s;}
+.char-card:hover{border-color:#4a3a6a;}
+.char-card.sel{border-color:#8b6be8;background:#1c1830;}
+.char-card-img{width:44px;height:44px;border-radius:6px;background:#222;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.char-card-name{font-size:10px;color:#888;text-align:center;}
+.char-card.sel .char-card-name{color:#a98ef5;}
+
+/* dday edit */
+.dday-edit{background:#161616;border:.5px solid #2a2a2a;border-radius:8px;padding:12px 14px;}
+.dday-preview{margin-top:8px;font-size:20px;font-weight:700;color:#c8b0f0;letter-spacing:-.01em;}
+.dday-since{font-size:11px;color:#555;margin-top:2px;}
+
+/* chem bar edit */
+.chem-edit-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.chem-edit-lbl{font-size:11px;color:#888;width:50px;flex-shrink:0;}
+.chem-slider{flex:1;accent-color:#8b6be8;}
+.chem-num{width:36px;background:#1a1a1a;border:.5px solid #2e2e2e;border-radius:5px;padding:4px 6px;font-size:11px;color:#ccc;outline:none;text-align:center;}
+
+/* gal grid */
+.gal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.gal-item{border-radius:7px;background:#1a1a1a;border:.5px solid #2a2a2a;overflow:hidden;}
+.gal-img-ph{height:70px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#333;}
+.gal-cap{padding:6px 8px;font-size:10px;color:#555;display:flex;align-items:center;justify-content:space-between;}
+.file-row{display:flex;gap:7px;align-items:center;}
+.fbtn{font-size:11px;padding:6px 9px;border-radius:6px;border:.5px solid #333;background:#1e1e1e;color:#777;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.furl{flex:1;background:#1a1a1a;border:.5px solid #2e2e2e;border-radius:6px;padding:6px 9px;font-size:11px;color:#666;outline:none;font-family:inherit;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="topbar-l"><span class="bc">ADMIN · PAIR</span><span class="tt">페어 수정 — 이브이즈</span></div>
+    <div class="topbar-r"><button class="btn p">저장</button><button class="btn d">삭제</button><button class="btn">✕</button></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="sw(0)">기본</div>
+    <div class="tab" onclick="sw(1)">서사·로그</div>
+    <div class="tab" onclick="sw(2)">갤러리</div>
+  </div>
+  <div class="body" id="body"></div>
+</div>
+
+<script>
+const tabs=[basic,story,gallery];
+function sw(i){
+  document.querySelectorAll('.tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  document.getElementById('body').innerHTML=tabs[i]();
+  if(i===0) initDday();
+}
+
+function basic(){return`
+  <div class="sec">
+    <div class="sec-t">페어 정보</div>
+    <div class="row2">
+      <div class="f"><label>페어명 (한글)</label><input value="이브이즈"></div>
+      <div class="f"><label>페어명 (영문)</label><input value="YVEZUMI"></div>
+    </div>
+    <div class="f"><label>태그 (쉼표 구분)</label><input placeholder="#적대, #키사라기고교"></div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">캐릭터 선택</div>
+    <div class="char-pick">
+      <div class="char-card sel"><div class="char-card-img">🧍</div><div class="char-card-name">이브</div></div>
+      <div class="char-card"><div class="char-card-img">🧍</div><div class="char-card-name">이즈미</div></div>
+      <div class="char-card"><div class="char-card-img">🧍</div><div class="char-card-name">마코</div></div>
+      <div class="char-card"><div class="char-card-img">+</div><div class="char-card-name">추가</div></div>
+    </div>
+    <div class="row2">
+      <div class="f"><label>캐릭터 A</label><select><option>이브</option><option>카논</option></select></div>
+      <div class="f"><label>캐릭터 B</label><select><option selected>이즈미</option><option>마코</option></select></div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">D-Day 설정</div>
+    <div class="dday-edit">
+      <div class="f" style="margin:0;"><label>기준 날짜</label><input type="date" id="dday-input" value="2025-03-14" oninput="updateDday()"></div>
+      <div class="dday-preview" id="dday-preview">D+??</div>
+      <div class="dday-since" id="dday-since">Since 2025-03-14</div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">납작캐해 (공식 해석)</div>
+    <div class="f"><textarea style="min-height:80px;">서로 티격태격하지만 정작 위기엔 제일 먼저 달려오는 유형. 말은 늘 칼같이 해도 행동은 배신한다.</textarea></div>
+    <div class="f"><label>납작캐해 키워드</label><input value="적대, 츤데레, 공동전선"></div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">관계 개요</div>
+    <div class="f"><textarea>서로를 향한 감정이 정의되지 않은 채 얽혀 있다.</textarea></div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">케미 지표</div>
+    <div class="chem-edit-row"><span class="chem-edit-lbl">긴장감</span><input type="range" class="chem-slider" min="0" max="100" value="90" oninput="this.nextElementSibling.value=this.value"><input class="chem-num" type="number" value="90" min="0" max="100"></div>
+    <div class="chem-edit-row"><span class="chem-edit-lbl">신뢰도</span><input type="range" class="chem-slider" min="0" max="100" value="20" oninput="this.nextElementSibling.value=this.value"><input class="chem-num" type="number" value="20" min="0" max="100"></div>
+    <div class="chem-edit-row"><span class="chem-edit-lbl">친밀도</span><input type="range" class="chem-slider" min="0" max="100" value="35" oninput="this.nextElementSibling.value=this.value"><input class="chem-num" type="number" value="35" min="0" max="100"></div>
+    <button class="addbtn" style="margin-top:8px;">+ 지표 추가</button>
+  </div>
+  <div class="sec">
+    <div class="sec-t">대표 이미지</div>
+    <div class="f"><div class="file-row"><button class="fbtn">📁 파일</button><input class="furl" placeholder="페어 대표 이미지 URL"></div></div>
+  </div>`;}
+
+function story(){return`
+  <div class="sec">
+    <div class="sec-t">서사 로그</div>
+    <div class="card">
+      <div class="card-hd"><span class="card-lbl">로그 1</span><button class="xbtn">✕</button></div>
+      <div class="f"><label>제목</label><input placeholder="로그 제목"></div>
+      <div class="f"><label>본문</label><textarea placeholder="서사 내용"></textarea></div>
+    </div>
+    <button class="addbtn">+ 서사 로그 추가</button>
+  </div>`;}
+
+function gallery(){return`
+  <div class="sec">
+    <div class="sec-t">갤러리</div>
+    <div class="gal-grid">
+      <div class="gal-item"><div class="gal-img-ph">🖼</div><div class="gal-cap"><span>이미지 1</span><button class="xbtn">✕</button></div></div>
+      <div class="gal-item"><div class="gal-img-ph">🖼</div><div class="gal-cap"><span>이미지 2</span><button class="xbtn">✕</button></div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="f"><div class="file-row"><button class="fbtn">📁 파일</button><input class="furl" placeholder="이미지 URL"></div></div>
+      <div class="f"><label>작가 / 출처</label><input placeholder="출처"></div>
+      <button class="addbtn">+ 이미지 추가</button>
+    </div>
+  </div>`;}
+
+function updateDday(){
+  const val=document.getElementById('dday-input').value;
+  if(!val)return;
+  const start=new Date(val); start.setHours(0,0,0,0);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const diff=Math.floor((today-start)/86400000);
+  document.getElementById('dday-preview').textContent='D'+(diff>=0?'+':'')+diff;
+  document.getElementById('dday-since').textContent='Since '+val;
+}
+function initDday(){updateDday();}
+
+sw(0);
+</script>
+</body>
+</html>

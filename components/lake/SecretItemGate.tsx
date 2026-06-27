@@ -48,9 +48,13 @@ export function SecretItemGate({
         scope={scope}
         item={item}
         accessSettings={accessSettings}
+        backdrop="clear"
         loggedIn={loggedIn}
         onClose={() => setOpen(false)}
-        onRequestLogin={onRequestLogin}
+        onRequestLogin={() => {
+          setOpen(false);
+          onRequestLogin();
+        }}
         onSuccess={() => {
           setUnlocked(true);
           setOpen(false);

@@ -1,6 +1,7 @@
 @import '../styles/shared/image-frame.css';
 @import '../styles/legacy/pair.css';
 @import '../styles/pair/pair-archive.css';
+@import '../styles/pair/pair-archive-detail.css';
 @import '../styles/shared/archive-topbar.css';
 
 /* BGM — pair.css 레거시 row 레이아웃 + 화면 밖 좌표 보정 */

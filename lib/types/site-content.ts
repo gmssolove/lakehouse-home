@@ -37,14 +37,69 @@ export type TrpgSessionLog = WithSecret & {
   tags?: string[];
   /** playerProfiles id 목록 — 아바타 행 */
   playerIds?: string[];
+  /** 본문 글자 크기(px) */
+  logFontSize?: number;
+  /** 본문 줄간격 */
+  logLineHeight?: number;
+};
+
+export type TrpgPlayerInfoField = {
+  key: string;
+  value: string;
+};
+
+export type TrpgPlayerStat = {
+  label: string;
+  value: number;
+  max?: number;
+};
+
+export type TrpgPlayerRelation = {
+  id: string;
+  /** 연결된 탐사자 id */
+  playerId?: string;
+  name: string;
+  desc?: string;
+};
+
+export type TrpgPlayerItem = {
+  id: string;
+  icon?: string;
+  name: string;
+  count?: string;
+  key?: boolean;
+  empty?: boolean;
 };
 
 export type TrpgPlayerProfile = {
   id: string;
   name: string;
+  nameEn?: string;
   role?: string;
   img?: string;
+  imgFrame?: ImageFrame;
+  imgFit?: string;
+  imgPos?: string;
   bio?: string;
+  /** 외관 */
+  appearance?: string;
+  /** 성격 */
+  personality?: string;
+  /** 특징 */
+  traits?: string;
+  /** LIKE */
+  likes?: string;
+  /** HATE */
+  dislikes?: string;
+  tags?: string[];
+  infoFields?: TrpgPlayerInfoField[];
+  stats?: TrpgPlayerStat[];
+  relations?: TrpgPlayerRelation[];
+  money?: string;
+  items?: TrpgPlayerItem[];
+  itemNote?: string;
+  /** 이 캐릭터를 연기한 플레이어 */
+  playerName?: string;
 };
 
 export type TrpgRelationship = {
@@ -103,6 +158,19 @@ export type TrpgScenario = {
   cleared?: boolean;
   /** 아카이브 소개 */
   summary?: string;
+  /** 플레이 후기 (Overview 대신 표시) */
+  review?: string;
+  /** 시나리오 배포 원본 링크 — 세션 바로가기 */
+  sessionUrl?: string;
+  /** 시나리오 페이지 배경 (CSS background 값 또는 이미지 URL) */
+  pageBackground?: string;
+  /** 시나리오 전용 BGM */
+  pageBgm?: {
+    title?: string;
+    artist?: string;
+    fileUrl?: string;
+    url?: string;
+  };
   body?: string;
   /** 탐사자 프로필 */
   playerProfiles?: TrpgPlayerProfile[];
@@ -137,12 +205,49 @@ export type GalleryItem = WithSecret & {
   caption?: string;
 };
 
+export type GuestReply = {
+  id: string;
+  authorName: string;
+  authorUid?: string;
+  isAdmin?: boolean;
+  message: string;
+  date: string;
+  imageUrl?: string;
+};
+
+export type GuestEmoticon = {
+  trigger: string;
+  emoji: string;
+};
+
+export type SiteGuestSettings = {
+  guideText?: string;
+  emoticons?: GuestEmoticon[];
+};
+
+export const DEFAULT_SITE_GUEST_SETTINGS: SiteGuestSettings = {
+  guideText: '',
+  emoticons: [
+    { trigger: '/최고', emoji: '👍' },
+    { trigger: '/하트', emoji: '❤️' },
+  ],
+};
+
 export type GuestEntry = {
   id: string;
   name: string;
   message: string;
   date: string;
+  authorUid?: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  /** 관리자만 열람 (비밀번호 없음) */
+  secret?: boolean;
+  replies?: GuestReply[];
+  /** @deprecated replies 사용 */
   reply?: string;
+  /** @deprecated replies 사용 */
+  replyDate?: string;
 };
 
 export type BannerItem = {
@@ -150,8 +255,9 @@ export type BannerItem = {
   title: string;
   img: string;
   href?: string;
-  /** 링크 주인 이름 — 호버 툴팁 (예: 로나님) */
   ownerName?: string;
+  divider?: boolean;
+  dividerIcon?: string;
 };
 
 export type BgmPlaylistItem = {
@@ -238,6 +344,20 @@ export const DEFAULT_SITE_BGM: SiteBgm = {
   url: '',
 };
 
+export type ScrapCategory = {
+  id: string;
+  label: string;
+};
+
+export const DEFAULT_SCRAP_CATEGORIES: ScrapCategory[] = [
+  { id: 'all', label: '전체' },
+  { id: 'dream', label: '드림-썰' },
+  { id: 'general', label: '북마크-일반' },
+  { id: 'otaku', label: '북마크-오타쿠' },
+  { id: 'ref', label: '북마크-자료' },
+  { id: 'other', label: '북마크-기타' },
+];
+
 export type ScrapItem = WithSecret & {
   id: string;
   author: string;
@@ -247,6 +367,38 @@ export type ScrapItem = WithSecret & {
   imageUrl?: string;
   sourceUrl?: string;
   date: string;
+  categoryId?: string;
+  quotedBody?: string;
+  quotedAuthor?: string;
+  quotedHandle?: string;
+  quotedAvatarUrl?: string;
+  quotedImageUrl?: string;
+};
+
+export type TimelineReply = {
+  id: string;
+  authorName: string;
+  authorUid?: string;
+  body: string;
+  date: string;
+  imageUrl?: string;
+};
+
+export type TimelinePost = {
+  id: string;
+  authorName: string;
+  authorUid?: string;
+  authorAvatarUrl?: string;
+  body: string;
+  tags?: string[];
+  imageUrl?: string;
+  videoUrl?: string;
+  date: string;
+  replies?: TimelineReply[];
+  reactions?: Record<string, number>;
+  /** uid → like | heart (1인 1회) */
+  userReactions?: Record<string, 'like' | 'heart'>;
+  secret?: boolean;
 };
 
 export type ReviewCategoryKind = 'anime' | 'movie' | 'drama' | 'book' | 'poetry' | 'food' | 'custom';
@@ -341,26 +493,61 @@ export type AdminSectionId =
   | 'scrap'
   | 'review'
   | 'music'
-  | 'charArchive';
+  | 'charArchive'
+  | 'timeline';
 
-export const ADMIN_SECTIONS: { id: AdminSectionId; label: string; group: string }[] = [
-  { id: 'main', label: 'Main', group: '홈' },
-  { id: 'notice', label: 'Notice', group: '홈' },
-  { id: 'diary', label: 'Records · Diary', group: '기록' },
-  { id: 'scrap', label: 'Records · Scrap', group: '기록' },
-  { id: 'review', label: 'Records · Review', group: '기록' },
-  { id: 'music', label: 'Records · Music', group: '기록' },
-  { id: 'charArchive', label: 'Character · Archive', group: '캐릭터' },
-  { id: 'gallery', label: 'Gallery', group: '홈' },
-  { id: 'universe', label: 'Universe', group: '홈' },
-  { id: 'trpg', label: 'TRPG', group: '홈' },
-  { id: 'guest', label: 'Guest', group: '홈' },
-  { id: 'banner', label: 'Banner', group: '홈' },
-  { id: 'bgm', label: 'BGM', group: '사이트' },
-  { id: 'access', label: '접근 · 비밀번호', group: '사이트' },
-  { id: 'ux', label: 'UX · 효과', group: '사이트' },
-  { id: 'oc', label: 'OC', group: '캐릭터' },
-  { id: 'pair', label: 'Pair', group: '캐릭터' },
+export type AdminNavGroup = 'content' | 'site' | 'ops';
+
+export type AdminNavIcon =
+  | 'diary'
+  | 'scrap'
+  | 'music'
+  | 'trpg'
+  | 'universe'
+  | 'archive'
+  | 'gallery'
+  | 'oc'
+  | 'pair'
+  | 'review'
+  | 'timeline'
+  | 'main'
+  | 'banner'
+  | 'bgm'
+  | 'ux'
+  | 'notice'
+  | 'guest'
+  | 'access';
+
+export const ADMIN_NAV_GROUPS: { key: AdminNavGroup; label: string }[] = [
+  { key: 'content', label: '콘텐츠' },
+  { key: 'site', label: '사이트 설정' },
+  { key: 'ops', label: '운영' },
+];
+
+export const ADMIN_SECTIONS: {
+  id: AdminSectionId;
+  label: string;
+  group: AdminNavGroup;
+  icon: AdminNavIcon;
+}[] = [
+  { id: 'diary', label: 'Records · Diary', group: 'content', icon: 'diary' },
+  { id: 'scrap', label: 'Records · Scrap', group: 'content', icon: 'scrap' },
+  { id: 'music', label: 'Records · Music', group: 'content', icon: 'music' },
+  { id: 'review', label: 'Records · Review', group: 'content', icon: 'review' },
+  { id: 'timeline', label: 'Records · Timeline', group: 'content', icon: 'timeline' },
+  { id: 'trpg', label: 'TRPG', group: 'content', icon: 'trpg' },
+  { id: 'universe', label: 'Universe', group: 'content', icon: 'universe' },
+  { id: 'charArchive', label: 'Character · Archive', group: 'content', icon: 'archive' },
+  { id: 'gallery', label: 'Gallery', group: 'content', icon: 'gallery' },
+  { id: 'oc', label: 'OC', group: 'content', icon: 'oc' },
+  { id: 'pair', label: 'Pair', group: 'content', icon: 'pair' },
+  { id: 'main', label: 'Main', group: 'site', icon: 'main' },
+  { id: 'banner', label: 'Banner', group: 'site', icon: 'banner' },
+  { id: 'bgm', label: 'BGM', group: 'site', icon: 'bgm' },
+  { id: 'ux', label: 'UX · 효과', group: 'site', icon: 'ux' },
+  { id: 'notice', label: 'Notice', group: 'ops', icon: 'notice' },
+  { id: 'guest', label: 'Guest', group: 'ops', icon: 'guest' },
+  { id: 'access', label: '접근 · 비밀번호', group: 'ops', icon: 'access' },
 ];
 
 export function newId() {

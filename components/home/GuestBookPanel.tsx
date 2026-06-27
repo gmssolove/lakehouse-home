@@ -1,11 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
-import type { GuestEntry } from '@/lib/types/site-content';
+import type { GuestEntry, GuestReply } from '@/lib/types/site-content';
 import { newId } from '@/lib/types/site-content';
+import { normalizeGuestEntry } from '@/lib/guest/normalize';
+import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
+import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
+import {
+  LakeCancelIcon,
+  LakeDeleteIcon,
+  LakeEditIcon,
+  LakeIconToolButton,
+  LakeReplyArrowIcon,
+  LakeReplyBackIcon,
+  LakeSaveIcon,
+} from '@/components/ui/LakeActionIcons';
+
+const ADMIN_REPLY_NAME = 'lakehouse';
 
 type Props = {
   guests: GuestEntry[];
@@ -15,106 +29,258 @@ type Props = {
   onOpenAuth: () => void;
 };
 
-function GuestBubble({
+function canReply(entry: GuestEntry, user: User | null, isAdmin: boolean) {
+  if (!user) return false;
+  if (isAdmin) return true;
+  return !!entry.authorUid && entry.authorUid === user.uid;
+}
+
+function canEditReply(reply: GuestReply, user: User | null, isAdmin: boolean) {
+  if (!user) return false;
+  if (isAdmin) return true;
+  return !!reply.authorUid && reply.authorUid === user.uid;
+}
+
+function canDeleteEntry(entry: GuestEntry, user: User | null, isAdmin: boolean) {
+  if (!user) return false;
+  if (isAdmin) return true;
+  return !!entry.authorUid && entry.authorUid === user.uid;
+}
+
+function GuestCard({
   guest,
   guests,
+  user,
   isAdmin,
   onSaveGuests,
 }: {
   guest: GuestEntry;
   guests: GuestEntry[];
+  user: User | null;
   isAdmin: boolean;
   onSaveGuests: (next: GuestEntry[]) => Promise<void>;
 }) {
   const { confirm } = useLakeDialog();
   const { showSaveToast, showDeleteToast } = useSaveToast();
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [replyText, setReplyText] = useState(guest.reply || '');
+  const entry = useMemo(() => normalizeGuestEntry(guest), [guest]);
+  const replies = entry.replies ?? [];
+  const hidden = !!entry.secret && !isAdmin;
 
-  async function saveReply() {
-    const trimmed = replyText.trim();
-    const next = guests.map((g) =>
-      g.id === guest.id ? { ...g, reply: trimmed || undefined } : g,
-    );
-    await onSaveGuests(next);
-    setEditorOpen(false);
+  const [repliesOpen, setRepliesOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerText, setComposerText] = useState('');
+  const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+
+  const allowReply = canReply(entry, user, isAdmin);
+
+  async function persistEntry(nextEntry: GuestEntry) {
+    await onSaveGuests(guests.map((g) => (g.id === entry.id ? nextEntry : g)));
+  }
+
+  async function addReply() {
+    const trimmed = composerText.trim();
+    if (!trimmed || !user) return;
+    const reply: GuestReply = {
+      id: newId(),
+      authorName: isAdmin ? ADMIN_REPLY_NAME : entry.name.split(' ').slice(2).join(' ') || entry.name,
+      authorUid: user.uid,
+      isAdmin,
+      message: trimmed,
+      date: new Date().toLocaleDateString('ko-KR'),
+    };
+    await persistEntry({ ...entry, replies: [...replies, reply] });
+    setComposerText('');
+    setComposerOpen(false);
+    setRepliesOpen(true);
     showSaveToast();
   }
 
-  async function deleteReply() {
+  async function saveReplyEdit(replyId: string) {
+    const trimmed = editText.trim();
+    if (!trimmed) return;
+    await persistEntry({
+      ...entry,
+      replies: replies.map((r) => (r.id === replyId ? { ...r, message: trimmed } : r)),
+    });
+    setEditingReplyId(null);
+    setEditText('');
+    showSaveToast();
+  }
+
+  async function deleteReply(replyId: string) {
     if (!(await confirm('답변을 삭제할까요?'))) return;
-    const next = guests.map((g) => (g.id === guest.id ? { ...g, reply: undefined } : g));
-    await onSaveGuests(next);
+    await persistEntry({ ...entry, replies: replies.filter((r) => r.id !== replyId) });
     showDeleteToast();
   }
 
   async function deleteGuest() {
     if (!(await confirm('이 방명록을 삭제할까요?'))) return;
-    await onSaveGuests(guests.filter((g) => g.id !== guest.id));
+    await onSaveGuests(guests.filter((g) => g.id !== entry.id));
     showDeleteToast();
   }
 
-  function openEditor() {
-    setReplyText(guest.reply || '');
-    setEditorOpen(true);
+  function openComposer() {
+    setComposerText('');
+    setComposerOpen(true);
+  }
+
+  function startEditReply(reply: GuestReply) {
+    setEditingReplyId(reply.id);
+    setEditText(reply.message);
+    setComposerOpen(false);
   }
 
   return (
-    <div className="guest-bubble" data-guest-id={guest.id}>
-      <div className="guest-bubble-head">
-        <span>{guest.name}</span>
-        <span className="guest-bubble-date">{guest.date}</span>
-        {isAdmin ? (
-          <span className="guest-actions">
-            <button type="button" onClick={openEditor}>
-              {guest.reply ? '답변 수정' : '답변'}
-            </button>
-            {guest.reply ? (
-              <button type="button" onClick={() => void deleteReply()}>
-                답변 삭제
-              </button>
-            ) : null}
-            <button type="button" onClick={() => void deleteGuest()}>
-              삭제
-            </button>
-          </span>
-        ) : null}
-      </div>
-      <div className="guest-bubble-msg">{guest.message}</div>
-      {guest.reply ? <div className="guest-reply">{guest.reply}</div> : null}
-      {isAdmin && editorOpen ? (
-        <div className="guest-reply-editor">
+    <article className="guest-card" data-guest-id={entry.id}>
+      <header className="guest-card__meta">
+        <span className="guest-card__name">
+          {entry.name}
+          {entry.secret ? <SecretLockBadge compact /> : null}
+        </span>
+        <time className="guest-card__date">{entry.date}</time>
+      </header>
+
+      {hidden ? (
+        <p className="guest-card__secret">🔒 비밀글입니다.</p>
+      ) : (
+        <>
+          <p className="guest-card__body">{entry.message}</p>
+          {entry.imageUrl ? <img src={entry.imageUrl} alt="" className="guest-card__media" /> : null}
+          {entry.videoUrl ? (
+            <video src={entry.videoUrl} controls className="guest-card__media guest-card__media--video" />
+          ) : null}
+        </>
+      )}
+
+      {replies.length > 0 ? (
+        <button
+          type="button"
+          className="guest-card__reply-toggle"
+          onClick={() => setRepliesOpen((v) => !v)}
+          aria-expanded={repliesOpen}
+        >
+          <span className={`guest-card__reply-chevron${repliesOpen ? ' is-open' : ''}`}>∨</span>
+          댓글 {replies.length}
+        </button>
+      ) : null}
+
+      {repliesOpen
+        ? replies.map((reply) => {
+            const editable = canEditReply(reply, user, isAdmin);
+            const editing = editingReplyId === reply.id;
+            return (
+              <div key={reply.id} className="guest-card__reply">
+                <div className="guest-card__reply-head">
+                  <LakeReplyArrowIcon className="guest-card__reply-arrow" />
+                  <span className="guest-card__reply-name">
+                    {reply.isAdmin ? ADMIN_REPLY_NAME : reply.authorName}
+                  </span>
+                  <time className="guest-card__reply-date">{reply.date}</time>
+                </div>
+                {editing ? (
+                  <div className="guest-card__editor guest-card__editor--inline">
+                    <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={3} />
+                    <div className="lake-icon-tools guest-card__icon-tools">
+                      <LakeIconToolButton label="저장" onClick={() => void saveReplyEdit(reply.id)}>
+                        <LakeSaveIcon />
+                      </LakeIconToolButton>
+                      <LakeIconToolButton
+                        label="취소"
+                        onClick={() => {
+                          setEditingReplyId(null);
+                          setEditText('');
+                        }}
+                      >
+                        <LakeCancelIcon />
+                      </LakeIconToolButton>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="guest-card__reply-body">{reply.message}</p>
+                    {reply.imageUrl ? <img src={reply.imageUrl} alt="" className="guest-card__media" /> : null}
+                    {editable ? (
+                      <div className="lake-icon-tools guest-card__icon-tools">
+                        <LakeIconToolButton label="답변 수정" onClick={() => startEditReply(reply)}>
+                          <LakeEditIcon />
+                        </LakeIconToolButton>
+                        <LakeIconToolButton label="답변 삭제" onClick={() => void deleteReply(reply.id)}>
+                          <LakeDeleteIcon />
+                        </LakeIconToolButton>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            );
+          })
+        : null}
+
+      {allowReply && !composerOpen && !editingReplyId ? (
+        <div className="lake-icon-tools guest-card__icon-tools guest-card__icon-tools--post">
+          <LakeIconToolButton label="답변 작성" onClick={openComposer}>
+            <LakeReplyBackIcon />
+          </LakeIconToolButton>
+          {canDeleteEntry(entry, user, isAdmin) ? (
+            <LakeIconToolButton label="방명록 삭제" onClick={() => void deleteGuest()}>
+              <LakeDeleteIcon />
+            </LakeIconToolButton>
+          ) : null}
+        </div>
+      ) : null}
+
+      {allowReply && composerOpen ? (
+        <div className="guest-card__editor">
           <textarea
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            placeholder="관리자 답변을 입력하세요"
+            value={composerText}
+            onChange={(e) => setComposerText(e.target.value)}
+            placeholder={isAdmin ? '관리자 답변을 입력하세요' : '답글을 입력하세요'}
           />
-          <div className="guest-reply-editor-actions">
-            <button type="button" onClick={() => setEditorOpen(false)}>
-              취소
-            </button>
-            <button type="button" onClick={() => void saveReply()}>
-              저장
-            </button>
+          <div className="lake-icon-tools guest-card__icon-tools">
+            <LakeIconToolButton label="저장" onClick={() => void addReply()}>
+              <LakeSaveIcon />
+            </LakeIconToolButton>
+            <LakeIconToolButton
+              label="취소"
+              onClick={() => {
+                setComposerOpen(false);
+                setComposerText('');
+              }}
+            >
+              <LakeCancelIcon />
+            </LakeIconToolButton>
           </div>
         </div>
       ) : null}
-    </div>
+    </article>
   );
 }
 
 export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth }: Props) {
-  const { alert } = useLakeDialog();
+  const { guestSettings } = useSiteContent();
   const { showSaveToast } = useSaveToast();
   const [nickname, setNickname] = useState('');
   const [message, setMessage] = useState('');
+  const [secret, setSecret] = useState(false);
+  const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const sorted = [...guests].reverse();
+  const guideText = guestSettings.guideText?.trim();
+
+  const sorted = useMemo(() => {
+    const list = [...guests].reverse().map(normalizeGuestEntry);
+    const q = search.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((g) => {
+      if (g.secret && !isAdmin) return false;
+      return [g.name, g.message].join(' ').toLowerCase().includes(q);
+    });
+  }, [guests, search, isAdmin]);
 
   async function handleSubmit() {
     if (!user) {
-      await alert('로그인 후 방명록을 작성할 수 있습니다.', '알림');
+      showSaveToast('로그인 후 방명록을 작성할 수 있습니다');
       onOpenAuth();
       return;
     }
@@ -131,10 +297,14 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
         name,
         message: trimmed,
         date: new Date().toLocaleDateString('ko-KR'),
+        authorUid: user.uid,
+        secret: secret || undefined,
+        replies: [],
       };
       await onSaveGuests([...guests, entry]);
       setNickname('');
       setMessage('');
+      setSecret(false);
       showSaveToast('방명록이 등록되었습니다');
     } finally {
       setSubmitting(false);
@@ -143,25 +313,37 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
 
   return (
     <div className="guest-container">
+      {guideText ? (
+        <div className="guest-guide">
+          <div className="guest-guide__inner">{guideText}</div>
+        </div>
+      ) : null}
+
+      <div className="guest-toolbar">
+        <input
+          className="guest-toolbar__search"
+          placeholder="검색"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
       <div id="guest-list">
         {!sorted.length ? (
           <div className="page-coming">— 아직 방명록이 없습니다 —</div>
         ) : (
           sorted.map((g) => (
-            <GuestBubble
+            <GuestCard
               key={g.id}
               guest={g}
               guests={guests}
+              user={user}
               isAdmin={isAdmin}
               onSaveGuests={onSaveGuests}
             />
           ))
         )}
       </div>
-
-      {!user ? (
-        <div id="guest-login-notice">방명록 작성은 로그인 후 가능합니다.</div>
-      ) : null}
 
       <div id="guest-form-inner">
         <div className="form-group">
@@ -188,12 +370,11 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
             disabled={submitting}
           />
         </div>
-        <button
-          type="button"
-          className="btn-save"
-          onClick={handleSubmit}
-          disabled={submitting}
-        >
+        <label className="guest-form-secret">
+          <input type="checkbox" checked={secret} onChange={(e) => setSecret(e.target.checked)} disabled={submitting} />
+          비밀글
+        </label>
+        <button type="button" className="btn-save" onClick={handleSubmit} disabled={submitting}>
           남기기
         </button>
       </div>

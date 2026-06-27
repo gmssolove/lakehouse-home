@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { useBgm } from '@/lib/contexts/BgmContext';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { OcEditForm } from '@/components/admin/OcEditForm';
+import { LakeEditModal } from '@/components/ui/LakeEditModal';
 import { OcAuPicker } from '@/components/oc/OcAuPicker';
 import { OcVnDialogue, useVnDialogue } from '@/components/oc/OcVnDialogue';
 import { applyCharacterTheme, characterHasBgmTheme, clearCharacterTheme, resolveCharacterTheme } from '@/lib/oc/characterTheme';
-import { gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
+import { formatGalleryCredit, gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
 import { displayCategory, isTrpgCategory } from '@/lib/oc/categories';
 import { buildDetailProfileRows, formatCardTag, formatStatDigits } from '@/lib/oc/profile';
 import { framedImageStyle } from '@/lib/shared/imageFrame';
@@ -60,8 +61,6 @@ function StatBar({ label, value }: { label: string; value: string }) {
 type LeftSection = { id: string; label: string; content: ReactNode; layout?: 'gallery' | 'text' | 'compact' };
 
 const PANEL_ANIM_MS = 920;
-const CHAR_IMG_OUT_MS = 300;
-
 type ShownPortrait = {
   src: string;
   fit: string;
@@ -85,14 +84,13 @@ export function OcCharacterDetail({
   bgmApi.current = { playCharacterTheme, playing };
 
   const [editOpen, setEditOpen] = useState(false);
-  const editPanelBodyRef = useRef<HTMLDivElement>(null);
 
   const [openLeft, setOpenLeft] = useState<string | null>(null);
   const [panelId, setPanelId] = useState<string | null>(null);
   const [panelMounted, setPanelMounted] = useState(false);
   const [panelClosing, setPanelClosing] = useState(false);
   const [shownPortrait, setShownPortrait] = useState<ShownPortrait | null>(null);
-  const [charAnim, setCharAnim] = useState<'in' | 'out'>('in');
+  const [charBounce, setCharBounce] = useState(false);
   const [galleryLightbox, setGalleryLightbox] = useState<GalleryItem | null>(null);
   const wasPlayingRef = useRef(false);
   const panelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,9 +107,15 @@ export function OcCharacterDetail({
   const personalTheme = useMemo(() => resolveCharacterTheme(character), [character]);
 
   useEffect(() => {
+    setCharBounce(false);
+  }, [character.id]);
+
+  useEffect(() => {
     const el = document.getElementById('detail-screen');
     if (!el) return;
     applyCharacterTheme(el, character);
+    const panel = el.querySelector('.oc-detail-right');
+    panel?.classList.add('is-ready');
     return () => clearCharacterTheme(el);
   }, [character]);
 
@@ -186,7 +190,6 @@ export function OcCharacterDetail({
     setPanelClosing(false);
     setGalleryLightbox(null);
     setShownPortrait(null);
-    setCharAnim('in');
     portraitRef.current = { src: '', fit: 'contain', pos: 'center top' };
     vn.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- character switch only
@@ -218,30 +221,13 @@ export function OcCharacterDetail({
     }
 
     const prev = portraitRef.current;
-    if (!prev.src) {
-      portraitRef.current = target;
-      setShownPortrait(target);
-      setCharAnim('in');
-      return;
-    }
-
     if (prev.src === target.src && prev.fit === target.fit && prev.pos === target.pos) {
       return;
     }
 
-    if (vn.active) {
-      return;
-    }
-
-    setCharAnim('out');
-    const swapTimer = window.setTimeout(() => {
-      portraitRef.current = target;
-      setShownPortrait(target);
-      setCharAnim('in');
-    }, CHAR_IMG_OUT_MS);
-
-    return () => window.clearTimeout(swapTimer);
-  }, [portraitTarget, vn.active]);
+    portraitRef.current = target;
+    setShownPortrait(target);
+  }, [portraitTarget]);
 
   useEffect(() => () => {
     if (panelTimerRef.current) clearTimeout(panelTimerRef.current);
@@ -502,7 +488,7 @@ export function OcCharacterDetail({
       <div className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.active ? ' vn-active' : ''}`}>
         <div className="game-left" id="game-left">
           <div className="game-char-gradient" />
-          <div className={`oc-char-slide${openLeft ? ' shifted' : ''}`}>
+          <div className={`oc-char-slide${openLeft ? ' shifted' : ''}${charBounce ? ' oc-char-bounce-once' : ''}`}>
             {displayImgSrc ? (
               vn.active ? (
                 <div className="oc-char-portrait-stack">
@@ -521,7 +507,7 @@ export function OcCharacterDetail({
               ) : (
                 <img
                   id="game-char-img"
-                  className={`game-char-img animate-${charAnim}`}
+                  className="game-char-img"
                   src={displayImgSrc}
                   alt=""
                   decoding="async"
@@ -532,7 +518,10 @@ export function OcCharacterDetail({
                   )}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (vn.active) return;
+                    setCharBounce(true);
                     vn.open();
+                    window.setTimeout(() => setCharBounce(false), 260);
                   }}
                 />
               )
@@ -589,6 +578,7 @@ export function OcCharacterDetail({
               <span className="oc-identity-no-num">{charNo}</span>
             </div>
             <h1 className="oc-identity-name">{character.name}</h1>
+            <div className="oc-identity-accent-line" aria-hidden="true" />
             {character.nameSub && <div className="oc-identity-sub">{character.nameSub}</div>}
           </header>
 
@@ -690,41 +680,31 @@ export function OcCharacterDetail({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={galleryLightbox.src} alt="" />
             {galleryLightbox.credit?.trim() ? (
-              <p className="oc-gallery-lightbox-credit">{galleryLightbox.credit.trim()}</p>
+              <p className="oc-gallery-lightbox-credit">{formatGalleryCredit(galleryLightbox.credit)}</p>
             ) : null}
           </div>
         </div>
       )}
 
       {editOpen && isAdmin && onSave && (
-        <div className="oc-edit-panel" role="dialog" aria-label="캐릭터 수정">
-          <div className="oc-edit-panel-header">
-            <span style={{ fontSize: 12, color: 'var(--lake-copper-soft)' }}>캐릭터 수정</span>
-            <button type="button" className="ep-close" onClick={() => setEditOpen(false)} aria-label="닫기">
-              ✕
-            </button>
-          </div>
-          <div className="oc-edit-panel-body" ref={editPanelBodyRef}>
-            <OcEditForm
-              key={character.id}
-              character={character}
-              categories={categories}
-              compact
-              onSave={async (next) => {
-                await onSave(next);
-                setEditOpen(false);
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            className="oc-edit-scroll-top"
-            aria-label="맨 위로 — 저장"
-            onClick={() => editPanelBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-          >
-            ↑ 저장
-          </button>
-        </div>
+        <LakeEditModal
+          open={editOpen}
+          className="lake-edit-modal--oc"
+          title="캐릭터 수정"
+          eyebrow="ADMIN · OC"
+          onClose={() => setEditOpen(false)}
+        >
+          <OcEditForm
+            key={character.id}
+            character={character}
+            categories={categories}
+            compact
+            onSave={async (next) => {
+              await onSave(next);
+              setEditOpen(false);
+            }}
+          />
+        </LakeEditModal>
       )}
     </>
   );

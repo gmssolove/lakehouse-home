@@ -10,7 +10,7 @@ import { pickQuoteLines } from '@/lib/oc/profileQuotes';
 type Props = {
   character: OcCharacter;
   durationMs: number;
-  onComplete: () => void;
+  onComplete: (instant?: boolean) => void;
   onCancel: () => void;
 };
 
@@ -100,12 +100,12 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
     if (doneRef.current) return;
     doneRef.current = true;
     if (instant) {
-      onCompleteRef.current();
+      onCompleteRef.current(true);
       return;
     }
     setFadeOut(true);
     setExiting(true);
-    window.setTimeout(() => onCompleteRef.current(), EXIT_MS);
+    window.setTimeout(() => onCompleteRef.current(false), EXIT_MS);
   }, []);
 
   const cancel = useCallback(() => {
@@ -130,12 +130,12 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
 
   useEffect(() => {
     if (!lines.length) {
-      onCompleteRef.current();
+      onCompleteRef.current(false);
       return;
     }
 
     const totalMs = estimatePvIntroMs(lines, durationMs) + EXIT_MS + 120;
-    const hardCap = window.setTimeout(() => finish(true), totalMs);
+    const hardCap = window.setTimeout(() => finish(false), totalMs);
     return () => window.clearTimeout(hardCap);
   }, [durationMs, finish, lines.length, linesKey]);
 
@@ -179,7 +179,7 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
           setLineIndex((i) => i + 1);
           setSweeping(true);
         } else {
-          finish(true);
+          finish(false);
         }
       }
     }
@@ -212,7 +212,7 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
                 </p>
               )}
               {isCurrent && i === lines.length - 1 && (
-                <button type="button" className="oc-pv-intro-skip" onClick={() => finish(true)}>
+                <button type="button" className="oc-pv-intro-skip" onClick={() => finish(false)}>
                   SKIP
                 </button>
               )}

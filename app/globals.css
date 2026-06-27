@@ -5,11 +5,20 @@
 @import '../styles/guest-book.css';
 @import '../styles/trpg-tickets.css';
 @import '../styles/trpg-scenario.css';
+@import '../styles/trpg-edit-panel.css';
 @import '../styles/records.css';
 @import '../styles/main-vinyl-deck.css';
 @import '../styles/main-game-stage.css';
 @import '../styles/main-stage-perf.css';
 @import '../styles/lake-perf.css';
+@import '../styles/lh-scrollbar.css';
+@import '../styles/shared/image-frame.css';
+@import '../styles/auth-modal.css';
+@import '../styles/lake-chrome.css';
+@import '../styles/lake-edit-modal.css';
+@import '../styles/lake-edit-shell.css';
+@import '../styles/lake-toggle.css';
+@import '../styles/admin-sidebar.css';
 
 /* Admin overlay enter animation */
 .adm-overlay.active {
@@ -402,14 +411,20 @@ html.lake-custom-cursor label.file-input-label {
   right: 1.1rem;
   bottom: 1.1rem;
   z-index: 12;
-  padding: 0.5rem 0.85rem;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(215, 169, 130, 0.42);
   border-radius: 999px;
   background: rgba(8, 10, 9, 0.92);
   color: rgba(240, 207, 173, 0.95);
   font-family: var(--font-noto-sans-kr), sans-serif;
-  font-size: 12px;
-  letter-spacing: 0.06em;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0;
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
   -webkit-backdrop-filter: blur(8px);
@@ -607,6 +622,45 @@ html.lake-custom-cursor label.file-input-label {
   cursor: pointer;
 }
 
+.oc-profile-gate--clear .oc-profile-gate-backdrop {
+  background: transparent;
+  backdrop-filter: none;
+  cursor: default;
+}
+
+.oc-profile-gate--clear {
+  pointer-events: none;
+}
+
+.oc-profile-gate--popup .oc-profile-gate-backdrop {
+  background: rgba(5, 7, 6, 0.18);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+
+.oc-profile-gate--popup .oc-profile-gate-box,
+.oc-profile-gate--clear .oc-profile-gate-box {
+  pointer-events: auto;
+  box-shadow:
+    0 28px 70px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(215, 169, 130, 0.12);
+}
+
+.oc-profile-gate--popup .oc-profile-gate-box {
+  animation: ocProfileGatePop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ocProfileGatePop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .oc-profile-gate-box {
   position: relative;
   z-index: 1;
@@ -722,6 +776,59 @@ html.lake-custom-cursor label.file-input-label {
   display: inline-block;
   line-height: 0;
   text-decoration: none;
+}
+
+.lh-banner-divider {
+  width: 100%;
+  flex: 0 0 100%;
+  display: flex;
+  justify-content: flex-start;
+  padding: 10px 0 6px 6px;
+}
+
+.lh-banner-divider__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: rgba(215, 169, 130, 0.72);
+  opacity: 0.85;
+}
+
+.lh-banner-divider__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lh-banner-divider-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lh-banner-divider-pick__btn {
+  width: 38px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(215, 169, 130, 0.85);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.lh-banner-divider-pick__btn.is-active {
+  border-color: rgba(215, 169, 130, 0.5);
+  background: rgba(215, 169, 130, 0.12);
+}
+
+#page-banner #public-banner-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
 }
 
 .lh-banner-item--link:hover {

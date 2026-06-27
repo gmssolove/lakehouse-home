@@ -1,7 +1,10 @@
 'use client';
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
+import { LakeEditTabs } from '@/components/ui/LakeEditTabs';
+import { LakeToggle } from '@/components/ui/LakeToggle';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import {
   applyCharacterTheme,
@@ -10,7 +13,7 @@ import {
   resolveCharacterTheme,
   stripEmptyThemeFields,
 } from '@/lib/oc/characterTheme';
-import { normalizeGallery } from '@/lib/oc/gallery';
+import { normalizeGallery, normalizeGalleryItem } from '@/lib/oc/gallery';
 import {
   CORE_PROFILE_FIELD_KEYS,
   mergeCharacterProfile,
@@ -33,6 +36,18 @@ function emptyRelation(): CharacterRelation {
 function emptyDialogueNode(seq: number): DialogueNode {
   return { id: String(seq), speaker: '', text: '', choices: [] };
 }
+
+type OcEditTab = 'basic' | 'appear' | 'story' | 'gallery' | 'novel' | 'theme' | 'relations';
+
+const OC_EDIT_TABS: { id: OcEditTab; label: string }[] = [
+  { id: 'basic', label: '기본' },
+  { id: 'appear', label: '외형·성격' },
+  { id: 'story', label: '서사' },
+  { id: 'gallery', label: '갤러리' },
+  { id: 'novel', label: '소설·AU' },
+  { id: 'theme', label: '테마·VN' },
+  { id: 'relations', label: '관계' },
+];
 
 type Props = {
   character: OcCharacter;
@@ -75,6 +90,7 @@ function CommaSeparatedInput({
 export function OcEditForm({ character, categories, onSave, onDelete, compact }: Props) {
   const { showSaveToast } = useSaveToast();
   const [form, setForm] = useState(character);
+  const [tab, setTab] = useState<OcEditTab>('basic');
   const [busy, setBusy] = useState(false);
   const [commaDraft, setCommaDraft] = useState({
     keywords: (character.keywords || []).join(', '),
@@ -239,7 +255,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     try {
       const uploaded = await Promise.all(files.map((f) => uploadImageFile(f, 'oc/gallery')));
       set('gallery', [
-        ...normalizeGallery(form.gallery),
+        ...galleryEditRows(),
         ...uploaded.map((src) => ({ src, credit: '' } satisfies GalleryItem)),
       ]);
     } catch (err) {
@@ -266,18 +282,22 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     set('profile', mergeCharacterProfile(form.profile, form.role, extras));
   }
 
+  function galleryEditRows(): GalleryItem[] {
+    return (form.gallery ?? []).map((item) => normalizeGalleryItem(item));
+  }
+
   function updateGallery(i: number, patch: Partial<GalleryItem>) {
-    const g = [...normalizeGallery(form.gallery)];
+    const g = galleryEditRows();
     g[i] = { ...g[i], ...patch };
     set('gallery', g);
   }
 
   function addGallery(item: GalleryItem = { src: '', credit: '' }) {
-    set('gallery', [...normalizeGallery(form.gallery), item]);
+    set('gallery', [...galleryEditRows(), item]);
   }
 
   function removeGallery(i: number) {
-    set('gallery', normalizeGallery(form.gallery).filter((_, idx) => idx !== i));
+    set('gallery', galleryEditRows().filter((_, idx) => idx !== i));
   }
 
   function updateStoryLog(i: number, patch: Partial<StoryLog>) {
@@ -443,6 +463,10 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
         </div>
       </div>
 
+      <LakeEditTabs tabs={OC_EDIT_TABS} active={tab} onChange={(id) => setTab(id as OcEditTab)} />
+
+      <div className="lake-edit-shell__body">
+      {tab === 'basic' ? (
       <div className="lh-oc-admin-grid">
         <div className="form-group">
           <label className="form-label">이름</label>
@@ -491,7 +515,10 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           />
         </div>
       </div>
+      ) : null}
 
+      {tab === 'theme' ? (
+      <>
       <SectionTitle>퍼스널 컬러 · 프로필 테마</SectionTitle>
       <div className="form-group">
         <label className="form-label">퍼스널 컬러 (HEX)</label>
@@ -519,14 +546,11 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
             }}
           />
         </div>
-        <label className="lh-color-auto-bg">
-          <input
-            type="checkbox"
-            checked={form.themeAutoBackground !== false}
-            onChange={(e) => setThemeAutoBackground(e.target.checked)}
-          />
-          배경색 자동 맞춤 (포인트·패널·메뉴 등 전체)
-        </label>
+        <LakeToggle
+          checked={form.themeAutoBackground !== false}
+          onChange={setThemeAutoBackground}
+          label="배경색 자동 맞춤 (포인트·패널·메뉴 등 전체)"
+        />
         <p className="lh-color-hint">
           {form.themeAutoBackground !== false
             ? '퍼스널 컬러에 맞춰 아래 테마 색이 함께 조정됩니다. 개별 색상은 따로 바꿀 수 있습니다.'
@@ -594,7 +618,11 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       <button type="button" className="lh-color-reset" onClick={resetThemeColors}>
         초기화 Reset
       </button>
+      </>
+      ) : null}
 
+      {tab === 'basic' ? (
+      <>
       <SectionTitle>기본 정보</SectionTitle>
       <div className="lh-oc-admin-grid">
         {CORE_PROFILE_FIELD_KEYS.map((key) => (
@@ -609,6 +637,24 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
         ))}
       </div>
 
+      <SectionTitle>추가 프로필 항목</SectionTitle>
+      {extraProfileRows.map((row, i) => (
+        <div key={i} className="oc-edit-list-row">
+          <input className="form-input" placeholder="항목" value={row.k} onChange={(e) => updateProfile(i, { k: e.target.value })} />
+          <input className="form-input" placeholder="값" value={row.v} onChange={(e) => updateProfile(i, { v: e.target.value })} />
+          <button type="button" className="btn-del" style={{ padding: '4px 8px' }} onClick={() => removeProfileRow(i)}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addProfileRow}>
+        + 항목 추가
+      </button>
+      </>
+      ) : null}
+
+      {tab === 'appear' ? (
+      <>
       <SectionTitle>이미지</SectionTitle>
       <div className="form-group">
         <label className="form-label">이미지 URL</label>
@@ -687,21 +733,11 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           />
         </div>
       </div>
+      </>
+      ) : null}
 
-      <SectionTitle>추가 프로필 항목</SectionTitle>
-      {extraProfileRows.map((row, i) => (
-        <div key={i} className="oc-edit-list-row">
-          <input className="form-input" placeholder="항목" value={row.k} onChange={(e) => updateProfile(i, { k: e.target.value })} />
-          <input className="form-input" placeholder="값" value={row.v} onChange={(e) => updateProfile(i, { v: e.target.value })} />
-          <button type="button" className="btn-del" style={{ padding: '4px 8px' }} onClick={() => removeProfileRow(i)}>
-            ✕
-          </button>
-        </div>
-      ))}
-      <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addProfileRow}>
-        + 항목 추가
-      </button>
-
+      {tab === 'story' ? (
+      <>
       <SectionTitle>서사</SectionTitle>
       <div className="form-group">
         <label className="form-label">메인 서사 (story)</label>
@@ -719,7 +755,11 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addStoryLog}>
         + 서사 로그 추가
       </button>
+      </>
+      ) : null}
 
+      {tab === 'gallery' ? (
+      <>
       <SectionTitle>갤러리</SectionTitle>
       <p style={{ fontSize: 11, opacity: 0.65, margin: '0 0 8px' }}>
         이미지는 R2에 업로드되어 URL로 저장됩니다. 출처는 갤러리에서 이미지를 클릭했을 때 왼쪽 하단에 표시됩니다.
@@ -739,7 +779,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           }}
         />
       </label>
-      {normalizeGallery(form.gallery).map((item, i) => (
+      {galleryEditRows().map((item, i) => (
         <div key={i} className="oc-edit-gallery-row">
           {item.src ? <img src={item.src} alt="" /> : <div style={{ width: 42, height: 52, background: 'var(--bg3)' }} />}
           <div className="oc-edit-gallery-fields">
@@ -749,11 +789,10 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
               placeholder="이미지 URL"
               onChange={(e) => updateGallery(i, { src: e.target.value })}
             />
-            <input
-              className="form-input"
+            <GalleryCreditInput
               value={item.credit || ''}
               placeholder="작가 / 출처 (선택)"
-              onChange={(e) => updateGallery(i, { credit: e.target.value })}
+              onChange={(credit) => updateGallery(i, { credit })}
             />
           </div>
           <button type="button" className="btn-del" style={{ padding: '3px 8px' }} onClick={() => removeGallery(i)}>
@@ -764,7 +803,11 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={() => addGallery()}>
         + URL 추가
       </button>
+      </>
+      ) : null}
 
+      {tab === 'relations' ? (
+      <>
       <SectionTitle>관계</SectionTitle>
       {(form.relationships || []).map((rel, i) => (
         <div key={rel.id || i} className="oc-edit-list-row" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
@@ -779,7 +822,11 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addRelation}>
         + 관계 추가
       </button>
+      </>
+      ) : null}
 
+      {tab === 'novel' ? (
+      <>
       <SectionTitle>소설 / 프리뷰</SectionTitle>
       {(form.novel || []).map((n, i) => (
         <div key={i} style={{ marginBottom: 8 }}>
@@ -824,7 +871,11 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addAu}>
         + AU 추가
       </button>
+      </>
+      ) : null}
 
+      {tab === 'theme' ? (
+      <>
       <SectionTitle>테마곡 · PV</SectionTitle>
       <div className="lh-oc-admin-grid">
         <div className="form-group">
@@ -1079,6 +1130,9 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           <option value="on">사용</option>
           <option value="off">사용 안 함</option>
         </select>
+      </div>
+      </>
+      ) : null}
       </div>
     </>
   );

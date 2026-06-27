@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { DialogueNode, OcCharacter } from '@/lib/types/character';
 
 type Props = {
@@ -66,7 +66,7 @@ export function OcVnDialogue({ character, active, onClose, onExpression }: Props
     onExpression?.(expr || null);
   }, [active, node?.expression, onExpression]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!active) return;
     setTypedLen(0);
     typingDoneRef.current = false;
@@ -166,9 +166,18 @@ export function OcVnDialogue({ character, active, onClose, onExpression }: Props
     return () => document.removeEventListener('click', onDocClick, true);
   }, [active, atEnd, handleSurfaceClick, onClose]);
 
+  useEffect(() => {
+    if (!active) return;
+    function blockCopy(e: ClipboardEvent) {
+      if ((e.target as HTMLElement | null)?.closest?.('#lh-vn')) e.preventDefault();
+    }
+    document.addEventListener('copy', blockCopy, true);
+    return () => document.removeEventListener('copy', blockCopy, true);
+  }, [active]);
+
   if (!active) return null;
 
-  const display = text.slice(0, typedLen);
+  const display = typedLen > 0 ? text.slice(0, typedLen) : '';
   const hasNext = !choices.length && !isLastNode;
 
   return (

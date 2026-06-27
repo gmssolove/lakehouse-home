@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Helvetica Neue',sans-serif;background:#111;padding:20px;}
+.wrap{display:flex;height:680px;background:#111;border-radius:12px;overflow:hidden;}
+.grid-area{width:100%;padding:20px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-content:start;overflow-y:auto;transition:width .35s cubic-bezier(.4,0,.2,1);}
+.grid-area.shrunk{width:40%;}
+.inv-card{border-radius:10px;overflow:hidden;cursor:pointer;border:1.5px solid #2a2a2a;background:#181818;position:relative;aspect-ratio:3/4;display:flex;flex-direction:column;justify-content:flex-end;transition:border-color .2s,transform .15s;}
+.inv-card:hover{border-color:#555;transform:translateY(-2px);}
+.inv-card.active{border-color:#8b6be8;}
+.card-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:40px;color:#2a2a2a;}
+.card-bottom{position:relative;z-index:1;padding:0 0 16px;background:linear-gradient(transparent,rgba(0,0,0,.9) 40%);display:flex;flex-direction:column;align-items:center;gap:2px;}
+.card-name-ko{font-size:13px;font-weight:500;color:#f0f0f0;letter-spacing:.05em;}
+.card-name-en{font-size:10px;color:#888;letter-spacing:.18em;margin-bottom:5px;}
+.card-deco{display:flex;align-items:center;gap:5px;width:70%;}
+.deco-line{flex:1;height:.5px;background:linear-gradient(to right,transparent,#7a6a9a);}
+.deco-line.r{background:linear-gradient(to left,transparent,#7a6a9a);}
+.deco-dot{width:4px;height:4px;background:#a98ef5;transform:rotate(45deg);flex-shrink:0;}
+
+.profile-panel{width:0;overflow:hidden;transition:width .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;}
+.profile-panel.open{width:60%;border-left:.5px solid #2a2a2a;}
+.panel-inner{width:100%;min-width:360px;overflow-y:auto;height:100%;opacity:0;transform:translateX(24px);transition:opacity .25s .1s,transform .25s .1s;}
+.profile-panel.open .panel-inner{opacity:1;transform:translateX(0);}
+
+.topbar{position:sticky;top:0;z-index:20;background:#161616;border-bottom:.5px solid #2a2a2a;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;}
+.topbar-title{font-size:11px;color:#666;letter-spacing:.08em;}
+.topbar-btns{display:flex;gap:6px;}
+.btn{font-size:11px;padding:4px 10px;border-radius:6px;border:.5px solid #333;background:#1e1e1e;color:#aaa;cursor:pointer;}
+.btn.p{background:#27204a;border-color:#3d2f7a;color:#a98ef5;}
+
+.tabs{display:flex;background:#141414;border-bottom:.5px solid #222;overflow-x:auto;}
+.tab{font-size:11px;padding:8px 13px;color:#555;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;}
+.tab.active{color:#a98ef5;border-bottom-color:#a98ef5;}
+
+.ph{padding:18px 20px 14px;display:flex;gap:14px;align-items:flex-end;background:#161616;border-bottom:.5px solid #2a2a2a;}
+.ph-img{width:66px;height:88px;border-radius:8px;background:#222;border:.5px solid #333;display:flex;align-items:center;justify-content:center;font-size:24px;color:#444;flex-shrink:0;}
+.ph-meta{flex:1;}
+.ph-name{font-size:18px;font-weight:500;color:#f0f0f0;margin-bottom:1px;}
+.ph-en{font-size:10px;color:#666;letter-spacing:.12em;margin-bottom:8px;}
+.ph-tags{display:flex;gap:5px;flex-wrap:wrap;}
+.tag{font-size:10px;padding:2px 8px;border-radius:99px;background:#27204a;color:#a98ef5;border:.5px solid #3d2f7a;}
+
+.sec{padding:15px 20px;border-bottom:.5px solid #1a1a1a;}
+.sec:last-child{border-bottom:none;}
+.sec-t{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:10px;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.info-row label{font-size:10px;color:#555;display:block;margin-bottom:1px;}
+.info-row span{font-size:12px;color:#ccc;}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.sbox{background:#1a1a1a;border-radius:8px;padding:8px 10px;border:.5px solid #2a2a2a;}
+.slabel{font-size:10px;color:#555;margin-bottom:2px;}
+.sval{font-size:16px;font-weight:500;color:#e8e8e8;}
+.smax{font-size:10px;color:#444;}
+.bg-text{font-size:12px;color:#888;line-height:1.8;}
+.rel-list{display:flex;flex-direction:column;gap:9px;}
+.rel-item{display:flex;gap:10px;align-items:flex-start;}
+.rel-av{width:30px;height:30px;border-radius:50%;background:#222;border:.5px solid #333;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666;flex-shrink:0;}
+.rel-name{font-size:12px;font-weight:500;color:#ccc;}
+.rel-desc{font-size:11px;color:#666;margin-top:1px;line-height:1.5;}
+
+/* 소지품 */
+.items-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.item-slot{background:#1a1a1a;border:.5px solid #252525;border-radius:8px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:default;transition:border-color .15s;}
+.item-slot:hover{border-color:#4a3a6a;}
+.item-icon{width:38px;height:38px;border-radius:7px;background:#222;border:.5px solid #333;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.item-name{font-size:10px;color:#888;text-align:center;line-height:1.3;}
+.item-count{font-size:9px;color:#555;}
+.item-slot.empty{opacity:.35;border-style:dashed;}
+.item-slot.empty .item-icon{font-size:12px;color:#333;}
+.item-slot.key{border-color:#4a3a2a;}
+.item-slot.key .item-icon{background:#1e1a12;border-color:#3a2a1a;}
+.money-row{display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;border:.5px solid #252525;border-radius:8px;padding:9px 14px;margin-bottom:10px;}
+.money-label{font-size:10px;color:#555;}
+.money-val{font-size:15px;font-weight:500;color:#c8a84a;}
+.item-note{font-size:11px;color:#666;line-height:1.6;margin-top:8px;padding:8px 10px;background:#161616;border-radius:6px;border:.5px solid #1e1e1e;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="grid-area" id="grid">
+    <div class="inv-card" onclick="open_(this,0)">
+      <div class="card-placeholder">⬛</div>
+      <div class="card-bottom">
+        <div class="card-name-ko" id="cn0">W. 시오</div>
+        <div class="card-name-en">W. SIO</div>
+        <div class="card-deco"><div class="deco-line"></div><div class="deco-dot"></div><div class="deco-line r"></div></div>
+      </div>
+    </div>
+    <div class="inv-card" onclick="open_(this,1)">
+      <div class="card-placeholder">⬛</div>
+      <div class="card-bottom">
+        <div class="card-name-ko" id="cn1">아쿠타가와</div>
+        <div class="card-name-en">AKUTAGAWA</div>
+        <div class="card-deco"><div class="deco-line"></div><div class="deco-dot"></div><div class="deco-line r"></div></div>
+      </div>
+    </div>
+    <div class="inv-card" onclick="open_(this,2)">
+      <div class="card-placeholder">⬛</div>
+      <div class="card-bottom">
+        <div class="card-name-ko" id="cn2">밀</div>
+        <div class="card-name-en">MILL</div>
+        <div class="card-deco"><div class="deco-line"></div><div class="deco-dot"></div><div class="deco-line r"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="profile-panel" id="panel">
+    <div class="panel-inner" id="panelInner"></div>
+  </div>
+</div>
+
+<script>
+const data=[
+  {
+    nameKo:'W. 시오',nameEn:'W. SIO',
+    tags:['생존','어항 속 금붕어'],
+    info:[{k:'직업',v:'사립탐정'},{k:'나이',v:'34세'},{k:'성별',v:'여성'},{k:'출신',v:'서울'},{k:'결말',v:'생존'}],
+    stats:[{l:'STR',v:55,m:99},{l:'CON',v:60,m:99},{l:'SIZ',v:50,m:99},{l:'INT',v:80,m:99},{l:'POW',v:65,m:99},{l:'SAN',v:58,m:65}],
+    bg:'어릴 적부터 진실을 좇는 것만이 삶의 유일한 방향이었다. 멸망 이후의 도시에서도 그 습관은 변하지 않았다.',
+    relations:[{name:'아쿠타가와',desc:'같은 세션에서 처음 만났다. 말이 없지만 믿을 수 있다고 느꼈다.'},{name:'밀',desc:'나이 차이가 있어 처음엔 거리를 뒀으나, 위기 상황에서 가장 먼저 달려왔다.'}],
+    money:'34,000 ¥',
+    items:[
+      {icon:'🔦',name:'손전등',count:'×1',key:false},
+      {icon:'🔪',name:'잭나이프',count:'×1',key:false},
+      {icon:'📓',name:'수첩',count:'×1',key:false},
+      {icon:'🗝️',name:'낡은 열쇠',count:'×1',key:true},
+      {icon:'💊',name:'진통제',count:'×3',key:false},
+      {icon:'📸',name:'폴라로이드',count:'×1',key:false},
+      {icon:'',name:'—',count:'',key:false,empty:true},
+      {icon:'',name:'—',count:'',key:false,empty:true},
+    ],
+    itemNote:'열쇠의 용도는 아직 불명. 수첩엔 암호처럼 보이는 숫자 배열이 적혀 있다.'
+  },
+  {
+    nameKo:'아쿠타가와',nameEn:'AKUTAGAWA',
+    tags:['생존','어항 속 금붕어'],
+    info:[{k:'직업',v:'소설가'},{k:'나이',v:'27세'},{k:'성별',v:'남성'},{k:'출신',v:'도쿄'},{k:'결말',v:'생존'}],
+    stats:[{l:'STR',v:40,m:99},{l:'CON',v:55,m:99},{l:'SIZ',v:65,m:99},{l:'INT',v:90,m:99},{l:'POW',v:70,m:99},{l:'SAN',v:62,m:70}],
+    bg:'펜 하나로 세계를 기록해왔다고 믿었다. 멸망 이후, 그 기록이 아무 의미가 없다는 걸 알면서도 멈출 수가 없었다.',
+    relations:[{name:'W. 시오',desc:'처음 본 순간부터 그녀가 이 사건의 중심이라고 직감했다.'},{name:'밀',desc:'어린 나이에 이런 상황에 놓인 게 마음에 걸렸다.'}],
+    money:'12,000 ¥',
+    items:[
+      {icon:'🖊️',name:'만년필',count:'×1',key:false},
+      {icon:'📖',name:'일기장',count:'×1',key:true},
+      {icon:'🕯️',name:'양초',count:'×2',key:false},
+      {icon:'',name:'—',count:'',empty:true},
+      {icon:'',name:'—',count:'',empty:true},
+      {icon:'',name:'—',count:'',empty:true},
+      {icon:'',name:'—',count:'',empty:true},
+      {icon:'',name:'—',count:'',empty:true},
+    ],
+    itemNote:'일기장은 어떤 경우에도 타인에게 보여주지 않는다.'
+  },
+  {
+    nameKo:'밀',nameEn:'MILL',
+    tags:['생존','어항 속 금붕어'],
+    info:[{k:'직업',v:'학생'},{k:'나이',v:'18세'},{k:'성별',v:'여성'},{k:'출신',v:'인천'},{k:'결말',v:'생존'}],
+    stats:[{l:'STR',v:45,m:99},{l:'CON',v:50,m:99},{l:'SIZ',v:45,m:99},{l:'INT',v:75,m:99},{l:'POW',v:80,m:99},{l:'SAN',v:55,m:80}],
+    bg:'밴드부에 들어간 건 별 이유가 없었다. 그냥, 그날 문이 열려 있었다. 그게 전부였다.',
+    relations:[{name:'W. 시오',desc:'어딘가 무서운데 왠지 따르게 된다. 언니 같은 느낌.'},{name:'아쿠타가와',desc:'말수가 적어서 처음엔 어려웠다. 지금은 그냥 편하다.'}],
+    money:'5,500 ¥',
+    items:[
+      {icon:'🎸',name:'기타 피크',count:'×5',key:false},
+      {icon:'🍬',name:'사탕',count:'×3',key:false},
+      {icon:'📱',name:'스마트폰',count:'×1',key:false},
+      {icon:'🩹',name:'반창고',count:'×4',key:false},
+      {icon:'',name:'—',count:'',empty:true},
+      {icon:'',name:'—',count:'',empty:true},
+      {icon:'',name:'—',count:'',empty:true},
+      {icon:'',name:'—',count:'',empty:true},
+    ],
+    itemNote:''
+  }
+];
+
+let cur=-1, curTab=0;
+const tabNames=['프로필','능력치','소지품','관계.'];
+
+function open_(el,idx){
+  document.querySelectorAll('.inv-card').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  cur=idx; curTab=0;
+  const panel=document.getElementById('panel');
+  const inner=document.getElementById('panelInner');
+  const grid=document.getElementById('grid');
+  inner.style.opacity='0'; inner.style.transform='translateX(24px)';
+  renderTab(idx,0);
+  if(!panel.classList.contains('open')){grid.classList.add('shrunk');panel.classList.add('open');}
+  setTimeout(()=>{inner.style.opacity='1';inner.style.transform='translateX(0)';},80);
+}
+
+function renderTab(idx,tab){
+  const d=data[idx];
+  const tabsHtml=tabNames.map((t,i)=>`<div class="tab${i===tab?' active':''}" onclick="switchTab(${i})">${t}</div>`).join('');
+  let content='';
+  if(tab===0){
+    content=`
+      <div class="sec">
+        <div class="sec-t">기본 정보</div>
+        <div class="info-grid">${d.info.map(f=>`<div class="info-row"><label>${f.k}</label><span>${f.v}</span></div>`).join('')}</div>
+      </div>
+      <div class="sec">
+        <div class="sec-t">배경</div>
+        <p class="bg-text">${d.bg}</p>
+      </div>`;
+  } else if(tab===1){
+    content=`
+      <div class="sec">
+        <div class="sec-t">능력치</div>
+        <div class="stats">${d.stats.map(s=>`<div class="sbox"><div class="slabel">${s.l}</div><div class="sval">${s.v}<span class="smax"> / ${s.m}</span></div></div>`).join('')}</div>
+      </div>`;
+  } else if(tab===2){
+    const itemsHtml=d.items.map(it=>it.empty
+      ?`<div class="item-slot empty"><div class="item-icon">·</div><div class="item-name">—</div></div>`
+      :`<div class="item-slot${it.key?' key':''}"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div><div class="item-count">${it.count}</div></div>`
+    ).join('');
+    content=`
+      <div class="sec">
+        <div class="sec-t">소지금</div>
+        <div class="money-row"><span class="money-label">현재 소지금</span><span class="money-val">${d.money}</span></div>
+        <div class="sec-t">소지품</div>
+        <div class="items-grid">${itemsHtml}</div>
+        ${d.itemNote?`<div class="item-note">📌 ${d.itemNote}</div>`:''}
+      </div>`;
+  } else {
+    content=`
+      <div class="sec">
+        <div class="sec-t">관계.</div>
+        <div class="rel-list">${d.relations.map(r=>`<div class="rel-item"><div class="rel-av">${r.name[0]}</div><div><div class="rel-name">${r.name}</div><div class="rel-desc">${r.desc}</div></div></div>`).join('')}</div>
+      </div>`;
+  }
+  document.getElementById('panelInner').innerHTML=`
+    <div class="topbar">
+      <span class="topbar-title">INVESTIGATOR</span>
+      <div class="topbar-btns"><button class="btn p" onclick="editMode()">✏ 수정</button><button class="btn" onclick="close_()">✕</button></div>
+    </div>
+    <div class="ph">
+      <div class="ph-img">👤</div>
+      <div class="ph-meta">
+        <div class="ph-name">${d.nameKo}</div>
+        <div class="ph-en">${d.nameEn}</div>
+        <div class="ph-tags">${d.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+      </div>
+    </div>
+    <div class="tabs">${tabsHtml}</div>
+    ${content}`;
+}
+
+function switchTab(t){curTab=t;renderTab(cur,t);}
+function editMode(){alert('수정 모드 — 실제 구현 시 edit 패널 연결');}
+function close_(){
+  const panel=document.getElementById('panel'),grid=document.getElementById('grid'),inner=document.getElementById('panelInner');
+  inner.style.opacity='0';inner.style.transform='translateX(24px)';
+  setTimeout(()=>{panel.classList.remove('open');grid.classList.remove('shrunk');document.querySelectorAll('.inv-card').forEach(c=>c.classList.remove('active'));},220);
+  cur=-1;
+}
+</script>
+</body>
+</html>

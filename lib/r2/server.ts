@@ -1,7 +1,8 @@
+import { MAX_IMAGE_UPLOAD_BYTES } from '@/lib/r2/compressImage';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { buildObjectKey, buildPublicUrl, cleanMetadataValue } from '@/lib/r2/keys';
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_BYTES = MAX_IMAGE_UPLOAD_BYTES;
 
 let s3Client: S3Client | null = null;
 

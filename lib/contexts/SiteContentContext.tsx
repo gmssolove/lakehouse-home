@@ -20,10 +20,15 @@ import {
   type ScrapItem,
   type SiteAccessSettings,
   type SiteBgm,
+  type SiteGuestSettings,
   type SiteMain,
   type SiteOcSettings,
   type SitePost,
   type SiteUiSettings,
+  type ScrapCategory,
+  type TimelinePost,
+  DEFAULT_SCRAP_CATEGORIES,
+  DEFAULT_SITE_GUEST_SETTINGS,
   type TrpgScenario,
   type UniverseCard,
 } from '@/lib/types/site-content';
@@ -45,6 +50,9 @@ type SiteContentValue = {
   uiSettings: SiteUiSettings;
   accessSettings: SiteAccessSettings;
   scrap: ScrapItem[];
+  scrapCategories: ScrapCategory[];
+  timeline: TimelinePost[];
+  guestSettings: SiteGuestSettings;
   reviewCategories: ReviewCategory[];
   reviews: ReviewItem[];
   musicTracks: MusicTrack[];
@@ -63,6 +71,9 @@ type SiteContentValue = {
   saveUiSettings: (next: SiteUiSettings) => Promise<void>;
   saveAccessSettings: (next: SiteAccessSettings) => Promise<void>;
   saveScrap: (next: ScrapItem[]) => Promise<void>;
+  saveScrapCategories: (next: ScrapCategory[]) => Promise<void>;
+  saveTimeline: (next: TimelinePost[]) => Promise<void>;
+  saveGuestSettings: (next: SiteGuestSettings) => Promise<void>;
   saveReviewCategories: (next: ReviewCategory[]) => Promise<void>;
   saveReviews: (next: ReviewItem[]) => Promise<void>;
   saveMusicTracks: (next: MusicTrack[]) => Promise<void>;
@@ -116,6 +127,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     DEFAULT_SITE_ACCESS_SETTINGS,
   );
   const scrap = useFirebaseSection<ScrapItem[]>('lhdata/site/scrap', []);
+  const scrapCategories = useFirebaseSection<ScrapCategory[]>('lhdata/site/scrap_categories', DEFAULT_SCRAP_CATEGORIES);
+  const timeline = useFirebaseSection<TimelinePost[]>('lhdata/site/timeline', []);
+  const guestSettings = useFirebaseSection<SiteGuestSettings>('lhdata/site/guest_settings', DEFAULT_SITE_GUEST_SETTINGS);
   const reviewCategories = useFirebaseSection<ReviewCategory[]>(
     'lhdata/site/review_categories',
     DEFAULT_REVIEW_CATEGORIES,
@@ -139,6 +153,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     uiSettings.loaded &&
     accessSettings.loaded &&
     scrap.loaded &&
+    scrapCategories.loaded &&
+    timeline.loaded &&
+    guestSettings.loaded &&
     reviewCategories.loaded &&
     reviews.loaded &&
     musicTracks.loaded &&
@@ -161,6 +178,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       uiSettings: mergeUiSettings(uiSettings.data, ocSettings.data as Record<string, unknown>),
       accessSettings: { ...DEFAULT_SITE_ACCESS_SETTINGS, ...accessSettings.data },
       scrap: scrap.data,
+      scrapCategories: scrapCategories.data.length ? scrapCategories.data : DEFAULT_SCRAP_CATEGORIES,
+      timeline: timeline.data,
+      guestSettings: { ...DEFAULT_SITE_GUEST_SETTINGS, ...guestSettings.data },
       reviewCategories: reviewCategories.data.length ? reviewCategories.data : DEFAULT_REVIEW_CATEGORIES,
       reviews: reviews.data,
       musicTracks: normalizeMusicTracks(musicTracks.data),
@@ -179,6 +199,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       saveUiSettings: uiSettings.save,
       saveAccessSettings: accessSettings.save,
       saveScrap: scrap.save,
+      saveScrapCategories: scrapCategories.save,
+      saveTimeline: timeline.save,
+      saveGuestSettings: guestSettings.save,
       saveReviewCategories: reviewCategories.save,
       saveReviews: reviews.save,
       saveMusicTracks: musicTracks.save,
@@ -200,6 +223,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       uiSettings.data,
       accessSettings.data,
       scrap.data,
+      scrapCategories.data,
+      timeline.data,
+      guestSettings.data,
       reviewCategories.data,
       reviews.data,
       musicTracks.data,
@@ -218,6 +244,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       uiSettings.save,
       accessSettings.save,
       scrap.save,
+      scrapCategories.save,
+      timeline.save,
+      guestSettings.save,
       reviewCategories.save,
       reviews.save,
       musicTracks.save,

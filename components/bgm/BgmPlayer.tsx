@@ -8,7 +8,7 @@ import { useMainBgmVisibility } from '@/lib/contexts/MainBgmVisibilityContext';
 
 const COLLAPSED_SZ = 52;
 const ANCHOR_KEY = 'lh_bgm_anchor';
-const DRAG_THRESHOLD = 6;
+const DRAG_THRESHOLD = 8;
 /** ⏮ ▶ ⏭ · 볼륨 · ✕ — 플레이리스트 시 최소 가로 (버튼 가림 방지) */
 const MIN_W_PLAYLIST = 252;
 
@@ -56,9 +56,11 @@ export function BgmPlayer() {
     playNext,
     playPrevious,
     playlistActive,
+    setSeekScrubbing,
   } = useBgm();
 
   const dragRef = useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0, moved: false });
+  const suppressExpandClickRef = useRef(false);
   const resizeRef = useRef({ active: false, sw: 0, sh: 0, ox: 0, oy: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
   const collapseBtnRef = useRef<HTMLButtonElement>(null);
@@ -167,9 +169,10 @@ export function BgmPlayer() {
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if ((e.target as HTMLElement).closest('#bgm-resize-handle')) return;
     if ((e.target as HTMLElement).closest('input[type="range"]')) return;
-    if ((e.target as HTMLElement).closest('button')) return;
+    if (!collapsed && (e.target as HTMLElement).closest('button')) return;
     const el = rootRef.current;
     if (!el) return;
+    suppressExpandClickRef.current = false;
     const r = el.getBoundingClientRect();
     dragRef.current = {
       active: true,
@@ -179,6 +182,9 @@ export function BgmPlayer() {
       oy: e.clientY,
       moved: false,
     };
+    if (collapsed) {
+      el.setPointerCapture(e.pointerId);
+    }
   }
 
   function onResizeDown(e: ReactPointerEvent<HTMLDivElement>) {
@@ -227,8 +233,9 @@ export function BgmPlayer() {
 
   function onPointerUp(e: ReactPointerEvent<HTMLDivElement>) {
     const d = dragRef.current;
-    if (d.moved) {
-      e.preventDefault();
+    const wasDrag = d.moved;
+    if (wasDrag) {
+      suppressExpandClickRef.current = true;
     } else if (collapsed && d.active) {
       expandFromAnchor();
     }
@@ -236,6 +243,16 @@ export function BgmPlayer() {
     d.moved = false;
     resizeRef.current.active = false;
     rootRef.current?.releasePointerCapture(e.pointerId);
+  }
+
+  function onCollapsedClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (!collapsed) return;
+    e.stopPropagation();
+    if (suppressExpandClickRef.current) {
+      suppressExpandClickRef.current = false;
+      return;
+    }
+    expandFromAnchor();
   }
 
   const posStyle =
@@ -275,6 +292,7 @@ export function BgmPlayer() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onClick={onCollapsedClick}
     >
       {!collapsed && (
         <>
@@ -290,18 +308,13 @@ export function BgmPlayer() {
                 e.stopPropagation();
                 if (progressMax <= 0) return;
                 setScrubbing(true);
+                setSeekScrubbing(true);
                 setScrubValue(parseFloat(e.currentTarget.value));
               }}
               onInput={(e) => {
                 if (progressMax <= 0) return;
                 const next = parseFloat(e.currentTarget.value);
                 setScrubValue(next);
-              }}
-              onChange={(e) => {
-                if (progressMax <= 0) return;
-                const next = parseFloat(e.target.value);
-                setScrubValue(next);
-                seek(next);
               }}
               onPointerUp={(e) => {
                 e.stopPropagation();
@@ -311,8 +324,12 @@ export function BgmPlayer() {
                   seek(next);
                 }
                 setScrubbing(false);
+                setSeekScrubbing(false);
               }}
-              onPointerCancel={() => setScrubbing(false)}
+              onPointerCancel={() => {
+                setScrubbing(false);
+                setSeekScrubbing(false);
+              }}
             />
             <div id="bgm-progress-footer">
               <div id="bgm-info" key={activeTrackKey || 'bgm-empty'}>
@@ -400,18 +417,9 @@ export function BgmPlayer() {
           />
         </>
       )}
-      <button
-        type="button"
-        id="bgm-expand-btn"
-        aria-label="BGM 펼치기"
-        onPointerDown={stopControlPointer}
-        onClick={(e) => {
-          e.stopPropagation();
-          expandFromAnchor();
-        }}
-      >
+      <span id="bgm-expand-btn" aria-hidden="true">
         ♪
-      </button>
+      </span>
     </div>
   );
 }

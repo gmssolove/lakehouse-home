@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { onValue, ref, set } from 'firebase/database';
 import { db } from '@/lib/firebase/client';
+import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 
 function readLocal<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -55,9 +56,10 @@ export function useFirebaseSection<T>(path: string, defaultValue: T) {
 
   const save = useCallback(
     async (next: T) => {
-      localStorage.setItem(storageKey, JSON.stringify(next));
-      setData(next);
-      await set(ref(db, path), next);
+      const clean = stripUndefinedDeep(next);
+      localStorage.setItem(storageKey, JSON.stringify(clean));
+      setData(clean);
+      await set(ref(db, path), clean);
     },
     [path, storageKey],
   );

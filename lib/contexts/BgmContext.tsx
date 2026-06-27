@@ -79,6 +79,7 @@ type BgmContextValue = {
   toggle: () => void;
   setVolume: (v: number) => void;
   seek: (t: number) => void;
+  setSeekScrubbing: (active: boolean) => void;
   setCollapsed: (c: boolean) => void;
   setPosition: (left: string, top: string) => void;
   setPlayerSize: (width: number, height: number) => void;
@@ -164,6 +165,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   const ytPendingPlayRef = useRef(false);
   const switchSerialRef = useRef(0);
   const pendingAutoplayRef = useRef(false);
+  const seekScrubbingRef = useRef(false);
   const playInternalRef = useRef<(seek?: number) => void>(() => {});
 
   const [playing, setPlaying] = useState(false);
@@ -246,17 +248,43 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     if (Number.isFinite(d) && d > 0) setDuration(d);
   }, []);
 
+  const isAudioPlaybackStuck = useCallback(() => {
+    const track = trackRef.current;
+    if (!track?.id || track.kind === 'youtube') return false;
+    const audio = audioRef.current;
+    if (!audio) return true;
+    if (!audio.src) return true;
+    if (audio.paused) return true;
+    if (audio.readyState < HTMLMediaElement.HAVE_METADATA) return true;
+    return false;
+  }, []);
+
+  const ensureAudioSource = useCallback((track: BgmTrack) => {
+    const audio = audioRef.current;
+    if (!audio || track.kind === 'youtube') return;
+    if (!audio.src) {
+      audio.src = track.id;
+      audio.load();
+    }
+  }, []);
+
+  const markPlaybackIdle = useCallback(() => {
+    playingRef.current = false;
+    setPlaying(false);
+  }, []);
+
   const scheduleAutoplayRetries = useCallback(() => {
     const retry = () => {
-      if (userPausedRef.current || playingRef.current) return;
+      if (userPausedRef.current) return;
       const track = trackRef.current;
-      if (!track?.id || track.scope !== 'page') return;
+      if (!track?.id) return;
+      if (playingRef.current && !isAudioPlaybackStuck()) return;
       playInternalRef.current(0);
     };
     for (const ms of [150, 500, 1500]) {
       window.setTimeout(retry, ms);
     }
-  }, []);
+  }, [isAudioPlaybackStuck]);
 
   const applyVolume = useCallback((v = volumeRef.current) => {
     if (audioRef.current) audioRef.current.volume = v / 100;
@@ -579,6 +607,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       if (!audioRef.current) return;
       applyVolume();
       const audio = audioRef.current;
+      ensureAudioSource(track);
       if (typeof seek === 'number' && seek > 0) {
         try {
           audio.currentTime = seek;
@@ -625,7 +654,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       void tryPlay(false);
     },
-    [applyVolume, deferYoutubePlay, getTime, handleYtStateChange, loadYoutubeVideo, persistState, scheduleAutoplayRetries, syncDurationFromAudio],
+    [applyVolume, deferYoutubePlay, ensureAudioSource, getTime, handleYtStateChange, loadYoutubeVideo, persistState, scheduleAutoplayRetries, syncDurationFromAudio],
   );
 
   playInternalRef.current = playInternal;
@@ -645,8 +674,14 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       advanceLockRef.current = false;
 
       if (!changed) {
-        if (wantPlay && !playingRef.current) playInternal(seek);
+        if (wantPlay && (!playingRef.current || isAudioPlaybackStuck())) {
+          playInternal(seek);
+        }
         return;
+      }
+
+      if (wantPlay) {
+        markPlaybackIdle();
       }
 
       const persist = (playingNow: boolean) => {
@@ -733,8 +768,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
             'error',
             () => {
               if (serial !== switchSerialRef.current) return;
-              playingRef.current = false;
-              setPlaying(false);
+              markPlaybackIdle();
             },
             { once: true },
           );
@@ -790,6 +824,8 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       commitTrackUi,
       deferYoutubePlay,
       persistState,
+      isAudioPlaybackStuck,
+      markPlaybackIdle,
       playInternal,
       scheduleAutoplayRetries,
       stopAllMedia,
@@ -891,13 +927,14 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       }
       return;
     }
-    if (playingRef.current) {
+    const stuck = isAudioPlaybackStuck();
+    if (playingRef.current && !stuck) {
       pauseInternal(true);
     } else {
       userPausedRef.current = false;
       playInternal(getTime());
     }
-  }, [applyTrack, getTime, pauseInternal, playInternal, siteBgm]);
+  }, [applyTrack, getTime, isAudioPlaybackStuck, pauseInternal, playInternal, siteBgm]);
 
   const setVolume = useCallback(
     (v: number) => {
@@ -934,6 +971,10 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     [persistState, syncDurationFromAudio],
   );
 
+  const setSeekScrubbing = useCallback((active: boolean) => {
+    seekScrubbingRef.current = active;
+  }, []);
+
   const setCollapsed = useCallback(
     (c: boolean) => {
       setCollapsedState(c);
@@ -966,11 +1007,11 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     const snap: Snapshot = {
       track: { ...t },
       currentTime: getTime(),
-      playing,
+      playing: playingRef.current,
     };
     snapshotRef.current = snap;
     pageSnapshotRef.current = snap;
-  }, [getTime, playing]);
+  }, [getTime]);
 
   const restorePageSnapshot = useCallback(
     (autoplay?: boolean) => {
@@ -990,7 +1031,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         if (
           sameTrack(trackRef.current, snap.track) &&
           trackRef.current?.scope === 'page' &&
-          playing
+          playingRef.current
         ) {
           snapshotRef.current = null;
           pageSnapshotRef.current = null;
@@ -1020,13 +1061,13 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       applyTrack(first, { autoplay: shouldPlay, currentTime: 0, force: true });
     },
-    [applyTrack, destroyYtPlayer, pauseInternal, persistState, playing, siteBgm, stopAudio],
+    [applyTrack, destroyYtPlayer, pauseInternal, persistState, siteBgm, stopAudio],
   );
 
   const resumePageBgmIfNeeded = useCallback(() => {
     if (trackRef.current?.scope !== 'character') return;
-    restorePageSnapshot(playing);
-  }, [playing, restorePageSnapshot]);
+    restorePageSnapshot(playingRef.current);
+  }, [restorePageSnapshot]);
 
   const playCharacterTheme = useCallback(
     (
@@ -1046,8 +1087,8 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       if (!next) return;
 
       if (sameTrack(trackRef.current, next)) {
-        if (!userPausedRef.current && !playingRef.current) {
-          applyTrack(next, { autoplay: true, currentTime: getTime() });
+        if (!userPausedRef.current && isAudioPlaybackStuck()) {
+          playInternal(getTime());
         }
         return;
       }
@@ -1070,7 +1111,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       userPausedRef.current = false;
       applyTrack(next, { autoplay: true, currentTime: 0, force: true });
     },
-    [applyTrack, getTime, pushPageSnapshot, siteBgm],
+    [applyTrack, getTime, isAudioPlaybackStuck, playInternal, pushPageSnapshot, siteBgm],
   );
 
   const applyTrackRef = useRef(applyTrack);
@@ -1171,6 +1212,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     if (!audio) return;
 
     const onTime = () => {
+      if (seekScrubbingRef.current) return;
       syncDurationFromAudio();
       setCurrentTime(audio.currentTime);
       const pl = pagePlaylistRef.current;
@@ -1239,6 +1281,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!playing) return;
     const id = window.setInterval(() => {
+      if (seekScrubbingRef.current) return;
       const t = getTime();
       setCurrentTime(t);
       if (trackRef.current?.kind === 'youtube' && ytRef.current?.getDuration) {
@@ -1281,6 +1324,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       toggle,
       setVolume,
       seek,
+      setSeekScrubbing,
       setCollapsed,
       setPosition,
       setPlayerSize,
@@ -1307,6 +1351,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       toggle,
       setVolume,
       seek,
+      setSeekScrubbing,
       setCollapsed,
       setPosition,
       setPlayerSize,

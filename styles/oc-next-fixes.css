@@ -1,0 +1,45 @@
+/* OC (Next /oc) — 상단바·프레임·정보 패널 보정 */
+
+#detail-screen .oc-detail-body .game-left::before {
+  display: none !important;
+}
+
+#detail-screen .lh-vn-text {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#detail-screen.active .oc-detail-right.is-ready,
+#detail-screen.active .oc-detail-right {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+.oc-detail-right {
+  right: clamp(1rem, 2.4vw, 1.75rem) !important;
+  top: clamp(4.5rem, 9vh, 6.5rem) !important;
+  bottom: clamp(0.85rem, 2vh, 1.35rem) !important;
+  width: min(400px, calc(100vw - 52vw - 2rem)) !important;
+  max-width: min(420px, 40vw) !important;
+  min-width: 260px;
+}
+
+.oc-identity-accent-line {
+  width: min(72%, 140px);
+  height: 1px;
+  margin: 0.35rem 0 0.15rem auto;
+  background: linear-gradient(90deg, transparent, rgba(215, 169, 130, 0.88), transparent);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+#detail-screen.active .oc-identity,
+#detail-screen.active .oc-identity-no,
+#detail-screen.active .oc-attr-panel {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+}

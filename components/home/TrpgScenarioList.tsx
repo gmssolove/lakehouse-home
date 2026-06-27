@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import type { TrpgScenario } from '@/lib/types/site-content';
 import { formatTrpgDateRange, normalizeTrpgScenario } from '@/lib/trpg/normalize';
@@ -16,14 +15,25 @@ function systemClass(system: string) {
   return 'trpg-ticket__system--default';
 }
 
-function TrpgTicket({ raw }: { raw: TrpgScenario }) {
+function TrpgTicket({
+  raw,
+  onTicketClick,
+}: {
+  raw: TrpgScenario;
+  onTicketClick: (item: TrpgScenario) => void;
+}) {
   const item = normalizeTrpgScenario(raw);
   const dates = formatTrpgDateRange(item);
   const serial = item.id.replace(/\D/g, '').slice(-12).padStart(12, '0') || '000000000000';
 
   return (
     <article className="trpg-ticket">
-      <Link href={`/trpg/${encodeURIComponent(item.id)}`} className="trpg-ticket__hit" aria-label={`${item.title} 아카이브`}>
+      <button
+        type="button"
+        className="trpg-ticket__hit"
+        aria-label={`${item.title} 아카이브`}
+        onClick={() => onTicketClick(item)}
+      >
         <div className="trpg-ticket__visual">
           {item.thumbnail ? (
             <ImageFrameView
@@ -90,7 +100,7 @@ function TrpgTicket({ raw }: { raw: TrpgScenario }) {
           </div>
           {item.cleared ? <span className="trpg-ticket__stamp">Cleared</span> : null}
         </div>
-      </Link>
+      </button>
     </article>
   );
 }
@@ -98,9 +108,10 @@ function TrpgTicket({ raw }: { raw: TrpgScenario }) {
 type Props = {
   items: TrpgScenario[];
   empty: string;
+  onTicketClick: (item: TrpgScenario) => void;
 };
 
-export function TrpgScenarioList({ items, empty }: Props) {
+export function TrpgScenarioList({ items, empty, onTicketClick }: Props) {
   if (!items.length) {
     return <div className="page-coming">{empty}</div>;
   }
@@ -108,7 +119,7 @@ export function TrpgScenarioList({ items, empty }: Props) {
   return (
     <div className="trpg-ticket-list" id="trpg-cards">
       {items.map((item) => (
-        <TrpgTicket key={item.id} raw={item} />
+        <TrpgTicket key={item.id} raw={item} onTicketClick={onTicketClick} />
       ))}
     </div>
   );

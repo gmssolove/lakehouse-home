@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Helvetica Neue',sans-serif;background:#0a0a0a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+
+.pair-wrap{width:760px;background:#0e0c14;border-radius:16px;overflow:hidden;border:.5px solid #2a2040;position:relative;}
+
+/* noise texture overlay */
+.pair-wrap::before{content:'';position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");opacity:.4;pointer-events:none;z-index:0;}
+
+/* hero */
+.hero{position:relative;height:340px;overflow:hidden;display:flex;}
+.hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,#100d1a 0%,#16102a 40%,#0e0c18 100%);}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(120,80,200,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(120,80,200,.07) 1px,transparent 1px);background-size:32px 32px;}
+.hero-glow-l{position:absolute;left:-60px;top:20px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(140,80,200,.22) 0%,transparent 70%);pointer-events:none;}
+.hero-glow-r{position:absolute;right:-40px;bottom:0;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(80,60,160,.18) 0%,transparent 70%);pointer-events:none;}
+
+/* char slots */
+.chars{position:relative;z-index:2;display:flex;align-items:flex-end;width:100%;height:100%;padding:0 28px 0 20px;}
+.char-slot{display:flex;flex-direction:column;align-items:center;position:relative;}
+.char-slot.a{margin-right:-10px;}
+.char-img-wrap{position:relative;}
+.char-img{width:150px;height:230px;border-radius:10px 10px 0 0;background:#1a1530;border:1px solid #3a2a5a;display:flex;align-items:center;justify-content:center;font-size:48px;overflow:hidden;object-fit:cover;}
+.char-name-plate{padding:7px 14px 6px;background:rgba(20,16,36,.92);border:1px solid #3a2a5a;border-top:none;border-radius:0 0 8px 8px;text-align:center;min-width:110px;}
+.char-name-ko{font-size:14px;font-weight:600;color:#e8e0f8;letter-spacing:.04em;}
+.char-name-en{font-size:9px;color:#7a6aaa;letter-spacing:.16em;margin-top:1px;}
+
+/* center info */
+.center-info{flex:1;padding:24px 20px 20px;display:flex;flex-direction:column;justify-content:space-between;position:relative;z-index:2;}
+.pair-label{font-size:9px;color:#5a4a7a;letter-spacing:.16em;text-transform:uppercase;margin-bottom:6px;}
+.pair-title{font-size:28px;font-weight:700;color:#f0eaff;line-height:1.2;letter-spacing:-.01em;margin-bottom:4px;font-style:italic;}
+.pair-title-en{font-size:12px;color:#6a5a9a;letter-spacing:.1em;margin-bottom:14px;}
+.pair-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px;}
+.ptag{font-size:9px;padding:3px 9px;border-radius:99px;background:rgba(80,50,120,.4);color:#a090d0;border:.5px solid #4a3a7a;}
+
+/* dday */
+.dday-box{background:rgba(12,10,22,.7);border:.5px solid #2e2050;border-radius:10px;padding:12px 14px;backdrop-filter:blur(4px);}
+.dday-row{display:flex;align-items:baseline;gap:6px;margin-bottom:4px;}
+.dday-num{font-size:32px;font-weight:700;color:#c8b0f0;line-height:1;letter-spacing:-.02em;}
+.dday-unit{font-size:12px;color:#7a6aaa;}
+.dday-label{font-size:9px;color:#5a4a7a;letter-spacing:.1em;}
+.dday-date{font-size:10px;color:#4a3a6a;margin-top:3px;}
+
+/* vs badge */
+.vs{position:absolute;left:50%;transform:translateX(-50%);bottom:60px;z-index:10;width:36px;height:36px;border-radius:50%;background:#1a1030;border:1.5px solid #5a3a9a;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#a080e0;}
+
+/* body */
+.pair-body{padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:14px;position:relative;z-index:1;}
+.psec{background:#131020;border-radius:10px;padding:14px 16px;border:.5px solid #1e1840;}
+.psec-t{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:#4a3a6a;margin-bottom:10px;}
+.pdesc{font-size:12px;color:#8880a8;line-height:1.75;}
+
+/* chem bars */
+.chem-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.chem-row:last-child{margin-bottom:0;}
+.chem-lbl{font-size:10px;color:#7a6a9a;width:46px;flex-shrink:0;}
+.chem-track{flex:1;height:4px;background:#1e1840;border-radius:99px;overflow:hidden;}
+.chem-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#5a3a9a,#a080e0);}
+.chem-val{font-size:9px;color:#5a4a7a;width:24px;text-align:right;}
+
+/* npc tag */
+.npc-label{font-size:9px;padding:2px 8px;border-radius:99px;background:rgba(100,40,80,.3);color:#c080a0;border:.5px solid #5a2a4a;display:inline-block;margin-bottom:7px;}
+
+/* story entry */
+.story-empty{font-size:11px;color:#3a3060;font-style:italic;}
+
+/* decor text */
+.decor-text{position:absolute;right:20px;top:16px;font-size:48px;font-weight:900;color:rgba(80,50,140,.08);line-height:1;letter-spacing:-.04em;pointer-events:none;z-index:1;font-style:italic;}
+</style>
+</head>
+<body>
+<div class="pair-wrap">
+  <div class="decor-text">PAIR</div>
+  <div class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-grid"></div>
+    <div class="hero-glow-l"></div>
+    <div class="hero-glow-r"></div>
+    <div class="chars">
+      <div class="char-slot a">
+        <div class="char-img-wrap">
+          <div class="char-img">🧍</div>
+        </div>
+        <div class="char-name-plate">
+          <div class="char-name-ko">이브</div>
+          <div class="char-name-en">YVÉE</div>
+        </div>
+      </div>
+      <div class="vs">×</div>
+      <div class="char-slot b" style="margin-left:4px;">
+        <div class="char-img-wrap">
+          <div class="char-img" style="width:136px;height:210px;">🧍</div>
+        </div>
+        <div class="char-name-plate" style="min-width:100px;">
+          <div class="char-name-ko">이즈미</div>
+          <div class="char-name-en">IZUMI</div>
+        </div>
+      </div>
+    </div>
+    <div class="center-info">
+      <div>
+        <div class="pair-label">CHARACTER PAIR</div>
+        <div class="pair-title">이브이즈</div>
+        <div class="pair-title-en">YVEZUMI</div>
+        <div class="pair-tags">
+          <span class="ptag">Universe OC</span>
+          <span class="ptag">키사라기 고교</span>
+          <span class="ptag">적대</span>
+        </div>
+      </div>
+      <div class="dday-box">
+        <div class="dday-label">D-DAY</div>
+        <div class="dday-row">
+          <div class="dday-num" id="dday-num">—</div>
+          <div class="dday-unit">일째</div>
+        </div>
+        <div class="dday-date" id="dday-date">날짜 미설정</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pair-body">
+    <div class="psec">
+      <div class="psec-t">관계 개요</div>
+      <div class="pdesc">서로를 향한 감정이 정의되지 않은 채 얽혀 있다. 적도 아니고 동료도 아닌 자리.</div>
+    </div>
+    <div class="psec">
+      <div class="psec-t">케미 지표</div>
+      <div class="chem-row"><span class="chem-lbl">긴장감</span><div class="chem-track"><div class="chem-fill" style="width:90%"></div></div><span class="chem-val">90</span></div>
+      <div class="chem-row"><span class="chem-lbl">신뢰도</span><div class="chem-track"><div class="chem-fill" style="width:20%"></div></div><span class="chem-val">20</span></div>
+      <div class="chem-row"><span class="chem-lbl">친밀도</span><div class="chem-track"><div class="chem-fill" style="width:35%"></div></div><span class="chem-val">35</span></div>
+    </div>
+    <div class="psec" style="grid-column:1/-1;">
+      <div class="psec-t">납작캐해</div>
+      <div class="npc-label">납작캐해</div>
+      <div class="pdesc">서로 티격태격하지만 정작 위기엔 제일 먼저 달려오는 유형. 말은 늘 칼같이 해도 행동은 배신한다.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// D-Day 계산 — 여기에 날짜 넣으면 됨
+const startDate = '2025-03-14'; // 예시
+const start = new Date(startDate);
+const today = new Date();
+today.setHours(0,0,0,0);
+start.setHours(0,0,0,0);
+const diff = Math.floor((today - start) / 86400000);
+document.getElementById('dday-num').textContent = diff >= 0 ? '+' + diff : diff;
+document.getElementById('dday-date').textContent = 'Since ' + startDate;
+</script>
+</body>
+</html>
