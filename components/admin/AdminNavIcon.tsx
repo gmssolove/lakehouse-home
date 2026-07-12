@@ -46,11 +46,11 @@ export function AdminNavIcon({ name }: { name: IconName }) {
           <path d="M10.5 11.5 12.5 13.5" />
         </svg>
       );
-    case 'timeline':
+    case 'quote':
       return (
         <svg {...props}>
-          <path d="M3 4h10M3 8h7M3 12h5" />
-          <circle cx="12.5" cy="8" r="1.2" fill={stroke} stroke="none" />
+          <path d="M3.5 5.5h4v4.5H4.5A1.5 1.5 0 0 1 3 8.5V5.5z" />
+          <path d="M8.5 5.5h4v4.5H9.5A1.5 1.5 0 0 1 8 8.5V5.5z" />
         </svg>
       );
     case 'trpg':

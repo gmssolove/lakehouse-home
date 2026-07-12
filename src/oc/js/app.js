@@ -40,7 +40,7 @@ function setFilter(type,val,btn){
 }
 function updateSubFilters(){
   var chars=getChars(),wrap=document.getElementById('sub-filter-wrap'),group=document.getElementById('sub-filters');
-  if(activeCat==='all'){wrap.style.display='none';return;}
+  if(activeCat==='all'||activeCat==='TRPG'||activeCat==='TRPG OC'){wrap.style.display='none';return;}
   var subs=[...new Set(chars.filter(function(c){return c.category===activeCat;}).map(function(c){return c.subcat;}).filter(Boolean))];
   if(!subs.length){wrap.style.display='none';return;}
   wrap.style.display='block';

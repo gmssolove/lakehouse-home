@@ -15,6 +15,7 @@ import {
   type GuestEntry,
   type MusicPlaylist,
   type MusicTrack,
+  type QuoteItem,
   type ReviewCategory,
   type ReviewItem,
   type ScrapItem,
@@ -29,11 +30,38 @@ import {
   type TimelinePost,
   DEFAULT_SCRAP_CATEGORIES,
   DEFAULT_SITE_GUEST_SETTINGS,
+  type TrpgListSettings,
   type TrpgScenario,
   type UniverseCard,
+  DEFAULT_TRPG_LIST_SETTINGS,
 } from '@/lib/types/site-content';
 import { useFirebaseSection } from '@/lib/hooks/useFirebaseSection';
 import { normalizeMusicPlaylists, normalizeMusicTracks } from '@/lib/music/normalize';
+
+function mergeTrpgListSettings(raw: Partial<TrpgListSettings> | null | undefined): TrpgListSettings {
+  const categories = Array.isArray(raw?.categories)
+    ? raw!.categories
+        .map((c) => ({
+          id: String(c?.id || '').trim(),
+          label: String(c?.label || '').trim(),
+        }))
+        .filter((c) => c.id && c.label)
+    : DEFAULT_TRPG_LIST_SETTINGS.categories;
+  let cardAspect = String(raw?.cardAspect || '').trim() || DEFAULT_TRPG_LIST_SETTINGS.cardAspect;
+  /* Migrate early portrait / 16:9 defaults → 16:10 */
+  if (
+    cardAspect === '3 / 4' ||
+    cardAspect === '3/4' ||
+    cardAspect === '16 / 9' ||
+    cardAspect === '16/9'
+  ) {
+    cardAspect = DEFAULT_TRPG_LIST_SETTINGS.cardAspect;
+  }
+  return {
+    categories: categories.length ? categories : DEFAULT_TRPG_LIST_SETTINGS.categories,
+    cardAspect,
+  };
+}
 
 type SiteContentValue = {
   loaded: boolean;
@@ -43,6 +71,7 @@ type SiteContentValue = {
   gallery: GalleryItem[];
   universe: UniverseCard[];
   trpg: TrpgScenario[];
+  trpgSettings: TrpgListSettings;
   guests: GuestEntry[];
   banners: BannerItem[];
   bgm: SiteBgm;
@@ -52,6 +81,7 @@ type SiteContentValue = {
   scrap: ScrapItem[];
   scrapCategories: ScrapCategory[];
   timeline: TimelinePost[];
+  quotes: QuoteItem[];
   guestSettings: SiteGuestSettings;
   reviewCategories: ReviewCategory[];
   reviews: ReviewItem[];
@@ -64,6 +94,7 @@ type SiteContentValue = {
   saveGallery: (next: GalleryItem[]) => Promise<void>;
   saveUniverse: (next: UniverseCard[]) => Promise<void>;
   saveTrpg: (next: TrpgScenario[]) => Promise<void>;
+  saveTrpgSettings: (next: TrpgListSettings) => Promise<void>;
   saveGuests: (next: GuestEntry[]) => Promise<void>;
   saveBanners: (next: BannerItem[]) => Promise<void>;
   saveBgm: (next: SiteBgm) => Promise<void>;
@@ -73,6 +104,7 @@ type SiteContentValue = {
   saveScrap: (next: ScrapItem[]) => Promise<void>;
   saveScrapCategories: (next: ScrapCategory[]) => Promise<void>;
   saveTimeline: (next: TimelinePost[]) => Promise<void>;
+  saveQuotes: (next: QuoteItem[]) => Promise<void>;
   saveGuestSettings: (next: SiteGuestSettings) => Promise<void>;
   saveReviewCategories: (next: ReviewCategory[]) => Promise<void>;
   saveReviews: (next: ReviewItem[]) => Promise<void>;
@@ -117,6 +149,10 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
   const gallery = useFirebaseSection<GalleryItem[]>('lhdata/site/gallery', []);
   const universe = useFirebaseSection<UniverseCard[]>('lhdata/site/universe', DEFAULT_UNIVERSE);
   const trpg = useFirebaseSection<TrpgScenario[]>('lhdata/site/trpg', []);
+  const trpgSettings = useFirebaseSection<TrpgListSettings>(
+    'lhdata/site/trpg_settings',
+    DEFAULT_TRPG_LIST_SETTINGS,
+  );
   const guests = useFirebaseSection<GuestEntry[]>('lhdata/site/guests', []);
   const banners = useFirebaseSection<BannerItem[]>('lhdata/site/banners', []);
   const bgm = useFirebaseSection<SiteBgm>('lhdata/site/bgm', DEFAULT_SITE_BGM);
@@ -129,6 +165,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
   const scrap = useFirebaseSection<ScrapItem[]>('lhdata/site/scrap', []);
   const scrapCategories = useFirebaseSection<ScrapCategory[]>('lhdata/site/scrap_categories', DEFAULT_SCRAP_CATEGORIES);
   const timeline = useFirebaseSection<TimelinePost[]>('lhdata/site/timeline', []);
+  const quotes = useFirebaseSection<QuoteItem[]>('lhdata/site/quotes', []);
   const guestSettings = useFirebaseSection<SiteGuestSettings>('lhdata/site/guest_settings', DEFAULT_SITE_GUEST_SETTINGS);
   const reviewCategories = useFirebaseSection<ReviewCategory[]>(
     'lhdata/site/review_categories',
@@ -146,6 +183,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     gallery.loaded &&
     universe.loaded &&
     trpg.loaded &&
+    trpgSettings.loaded &&
     guests.loaded &&
     banners.loaded &&
     bgm.loaded &&
@@ -155,6 +193,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     scrap.loaded &&
     scrapCategories.loaded &&
     timeline.loaded &&
+    quotes.loaded &&
     guestSettings.loaded &&
     reviewCategories.loaded &&
     reviews.loaded &&
@@ -171,6 +210,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       gallery: gallery.data,
       universe: universe.data,
       trpg: trpg.data,
+      trpgSettings: mergeTrpgListSettings(trpgSettings.data),
       guests: guests.data,
       banners: banners.data,
       bgm: bgm.data,
@@ -180,6 +220,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       scrap: scrap.data,
       scrapCategories: scrapCategories.data.length ? scrapCategories.data : DEFAULT_SCRAP_CATEGORIES,
       timeline: timeline.data,
+      quotes: quotes.data,
       guestSettings: { ...DEFAULT_SITE_GUEST_SETTINGS, ...guestSettings.data },
       reviewCategories: reviewCategories.data.length ? reviewCategories.data : DEFAULT_REVIEW_CATEGORIES,
       reviews: reviews.data,
@@ -192,6 +233,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       saveGallery: gallery.save,
       saveUniverse: universe.save,
       saveTrpg: trpg.save,
+      saveTrpgSettings: trpgSettings.save,
       saveGuests: guests.save,
       saveBanners: banners.save,
       saveBgm: bgm.save,
@@ -201,6 +243,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       saveScrap: scrap.save,
       saveScrapCategories: scrapCategories.save,
       saveTimeline: timeline.save,
+      saveQuotes: quotes.save,
       saveGuestSettings: guestSettings.save,
       saveReviewCategories: reviewCategories.save,
       saveReviews: reviews.save,
@@ -216,6 +259,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       gallery.data,
       universe.data,
       trpg.data,
+      trpgSettings.data,
       guests.data,
       banners.data,
       bgm.data,
@@ -225,6 +269,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       scrap.data,
       scrapCategories.data,
       timeline.data,
+      quotes.data,
       guestSettings.data,
       reviewCategories.data,
       reviews.data,
@@ -237,6 +282,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       gallery.save,
       universe.save,
       trpg.save,
+      trpgSettings.save,
       guests.save,
       banners.save,
       bgm.save,
@@ -246,6 +292,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       scrap.save,
       scrapCategories.save,
       timeline.save,
+      quotes.save,
       guestSettings.save,
       reviewCategories.save,
       reviews.save,

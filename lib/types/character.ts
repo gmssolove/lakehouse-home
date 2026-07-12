@@ -25,11 +25,16 @@ export type ThemeSong = {
 
 export type DialogueChoice = { label: string; next: string };
 
+/** VN 대사 시 캐릭터 일러스트 연출 */
+export type DialogueMotion = 'bounce' | 'shake';
+
 export type DialogueNode = {
   id: string;
   speaker?: string;
   text: string;
   expression?: string;
+  /** bounce: 뽀잉 / shake: 부들부들 */
+  motion?: DialogueMotion | '';
   choices?: DialogueChoice[];
 };
 
@@ -86,6 +91,8 @@ export type OcCharacter = {
   panelColor?: string;
   /** 퍼스널 컬러 HEX — 입력 시 테마 자동 유도 */
   personalColor?: string;
+  /** 스테이지 퍼스널 비네트 세기 0~100 (기본 16) */
+  personalVignette?: number;
   /** 퍼스널 컬러 선택 시 패널·메뉴 배경까지 자동 유도 (미설정 = true) */
   themeAutoBackground?: boolean;
   /** 캐릭터 영역 테두리·구분선 */

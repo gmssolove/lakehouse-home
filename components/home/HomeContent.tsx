@@ -4,9 +4,15 @@ import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import type { HomePageId } from '@/components/layout/LeftNav';
 import { GuestBookPanel } from '@/components/home/GuestBookPanel';
 import { BannerTile } from '@/components/home/BannerTile';
+import { NoticeBody } from '@/components/home/NoticeBody';
 import { TrpgScenarioList } from '@/components/home/TrpgScenarioList';
 import { CharArchivePanel } from '@/components/character/CharArchivePanel';
 import { MainGameStage } from '@/components/home/MainGameStage';
+import { RecordsDiaryPanel } from '@/components/records/RecordsDiaryPanel';
+import { ScrapTab } from '@/components/records/ScrapTab';
+import { ReviewTab } from '@/components/records/ReviewTab';
+import { GalleryTab } from '@/components/records/GalleryTab';
+import { QuoteTab } from '@/components/records/QuoteTab';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import type { SitePost, TrpgScenario } from '@/lib/types/site-content';
@@ -48,13 +54,13 @@ function PostList({
           loggedIn={!!user}
           onRequestLogin={onOpenAuth}
         >
-          <div style={{ marginBottom: '1.25rem' }}>
-            <div className="page-heading" style={{ fontSize: '1.25rem', marginBottom: '0.35rem' }}>
+          <div className="lh-site-post" style={{ marginBottom: '1.25rem' }}>
+            <div className="lh-site-post__title">
               {item.title}
               {item.secret ? <SecretLockBadge compact /> : null}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>{item.date}</div>
-            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{item.body}</div>
+            <div className="lh-site-post__date">{item.date}</div>
+            <NoticeBody body={item.body} className="lh-site-post__body" />
           </div>
         </SecretItemGate>
       ))}
@@ -92,38 +98,31 @@ export function HomeContent({ page, user, isAdmin, onOpenAuth, onTicketClick }: 
         <CharArchivePanel user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} />
       </div>
 
+      <div className={`content-block${page === 'diary' ? ' active' : ''}`} id="page-diary">
+        <RecordsDiaryPanel
+          items={site.diary}
+          user={user}
+          isAdmin={isAdmin}
+          onOpenAuth={onOpenAuth}
+          onSave={site.saveDiary}
+          active={page === 'diary'}
+        />
+      </div>
+
+      <div className={`content-block${page === 'scrap' ? ' active' : ''}`} id="page-scrap">
+        <ScrapTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'scrap'} />
+      </div>
+
+      <div className={`content-block${page === 'review' ? ' active' : ''}`} id="page-review">
+        <ReviewTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'review'} />
+      </div>
+
       <div className={`content-block${page === 'gallery' ? ' active' : ''}`} id="page-gallery">
-        <div className="page-heading">Gallery</div>
-        <div className="page-sub">갤러리</div>
-        {!site.gallery.length ? (
-          <div className="page-coming">— 준비 중입니다 —</div>
-        ) : (
-          <div style={{ display: 'grid', gap: '1rem' }}>
-            {site.gallery.map((item) => (
-              <SecretItemGate
-                key={item.id}
-                scope="gallery"
-                item={item}
-                isAdmin={isAdmin}
-                loggedIn={!!user}
-                onRequestLogin={onOpenAuth}
-              >
-                <div>
-                  {item.img ? (
-                    <img src={item.img} alt={item.title} style={{ maxWidth: '100%', borderRadius: 4 }} />
-                  ) : null}
-                  <div style={{ marginTop: 6, fontSize: 13 }}>
-                    {item.title}
-                    {item.secret ? <SecretLockBadge compact /> : null}
-                  </div>
-                  {item.caption ? (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{item.caption}</div>
-                  ) : null}
-                </div>
-              </SecretItemGate>
-            ))}
-          </div>
-        )}
+        <GalleryTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'gallery'} />
+      </div>
+
+      <div className={`content-block${page === 'quote' ? ' active' : ''}`} id="page-quote">
+        <QuoteTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'quote'} />
       </div>
 
       <div className={`content-block${page === 'universe' ? ' active' : ''}`} id="page-universe">
@@ -160,8 +159,6 @@ export function HomeContent({ page, user, isAdmin, onOpenAuth, onTicketClick }: 
       </div>
 
       <div className={`content-block${page === 'guest' ? ' active' : ''}`} id="page-guest">
-        <div className="page-heading">Guest</div>
-        <div className="page-sub">방명록</div>
         <GuestBookPanel
           guests={site.guests}
           user={user}

@@ -5,6 +5,7 @@ import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { LakeEditTabs } from '@/components/ui/LakeEditTabs';
 import { LakeToggle } from '@/components/ui/LakeToggle';
+import { LinkPickList } from '@/components/ui/LinkPickList';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import {
   applyCharacterTheme,
@@ -16,14 +17,18 @@ import {
 import { normalizeGallery, normalizeGalleryItem } from '@/lib/oc/gallery';
 import {
   CORE_PROFILE_FIELD_KEYS,
+  finalizeCharacterProfile,
   mergeCharacterProfile,
   splitExtraProfileRows,
   type CoreProfileFieldKey,
 } from '@/lib/oc/profile';
 import { prepareCharacterForSave } from '@/lib/oc/prepareCharacterSave';
+import { isTrpgCategory } from '@/lib/oc/categories';
+import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { uploadImageFile, uploadMediaFile } from '@/lib/r2/client';
 import type { AuVersion, DialogueChoice, DialogueNode, GalleryItem, OcCharacter, ProfileField, StoryLog, CharacterRelation } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
+import type { TrpgScenario } from '@/lib/types/site-content';
 
 function emptyStoryLog(): StoryLog {
   return { id: newId(), title: '새 로그', body: '' };
@@ -35,6 +40,34 @@ function emptyRelation(): CharacterRelation {
 
 function emptyDialogueNode(seq: number): DialogueNode {
   return { id: String(seq), speaker: '', text: '', choices: [] };
+}
+
+function linkedScenarioIds(scenarios: TrpgScenario[], ocId: string | number): Set<string> {
+  const id = String(ocId);
+  return new Set(
+    scenarios
+      .filter((s) => (s.characterIds ?? []).some((cid) => String(cid) === id))
+      .map((s) => s.id),
+  );
+}
+
+function applyOcTrpgLinks(
+  scenarios: TrpgScenario[],
+  ocId: string | number,
+  linkedIds: Set<string>,
+): TrpgScenario[] {
+  const id = String(ocId);
+  return scenarios.map((s) => {
+    const prev = (s.characterIds ?? []).map(String);
+    const shouldLink = linkedIds.has(s.id);
+    const next = shouldLink
+      ? prev.includes(id)
+        ? prev
+        : [...prev, id]
+      : prev.filter((cid) => cid !== id);
+    if (next.length === prev.length && next.every((v, i) => v === prev[i])) return s;
+    return { ...s, characterIds: next };
+  });
 }
 
 type OcEditTab = 'basic' | 'appear' | 'story' | 'gallery' | 'novel' | 'theme' | 'relations';
@@ -89,6 +122,7 @@ function CommaSeparatedInput({
 
 export function OcEditForm({ character, categories, onSave, onDelete, compact }: Props) {
   const { showSaveToast } = useSaveToast();
+  const { trpg, saveTrpg } = useSiteContent();
   const [form, setForm] = useState(character);
   const [tab, setTab] = useState<OcEditTab>('basic');
   const [busy, setBusy] = useState(false);
@@ -98,7 +132,9 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     hates: (character.hates || []).join(', '),
   });
   const [personalHexDraft, setPersonalHexDraft] = useState(character.personalColor || '');
+  const [linkedTrpgIds, setLinkedTrpgIds] = useState<Set<string>>(() => linkedScenarioIds(trpg, character.id));
   const themePreview = useMemo(() => resolveCharacterTheme(form), [form]);
+  const showTrpgLinks = isTrpgCategory(form.category);
   const set = <K extends keyof OcCharacter>(k: K, v: OcCharacter[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -135,7 +171,8 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       hates: (character.hates || []).join(', '),
     });
     setPersonalHexDraft(character.personalColor || '');
-  }, [character]);
+    setLinkedTrpgIds(linkedScenarioIds(trpg, character.id));
+  }, [character, trpg]);
 
   useEffect(() => {
     const el = document.getElementById('detail-screen');
@@ -195,6 +232,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     setForm((f) => {
       const next = { ...f };
       delete next.personalColor;
+      delete next.personalVignette;
       delete next.accentColor;
       delete next.accentSoft;
       delete next.panelColor;
@@ -214,10 +252,17 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
         keywords: parseCommaList(commaDraft.keywords),
         likes: parseCommaList(commaDraft.likes),
         hates: parseCommaList(commaDraft.hates),
-        profile: mergeCharacterProfile(form.profile, form.role, splitExtraProfileRows(form.profile)),
+        profile: finalizeCharacterProfile(
+          mergeCharacterProfile(form.profile, form.role, splitExtraProfileRows(form.profile)),
+        ),
       });
       const prepared = await prepareCharacterForSave(merged);
       await onSave(prepared);
+      if (isTrpgCategory(prepared.category)) {
+        const nextTrpg = applyOcTrpgLinks(trpg, prepared.id, linkedTrpgIds);
+        const changed = nextTrpg.some((s, i) => s !== trpg[i]);
+        if (changed) await saveTrpg(nextTrpg);
+      }
       setForm({
         ...prepared,
         gallery: normalizeGallery(prepared.gallery),
@@ -546,16 +591,43 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
             }}
           />
         </div>
-        <LakeToggle
-          checked={form.themeAutoBackground !== false}
-          onChange={setThemeAutoBackground}
-          label="배경색 자동 맞춤 (포인트·패널·메뉴 등 전체)"
-        />
         <p className="lh-color-hint">
-          {form.themeAutoBackground !== false
-            ? '퍼스널 컬러에 맞춰 아래 테마 색이 함께 조정됩니다. 개별 색상은 따로 바꿀 수 있습니다.'
-            : '퍼스널 컬러만 바뀝니다. 포인트·배경·테두리 등은 아래 색상을 직접 설정하세요.'}
+          상세 화면 배경은 고정입니다. 퍼스널 컬러는 스테이지 비네트·키워드 칩·스탯·스와치에 적용되고,
+          별점·Profile/Attribute 라벨은 사이트 골드 고정입니다.
         </p>
+        <div className="form-group" style={{ marginTop: 12 }}>
+          <label className="form-label">
+            스테이지 비네트 세기
+            <span style={{ marginLeft: 8, opacity: 0.72 }}>
+              {typeof form.personalVignette === 'number' ? form.personalVignette : 16}%
+            </span>
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            className="lh-range-input"
+            value={typeof form.personalVignette === 'number' ? form.personalVignette : 16}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              setForm((f) => ({
+                ...f,
+                personalVignette: n === 16 ? undefined : n,
+              }));
+            }}
+            aria-label="스테이지 비네트 세기"
+          />
+          <p className="lh-color-hint">0%면 비네트 없음, 100%면 퍼스널 컬러가 최대로 스며듭니다. 기본 16%.</p>
+        </div>
+        <LakeToggle
+          checked={form.themeAutoBackground === false}
+          onChange={(on) => setThemeAutoBackground(!on)}
+          label="고급: VN·테두리 등 테마 색 직접 편집"
+        />
+        {form.themeAutoBackground === false ? (
+          <p className="lh-color-hint">아래 색상은 VN·보조 요소용입니다. 배경·골드 라벨에는 적용되지 않습니다.</p>
+        ) : null}
       </div>
       <div className="lh-color-row">
         <div className="form-group">
@@ -650,6 +722,22 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addProfileRow}>
         + 항목 추가
       </button>
+
+      {showTrpgLinks ? (
+        <>
+          <SectionTitle>TRPG 연관 바로가기</SectionTitle>
+          <p style={{ fontSize: 11, opacity: 0.65, margin: '0 0 8px' }}>
+            시나리오를 선택해 추가하세요. 캐릭터 상세에 연관 바로가기로 표시됩니다.
+          </p>
+          <LinkPickList
+            options={trpg.map((s) => ({ id: s.id, label: s.title || s.id }))}
+            selectedIds={[...linkedTrpgIds]}
+            onChange={(ids) => setLinkedTrpgIds(new Set(ids))}
+            emptyLabel="연결된 시나리오가 없습니다."
+            selectPlaceholder="시나리오 선택해서 추가…"
+          />
+        </>
+      ) : null}
       </>
       ) : null}
 
@@ -686,6 +774,9 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
 
       <div className="form-group">
         <label className="form-label">소개 (프로필 · 왼쪽 메뉴)</label>
+        <p style={{ fontSize: 10, opacity: 0.55, margin: '0 0 6px' }}>
+          엔터 = 문단 나눔 · **텍스트** = 굵게
+        </p>
         <textarea
           className="form-input"
           rows={3}
@@ -739,6 +830,9 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       {tab === 'story' ? (
       <>
       <SectionTitle>서사</SectionTitle>
+      <p style={{ fontSize: 10, opacity: 0.55, margin: '0 0 8px' }}>
+        엔터 = 문단 나눔 · **텍스트** = 굵게 (왼쪽 메뉴 내용에 반영)
+      </p>
       <div className="form-group">
         <label className="form-label">메인 서사 (story)</label>
         <textarea className="form-input" rows={4} value={form.story || ''} onChange={(e) => set('story', e.target.value)} />
@@ -958,10 +1052,16 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           onChange={(e) =>
             set(
               'pvIntroLines',
+              e.target.value.split('\n').map((text) => ({ text })),
+            )
+          }
+          onBlur={(e) =>
+            set(
+              'pvIntroLines',
               e.target.value
                 .split('\n')
-                .map((text) => ({ text: text.trim() }))
-                .filter((l) => l.text),
+                .map((text) => ({ text: text.trimEnd() }))
+                .filter((l) => l.text.trim()),
             )
           }
           placeholder="한 줄에 한 대사"
@@ -1048,6 +1148,22 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
             onChange={(e) => updateDialogue(i, { text: e.target.value })}
           />
           <div className="form-group" style={{ marginTop: 6 }}>
+            <label className="form-label">감정 연출</label>
+            <select
+              className="form-input"
+              value={node.motion || ''}
+              onChange={(e) =>
+                updateDialogue(i, {
+                  motion: (e.target.value || '') as '' | 'bounce' | 'shake',
+                })
+              }
+            >
+              <option value="">없음</option>
+              <option value="bounce">뽀잉 (튀어오름)</option>
+              <option value="shake">부들부들 (떨림)</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ marginTop: 6 }}>
             <label className="form-label">표정 이미지</label>
             {node.expression ? (
               <img
@@ -1133,6 +1249,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       </div>
       </>
       ) : null}
+      <div className="lake-edit-shell__end-space" aria-hidden="true" />
       </div>
     </>
   );

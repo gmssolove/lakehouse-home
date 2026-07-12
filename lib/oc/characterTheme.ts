@@ -176,23 +176,47 @@ export function stripEmptyThemeFields(character: OcCharacter): OcCharacter {
   return next;
 }
 
+export function normalizePersonalVignette(raw?: number | null): number {
+  if (raw == null || !Number.isFinite(raw)) return 16;
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
 export function applyCharacterTheme(root: HTMLElement, character: OcCharacter): ResolvedCharacterTheme {
   const theme = resolveCharacterTheme(character);
-  root.style.setProperty('--oc-accent', theme.accentColor);
-  root.style.setProperty('--oc-accent-soft', theme.accentSoft);
+  const gold = DEFAULT_CHARACTER_THEME.accentColor;
+  const goldSoft = DEFAULT_CHARACTER_THEME.accentSoft;
+  const panelFixed = DEFAULT_CHARACTER_THEME.panelColor;
+  const menuFixed = DEFAULT_CHARACTER_THEME.menuColor;
+  const vignette = normalizePersonalVignette(character.personalVignette);
+
+  // 캐릭터 퍼스널 — 칩·스탯·스와치·비네트
   root.style.setProperty('--oc-personal', theme.personalColor);
-  root.style.setProperty('--oc-panel', hexToRgba(theme.panelColor, 0.76));
-  root.style.setProperty('--oc-panel-solid', theme.panelColor);
-  root.style.setProperty('--oc-border', hexToRgba(theme.borderColor, 0.38));
-  root.style.setProperty('--oc-line', hexToRgba(theme.borderColor, 0.14));
-  root.style.setProperty('--oc-vn', theme.vnColor);
-  root.style.setProperty('--oc-vn-border', hexToRgba(theme.vnColor, 0.42));
-  root.style.setProperty('--oc-vn-soft', hexToRgba(theme.vnColor, 0.12));
-  root.style.setProperty('--oc-menu-panel', hexToRgba(theme.menuColor, 0.96));
-  root.style.setProperty('--lake-copper', theme.accentColor);
-  root.style.setProperty('--lake-copper-soft', theme.accentSoft);
-  root.style.setProperty('--lake-line', hexToRgba(theme.borderColor, 0.42));
-  root.style.setProperty('--lake-line-soft', hexToRgba(theme.borderColor, 0.18));
+  root.style.setProperty('--oc-char', theme.personalColor);
+  root.style.setProperty('--oc-char-soft', lighten(theme.personalColor, 0.34));
+  root.style.setProperty('--oc-vignette', `${vignette}%`);
+
+  // 사이트 골드 정체성 — 별·PROFILE/ATTRIBUTE 등 (캐릭터색으로 덮지 않음)
+  root.style.setProperty('--oc-accent', gold);
+  root.style.setProperty('--oc-accent-soft', goldSoft);
+  root.style.setProperty('--oc-border', hexToRgba(gold, 0.38));
+  root.style.setProperty('--oc-line', hexToRgba(gold, 0.14));
+
+  // 배경·패널은 거의 고정 (퍼스널로 물들이지 않음)
+  root.style.setProperty('--oc-panel', hexToRgba(panelFixed, 0.76));
+  root.style.setProperty('--oc-panel-solid', panelFixed);
+  root.style.setProperty('--oc-menu-panel', hexToRgba(menuFixed, 0.96));
+
+  // VN은 퍼스널을 약하게 반영 (직접 지정 시 우선)
+  const vn = normalizeHex(character.vnColor) || lighten(theme.personalColor, 0.26);
+  root.style.setProperty('--oc-vn', vn);
+  root.style.setProperty('--oc-vn-border', hexToRgba(vn, 0.42));
+  root.style.setProperty('--oc-vn-soft', hexToRgba(vn, 0.12));
+
+  // lake 토큰은 사이트 골드 유지
+  root.style.setProperty('--lake-copper', gold);
+  root.style.setProperty('--lake-copper-soft', goldSoft);
+  root.style.setProperty('--lake-line', hexToRgba(gold, 0.42));
+  root.style.setProperty('--lake-line-soft', hexToRgba(gold, 0.18));
   return theme;
 }
 
@@ -201,6 +225,9 @@ export function clearCharacterTheme(root: HTMLElement) {
     '--oc-accent',
     '--oc-accent-soft',
     '--oc-personal',
+    '--oc-char',
+    '--oc-char-soft',
+    '--oc-vignette',
     '--oc-panel',
     '--oc-panel-solid',
     '--oc-border',

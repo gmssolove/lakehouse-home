@@ -96,7 +96,7 @@
     if(!list.length){
       box.classList.add('active');
       $('lh-vn-speaker').textContent=c.name||'';
-      typeText(textEl,c.desc||'...');
+      typeText(textEl,'...');
       $('lh-vn-choices').innerHTML='<button class="lh-vn-choice" onclick="closeDialogue()">닫기</button>';
       return;
     }

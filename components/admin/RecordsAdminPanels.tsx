@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   DEFAULT_REVIEW_CATEGORIES,
   DEFAULT_SCRAP_CATEGORIES,
@@ -12,6 +12,7 @@ import {
   type MusicTrack,
   type ReviewCategory,
   type ReviewItem,
+  type QuoteItem,
   type ScrapCategory,
   type ScrapItem,
   type SiteAccessSettings,
@@ -22,6 +23,7 @@ import { DEFAULT_SITE_ACCESS_SETTINGS } from '@/lib/types/secret-content';
 import { ImageFileField } from '@/components/ui/ImageFileField';
 import { LakeToggle } from '@/components/ui/LakeToggle';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
+import { finalizeCommaList, splitCommaListLive } from '@/lib/ui/commaList';
 import { uploadMediaFile } from '@/lib/r2/client';
 import { normalizeUploadFile } from '@/lib/r2/mime';
 import { useSaveToast } from '@/components/ui/SaveToast';
@@ -38,7 +40,8 @@ const SCOPE_LABELS: Record<LakeAccessScope, string> = {
   music: 'Records · Music',
   charArchive: 'Character · Archive',
   notice: 'Notice',
-  gallery: 'Gallery',
+  gallery: 'Records · Gallery',
+  quote: 'Records · Quote',
 };
 
 export function AccessAdminPanel({ data, onSave }: AccessProps) {
@@ -86,6 +89,10 @@ export function ScrapAdminPanel({ items, categories, onSave, onSaveCategories }:
   const [uploading, setUploading] = useState(false);
   const [cats, setCats] = useState(categories.length ? categories : DEFAULT_SCRAP_CATEGORIES);
   const selected = items.find((i) => i.id === editId);
+
+  useEffect(() => {
+    setCats(categories.length ? categories : DEFAULT_SCRAP_CATEGORIES);
+  }, [categories]);
 
   function add() {
     const item: ScrapItem = {
@@ -157,6 +164,7 @@ export function ScrapAdminPanel({ items, categories, onSave, onSaveCategories }:
             <ScrapEditForm
               key={selected.id}
               item={selected}
+              categories={cats.filter((c) => c.id !== 'all')}
               uploading={uploading}
               onUploadStart={() => setUploading(true)}
               onUploadEnd={() => setUploading(false)}
@@ -178,6 +186,7 @@ export function ScrapAdminPanel({ items, categories, onSave, onSaveCategories }:
 
 function ScrapEditForm({
   item,
+  categories,
   uploading,
   onUploadStart,
   onUploadEnd,
@@ -185,6 +194,7 @@ function ScrapEditForm({
   onDelete,
 }: {
   item: ScrapItem;
+  categories: ScrapCategory[];
   uploading: boolean;
   onUploadStart: () => void;
   onUploadEnd: () => void;
@@ -204,13 +214,19 @@ function ScrapEditForm({
       <ImageFileField label="첨부 이미지" value={form.imageUrl || ''} folder="site/scrap" uploading={uploading} onUploadStart={onUploadStart} onUploadEnd={onUploadEnd} onChange={(imageUrl) => setForm({ ...form, imageUrl })} />
       <input className="form-input" placeholder="원문 URL" value={form.sourceUrl || ''} onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })} style={{ marginTop: 6 }} />
       <div className="form-group" style={{ marginTop: 8 }}>
-        <label className="form-label">카테고리 ID</label>
-        <input
+        <label className="form-label">카테고리</label>
+        <select
           className="form-input"
-          placeholder="예: general, dream"
           value={form.categoryId || ''}
-          onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-        />
+          onChange={(e) => setForm({ ...form, categoryId: e.target.value || undefined })}
+        >
+          <option value="">선택 안 함</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
       </div>
       <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '12px 0 6px' }}>인용 트윗 (선택)</p>
       <div className="lh-oc-admin-grid">
@@ -287,7 +303,9 @@ export function ReviewAdminPanel({ categories, items, onSaveCategories, onSaveIt
           {items.map((item) => (
             <div key={item.id} className={`char-list-item${editId === item.id ? ' selected' : ''}`} onClick={() => setEditId(item.id)}>
               <div>{item.title}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{'★'.repeat(item.rating)}</div>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
+                {Number.isInteger(item.rating) ? item.rating : item.rating.toFixed(1)}점
+              </div>
             </div>
           ))}
         </div>
@@ -334,7 +352,18 @@ function ReviewEditForm({
 }) {
   const [form, setForm] = useState(item);
   return (
-    <AdminPanelShell title="리뷰 편집" onSave={() => onSave(form)} onDelete={onDelete}>
+    <AdminPanelShell
+      title="리뷰 편집"
+      onSave={() =>
+        onSave({
+          ...form,
+          rating: Math.min(5, Math.max(0.5, Math.round(Number(form.rating) * 2) / 2)),
+          genres: finalizeCommaList(form.genres),
+          tags: finalizeCommaList(form.tags),
+        })
+      }
+      onDelete={onDelete}
+    >
       <input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
       <select className="form-input" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} style={{ marginTop: 6 }}>
         {categories.map((c) => (
@@ -344,12 +373,220 @@ function ReviewEditForm({
         ))}
       </select>
       <div className="lh-oc-admin-grid" style={{ marginTop: 6 }}>
-        <input className="form-input" type="number" min={1} max={5} value={form.rating} onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })} />
-        <input className="form-input" placeholder="상태 (감상 중)" value={form.status || ''} onChange={(e) => setForm({ ...form, status: e.target.value })} />
+        <input
+          className="form-input"
+          type="number"
+          min={0.5}
+          max={5}
+          step={0.5}
+          value={form.rating}
+          onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })}
+          aria-label="별점"
+        />
+        <select
+          className="form-input"
+          value={form.status || ''}
+          onChange={(e) => setForm({ ...form, status: e.target.value || undefined })}
+          aria-label="감상 상태"
+        >
+          <option value="">상태 없음</option>
+          <option value="watching">감상 중</option>
+          <option value="done">완결</option>
+          <option value="oneshot">단편</option>
+        </select>
       </div>
+      <div className="lh-oc-admin-grid" style={{ marginTop: 6 }}>
+        <input
+          className="form-input"
+          placeholder="연도"
+          value={form.year || ''}
+          onChange={(e) => setForm({ ...form, year: e.target.value })}
+        />
+        <input
+          className="form-input"
+          placeholder="장르 (쉼표 구분)"
+          value={(form.genres ?? []).join(', ')}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              genres: splitCommaListLive(e.target.value),
+            })
+          }
+        />
+      </div>
+      <input
+        className="form-input"
+        placeholder="감독·제작 등"
+        value={form.author || ''}
+        onChange={(e) => setForm({ ...form, author: e.target.value })}
+        style={{ marginTop: 6 }}
+      />
+      <input
+        className="form-input"
+        placeholder="한줄 코멘트"
+        value={form.highlight || ''}
+        onChange={(e) => setForm({ ...form, highlight: e.target.value })}
+        style={{ marginTop: 6 }}
+      />
       <ImageFileField value={form.coverUrl || ''} folder="site/review" uploading={uploading} onUploadStart={onUploadStart} onUploadEnd={onUploadEnd} onChange={(coverUrl) => setForm({ ...form, coverUrl })} />
-      <input className="form-input" placeholder="태그 (쉼표 구분)" value={(form.tags ?? []).join(', ')} onChange={(e) => setForm({ ...form, tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) })} style={{ marginTop: 6 }} />
-      <textarea className="form-input" rows={4} value={form.body || ''} onChange={(e) => setForm({ ...form, body: e.target.value })} style={{ marginTop: 6 }} />
+      <input
+        className="form-input"
+        placeholder="태그 (쉼표 구분)"
+        value={(form.tags ?? []).join(', ')}
+        onChange={(e) => setForm({ ...form, tags: splitCommaListLive(e.target.value) })}
+        style={{ marginTop: 6 }}
+      />
+      <textarea className="form-input" rows={4} placeholder="리뷰 본문" value={form.body || ''} onChange={(e) => setForm({ ...form, body: e.target.value })} style={{ marginTop: 6 }} />
+      <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+    </AdminPanelShell>
+  );
+}
+
+type QuoteProps = {
+  items: QuoteItem[];
+  onSave: (next: QuoteItem[]) => Promise<void>;
+};
+
+export function QuoteAdminPanel({ items, onSave }: QuoteProps) {
+  const { showSaveToast, showDeleteToast } = useSaveToast();
+  const [editId, setEditId] = useState<string | null>(null);
+  const selected = items.find((i) => i.id === editId);
+
+  function add() {
+    const item: QuoteItem = {
+      id: newId(),
+      text: '',
+      category: 'poem',
+      date: new Date().toISOString().slice(0, 10),
+    };
+    void onSave([item, ...items]);
+    setEditId(item.id);
+    showSaveToast();
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.75rem' }}>
+        <span style={{ fontSize: 12, color: 'var(--lake-copper-soft, var(--pink))' }}>Quote</span>
+        <button type="button" className="btn-save" onClick={add}>
+          + 인용
+        </button>
+      </div>
+      <div className="lh-admin-grid">
+        <div>
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              onClick={() => setEditId(item.id)}
+            >
+              <div>{item.text.slice(0, 40) || '(빈 인용)'}</div>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
+                {[
+                  item.category === 'poem' ? '시' : item.category === 'lyrics' ? '가사' : item.category === 'sentence' ? '문장' : null,
+                  item.author,
+                  item.work,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="lh-oc-admin-block">
+          {selected ? (
+            <QuoteEditForm
+              key={selected.id}
+              item={selected}
+              onSave={(item) => {
+                void onSave(items.map((i) => (i.id === item.id ? item : i)));
+                showSaveToast();
+              }}
+              onDelete={() => {
+                void onSave(items.filter((i) => i.id !== selected.id));
+                setEditId(null);
+                showDeleteToast();
+              }}
+            />
+          ) : (
+            <span style={{ color: 'var(--text-muted)' }}>항목 선택</span>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function QuoteEditForm({
+  item,
+  onSave,
+  onDelete,
+}: {
+  item: QuoteItem;
+  onSave: (item: QuoteItem) => void;
+  onDelete: () => void;
+}) {
+  const [form, setForm] = useState(item);
+  return (
+    <AdminPanelShell title="인용 편집" onSave={() => onSave(form)} onDelete={onDelete}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+        {(
+          [
+            { id: 'poem', label: '시' },
+            { id: 'lyrics', label: '가사' },
+            { id: 'sentence', label: '문장' },
+          ] as const
+        ).map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className="btn-save"
+            style={{
+              opacity: form.category === c.id ? 1 : 0.5,
+              background: form.category === c.id ? undefined : 'transparent',
+              border: '1px solid rgba(201,161,92,0.35)',
+            }}
+            onClick={() => setForm({ ...form, category: c.id })}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <textarea
+        className="form-input"
+        rows={5}
+        placeholder="인용 문구"
+        value={form.text}
+        onChange={(e) => setForm({ ...form, text: e.target.value })}
+      />
+      <div className="lh-oc-admin-grid" style={{ marginTop: 6 }}>
+        <input
+          className="form-input"
+          placeholder="작가"
+          value={form.author || ''}
+          onChange={(e) => setForm({ ...form, author: e.target.value })}
+        />
+        <input
+          className="form-input"
+          placeholder="작품명"
+          value={form.work || ''}
+          onChange={(e) => setForm({ ...form, work: e.target.value })}
+        />
+      </div>
+      <input
+        className="form-input"
+        placeholder="메모 (선택)"
+        value={form.note || ''}
+        onChange={(e) => setForm({ ...form, note: e.target.value })}
+        style={{ marginTop: 6 }}
+      />
+      <input
+        className="form-input"
+        type="date"
+        value={form.date || ''}
+        onChange={(e) => setForm({ ...form, date: e.target.value })}
+        style={{ marginTop: 6 }}
+      />
       <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
     </AdminPanelShell>
   );
@@ -806,7 +1043,11 @@ function TimelineEditForm({
   const [form, setForm] = useState(item);
   const [uploading, setUploading] = useState(false);
   return (
-    <AdminPanelShell title="타임라인 편집" onSave={() => onSave(form)} onDelete={onDelete}>
+    <AdminPanelShell
+      title="타임라인 편집"
+      onSave={() => onSave({ ...form, tags: finalizeCommaList(form.tags) })}
+      onDelete={onDelete}
+    >
       <input className="form-input" placeholder="작성자" value={form.authorName} onChange={(e) => setForm({ ...form, authorName: e.target.value })} />
       <ImageFileField
         label="프로필 사진"
@@ -819,9 +1060,16 @@ function TimelineEditForm({
       />
       <input className="form-input" type="datetime-local" value={form.date?.slice(0, 16) || ''} onChange={(e) => setForm({ ...form, date: new Date(e.target.value).toISOString() })} style={{ marginTop: 6 }} />
       <textarea className="form-input" rows={5} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} style={{ marginTop: 6 }} />
-      <input className="form-input" placeholder="태그 (쉼표)" value={(form.tags ?? []).join(', ')} onChange={(e) => setForm({ ...form, tags: e.target.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean) })} style={{ marginTop: 6 }} />
+      <input
+        className="form-input"
+        placeholder="태그 (쉼표)"
+        value={(form.tags ?? []).join(', ')}
+        onChange={(e) => setForm({ ...form, tags: splitCommaListLive(e.target.value) })}
+        style={{ marginTop: 6 }}
+      />
       <input className="form-input" placeholder="이미지 URL" value={form.imageUrl || ''} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} style={{ marginTop: 6 }} />
       <LakeToggle checked={!!form.secret} onChange={(secret) => setForm({ ...form, secret })} label="비밀글 (관리자만)" />
+      <LakeToggle checked={!!form.pinned} onChange={(pinned) => setForm({ ...form, pinned })} label="상단 고정 공지" />
     </AdminPanelShell>
   );
 }
@@ -852,6 +1100,18 @@ export function GuestSettingsAdminPanel({ data, onSave }: GuestSettingsProps) {
           onChange={(e) => setForm({ ...form, guideText: e.target.value })}
           placeholder="방명록 상단에 표시할 안내 문구"
         />
+      </div>
+      <div className="form-group">
+        <label className="form-label">방명록 답글 닉네임</label>
+        <input
+          className="form-input"
+          value={form.replyName || ''}
+          onChange={(e) => setForm({ ...form, replyName: e.target.value })}
+          placeholder="비우면 사이트 닉네임 사용"
+        />
+        <p className="form-hint" style={{ marginTop: 6, fontSize: 11, opacity: 0.65 }}>
+          관리자 답글에 표시됩니다. 바꾸면 기존 답글에도 바로 반영됩니다.
+        </p>
       </div>
     </AdminPanelShell>
   );

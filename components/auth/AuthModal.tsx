@@ -252,10 +252,6 @@ export function AuthModal({ open, onClose, backdrop = 'default' }: Props) {
           ✕
         </button>
         <div className="auth-box-header">
-          <div className="auth-box-title">lakehouse</div>
-          <div className="auth-box-sub">
-            {tab === 'login' ? '계정으로 로그인하세요' : '회원가입'}
-          </div>
           <div className="auth-tabs">
             <button
               type="button"

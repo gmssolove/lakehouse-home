@@ -24,11 +24,12 @@ import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
 import { lakeNavigate, peekPendingLakeRouteDir, beginLakeRouteEnter } from '@/lib/lake/routeTransition';
+import { consumeTrpgReturnPath, consumeTrpgSkipBgmRestore, markTrpgSkipBgmRestore } from '@/lib/lake/trpgReturn';
 import { trpgFontFamily } from '@/lib/trpg/fonts';
 import { TrpgScenarioEditDrawer, type TrpgEditTabId } from '@/components/trpg/TrpgScenarioEditDrawer';
-import { formatTrpgDateRange, normalizeTrpgScenario } from '@/lib/trpg/normalize';
+import { formatTrpgDateRange, formatTrpgGalleryCredit, normalizeTrpgScenario, trpgGalleryImages } from '@/lib/trpg/normalize';
 import { highlightLogPlainText } from '@/lib/trpg/logHighlight';
-import type { TrpgScenario, TrpgSessionLog } from '@/lib/types/site-content';
+import type { TrpgGalleryItem, TrpgScenario, TrpgSessionLog } from '@/lib/types/site-content';
 
 type Props = {
   id: string;
@@ -61,8 +62,7 @@ function LogBody({
 
 type TrpgPanel =
   | 'overview'
-  | 'story'
-  | 'credits'
+  | 'review'
   | 'players'
   | 'gallery'
   | 'dice'
@@ -82,9 +82,9 @@ export function TrpgScenarioPageClient({ id }: Props) {
   const { user, isAdmin } = useAuth();
   const { confirm } = useLakeDialog();
   const { trpg, loaded, saveTrpg } = useSiteContent();
-  const { playCharacterTheme, restorePageSnapshot } = useBgm();
-  const bgmActionsRef = useRef({ playCharacterTheme, restorePageSnapshot });
-  bgmActionsRef.current = { playCharacterTheme, restorePageSnapshot };
+  const { playCharacterTheme, restorePageSnapshot, silenceMedia } = useBgm();
+  const bgmActionsRef = useRef({ playCharacterTheme, restorePageSnapshot, silenceMedia });
+  bgmActionsRef.current = { playCharacterTheme, restorePageSnapshot, silenceMedia };
   const raw = trpg.find((s) => s.id === id);
   const [authOpen, setAuthOpen] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
@@ -94,6 +94,8 @@ export function TrpgScenarioPageClient({ id }: Props) {
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editInitialTab, setEditInitialTab] = useState<TrpgEditTabId>('basic');
   const [invUploading, setInvUploading] = useState(false);
+  const [reviewEditing, setReviewEditing] = useState(false);
+  const [reviewDraft, setReviewDraft] = useState('');
   const pathname = usePathname();
 
   const openScenarioEdit = useCallback((tab: TrpgEditTabId = 'basic') => {
@@ -101,10 +103,38 @@ export function TrpgScenarioPageClient({ id }: Props) {
     setEditDrawerOpen(true);
   }, []);
   const [revealedHandouts, setRevealedHandouts] = useState<Set<string>>(() => new Set());
+  const [galleryLightbox, setGalleryLightbox] = useState<{ item: TrpgGalleryItem; index: number } | null>(
+    null,
+  );
+  const [galleryLeaving, setGalleryLeaving] = useState(false);
+  const galleryCloseTimerRef = useRef<number | null>(null);
+
+  const closeGalleryLightbox = useCallback(() => {
+    if (!galleryLightbox || galleryLeaving) return;
+    setGalleryLeaving(true);
+    if (galleryCloseTimerRef.current) window.clearTimeout(galleryCloseTimerRef.current);
+    galleryCloseTimerRef.current = window.setTimeout(() => {
+      setGalleryLightbox(null);
+      setGalleryLeaving(false);
+      galleryCloseTimerRef.current = null;
+    }, 220);
+  }, [galleryLightbox, galleryLeaving]);
+
+  useEffect(() => {
+    return () => {
+      if (galleryCloseTimerRef.current) window.clearTimeout(galleryCloseTimerRef.current);
+    };
+  }, []);
 
   const routeGuard = useMemo(() => ({ guardPath: `/trpg/${id}`, router }), [id, router]);
 
   const goBack = useCallback(() => {
+    const ret = consumeTrpgReturnPath();
+    if (ret) {
+      markTrpgSkipBgmRestore();
+      lakeNavigate(router, ret, `/trpg/${id}`);
+      return;
+    }
     lakeNavigate(router, '/?p=trpg', `/trpg/${id}`);
   }, [id, router]);
 
@@ -141,6 +171,34 @@ export function TrpgScenarioPageClient({ id }: Props) {
   }, [activeLogId, item]);
 
   useEffect(() => {
+    if (!galleryLightbox || galleryLeaving) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeGalleryLightbox();
+        return;
+      }
+      if (galleryLightbox.item.viewMode === 'scroll') return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const images = trpgGalleryImages(galleryLightbox.item);
+        if (images.length < 2) return;
+        const delta = e.key === 'ArrowLeft' ? -1 : 1;
+        setGalleryLightbox((cur) => {
+          if (!cur) return cur;
+          const len = trpgGalleryImages(cur.item).length;
+          return { item: cur.item, index: (cur.index + delta + len) % len };
+        });
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [galleryLightbox, galleryLeaving, closeGalleryLightbox]);
+
+  useEffect(() => {
+    setReviewEditing(false);
+    setReviewDraft('');
+  }, [id]);
+
+  useEffect(() => {
     if (!item || !unlocked) return;
     const bgm = item.pageBgm;
     const fileUrl = bgm?.fileUrl?.trim();
@@ -159,6 +217,11 @@ export function TrpgScenarioPageClient({ id }: Props) {
     );
 
     return () => {
+      if (consumeTrpgSkipBgmRestore()) {
+        // 고스트 재생 방지: 미디어는 끄고, 페이지 BGM은 OC가 테마/복원을 담당
+        bgmActionsRef.current.silenceMedia();
+        return;
+      }
       bgmActionsRef.current.restorePageSnapshot(true);
     };
   }, [item?.id, item?.pageBgm?.fileUrl, item?.pageBgm?.url, unlocked]);
@@ -203,12 +266,31 @@ export function TrpgScenarioPageClient({ id }: Props) {
   async function persistScenario(next: TrpgScenario) {
     await saveTrpg(trpg.map((s) => (s.id === next.id ? next : s)));
     setDraft(null);
+    setReviewEditing(false);
   }
 
   function startEditLog(log: TrpgSessionLog) {
     const base = editing && draft ? draft : scenario;
     setDraft({ ...base, logs: base.logs ?? [] });
     setActiveLogId(log.id);
+    setReviewEditing(false);
+  }
+
+  function startEditReview() {
+    if (!canEdit) return;
+    setReviewDraft(scenario.review || scenario.summary || '');
+    setReviewEditing(true);
+    setDraft(null);
+  }
+
+  async function saveReview() {
+    if (!canEdit) return;
+    await persistScenario({ ...scenario, review: reviewDraft });
+  }
+
+  function cancelEditReview() {
+    setReviewEditing(false);
+    setReviewDraft('');
   }
 
   async function handleDeleteLog() {
@@ -227,6 +309,7 @@ export function TrpgScenarioPageClient({ id }: Props) {
     setActivePanel(panel);
     const logId = logIdFromPanel(panel);
     if (logId) setActiveLogId(logId);
+    if (panel !== 'review') setReviewEditing(false);
   }
 
   function updateDraftLog(logId: string, patch: Partial<TrpgSessionLog>) {
@@ -245,7 +328,24 @@ export function TrpgScenarioPageClient({ id }: Props) {
 
   return (
     <>
-      <TrpgTopbar />
+      <TrpgTopbar
+        back={
+          <button type="button" className="nav-back" onClick={goBack}>
+            ← back
+          </button>
+        }
+        actions={
+          isAdmin ? (
+            <button
+              type="button"
+              className="trpg-topbar__edit"
+              onClick={() => openScenarioEdit(activePanel.startsWith('log:') ? 'logs' : 'basic')}
+            >
+              ✎ 시나리오 수정
+            </button>
+          ) : undefined
+        }
+      />
 
       <main
         className="trpg-scenario-shell trpg-scenario-layout"
@@ -262,30 +362,27 @@ export function TrpgScenarioPageClient({ id }: Props) {
         }
       >
         <div className="trpg-scenario-page">
-          {activePanel === 'overview' && (
+          <div key={activePanel} className="trpg-scenario-page__enter">
+          {activePanel === 'overview' ? (
             <>
-              {view.system ? <p className="trpg-scenario-page__system">{view.system}</p> : null}
-
               <div className="trpg-scenario-page__hero-wrap">
-                <span className="trpg-scenario-page__glow trpg-scenario-page__glow--left" aria-hidden="true" />
-                <div className="trpg-scenario-page__hero">
-                  {view.thumbnail ? (
-                    <ImageFrameView
-                      src={view.thumbnail}
-                      frame={view.thumbnailFrame}
-                      fit={view.thumbnailFit || 'cover'}
-                      pos={view.thumbnailPos || 'center center'}
-                      className="trpg-scenario-page__hero-frame"
-                      imgClassName="trpg-scenario-page__hero-img"
-                    />
-                  ) : (
-                    <div className="trpg-scenario-page__hero-fallback">{view.title}</div>
-                  )}
-                  {view.cleared ? <span className="trpg-scenario-page__stamp">CLEARED</span> : null}
-                </div>
+                {view.thumbnail ? (
+                  <ImageFrameView
+                    src={view.thumbnail}
+                    frame={view.thumbnailFrame}
+                    fit={view.thumbnailFit || 'cover'}
+                    pos={view.thumbnailPos || 'center center'}
+                    className="trpg-scenario-page__hero-frame"
+                    imgClassName="trpg-scenario-page__hero-img"
+                  />
+                ) : (
+                  <div className="trpg-scenario-page__hero-fallback">{view.title}</div>
+                )}
+                {view.cleared ? <span className="trpg-scenario-page__stamp">CLEARED</span> : null}
               </div>
 
               <header className="trpg-scenario-page__head">
+                {view.system ? <p className="trpg-scenario-page__system">{view.system}</p> : null}
                 <h1 className="trpg-scenario-page__title" style={titleStyle}>
                   {view.title}
                 </h1>
@@ -295,92 +392,69 @@ export function TrpgScenarioPageClient({ id }: Props) {
                   </p>
                 ) : null}
                 <div className="trpg-scenario-page__meta">
-                  {dates ? (
-                    <p className="trpg-scenario-page__meta-row">
-                      <span className="trpg-scenario-page__meta-icon" aria-hidden="true">
-                        📅
-                      </span>
-                      {dates}
-                    </p>
-                  ) : null}
-                  {(view.kp || view.players) && (
-                    <p className="trpg-scenario-page__meta-row">
-                      <span className="trpg-scenario-page__meta-icon" aria-hidden="true">
-                        👥
-                      </span>
-                      {[view.kp ? `KP ${view.kp}` : null, view.players].filter(Boolean).join(' · ')}
-                    </p>
-                  )}
+                  {dates ? <p className="trpg-scenario-page__meta-row">{dates}</p> : null}
+                  {view.kp ? <p className="trpg-scenario-page__meta-row">KP · {view.kp}</p> : null}
+                  {view.players ? <p className="trpg-scenario-page__meta-row">{view.players}</p> : null}
                   {view.author ? <p className="trpg-scenario-page__author">w. {view.author}</p> : null}
                 </div>
+                {view.sessionUrl ? (
+                  <a href={view.sessionUrl} target="_blank" rel="noreferrer" className="trpg-scenario-session-link__btn">
+                    세션 바로가기 ↗
+                  </a>
+                ) : null}
               </header>
 
-              <section className="trpg-scenario-page__section trpg-scenario-page__section--overview">
-                {view.sessionUrl ? (
-                  <div className="trpg-scenario-session-link">
-                    <a href={view.sessionUrl} target="_blank" rel="noreferrer" className="trpg-scenario-session-link__btn">
-                      세션 바로가기 ↗
-                    </a>
+              {view.summary || view.body ? (
+                <section className="trpg-scenario-page__section">
+                  <h2 className="trpg-scenario-page__section-title">개요</h2>
+                  <div className="trpg-scenario-page__prose">{view.summary || view.body}</div>
+                </section>
+              ) : null}
+            </>
+          ) : null}
+
+          {activePanel === 'review' ? (
+            <section className="trpg-scenario-page__section">
+              <div className="trpg-scenario-page__section-head">
+                <h2 className="trpg-scenario-page__section-title">후기</h2>
+                {canEdit ? (
+                  <div className="trpg-log-view__admin">
+                    {reviewEditing ? (
+                      <div className="trpg-log-view__admin-actions">
+                        <LakeIconToolButton label="저장" onClick={() => void saveReview()}>
+                          <LakeSaveIcon />
+                        </LakeIconToolButton>
+                        <LakeIconToolButton label="취소" onClick={cancelEditReview}>
+                          <LakeCancelIcon />
+                        </LakeIconToolButton>
+                      </div>
+                    ) : (
+                      <LakeIconToolButton label="수정" onClick={startEditReview}>
+                        <LakeEditIcon />
+                      </LakeIconToolButton>
+                    )}
                   </div>
                 ) : null}
-                <h2 className="trpg-scenario-page__section-title">후기</h2>
+              </div>
+              {reviewEditing ? (
+                <textarea
+                  className="form-input trpg-review-editor"
+                  rows={16}
+                  value={reviewDraft}
+                  placeholder="플레이 후기를 작성하세요"
+                  onChange={(e) => setReviewDraft(e.target.value)}
+                />
+              ) : (
                 <div className="trpg-scenario-page__prose">
                   {view.review || view.summary || '플레이 후기가 아직 등록되지 않았습니다.'}
                 </div>
-              </section>
-            </>
-          )}
-
-          {activePanel === 'story' && (view.body || view.summary) && (
-            <section className="trpg-scenario-page__section">
-              <h2 className="trpg-scenario-page__section-title">Story</h2>
-              <div className="trpg-scenario-page__prose trpg-scenario-page__prose--story">
-                {view.body || view.summary}
-              </div>
+              )}
             </section>
-          )}
-
-          {activePanel === 'credits' && (
-            <section className="trpg-scenario-page__section">
-              <h2 className="trpg-scenario-page__section-title">Credits</h2>
-              <dl className="trpg-credits-list">
-                {view.system ? (
-                  <>
-                    <dt>System</dt>
-                    <dd>{view.system}</dd>
-                  </>
-                ) : null}
-                {view.author ? (
-                  <>
-                    <dt>Writer</dt>
-                    <dd>w. {view.author}</dd>
-                  </>
-                ) : null}
-                {view.kp ? (
-                  <>
-                    <dt>KP</dt>
-                    <dd>{view.kp}</dd>
-                  </>
-                ) : null}
-                {dates ? (
-                  <>
-                    <dt>Play period</dt>
-                    <dd>{dates}</dd>
-                  </>
-                ) : null}
-                {view.players ? (
-                  <>
-                    <dt>Players</dt>
-                    <dd>{view.players}</dd>
-                  </>
-                ) : null}
-              </dl>
-            </section>
-          )}
+          ) : null}
 
           {activePanel === 'players' && ((view.playerProfiles?.length ?? 0) > 0 || canEdit) && (
             <section className="trpg-scenario-page__section">
-              <h2 className="trpg-scenario-page__section-title trpg-scenario-page__section-title--players">탐사자</h2>
+              <h2 className="trpg-scenario-page__section-title">탐사자</h2>
               <TrpgInvestigatorBoard
                 players={view.playerProfiles ?? []}
                 editable={canEdit}
@@ -396,21 +470,141 @@ export function TrpgScenarioPageClient({ id }: Props) {
             <section className="trpg-scenario-page__section">
               <h2 className="trpg-scenario-page__section-title">After · Gallery</h2>
               <div className="trpg-scenario-page__gallery">
-                {view.gallery.map((g) => (
-                  <figure key={g.id} className="trpg-gallery-card">
-                    <img src={g.img} alt={g.title || ''} />
-                    {(g.title || g.caption || g.artist) && (
-                      <figcaption>
-                        {g.title ? <strong>{g.title}</strong> : null}
-                        {g.caption ? <span>{g.caption}</span> : null}
-                        {g.artist ? <em>{g.artist}</em> : null}
-                      </figcaption>
-                    )}
-                  </figure>
-                ))}
+                {view.gallery.map((g) => {
+                  const images = trpgGalleryImages(g);
+                  const cover = images[0];
+                  if (!cover) return null;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      className="trpg-gallery-card"
+                      onClick={() => {
+                        setGalleryLeaving(false);
+                        setGalleryLightbox({ item: g, index: 0 });
+                      }}
+                    >
+                      <img src={cover} alt={g.title || ''} />
+                      {images.length > 1 ? (
+                        <span className="trpg-gallery-card__count" aria-label={`${images.length}장`}>
+                          {images.length}
+                        </span>
+                      ) : null}
+                      {(g.title || g.caption || g.artist) && (
+                        <span className="trpg-gallery-card__caption">
+                          {g.title ? <strong>{g.title}</strong> : null}
+                          {g.caption ? <span>{g.caption}</span> : null}
+                          {g.artist ? <em>{formatTrpgGalleryCredit(g.artist)}</em> : null}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </section>
           )}
+
+          {galleryLightbox ? (
+            <div
+              className={`trpg-gallery-lightbox${galleryLeaving ? ' is-out' : ' is-in'}`}
+              role="dialog"
+              aria-modal="true"
+              aria-label="갤러리 이미지"
+            >
+              <button
+                type="button"
+                className="trpg-gallery-lightbox__bg"
+                aria-label="닫기"
+                onClick={closeGalleryLightbox}
+              />
+              {(() => {
+                const item = galleryLightbox.item;
+                const images = trpgGalleryImages(item);
+                const idx = Math.min(Math.max(galleryLightbox.index, 0), Math.max(images.length - 1, 0));
+                const isScroll = item.viewMode === 'scroll' && images.length > 1;
+                const meta = (
+                  <div className="trpg-gallery-lightbox__meta">
+                    {item.title ? <strong>{item.title}</strong> : null}
+                    {item.caption ? <span>{item.caption}</span> : null}
+                    {item.artist ? <em>{formatTrpgGalleryCredit(item.artist)}</em> : null}
+                  </div>
+                );
+                return (
+                  <div className="trpg-gallery-lightbox__frame">
+                    {!isScroll && images.length > 1 ? (
+                      <button
+                        type="button"
+                        className="trpg-gallery-lightbox__arrow is-prev"
+                        aria-label="이전"
+                        onClick={() =>
+                          setGalleryLightbox({
+                            item,
+                            index: (idx - 1 + images.length) % images.length,
+                          })
+                        }
+                      >
+                        ‹
+                      </button>
+                    ) : null}
+                    <div
+                      className={`trpg-gallery-lightbox__panel${isScroll ? ' is-scroll' : ' is-slider'}`}
+                    >
+                      <button
+                        type="button"
+                        className="trpg-gallery-lightbox__close"
+                        aria-label="닫기"
+                        onClick={closeGalleryLightbox}
+                      >
+                        ✕
+                      </button>
+
+                      {isScroll ? (
+                        <div className="trpg-gallery-lightbox__scroll">
+                          {item.title || item.caption || item.artist ? meta : null}
+                          <div className="trpg-gallery-lightbox__stack">
+                            {images.map((src, i) => (
+                              <img key={`${item.id}-${i}`} src={src} alt={item.title ? `${item.title} ${i + 1}` : ''} />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="trpg-gallery-lightbox__stage">
+                            {images[idx] ? (
+                              <img src={images[idx]} alt={item.title || ''} />
+                            ) : null}
+                          </div>
+                          {item.title || item.caption || item.artist ? meta : null}
+                          {images.length > 1 ? (
+                            <div className="trpg-gallery-lightbox__pager">
+                              <span>
+                                {idx + 1} / {images.length}
+                              </span>
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                    {!isScroll && images.length > 1 ? (
+                      <button
+                        type="button"
+                        className="trpg-gallery-lightbox__arrow is-next"
+                        aria-label="다음"
+                        onClick={() =>
+                          setGalleryLightbox({
+                            item,
+                            index: (idx + 1) % images.length,
+                          })
+                        }
+                      >
+                        ›
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : null}
 
           {activePanel === 'dice' && view.diceHighlights && view.diceHighlights.length > 0 && (
             <section className="trpg-scenario-page__section">
@@ -545,12 +739,10 @@ export function TrpgScenarioPageClient({ id }: Props) {
               </SecretItemGate>
             </section>
           ) : null}
+          </div>
         </div>
 
         <aside className="trpg-scenario-rail lh-scroll" aria-label="섹션 이동" onClick={(e) => e.stopPropagation()}>
-          <button type="button" className="trpg-scenario-rail__btn trpg-scenario-rail__btn--back" onClick={goBack}>
-            ← TRPG 목록
-          </button>
           <div className="trpg-scenario-rail__group">
             <span className="trpg-scenario-rail__label">Scenario</span>
             <button
@@ -560,62 +752,58 @@ export function TrpgScenarioPageClient({ id }: Props) {
             >
               개요
             </button>
-            {(view.body || view.summary) && (
-              <button
-                type="button"
-                className={`trpg-scenario-rail__btn${activePanel === 'story' ? ' is-active' : ''}`}
-                onClick={() => goPanel('story')}
-              >
-                스토리
-              </button>
-            )}
             <button
               type="button"
-              className={`trpg-scenario-rail__btn${activePanel === 'credits' ? ' is-active' : ''}`}
-              onClick={() => goPanel('credits')}
+              className={`trpg-scenario-rail__btn${activePanel === 'review' ? ' is-active' : ''}`}
+              onClick={() => goPanel('review')}
             >
-              크레딧
+              후기
             </button>
           </div>
-          <div className="trpg-scenario-rail__group">
-            <span className="trpg-scenario-rail__label">Archive</span>
-          {(view.playerProfiles?.length ?? 0) > 0 && (
-            <button
-              type="button"
-              className={`trpg-scenario-rail__btn${activePanel === 'players' ? ' is-active' : ''}`}
-              onClick={() => goPanel('players')}
-            >
-              탐사자
-            </button>
-          )}
-          {(view.gallery?.length ?? 0) > 0 && (
-            <button
-              type="button"
-              className={`trpg-scenario-rail__btn${activePanel === 'gallery' ? ' is-active' : ''}`}
-              onClick={() => goPanel('gallery')}
-            >
-              Gallery
-            </button>
-          )}
-          {(view.diceHighlights?.length ?? 0) > 0 && (
-            <button
-              type="button"
-              className={`trpg-scenario-rail__btn${activePanel === 'dice' ? ' is-active' : ''}`}
-              onClick={() => goPanel('dice')}
-            >
-              Key Rolls
-            </button>
-          )}
-          {(view.handouts?.length ?? 0) > 0 && (
-            <button
-              type="button"
-              className={`trpg-scenario-rail__btn${activePanel === 'handouts' ? ' is-active' : ''}`}
-              onClick={() => goPanel('handouts')}
-            >
-              Handouts
-            </button>
-          )}
-          </div>
+          {((view.playerProfiles?.length ?? 0) > 0 || canEdit ||
+            (view.gallery?.length ?? 0) > 0 ||
+            (view.diceHighlights?.length ?? 0) > 0 ||
+            (view.handouts?.length ?? 0) > 0) ? (
+            <div className="trpg-scenario-rail__group">
+              <span className="trpg-scenario-rail__label">Archive</span>
+              {(view.playerProfiles?.length ?? 0) > 0 || canEdit ? (
+                <button
+                  type="button"
+                  className={`trpg-scenario-rail__btn${activePanel === 'players' ? ' is-active' : ''}`}
+                  onClick={() => goPanel('players')}
+                >
+                  탐사자
+                </button>
+              ) : null}
+              {(view.gallery?.length ?? 0) > 0 ? (
+                <button
+                  type="button"
+                  className={`trpg-scenario-rail__btn${activePanel === 'gallery' ? ' is-active' : ''}`}
+                  onClick={() => goPanel('gallery')}
+                >
+                  갤러리
+                </button>
+              ) : null}
+              {(view.diceHighlights?.length ?? 0) > 0 ? (
+                <button
+                  type="button"
+                  className={`trpg-scenario-rail__btn${activePanel === 'dice' ? ' is-active' : ''}`}
+                  onClick={() => goPanel('dice')}
+                >
+                  Key Rolls
+                </button>
+              ) : null}
+              {(view.handouts?.length ?? 0) > 0 ? (
+                <button
+                  type="button"
+                  className={`trpg-scenario-rail__btn${activePanel === 'handouts' ? ' is-active' : ''}`}
+                  onClick={() => goPanel('handouts')}
+                >
+                  Handouts
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {(view.logs?.length ?? 0) > 0 ? (
             <div className="trpg-scenario-rail__group">
               <span className="trpg-scenario-rail__label">Session Logs</span>
@@ -652,15 +840,6 @@ export function TrpgScenarioPageClient({ id }: Props) {
                 </SecretItemGate>
               ))}
             </div>
-          ) : null}
-          {isAdmin ? (
-            <button
-              type="button"
-              className="trpg-scenario-rail__btn trpg-scenario-rail__btn--admin"
-              onClick={() => openScenarioEdit(activePanel.startsWith('log:') ? 'logs' : 'basic')}
-            >
-              ✎ 시나리오 수정
-            </button>
           ) : null}
         </aside>
       </main>

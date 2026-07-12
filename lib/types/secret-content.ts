@@ -14,7 +14,8 @@ export type LakeAccessScope =
   | 'music'
   | 'charArchive'
   | 'notice'
-  | 'gallery';
+  | 'gallery'
+  | 'quote';
 
 export type SiteAccessSettings = Record<LakeAccessScope, string>;
 
@@ -28,4 +29,5 @@ export const DEFAULT_SITE_ACCESS_SETTINGS: SiteAccessSettings = {
   charArchive: '',
   notice: '',
   gallery: '',
+  quote: '',
 };

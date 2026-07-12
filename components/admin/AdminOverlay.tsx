@@ -27,9 +27,9 @@ import {
   CharArchiveAdminPanel,
   GuestSettingsAdminPanel,
   MusicAdminPanel,
+  QuoteAdminPanel,
   ReviewAdminPanel,
   ScrapAdminPanel,
-  TimelineAdminPanel,
 } from '@/components/admin/RecordsAdminPanels';
 import { OcEditForm } from '@/components/admin/OcEditForm';
 import { PairEditForm } from '@/components/pair/PairEditForm';
@@ -163,7 +163,6 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
             onSaveCategories={site.saveScrapCategories}
           />
         )}
-        {section === 'timeline' && <TimelineAdminPanel items={site.timeline} onSave={site.saveTimeline} />}
         {section === 'review' && (
           <ReviewAdminPanel
             categories={site.reviewCategories}
@@ -184,9 +183,16 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
           <CharArchiveAdminPanel items={site.charArchive} onSave={site.saveCharArchive} />
         )}
         {section === 'gallery' && <GalleryAdminPanel items={site.gallery} onSave={site.saveGallery} />}
+        {section === 'quote' && <QuoteAdminPanel items={site.quotes} onSave={site.saveQuotes} />}
         {section === 'universe' && <UniverseAdminPanel items={site.universe} onSave={site.saveUniverse} />}
         {section === 'trpg' && (
-          <TrpgAdminPanel items={site.trpg} onSave={site.saveTrpg} initialEditId={trpgEditId} />
+          <TrpgAdminPanel
+            items={site.trpg}
+            onSave={site.saveTrpg}
+            settings={site.trpgSettings}
+            onSaveSettings={site.saveTrpgSettings}
+            initialEditId={trpgEditId}
+          />
         )}
         {section === 'guest' && (
           <>

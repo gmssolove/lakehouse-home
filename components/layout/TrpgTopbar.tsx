@@ -4,11 +4,12 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 type Props = {
+  title?: string;
   back?: ReactNode;
   actions?: ReactNode;
 };
 
-export function TrpgTopbar({ back, actions }: Props) {
+export function TrpgTopbar({ title = 'SCENARIO', back, actions }: Props) {
   return (
     <nav className="oc-topbar lh-archive-topbar trpg-topbar">
       {back ?? (
@@ -16,7 +17,7 @@ export function TrpgTopbar({ back, actions }: Props) {
           ← back
         </Link>
       )}
-      <div className="nav-title trpg-topbar__spacer" aria-hidden="true" />
+      <div className="nav-title">{title}</div>
       {actions ? <div className="trpg-topbar__actions">{actions}</div> : null}
     </nav>
   );

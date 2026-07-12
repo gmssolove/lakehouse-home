@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import {
   Cormorant_Garamond,
   Cormorant_Upright,
@@ -86,6 +86,12 @@ export const metadata: Metadata = {
   icons: { icon: '/favicon.svg' },
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -102,6 +108,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         mySoul.variable,
       ].join(' ')}
     >
+      <head>
+        <link
+          rel="preload"
+          href="/fonts/ChosunNm.ttf"
+          as="font"
+          type="font/ttf"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body>
         <Providers>{children}</Providers>
         <Script src="/lakehouse-r2.js" strategy="afterInteractive" />

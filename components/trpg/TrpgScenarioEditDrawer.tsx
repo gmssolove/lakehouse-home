@@ -6,6 +6,7 @@ import { LakeEditModal } from '@/components/ui/LakeEditModal';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { useOcData } from '@/lib/hooks/useOcData';
+import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import type { TrpgScenario } from '@/lib/types/site-content';
 
 export type TrpgEditTabId = 'basic' | 'session' | 'investigators' | 'logs' | 'gallery' | 'dice' | 'handouts';
@@ -28,6 +29,7 @@ export function TrpgScenarioEditDrawer({
   initialTab = 'basic',
 }: Props) {
   const { characters } = useOcData();
+  const { trpgSettings } = useSiteContent();
   const { confirm } = useLakeDialog();
   const { showSaveToast, showDeleteToast } = useSaveToast();
   const [uploading, setUploading] = useState(false);
@@ -83,6 +85,7 @@ export function TrpgScenarioEditDrawer({
         initialTab={initialTab}
         item={scenario}
         characters={characters}
+        listSettings={trpgSettings}
         uploading={uploading}
         onUploadStart={() => setUploading(true)}
         onUploadEnd={() => setUploading(false)}

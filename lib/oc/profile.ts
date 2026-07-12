@@ -42,27 +42,38 @@ export function mergeCharacterProfile(
   extras?: ProfileField[],
 ): ProfileField[] {
   const extraSource = extras ?? splitExtraProfileRows(profile);
-  const map = new Map<string, string>();
+  const map = new Map<string, ProfileField>();
   const pendingExtras: ProfileField[] = [];
 
   for (const row of extraSource) {
-    const key = row.k?.trim();
-    if (!key) {
-      pendingExtras.push({ k: '', v: row.v ?? '' });
+    const keyRaw = row.k ?? '';
+    const keyTrimmed = keyRaw.trim();
+    if (!keyTrimmed) {
+      // 입력 중 앞뒤 공백을 지우지 않음 (띄어쓰기 허용)
+      pendingExtras.push({ k: keyRaw, v: row.v ?? '' });
       continue;
     }
-    if (isKeywordProfileKey(key) || isCoreProfileKey(key)) continue;
-    map.set(key, row.v ?? '');
+    if (isKeywordProfileKey(keyTrimmed) || isCoreProfileKey(keyTrimmed)) continue;
+    map.set(keyTrimmed, { k: keyRaw, v: row.v ?? '' });
   }
 
   const core = CORE_PROFILE_FIELD_KEYS.map((key) => {
-    if (key === '나이') return { k: key, v: (age ?? '').trim() };
+    if (key === '나이') return { k: key, v: age ?? '' };
     const fromProfile = (profile ?? []).find((p) => p.k?.trim() === key);
-    return { k: key, v: (fromProfile?.v ?? '').trim() };
+    return { k: key, v: fromProfile?.v ?? '' };
   });
 
-  const extraRows = [...map.entries()].map(([k, v]) => ({ k, v }));
-  return [...core, ...extraRows, ...pendingExtras];
+  return [...core, ...[...map.values()], ...pendingExtras];
+}
+
+/** 저장 직전 — 항목/값 앞뒤 공백만 정리 */
+export function finalizeCharacterProfile(profile: ProfileField[] | undefined): ProfileField[] {
+  return (profile ?? [])
+    .map((p) => ({
+      k: (p.k ?? '').trim(),
+      v: (p.v ?? '').trim(),
+    }))
+    .filter((p) => isCoreProfileKey(p.k) || p.k.length > 0 || p.v.length > 0);
 }
 
 export function splitExtraProfileRows(profile: ProfileField[] | undefined): ProfileField[] {
@@ -99,4 +110,23 @@ export function formatStatDigits(raw: string): string {
   const digits = raw.replace(/\D/g, '');
   if (!digits) return raw.trim();
   return digits.padStart(2, '0');
+}
+
+/** 스탯 문자열 → 0~100 퍼센트 (75, 75/100, 75% 등) */
+export function parseStatPercent(raw: string): number {
+  const text = raw.trim();
+  if (!text) return 0;
+  const ratio = text.match(/(\d+(?:\.\d+)?)\s*[/⁄]\s*(\d+(?:\.\d+)?)/);
+  if (ratio) {
+    const a = Number(ratio[1]);
+    const b = Number(ratio[2]);
+    if (b > 0) return Math.max(0, Math.min(100, (a / b) * 100));
+  }
+  const pct = text.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (pct) return Math.max(0, Math.min(100, Number(pct[1])));
+  const n = Number(text.replace(/[^\d.]/g, ''));
+  if (!Number.isFinite(n)) return 0;
+  if (n <= 1) return Math.max(0, Math.min(100, n * 100));
+  if (n <= 10) return Math.max(0, Math.min(100, n * 10));
+  return Math.max(0, Math.min(100, n));
 }

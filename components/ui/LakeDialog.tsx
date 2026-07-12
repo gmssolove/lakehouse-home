@@ -46,7 +46,7 @@ export function LakeDialogProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const confirm = useCallback(
-    (message: string, title = '확인') =>
+    (message: string, title?: string) =>
       openDialog({
         title,
         message,
@@ -59,7 +59,7 @@ export function LakeDialogProvider({ children }: { children: ReactNode }) {
   );
 
   const alert = useCallback(
-    async (message: string, title = '알림') => {
+    async (message: string, title?: string) => {
       await openDialog({
         title,
         message,
@@ -83,7 +83,7 @@ export function LakeDialogProvider({ children }: { children: ReactNode }) {
           }}
         >
           <div className="lh-dialog-box" role="dialog" aria-modal="true">
-            <div className="lh-dialog-title">{dialog.title || '확인'}</div>
+            {dialog.title ? <div className="lh-dialog-title">{dialog.title}</div> : null}
             <div className="lh-dialog-message">{dialog.message}</div>
             <div className="lh-dialog-actions">
               {buttons.map((btn) => (

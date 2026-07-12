@@ -45,6 +45,7 @@
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-back,
+.trpg-layout > nav.oc-topbar.lh-archive-topbar > .nav-back,
 .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-back,
 .records-layout > nav.oc-topbar.lh-archive-topbar > .nav-back,
 .records-layout > nav.oc-topbar.lh-records-topbar > .nav-back {
@@ -67,6 +68,7 @@
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-title,
+.trpg-layout > nav.oc-topbar.lh-archive-topbar > .nav-title,
 .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-title,
 .records-layout > nav.oc-topbar.lh-archive-topbar > .nav-title,
 .records-layout > nav.oc-topbar.lh-records-topbar > .nav-title {

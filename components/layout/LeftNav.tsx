@@ -1,87 +1,92 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { User } from 'firebase/auth';
-import { useSiteContent } from '@/lib/hooks/useSiteContent';
-import { DEFAULT_SITE_MAIN } from '@/lib/types/site-content';
-import { RECORDS_SECTIONS, type RecordsSectionId } from '@/lib/records/sections';
+import {
+  HOME_RECORDS_LABELS,
+  HOME_RECORDS_TABS,
+  type HomeRecordsTabId,
+} from '@/lib/records/sections';
+import { updateNickname, type UserProfile } from '@/lib/auth/userProfile';
 
 export type HomePageId =
   | 'main'
   | 'notice'
   | 'charArchive'
-  | 'gallery'
   | 'universe'
   | 'trpg'
   | 'guest'
   | 'banner'
+  | HomeRecordsTabId
   | 'admin';
 
 type Props = {
   user: User | null;
+  profile: UserProfile | null;
   isAdmin: boolean;
   activePage: HomePageId;
   onPageChange: (page: HomePageId) => void;
   onOpenAuth: () => void;
   onLogout: () => void;
+  onNicknameUpdated?: () => void | Promise<void>;
 };
 
 type PageEntry = {
   kind: 'page';
-  id: HomePageId;
-  roman: string;
+  id: Exclude<HomePageId, 'admin' | HomeRecordsTabId>;
   label: string;
 };
 
 type GroupEntry = {
   kind: 'group';
   id: 'character' | 'records';
-  roman: string;
   label: string;
 };
 
 type NavEntry = PageEntry | GroupEntry;
 
 const NAV_ENTRIES: NavEntry[] = [
-  { kind: 'page', id: 'main', roman: 'I', label: 'Main' },
-  { kind: 'page', id: 'notice', roman: 'II', label: 'Notice' },
-  { kind: 'group', id: 'records', roman: 'III', label: 'Records' },
-  { kind: 'page', id: 'gallery', roman: 'IV', label: 'Gallery' },
-  { kind: 'group', id: 'character', roman: 'V', label: 'Character' },
-  { kind: 'page', id: 'universe', roman: 'VI', label: 'Universe' },
-  { kind: 'page', id: 'trpg', roman: 'VII', label: 'TRPG' },
-  { kind: 'page', id: 'guest', roman: 'VIII', label: 'Guest' },
-  { kind: 'page', id: 'banner', roman: 'IX', label: 'Banner' },
+  { kind: 'page', id: 'main', label: 'Home' },
+  { kind: 'page', id: 'notice', label: 'Notice' },
+  { kind: 'group', id: 'records', label: 'Records' },
+  { kind: 'group', id: 'character', label: 'Character' },
+  { kind: 'page', id: 'universe', label: 'Universe' },
+  { kind: 'page', id: 'trpg', label: 'TRPG' },
+  { kind: 'page', id: 'guest', label: 'Guest' },
+  { kind: 'page', id: 'banner', label: 'Banner' },
 ];
 
-const RECORDS_PAGES: { id: RecordsSectionId; label: string }[] = [
-  { id: 'diary', label: 'Diary' },
-  { id: 'timeline', label: 'Timeline' },
-  { id: 'scrap', label: 'Scrap' },
-  { id: 'review', label: 'Review' },
-  { id: 'music', label: 'Music' },
-];
+const SUB_CLOSE_MS = 320;
 
-const NAV_SHIFT_X = 36;
-const SUB_CLOSE_MS = 680;
-
-function useSubmenu(initial: boolean) {
-  const [open, setOpen] = useState(initial);
+function useSubmenu() {
+  const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [entered, setEntered] = useState(false);
   const subRef = useRef<HTMLDivElement>(null);
+  const mounted = open || closing;
+
+  useLayoutEffect(() => {
+    if (!open || closing) {
+      setEntered(false);
+      return;
+    }
+    setEntered(false);
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setEntered(true));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [open, closing]);
 
   useEffect(() => {
     if (!closing) return;
     const el = subRef.current;
-    if (!el) return;
+    if (!el) {
+      setOpen(false);
+      setClosing(false);
+      return;
+    }
 
     let done = false;
     const finishClose = () => {
@@ -89,6 +94,7 @@ function useSubmenu(initial: boolean) {
       done = true;
       setOpen(false);
       setClosing(false);
+      setEntered(false);
     };
 
     const onTransitionEnd = (e: TransitionEvent) => {
@@ -107,286 +113,277 @@ function useSubmenu(initial: boolean) {
 
   function toggle() {
     if (open && !closing) {
+      setEntered(false);
       setClosing(true);
       return;
     }
-    if (!open && !closing) setOpen(true);
+    if (!open && !closing) {
+      setClosing(false);
+      setOpen(true);
+    }
   }
 
   function subClass(base: string) {
-    if (closing && open) return `${base} open closing`;
-    if (open) return `${base} open`;
-    return base;
+    const parts = [base];
+    if (open || closing) parts.push('is-open');
+    if (closing) parts.push('is-closing');
+    else if (entered) parts.push('is-entered');
+    return parts.join(' ');
   }
 
-  const expanded = open || closing;
-
-  return { open, expanded, closing, toggle, subClass, subRef };
+  return { open, expanded: mounted, closing, mounted, toggle, subClass, subRef };
 }
 
-function arcOffset(index: number, total: number, maxBulge = 56): number {
-  if (total <= 1) return 6 + NAV_SHIFT_X;
-  const t = index / (total - 1);
-  const centerBulge = maxBulge * 4 * t * (1 - t);
-  return Math.round(maxBulge + 6 - centerBulge + NAV_SHIFT_X);
+function isRecordsTab(id: string): id is HomeRecordsTabId {
+  return (HOME_RECORDS_TABS as readonly string[]).includes(id);
 }
 
 export function LeftNav({
   user,
+  profile,
   isAdmin,
   activePage,
   onPageChange,
   onOpenAuth,
   onLogout,
+  onNicknameUpdated,
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
-  const { main } = useSiteContent();
-  const siteSubtitle = main.latin?.trim() || DEFAULT_SITE_MAIN.latin;
-  const charMenu = useSubmenu(pathname.startsWith('/oc') || pathname.startsWith('/pair'));
-  const recordsMenu = useSubmenu(pathname.startsWith('/records/'));
-  const [unfolded, setUnfolded] = useState(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollFade, setScrollFade] = useState(false);
-  const submenuExpanded = charMenu.expanded || recordsMenu.expanded;
+  const onHome = pathname === '/';
+  const charMenu = useSubmenu();
+  const recordsMenu = useSubmenu();
+  const [ready, setReady] = useState(false);
+  const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
+  const [editingNick, setEditingNick] = useState(false);
+  const [nickDraft, setNickDraft] = useState('');
+  const [nickError, setNickError] = useState<string | null>(null);
+  const [nickSaving, setNickSaving] = useState(false);
 
-  const navCount = NAV_ENTRIES.length + (isAdmin ? 1 : 0);
-  const stackX = useMemo(() => arcOffset(0, navCount), [navCount]);
+  const displayName =
+    profile?.nickname || user?.displayName || user?.email?.split('@')[0] || 'Guest';
 
   useEffect(() => {
-    const t = window.setTimeout(() => setUnfolded(true), 100);
-    return () => window.clearTimeout(t);
+    if (!editingNick) setNickDraft(displayName === 'Guest' ? '' : displayName);
+  }, [displayName, editingNick]);
+
+  async function saveNickname() {
+    if (!user || nickSaving) return;
+    setNickSaving(true);
+    setNickError(null);
+    try {
+      const err = await updateNickname(user, nickDraft);
+      if (err) {
+        setNickError(err);
+        return;
+      }
+      setEditingNick(false);
+      await onNicknameUpdated?.();
+    } catch {
+      setNickError('닉네임 저장에 실패했습니다.');
+    } finally {
+      setNickSaving(false);
+    }
+  }
+
+  useLayoutEffect(() => {
+    setPortalEl(document.body);
   }, []);
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    function updateFade() {
-      if (!submenuExpanded) {
-        setScrollFade(false);
-        return;
-      }
-      const { scrollTop, scrollHeight, clientHeight } = el!;
-      const overflow = scrollHeight - clientHeight > 4;
-      setScrollFade(overflow && scrollTop + clientHeight < scrollHeight - 4);
-    }
-
-    updateFade();
-    el.addEventListener('scroll', updateFade, { passive: true });
-    const ro = new ResizeObserver(updateFade);
-    ro.observe(el);
-
-    return () => {
-      el.removeEventListener('scroll', updateFade);
-      ro.disconnect();
-    };
-  }, [isAdmin, charMenu.expanded, recordsMenu.expanded, unfolded, submenuExpanded]);
-
-  function arcStyle(index: number): CSSProperties {
-    const x = arcOffset(index, navCount);
-    return {
-      ['--arc-x' as string]: `${x}px`,
-      ['--arc-stack-x' as string]: `${stackX}px`,
-      ['--arc-i' as string]: String(index),
-      ['--arc-stack-y' as string]: String(-index),
-    };
-  }
-
-  function isRecordsActive(id: RecordsSectionId) {
-    return pathname === `/records/${id}`;
-  }
+    const t = window.setTimeout(() => setReady(true), 20);
+    return () => window.clearTimeout(t);
+  }, []);
 
   function isRecordsGroupActive() {
-    return RECORDS_SECTIONS.some((id) => pathname === `/records/${id}`);
+    return isRecordsTab(activePage) && onHome;
   }
 
   function isPageActive(id: HomePageId) {
-    return activePage === id && pathname === '/';
+    return activePage === id && onHome;
   }
 
   function goHomeTab(page: HomePageId) {
-    if (pathname !== '/') {
+    if (!onHome) {
       router.push(`/?p=${page}`);
       return;
     }
     onPageChange(page);
   }
 
-  function renderSubmenu(entry: GroupEntry, menu: ReturnType<typeof useSubmenu>, active: boolean, kind: 'character' | 'records') {
-    const recordsActive = kind === 'records' && isRecordsGroupActive();
-    const headActive = kind === 'records' ? recordsActive : active;
+  function renderPage(entry: PageEntry) {
+    const active = isPageActive(entry.id);
     return (
-      <li
-        key={entry.id}
-        className={`nav-arc-slot nav-arc-slot--group${menu.expanded ? ' is-open' : ''}${menu.closing ? ' is-closing' : ''}`}
-        style={arcStyle(NAV_ENTRIES.indexOf(entry))}
-      >
-        <div
-          className={`nav-arc-item nav-item nav-group-head${headActive ? ' active' : ''}`}
-          onClick={menu.toggle}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && menu.toggle()}
-          aria-expanded={menu.expanded}
+      <li key={entry.id} className={`rq-nav-row${active ? ' is-active' : ''}`}>
+        <button
+          type="button"
+          className="rq-nav-item"
+          aria-label={entry.label}
+          onClick={() => goHomeTab(entry.id)}
         >
-          <span className="nav-arc-roman" aria-hidden="true">
-            {entry.roman}
-          </span>
-          <span className="nav-item-inner">
-            <span className="nav-label">{entry.label}</span>
-          </span>
-        </div>
-
-        {kind === 'character' ? (
-          <div ref={menu.subRef} className={menu.subClass('nav-sub nav-sub--arc')} id="char-sub">
-            <div className="nav-sub-inner">
-              <Link href="/oc" className={`nav-sub-item${pathname === '/oc' ? ' active' : ''}`}>
-                OC
-              </Link>
-              <Link href="/pair" className={`nav-sub-item${pathname === '/pair' ? ' active' : ''}`}>
-                Pair
-              </Link>
-              <button
-                type="button"
-                className={`nav-sub-item${isPageActive('charArchive') ? ' active' : ''}`}
-                onClick={() => goHomeTab('charArchive')}
-              >
-                Archive
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div ref={menu.subRef} className={menu.subClass('nav-sub nav-sub--arc')} id="records-sub">
-            <div className="nav-sub-inner">
-              {RECORDS_PAGES.map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/records/${p.id}`}
-                  className={`nav-sub-item${isRecordsActive(p.id) ? ' active' : ''}`}
-                >
-                  {p.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+          <span className="rq-nav-label">{entry.label}</span>
+        </button>
       </li>
     );
   }
 
-  return (
-    <div className="left-panel">
-      <div
-        className="site-title-wrap site-title-wrap--clickable"
-        role="button"
-        tabIndex={0}
-        onClick={() => goHomeTab('main')}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            goHomeTab('main');
-          }
-        }}
-        aria-label="메인 메뉴로 이동"
-      >
-        <div className="site-title">
-          lake<span>house</span>
-        </div>
-        <div className="site-subtitle site-subtitle--latin">{siteSubtitle}</div>
-      </div>
+  function renderGroup(entry: GroupEntry) {
+    const isChar = entry.id === 'character';
+    const menu = isChar ? charMenu : recordsMenu;
+    const groupActive = isChar
+      ? menu.open || (onHome && activePage === 'charArchive')
+      : menu.open || isRecordsGroupActive();
 
-      <div className="auth-area">
-        <div className="auth-user-info">
-          <span>{user ? user.displayName || user.email?.split('@')[0] : 'Guest'}</span>
-        </div>
-        {user ? (
-          <button type="button" className="btn-auth" onClick={onLogout}>
-            Logout
+    let subs: ReactNode = null;
+    if (isChar) {
+      subs = (
+        <>
+          <button
+            type="button"
+            className={`rq-nav-sub${pathname === '/oc' ? ' is-active' : ''}`}
+            onClick={() => router.push('/oc')}
+          >
+            OC
           </button>
+          <button
+            type="button"
+            className={`rq-nav-sub${pathname === '/pair' ? ' is-active' : ''}`}
+            onClick={() => router.push('/pair')}
+          >
+            Pair
+          </button>
+          <button
+            type="button"
+            className={`rq-nav-sub${isPageActive('charArchive') ? ' is-active' : ''}`}
+            onClick={() => goHomeTab('charArchive')}
+          >
+            Archive
+          </button>
+        </>
+      );
+    } else {
+      subs = HOME_RECORDS_TABS.map((id) => (
+        <button
+          key={id}
+          type="button"
+          className={`rq-nav-sub${isPageActive(id) ? ' is-active' : ''}`}
+          onClick={() => goHomeTab(id)}
+        >
+          {HOME_RECORDS_LABELS[id]}
+        </button>
+      ));
+    }
+
+    return (
+      <li key={entry.id} className={`rq-nav-row rq-nav-row--group${groupActive ? ' is-open' : ''}`}>
+        <button
+          type="button"
+          className="rq-nav-item"
+          aria-label={entry.label}
+          aria-expanded={menu.expanded}
+          onClick={menu.toggle}
+        >
+          <span className="rq-nav-label">{entry.label}</span>
+        </button>
+        {menu.mounted ? (
+          <div ref={menu.subRef} className={menu.subClass('rq-nav-subs')}>
+            <div className="rq-nav-subs-inner">{subs}</div>
+          </div>
+        ) : null}
+      </li>
+    );
+  }
+
+  const panel = (
+    <aside className={`rq-menu-panel${ready ? ' is-ready' : ''}`} aria-label="Site menu">
+      <div className="rq-menu-auth">
+        {user && editingNick ? (
+          <form
+            className="rq-menu-auth__edit"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveNickname();
+            }}
+          >
+            <input
+              className="rq-menu-auth__input"
+              value={nickDraft}
+              onChange={(e) => setNickDraft(e.target.value)}
+              placeholder="닉네임"
+              maxLength={24}
+              autoFocus
+              disabled={nickSaving}
+              aria-label="닉네임"
+            />
+            <button type="submit" className="rq-menu-auth__btn" disabled={nickSaving}>
+              저장
+            </button>
+            <button
+              type="button"
+              className="rq-menu-auth__btn"
+              disabled={nickSaving}
+              onClick={() => {
+                setEditingNick(false);
+                setNickError(null);
+              }}
+            >
+              취소
+            </button>
+            {nickError ? <span className="rq-menu-auth__err">{nickError}</span> : null}
+          </form>
         ) : (
-          <button type="button" className="btn-auth" onClick={onOpenAuth}>
-            Login
-          </button>
+          <>
+            {user ? (
+              <button
+                type="button"
+                className="rq-menu-auth__user rq-menu-auth__user--btn"
+                title="닉네임 수정"
+                onClick={() => {
+                  setNickDraft(displayName);
+                  setNickError(null);
+                  setEditingNick(true);
+                }}
+              >
+                {displayName}
+              </button>
+            ) : (
+              <span className="rq-menu-auth__user">Guest</span>
+            )}
+            {user ? (
+              <button type="button" className="rq-menu-auth__btn" onClick={onLogout}>
+                Logout
+              </button>
+            ) : (
+              <button type="button" className="rq-menu-auth__btn" onClick={onOpenAuth}>
+                Login
+              </button>
+            )}
+          </>
         )}
       </div>
 
-      <nav
-        id="main-nav"
-        className={`nav-arc${unfolded ? ' nav-arc--unfolded' : ''}`}
-        aria-label="Main menu"
-        style={{ ['--lh-nav-visible-rows' as string]: String(navCount) }}
-      >
-        <div
-          ref={scrollRef}
-          className={`nav-arc-scroll${submenuExpanded && scrollFade ? ' nav-arc-scroll--fade' : ''}${submenuExpanded ? ' nav-arc-scroll--clip' : ''}`}
-        >
-          <ul className="nav-arc-list">
-            {NAV_ENTRIES.map((entry, index) => {
-              const style = arcStyle(index);
-
-              if (entry.kind === 'page') {
-                const active = isPageActive(entry.id);
-                return (
-                  <li key={entry.id} className="nav-arc-slot" style={style}>
-                    <div
-                      className={`nav-arc-item nav-item${active ? ' active' : ''}`}
-                      onClick={() => goHomeTab(entry.id)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => e.key === 'Enter' && goHomeTab(entry.id)}
-                    >
-                      <span className="nav-arc-roman" aria-hidden="true">
-                        {entry.roman}
-                      </span>
-                      <span className="nav-item-inner">
-                        <span className="nav-label">{entry.label}</span>
-                      </span>
-                    </div>
-                  </li>
-                );
-              }
-
-              const isChar = entry.id === 'character';
-              const menu = isChar ? charMenu : recordsMenu;
-              const active = isChar
-                ? menu.expanded || pathname.startsWith('/oc') || pathname.startsWith('/pair') || activePage === 'charArchive'
-                : menu.expanded || isRecordsGroupActive();
-
-              return renderSubmenu(entry, menu, active, isChar ? 'character' : 'records');
-            })}
-          </ul>
-
+      <div className="rq-nav" role="navigation" aria-label="Main menu">
+        <ul className="rq-nav-list">
+          {NAV_ENTRIES.map((entry) =>
+            entry.kind === 'page' ? renderPage(entry) : renderGroup(entry),
+          )}
           {isAdmin ? (
-            <ul className="nav-arc-list nav-arc-list--admin">
-              <li
-                className="nav-arc-slot nav-arc-slot--admin nav-arc-slot--static"
-                style={arcStyle(NAV_ENTRIES.length)}
+            <li className={`rq-nav-row${activePage === 'admin' ? ' is-active' : ''}`}>
+              <button
+                type="button"
+                className="rq-nav-item"
+                aria-label="Admin"
+                onClick={() => onPageChange('admin')}
               >
-                <div
-                  className={`nav-arc-item nav-item${activePage === 'admin' ? ' active' : ''}`}
-                  id="admin-nav-item"
-                  onClick={() => onPageChange('admin')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === 'Enter' && onPageChange('admin')}
-                >
-                  <span className="nav-arc-roman nav-arc-roman--admin" aria-hidden="true">
-                    X
-                  </span>
-                  <span className="nav-item-inner">
-                    <span className="nav-label" style={{ color: 'var(--pink-dim)' }}>
-                      Admin
-                    </span>
-                  </span>
-                </div>
-              </li>
-            </ul>
+                <span className="rq-nav-label">Admin</span>
+              </button>
+            </li>
           ) : null}
-        </div>
-      </nav>
-
-      <div className="left-bottom">© lakehouse All rights reserved.</div>
-    </div>
+        </ul>
+      </div>
+    </aside>
   );
+
+  if (!portalEl) return null;
+  return createPortal(panel, portalEl);
 }

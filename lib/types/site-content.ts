@@ -12,11 +12,37 @@ export type SiteMain = {
   desc: string;
 };
 
+/** Diary 타래 (작성자만 추가) */
+export type DiaryThread = {
+  id: string;
+  body: string;
+  date: string;
+  authorName?: string;
+  imageUrl?: string;
+  /** 이미지 스포일러(블러) */
+  imageSpoiler?: boolean;
+  likedBy?: string[];
+};
+
 export type SitePost = WithSecret & {
   id: string;
   title: string;
   body: string;
   date: string;
+  /** @deprecated 날씨 아이콘 — UI에서 제거됨 */
+  weather?: string;
+  /** @deprecated 기분 아이콘 — UI에서 제거됨 */
+  mood?: string;
+  /** 첨부 이미지 */
+  imageUrl?: string;
+  /** 이미지 스포일러(블러) */
+  imageSpoiler?: boolean;
+  /** 좋아요한 사용자 uid (1인 1회) */
+  likedBy?: string[];
+  /** 작성자 타래 */
+  threads?: DiaryThread[];
+  /** 상단 고정 */
+  pinned?: boolean;
 };
 
 export type TrpgFontPreset = 'cormorant' | 'marcellus' | 'playfair' | 'im-fell' | 'noto-serif' | 'default';
@@ -71,15 +97,45 @@ export type TrpgPlayerItem = {
   empty?: boolean;
 };
 
+/** 탐사자 표정 또는 버전 이미지 */
+export type TrpgPlayerExpressionKind = 'expression' | 'version';
+
+export type TrpgPlayerExpression = {
+  id: string;
+  label?: string;
+  /** 표정(기본) | 버전 — 미설정 시 expression */
+  kind?: TrpgPlayerExpressionKind;
+  img: string;
+  imgFrame?: ImageFrame;
+  imgFit?: string;
+  imgPos?: string;
+};
+
 export type TrpgPlayerProfile = {
   id: string;
   name: string;
   nameEn?: string;
   role?: string;
+  /** 프로필 카드 이미지 */
   img?: string;
   imgFrame?: ImageFrame;
   imgFit?: string;
   imgPos?: string;
+  /** 상세 스테이지 풀 일러스트 (없으면 카드 이미지 사용) */
+  stageImg?: string;
+  stageImgFrame?: ImageFrame;
+  stageImgFit?: string;
+  stageImgPos?: string;
+  /** 스테이지 퍼스널 컬러 (HEX) — 배경 비네트에 약하게 스며듦 */
+  personalColor?: string;
+  /** 대표 한마디 */
+  quote?: string;
+  /** PV 자막 위치 (스테이지 기준 %, left/top) */
+  quotePos?: { x?: number; y?: number };
+  /** PV 자막 정렬 */
+  quoteAlign?: 'left' | 'center' | 'right';
+  /** 표정·버전별 이미지 (기본 img 외) */
+  expressions?: TrpgPlayerExpression[];
   bio?: string;
   /** 외관 */
   appearance?: string;
@@ -100,6 +156,8 @@ export type TrpgPlayerProfile = {
   itemNote?: string;
   /** 이 캐릭터를 연기한 플레이어 */
   playerName?: string;
+  /** 연결된 OC 캐릭터 id (`/oc?c=`) */
+  ocId?: string;
 };
 
 export type TrpgRelationship = {
@@ -109,10 +167,17 @@ export type TrpgRelationship = {
   label?: string;
 };
 
+export type TrpgGalleryViewMode = 'slider' | 'scroll';
+
 export type TrpgGalleryItem = {
   id: string;
   title?: string;
+  /** 대표(첫) 이미지 — 하위 호환 */
   img: string;
+  /** 한 박스에 여러 장. 있으면 img는 보통 imgs[0] */
+  imgs?: string[];
+  /** 복수 이미지 상세 보기: 화살표(slider) | 세로 스크롤(scroll) */
+  viewMode?: TrpgGalleryViewMode;
   caption?: string;
   artist?: string;
 };
@@ -135,6 +200,27 @@ export type TrpgHandout = {
 };
 
 /** TRPG 시나리오 — 티켓 UI */
+export type TrpgListCategory = {
+  id: string;
+  label: string;
+};
+
+export type TrpgListSettings = {
+  /** 상단 필터 탭 (ALL은 UI 고정) */
+  categories: TrpgListCategory[];
+  /** CSS aspect-ratio 값 — 예: "3 / 4" */
+  cardAspect: string;
+};
+
+export const DEFAULT_TRPG_LIST_SETTINGS: TrpgListSettings = {
+  categories: [
+    { id: 'coc', label: 'CoC' },
+    { id: 'insane', label: 'inSANe' },
+    { id: 'magirogi', label: 'Magirogi' },
+  ],
+  cardAspect: '16 / 10',
+};
+
 export type TrpgScenario = {
   id: string;
   title: string;
@@ -142,10 +228,21 @@ export type TrpgScenario = {
   titleFont?: TrpgFontPreset;
   subtitleFont?: TrpgFontPreset;
   thumbnail?: string;
-  /** 1800×650 기준 — ImageFrameEditor */
+  /** 카드 표면 — ImageFrameEditor */
   thumbnailFrame?: ImageFrame;
   thumbnailFit?: string;
   thumbnailPos?: string;
+  /** 리스트 필터 카테고리 id (`trpg_settings.categories`) */
+  categoryId?: string;
+  /** 호버 오버레이 제목 (줄바꿈 가능, 비우면 title) */
+  cardHoverTitle?: string;
+  /** 호버 오버레이 PC 표시명 (비우면 연결 OC/탐사자) */
+  cardHoverPcName?: string;
+  /** 호버 오버레이 오른쪽 초상 */
+  cardHoverImg?: string;
+  cardHoverImgFrame?: ImageFrame;
+  cardHoverImgFit?: string;
+  cardHoverImgPos?: string;
   /** w. 작가/크리에이터 */
   author?: string;
   kp?: string;
@@ -198,11 +295,50 @@ export type UniverseCard = {
   comingSoon?: boolean;
 };
 
+export type GalleryCommentReply = {
+  id: string;
+  author: string;
+  authorUid?: string;
+  body: string;
+  date: string;
+  likedBy?: string[];
+};
+
+export type GalleryComment = {
+  id: string;
+  author: string;
+  authorUid?: string;
+  body: string;
+  date: string;
+  likedBy?: string[];
+  replies?: GalleryCommentReply[];
+};
+
 export type GalleryItem = WithSecret & {
   id: string;
+  /** 빈 문자열이면 그리드 호버에 제목 없음 */
   title: string;
   img: string;
+  /** 상세 코멘트 */
   caption?: string;
+  date?: string;
+  likedBy?: string[];
+  comments?: GalleryComment[];
+};
+
+/** Records · Quote — 시 / 가사 / 문장 필사 */
+export type QuoteCategory = 'poem' | 'lyrics' | 'sentence';
+
+export type QuoteItem = WithSecret & {
+  id: string;
+  text: string;
+  author?: string;
+  work?: string;
+  /** 시 / 가사 / 문장 */
+  category?: QuoteCategory;
+  /** 개인 메모 */
+  note?: string;
+  date?: string;
 };
 
 export type GuestReply = {
@@ -223,10 +359,13 @@ export type GuestEmoticon = {
 export type SiteGuestSettings = {
   guideText?: string;
   emoticons?: GuestEmoticon[];
+  /** 방명록 답글 표시 닉네임 — 비우면 사이트 닉네임 사용 */
+  replyName?: string;
 };
 
 export const DEFAULT_SITE_GUEST_SETTINGS: SiteGuestSettings = {
   guideText: '',
+  replyName: '',
   emoticons: [
     { trigger: '/최고', emoji: '👍' },
     { trigger: '/하트', emoji: '❤️' },
@@ -358,8 +497,15 @@ export const DEFAULT_SCRAP_CATEGORIES: ScrapCategory[] = [
   { id: 'other', label: '북마크-기타' },
 ];
 
+/** Scrap 카드 타입 (URL 자동 분기) */
+export type ScrapKind = 'twitter' | 'youtube' | 'link' | 'memo';
+
 export type ScrapItem = WithSecret & {
   id: string;
+  /** @deprecated 단일 태그 — tags 우선 */
+  tag?: string;
+  /** 카드 상단 멀티 태그 */
+  tags?: string[];
   author: string;
   handle?: string;
   avatarUrl?: string;
@@ -368,6 +514,23 @@ export type ScrapItem = WithSecret & {
   sourceUrl?: string;
   date: string;
   categoryId?: string;
+  kind?: ScrapKind;
+  /** Twitter oEmbed HTML (blockquote) */
+  embedHtml?: string;
+  mediaKind?: 'image' | 'video';
+  youtubeId?: string;
+  youtubeTitle?: string;
+  youtubeChannel?: string;
+  /** oEmbed thumbnail_url */
+  youtubeThumbUrl?: string;
+  /** oEmbed iframe html */
+  youtubeEmbedHtml?: string;
+  /** Data API — "14:15" */
+  youtubeDuration?: string;
+  /** Data API — "05.22" */
+  youtubeUploadDate?: string;
+  replyCount?: number;
+  likeLabel?: string;
   quotedBody?: string;
   quotedAuthor?: string;
   quotedHandle?: string;
@@ -399,9 +562,21 @@ export type TimelinePost = {
   /** uid → like | heart (1인 1회) */
   userReactions?: Record<string, 'like' | 'heart'>;
   secret?: boolean;
+  /** 상단 고정 공지 */
+  pinned?: boolean;
 };
 
-export type ReviewCategoryKind = 'anime' | 'movie' | 'drama' | 'book' | 'poetry' | 'food' | 'custom';
+export type ReviewCategoryKind =
+  | 'anime'
+  | 'movie'
+  | 'drama'
+  | 'book'
+  | 'manga'
+  | 'video'
+  | 'game'
+  | 'poetry'
+  | 'food'
+  | 'custom';
 
 export type ReviewCategory = {
   id: string;
@@ -413,13 +588,23 @@ export type ReviewItem = WithSecret & {
   id: string;
   title: string;
   categoryId: string;
-  /** 1–5 */
+  /** 0.5–5 (0.5 단위) */
   rating: number;
+  /** watching | done | oneshot | 자유 문자열 */
   status?: string;
   tags?: string[];
+  /** 장르 표시 (영화·드라마 등) */
+  genres?: string[];
   coverUrl?: string;
   body?: string;
+  /** 상세 상단 짧은 한줄 코멘트 */
+  highlight?: string;
+  /** 제목 색상 (#hex) */
+  titleColor?: string;
+  /** 감독·제작 등 크레딧 한 줄 */
   author?: string;
+  /** 작품 연도 */
+  year?: string;
   date?: string;
 };
 
@@ -468,12 +653,14 @@ export type CharArchiveItem = WithSecret & {
 };
 
 export const DEFAULT_REVIEW_CATEGORIES: ReviewCategory[] = [
-  { id: 'anime', label: '애니', kind: 'anime' },
   { id: 'movie', label: '영화', kind: 'movie' },
   { id: 'drama', label: '드라마', kind: 'drama' },
-  { id: 'book', label: '책', kind: 'book' },
+  { id: 'anime', label: '애니', kind: 'anime' },
+  { id: 'book', label: '도서', kind: 'book' },
+  { id: 'manga', label: '만화', kind: 'manga' },
+  { id: 'video', label: '영상', kind: 'video' },
+  { id: 'game', label: '게임', kind: 'game' },
   { id: 'poetry', label: '시집', kind: 'poetry' },
-  { id: 'food', label: '음식', kind: 'food' },
 ];
 
 export type AdminSectionId =
@@ -481,6 +668,7 @@ export type AdminSectionId =
   | 'notice'
   | 'diary'
   | 'gallery'
+  | 'quote'
   | 'universe'
   | 'trpg'
   | 'guest'
@@ -493,8 +681,7 @@ export type AdminSectionId =
   | 'scrap'
   | 'review'
   | 'music'
-  | 'charArchive'
-  | 'timeline';
+  | 'charArchive';
 
 export type AdminNavGroup = 'content' | 'site' | 'ops';
 
@@ -506,10 +693,10 @@ export type AdminNavIcon =
   | 'universe'
   | 'archive'
   | 'gallery'
+  | 'quote'
   | 'oc'
   | 'pair'
   | 'review'
-  | 'timeline'
   | 'main'
   | 'banner'
   | 'bgm'
@@ -532,16 +719,16 @@ export const ADMIN_SECTIONS: {
 }[] = [
   { id: 'diary', label: 'Records · Diary', group: 'content', icon: 'diary' },
   { id: 'scrap', label: 'Records · Scrap', group: 'content', icon: 'scrap' },
-  { id: 'music', label: 'Records · Music', group: 'content', icon: 'music' },
   { id: 'review', label: 'Records · Review', group: 'content', icon: 'review' },
-  { id: 'timeline', label: 'Records · Timeline', group: 'content', icon: 'timeline' },
+  { id: 'gallery', label: 'Records · Gallery', group: 'content', icon: 'gallery' },
+  { id: 'quote', label: 'Records · Quote', group: 'content', icon: 'quote' },
+  { id: 'music', label: 'Records · Music', group: 'content', icon: 'music' },
   { id: 'trpg', label: 'TRPG', group: 'content', icon: 'trpg' },
   { id: 'universe', label: 'Universe', group: 'content', icon: 'universe' },
   { id: 'charArchive', label: 'Character · Archive', group: 'content', icon: 'archive' },
-  { id: 'gallery', label: 'Gallery', group: 'content', icon: 'gallery' },
   { id: 'oc', label: 'OC', group: 'content', icon: 'oc' },
   { id: 'pair', label: 'Pair', group: 'content', icon: 'pair' },
-  { id: 'main', label: 'Main', group: 'site', icon: 'main' },
+  { id: 'main', label: 'Home', group: 'site', icon: 'main' },
   { id: 'banner', label: 'Banner', group: 'site', icon: 'banner' },
   { id: 'bgm', label: 'BGM', group: 'site', icon: 'bgm' },
   { id: 'ux', label: 'UX · 효과', group: 'site', icon: 'ux' },

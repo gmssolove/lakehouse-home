@@ -28,7 +28,8 @@ export function framedImageStyle(
   const { scale, x, y } = normalizeImageFrame(frame);
   const pos = opts?.pos || 'center top';
   const useTransform = scale !== 1 || x !== 0 || y !== 0;
-  const origin = pos.includes('top') ? 'center top' : pos.includes('bottom') ? 'center bottom' : 'center center';
+  const origin =
+    pos.includes('top') ? 'center top' : pos.includes('bottom') ? 'center bottom' : 'center center';
 
   return {
     objectFit: (opts?.fit || 'cover') as CSSProperties['objectFit'],

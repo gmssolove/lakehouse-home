@@ -104,6 +104,7 @@ type BgmContextValue = {
     src: { fileData?: string; youtubeId?: string; title?: string; artist?: string },
     wasPlaying: boolean,
   ) => void;
+  silenceMedia: () => void;
 };
 
 const BgmContext = createContext<BgmContextValue | null>(null);
@@ -163,9 +164,12 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   const audioLoadGenRef = useRef(0);
   const ytGenRef = useRef(0);
   const ytPendingPlayRef = useRef(false);
+  const ytCreatingRef = useRef(false);
   const switchSerialRef = useRef(0);
   const pendingAutoplayRef = useRef(false);
   const seekScrubbingRef = useRef(false);
+  const autoplayRetryTimersRef = useRef<number[]>([]);
+  const audioReadyAbortRef = useRef<AbortController | null>(null);
   const playInternalRef = useRef<(seek?: number) => void>(() => {});
 
   const [playing, setPlaying] = useState(false);
@@ -206,40 +210,67 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const stopAudio = useCallback(() => {
+    audioReadyAbortRef.current?.abort();
+    audioReadyAbortRef.current = null;
+    for (const id of autoplayRetryTimersRef.current) window.clearTimeout(id);
+    autoplayRetryTimersRef.current = [];
     const audio = audioRef.current;
     if (!audio) return;
-    audio.pause();
-    audio.removeAttribute('src');
-    audio.load();
+    try {
+      audio.pause();
+    } catch {
+      /* ignore */
+    }
+    try {
+      audio.removeAttribute('src');
+      // empty source list so the element cannot keep decoding
+      audio.load();
+    } catch {
+      /* ignore */
+    }
     audioLoadGenRef.current += 1;
   }, []);
 
-  const stopAllMedia = useCallback(async () => {
+  /** HTML·YouTube 모두 즉시 묵음 (파괴는 비동기여도 소리는 바로 끊김) */
+  const silenceAllOutputs = useCallback(() => {
     stopAudio();
-
-    if (!ytRef.current) {
-      switchingTrackRef.current = false;
-      return;
+    ytPendingPlayRef.current = false;
+    ytCreatingRef.current = false;
+    // onReady / deferPlay 콜백 무효화
+    ytGenRef.current += 1;
+    try {
+      ytRef.current?.pauseVideo?.();
+    } catch {
+      /* ignore */
     }
-
-    await new Promise<void>((resolve) => {
-      switchingTrackRef.current = true;
-      ytGenRef.current += 1;
-      ytPendingPlayRef.current = false;
-      try {
-        ytRef.current?.destroy?.();
-      } catch {
-        /* ignore */
-      }
-      ytRef.current = null;
-      const box = document.getElementById('yt-container');
-      if (box) box.innerHTML = '';
-      window.setTimeout(() => {
-        switchingTrackRef.current = false;
-        resolve();
-      }, 160);
-    });
+    try {
+      ytRef.current?.stopVideo?.();
+    } catch {
+      /* ignore */
+    }
+    try {
+      ytRef.current?.destroy?.();
+    } catch {
+      /* ignore */
+    }
+    ytRef.current = null;
+    const box = document.getElementById('yt-container');
+    if (box) box.innerHTML = '';
   }, [stopAudio]);
+
+  const stopAllMedia = useCallback(async () => {
+    silenceAllOutputs();
+    switchingTrackRef.current = false;
+  }, [silenceAllOutputs]);
+
+  const silenceMedia = useCallback(() => {
+    userPausedRef.current = true;
+    playingRef.current = false;
+    setPlaying(false);
+    pendingAutoplayRef.current = false;
+    ytPendingPlayRef.current = false;
+    silenceAllOutputs();
+  }, [silenceAllOutputs]);
 
   const syncDurationFromAudio = useCallback(() => {
     const audio = audioRef.current;
@@ -274,6 +305,9 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const scheduleAutoplayRetries = useCallback(() => {
+    for (const id of autoplayRetryTimersRef.current) window.clearTimeout(id);
+    autoplayRetryTimersRef.current = [];
+
     const retry = () => {
       if (userPausedRef.current) return;
       const track = trackRef.current;
@@ -282,7 +316,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       playInternalRef.current(0);
     };
     for (const ms of [150, 500, 1500]) {
-      window.setTimeout(retry, ms);
+      autoplayRetryTimersRef.current.push(window.setTimeout(retry, ms));
     }
   }, [isAudioPlaybackStuck]);
 
@@ -502,6 +536,10 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     (markPaused = true) => {
       if (markPaused) userPausedRef.current = true;
       playingRef.current = false;
+      pendingAutoplayRef.current = false;
+      ytPendingPlayRef.current = false;
+      for (const id of autoplayRetryTimersRef.current) window.clearTimeout(id);
+      autoplayRetryTimersRef.current = [];
       audioRef.current?.pause();
       try {
         ytRef.current?.pauseVideo?.();
@@ -523,6 +561,8 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         track.scope === 'page' && pagePlaylistRef.current.length > 1;
 
       if (track.kind === 'youtube') {
+        // HTML audio must never keep playing under a YT track
+        stopAudio();
         const ensureYt = () => {
           const box = document.getElementById('yt-container');
           if (!box) return;
@@ -545,6 +585,11 @@ export function BgmProvider({ children }: { children: ReactNode }) {
                 setPlaying(true);
               }
             } catch {
+              try {
+                ytRef.current?.destroy?.();
+              } catch {
+                /* ignore */
+              }
               ytRef.current = null;
               ytGenRef.current += 1;
               box.innerHTML = '';
@@ -552,48 +597,81 @@ export function BgmProvider({ children }: { children: ReactNode }) {
             if (ytRef.current) return;
           }
 
+          // Prevent parallel YT.Player construction (double audio)
+          if (ytCreatingRef.current) return;
+          ytCreatingRef.current = true;
+
           if (box.querySelector('iframe, #yt-iframe')) box.innerHTML = '';
           box.innerHTML = '<div id="yt-iframe"></div>';
           const ytGen = ++ytGenRef.current;
-          ytRef.current = new window.YT!.Player('yt-iframe', {
-            height: '1',
-            width: '1',
-            videoId: track.id,
-            playerVars: {
-              autoplay: userPausedRef.current ? 0 : 1,
-              loop: pageMulti ? 0 : 1,
-              playlist: pageMulti ? undefined : track.id,
-              start: Math.floor(seek || 0),
-              playsinline: 1,
-            },
-            events: {
-              onReady: (e: { target: YTPlayer }) => {
-                e.target.setVolume(volumeRef.current);
-                if (seek) e.target.seekTo(seek, true);
-                if (userPausedRef.current) {
-                  e.target.pauseVideo();
-                  playingRef.current = false;
-                  setPlaying(false);
-                } else {
-                  ytPendingPlayRef.current = false;
-                  e.target.playVideo();
-                }
+          try {
+            ytRef.current = new window.YT!.Player('yt-iframe', {
+              height: '1',
+              width: '1',
+              videoId: track.id,
+              playerVars: {
+                autoplay: userPausedRef.current ? 0 : 1,
+                loop: pageMulti ? 0 : 1,
+                playlist: pageMulti ? undefined : track.id,
+                start: Math.floor(seek || 0),
+                playsinline: 1,
               },
-              onStateChange: (e: { data: number }) => {
-                if (ytGen !== ytGenRef.current) return;
-                handleYtStateChange(e.data);
+              events: {
+                onReady: (e: { target: YTPlayer }) => {
+                  ytCreatingRef.current = false;
+                  if (ytGen !== ytGenRef.current) {
+                    try {
+                      e.target.destroy?.();
+                    } catch {
+                      /* ignore */
+                    }
+                    return;
+                  }
+                  e.target.setVolume(volumeRef.current);
+                  if (seek) e.target.seekTo(seek, true);
+                  if (userPausedRef.current) {
+                    e.target.pauseVideo();
+                    playingRef.current = false;
+                    setPlaying(false);
+                  } else {
+                    ytPendingPlayRef.current = false;
+                    e.target.playVideo();
+                  }
+                },
+                onStateChange: (e: { data: number }) => {
+                  if (ytGen !== ytGenRef.current) return;
+                  handleYtStateChange(e.data);
+                },
               },
-            },
-          });
+            });
+            window.setTimeout(() => {
+              if (ytGen === ytGenRef.current) ytCreatingRef.current = false;
+            }, 4000);
+          } catch {
+            ytCreatingRef.current = false;
+            ytRef.current = null;
+            box.innerHTML = '';
+          }
         };
 
         if (window.YT?.Player) ensureYt();
         else {
-          const prev = window.onYouTubeIframeAPIReady;
-          window.onYouTubeIframeAPIReady = () => {
-            prev?.();
-            ensureYt();
-          };
+          const existing = window.onYouTubeIframeAPIReady;
+          if (!(window as unknown as { __lhYtReadyHooked?: boolean }).__lhYtReadyHooked) {
+            (window as unknown as { __lhYtReadyHooked?: boolean }).__lhYtReadyHooked = true;
+            window.onYouTubeIframeAPIReady = () => {
+              existing?.();
+              ensureYt();
+            };
+          } else {
+            // API still loading — queue a single retry once ready via polling
+            const wait = window.setInterval(() => {
+              if (!window.YT?.Player) return;
+              window.clearInterval(wait);
+              ensureYt();
+            }, 80);
+            window.setTimeout(() => window.clearInterval(wait), 8000);
+          }
           if (!document.getElementById('yt-api')) {
             const sc = document.createElement('script');
             sc.id = 'yt-api';
@@ -604,7 +682,20 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Never leave HTML audio running under a YouTube track
+      // (and never start a second play pipeline for the same load)
       if (!audioRef.current) return;
+      // HTML 재생 전 YouTube 잔향 차단 (이중 재생 방지)
+      try {
+        ytRef.current?.pauseVideo?.();
+      } catch {
+        /* ignore */
+      }
+      try {
+        ytRef.current?.stopVideo?.();
+      } catch {
+        /* ignore */
+      }
       applyVolume();
       const audio = audioRef.current;
       ensureAudioSource(track);
@@ -614,6 +705,11 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         } catch {
           /* ignore */
         }
+      }
+
+      if (!audio.paused && playingRef.current && !userPausedRef.current) {
+        // Already playing this element — avoid stacking play() pipelines
+        return;
       }
 
       const markPlaying = () => {
@@ -654,7 +750,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       void tryPlay(false);
     },
-    [applyVolume, deferYoutubePlay, ensureAudioSource, getTime, handleYtStateChange, loadYoutubeVideo, persistState, scheduleAutoplayRetries, syncDurationFromAudio],
+    [applyVolume, deferYoutubePlay, ensureAudioSource, getTime, handleYtStateChange, loadYoutubeVideo, persistState, scheduleAutoplayRetries, stopAudio, syncDurationFromAudio],
   );
 
   playInternalRef.current = playInternal;
@@ -737,15 +833,29 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         const audio = audioRef.current;
         if (!audio) return;
 
+        audioReadyAbortRef.current?.abort();
+        const ac = new AbortController();
+        audioReadyAbortRef.current = ac;
+
         const loadGen = ++audioLoadGenRef.current;
+        // Always stop any current decode before swapping src
+        try {
+          audio.pause();
+        } catch {
+          /* ignore */
+        }
         audio.src = next.id;
         applyVolume();
         audio.loop = next.scope === 'character' ? true : !pageMulti;
         audio.load();
 
+        let started = false;
         const start = () => {
+          if (started) return;
+          if (ac.signal.aborted) return;
           if (serial !== switchSerialRef.current) return;
           if (audioLoadGenRef.current !== loadGen) return;
+          started = true;
           syncDurationFromAudio();
           if (seek > 0) {
             try {
@@ -757,20 +867,23 @@ export function BgmProvider({ children }: { children: ReactNode }) {
           playInternal(seek);
         };
 
-        audio.addEventListener('loadedmetadata', syncDurationFromAudio, { once: true });
+        audio.addEventListener('loadedmetadata', syncDurationFromAudio, {
+          once: true,
+          signal: ac.signal,
+        });
 
         if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
           start();
         } else {
-          audio.addEventListener('canplay', start, { once: true });
-          audio.addEventListener('loadeddata', start, { once: true });
+          // Single ready signal only — canplay + loadeddata both firing caused double play()
+          audio.addEventListener('canplay', start, { once: true, signal: ac.signal });
           audio.addEventListener(
             'error',
             () => {
               if (serial !== switchSerialRef.current) return;
               markPlaybackIdle();
             },
-            { once: true },
+            { once: true, signal: ac.signal },
           );
         }
       };
@@ -781,9 +894,11 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         if (!wantPlay) {
           playingRef.current = false;
           setPlaying(false);
+          silenceAllOutputs();
           return;
         }
-        if (prev) stopAudio();
+        // YouTube 고스트가 남아 있으면 HTML과 겹침 — 항상 둘 다 묵음 후 로드
+        silenceAllOutputs();
         const pageMulti = next.scope === 'page' && pagePlaylistRef.current.length > 1;
         loadAndPlayAudio(serial, pageMulti);
         if (wantPlay) scheduleAutoplayRetries();
@@ -828,6 +943,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       markPlaybackIdle,
       playInternal,
       scheduleAutoplayRetries,
+      silenceAllOutputs,
       stopAllMedia,
       stopAudio,
       syncDurationFromAudio,
@@ -1183,7 +1299,6 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       userPausedRef.current = false;
       playlistIndexRef.current = 0;
       applyTrackRef.current(pl[0], { autoplay: true, currentTime: 0, force: true });
-      scheduleAutoplayRetries();
       return;
     }
 
@@ -1205,7 +1320,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         });
       }
     }
-  }, [siteBgm, syncPlaylistLoop, scheduleAutoplayRetries]);
+  }, [siteBgm, syncPlaylistLoop]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -1265,8 +1380,9 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unlock = () => {
+      // 퍼즈 후 화면 클릭으로 재개 금지 — 자동재생 차단 해제만 허용
       if (userPausedRef.current || playingRef.current) return;
-      if (!pendingAutoplayRef.current && !trackRef.current?.id) return;
+      if (!pendingAutoplayRef.current) return;
       pendingAutoplayRef.current = false;
       playInternalRef.current(getTime());
     };
@@ -1309,6 +1425,38 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     };
   }, [currentTime, getTime, persistState, playing]);
 
+  useEffect(() => {
+    return () => {
+      for (const id of autoplayRetryTimersRef.current) window.clearTimeout(id);
+      autoplayRetryTimersRef.current = [];
+      audioReadyAbortRef.current?.abort();
+      try {
+        audioRef.current?.pause();
+        audioRef.current?.removeAttribute('src');
+        audioRef.current?.load();
+      } catch {
+        /* ignore */
+      }
+      try {
+        ytRef.current?.stopVideo?.();
+        ytRef.current?.destroy?.();
+      } catch {
+        /* ignore */
+      }
+      ytRef.current = null;
+      const box = document.getElementById('yt-container');
+      if (box) box.innerHTML = '';
+      // Strict Mode 재마운트 시 고아 iframe/audio 잔향 제거
+      document.querySelectorAll('#yt-container iframe, iframe#yt-iframe').forEach((el) => {
+        try {
+          el.remove();
+        } catch {
+          /* ignore */
+        }
+      });
+    };
+  }, []);
+
   const contextValue = useMemo<BgmContextValue>(
     () => ({
       playing,
@@ -1336,6 +1484,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       restorePageSnapshot,
       resumePageBgmIfNeeded,
       playCharacterTheme,
+      silenceMedia,
     }),
     [
       playing,
@@ -1363,6 +1512,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       restorePageSnapshot,
       resumePageBgmIfNeeded,
       playCharacterTheme,
+      silenceMedia,
     ],
   );
 

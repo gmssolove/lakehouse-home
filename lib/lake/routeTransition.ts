@@ -16,6 +16,8 @@ export function normalizeLakePath(path: string) {
 export function lakeRouteDirection(from: string, to: string): 'forward' | 'back' | 'neutral' {
   if (from === '/' && TRPG_SCENARIO.test(to)) return 'forward';
   if (TRPG_SCENARIO.test(from) && to === '/') return 'back';
+  if (from === '/oc' && TRPG_SCENARIO.test(to)) return 'forward';
+  if (TRPG_SCENARIO.test(from) && to === '/oc') return 'back';
 
   const a = ARCHIVE_ORDER[from] ?? 0;
   const b = ARCHIVE_ORDER[to] ?? 0;
@@ -27,6 +29,8 @@ export function lakeRouteDirection(from: string, to: string): 'forward' | 'back'
 export function shouldLakeRouteAnimate(from: string, to: string) {
   if (from === '/' && TRPG_SCENARIO.test(to)) return true;
   if (TRPG_SCENARIO.test(from) && to === '/') return true;
+  if (from === '/oc' && TRPG_SCENARIO.test(to)) return true;
+  if (TRPG_SCENARIO.test(from) && to === '/oc') return true;
   return ARCHIVE_PATHS.has(from) || ARCHIVE_PATHS.has(to);
 }
 
@@ -50,6 +54,12 @@ export function markLakeLeavingPanel(from: string, to: string) {
 
   if (TRPG_SCENARIO.test(from)) {
     document.querySelector('.trpg-scenario-shell')?.classList.add('lh-route-panel-leaving');
+    return;
+  }
+
+  if (from === '/oc' && TRPG_SCENARIO.test(to)) {
+    document.querySelector('#detail-screen')?.classList.add('lh-route-panel-leaving');
+    document.querySelector('.layout.oc-archive-layout')?.classList.add('lh-route-panel-leaving');
     return;
   }
 

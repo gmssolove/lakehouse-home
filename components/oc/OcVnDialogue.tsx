@@ -8,6 +8,7 @@ type Props = {
   active: boolean;
   onClose: () => void;
   onExpression?: (src: string | null) => void;
+  onMotion?: (motion: 'bounce' | 'shake' | null) => void;
 };
 
 function buildDialogueList(c: OcCharacter): DialogueNode[] {
@@ -34,14 +35,15 @@ function nodeIndex(list: DialogueNode[], id: string | null, start?: string) {
   return idx >= 0 ? idx : 0;
 }
 
-export function OcVnDialogue({ character, active, onClose, onExpression }: Props) {
+export function OcVnDialogue({ character, active, onClose, onExpression, onMotion }: Props) {
   const list = useMemo(() => buildDialogueList(character), [character]);
   const [pos, setPos] = useState(0);
   const [typedLen, setTypedLen] = useState(0);
   const typingDoneRef = useRef(true);
+  const motionKeyRef = useRef('');
 
   const node = list[pos];
-  const text = (node?.text || '').trim() || (list.length === 0 ? character.desc || '...' : '...');
+  const text = (node?.text || '').trim() || '...';
   const speaker = node?.speaker || character.name || '';
   const choices = node?.choices?.filter((c) => c.label) || [];
   const isLastNode = list.length === 0 || pos >= list.length - 1;
@@ -52,19 +54,31 @@ export function OcVnDialogue({ character, active, onClose, onExpression }: Props
     if (!active) {
       setPos(0);
       setTypedLen(0);
+      motionKeyRef.current = '';
       onExpression?.(null);
+      onMotion?.(null);
       return;
     }
     const start = nodeIndex(list, character.dialogueStart || null, character.dialogueStart);
     setPos(start);
     setTypedLen(0);
-  }, [active, character.id, character.dialogueStart, list, onExpression]);
+  }, [active, character.id, character.dialogueStart, list, onExpression, onMotion]);
 
   useEffect(() => {
     if (!active) return;
     const expr = node?.expression;
     onExpression?.(expr || null);
   }, [active, node?.expression, onExpression]);
+
+  useEffect(() => {
+    if (!active || !node) return;
+    const key = `${node.id || pos}:${node.motion || ''}`;
+    if (motionKeyRef.current === key) return;
+    motionKeyRef.current = key;
+    const m = node.motion;
+    if (m === 'bounce' || m === 'shake') onMotion?.(m);
+    else onMotion?.(null);
+  }, [active, node, pos, onMotion]);
 
   useLayoutEffect(() => {
     if (!active) return;

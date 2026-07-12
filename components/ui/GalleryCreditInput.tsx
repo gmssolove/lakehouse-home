@@ -21,8 +21,9 @@ export function GalleryCreditInput({ value, onChange, placeholder = '작가 / �
         placeholder={placeholder}
         value={display}
         onChange={(e) => {
-          const raw = e.target.value.trim();
-          onChange(raw ? `© ${raw}` : '');
+          // trim 하지 않음 — 입력 중 띄어쓰기 유지
+          const bare = e.target.value.replace(/^©+\s*/g, '');
+          onChange(bare.trim() ? `© ${bare.replace(/^\s+/, '')}` : '');
         }}
       />
     </div>

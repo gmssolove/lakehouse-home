@@ -12,6 +12,7 @@ import { BgmProvider } from '@/lib/contexts/BgmContext';
 import { MainBgmVisibilityProvider } from '@/lib/contexts/MainBgmVisibilityContext';
 import { SiteContentProvider } from '@/lib/contexts/SiteContentContext';
 import { R2UploadConfigSync } from '@/components/ui/R2UploadConfigSync';
+import { LiveDevHud } from '@/components/dev/LiveDevHud';
 
 import { isLakeRouteEnterLocked } from '@/lib/lake/routeTransition';
 
@@ -40,6 +41,7 @@ export default function Providers({ children }: { children: ReactNode }) {
               <RouteBodyReset />
               <LakeRouteTransition />
               {children}
+              <LiveDevHud />
               <SiteEffects />
               <BgmPlayer />
             </BgmProvider>

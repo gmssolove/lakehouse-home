@@ -1,7 +1,7 @@
-import { get, ref, runTransaction, set } from 'firebase/database';
-import type { User } from 'firebase/auth';
+import { get, ref, runTransaction, set, update } from 'firebase/database';
+import { updateProfile, type User } from 'firebase/auth';
 import { db } from '@/lib/firebase/client';
-import { usernameKey, validateUsername } from '@/lib/auth/validation';
+import { usernameKey, validateNickname, validateUsername } from '@/lib/auth/validation';
 import { ADMIN_EMAIL, ADMIN_USERNAME } from '@/lib/types/character';
 
 export type UserProfile = {
@@ -39,6 +39,19 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await get(ref(db, `lhdata/users/${uid}`));
   if (!snap.exists()) return null;
   return snap.val() as UserProfile;
+}
+
+/** 표시용 닉네임 변경 — Auth displayName + RTDB nickname */
+export async function updateNickname(user: User, nickname: string): Promise<string | null> {
+  const err = validateNickname(nickname);
+  if (err) return err;
+  const trimmed = nickname.trim();
+  await updateProfile(user, { displayName: trimmed });
+  const profile = await getUserProfile(user.uid);
+  if (profile) {
+    await update(ref(db, `lhdata/users/${user.uid}`), { nickname: trimmed });
+  }
+  return null;
 }
 
 /** 아이디로 가입 이메일 조회 (Firebase Auth 로그인용) */

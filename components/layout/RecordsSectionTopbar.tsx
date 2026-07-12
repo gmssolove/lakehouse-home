@@ -1,33 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { RECORDS_SECTIONS, RECORDS_SECTION_LABELS, type RecordsSectionId } from '@/lib/records/sections';
+import { HOME_RECORDS_LABELS, HOME_RECORDS_TABS } from '@/lib/records/sections';
 
-const NAV_LABELS: Record<RecordsSectionId, string> = {
-  diary: 'Diary',
-  timeline: 'Timeline',
-  scrap: 'Scrap',
-  review: 'Review',
-  music: 'Music',
-};
-
-type Props = {
-  section: RecordsSectionId;
-};
-
-export function RecordsSectionTopbar({ section }: Props) {
-  const meta = RECORDS_SECTION_LABELS[section];
-
+/** 레거시 탑바 — /records 리다이렉트 전 짧은 깜빡임용 */
+export function RecordsSectionTopbar() {
   return (
     <nav className="oc-topbar lh-archive-topbar lh-records-topbar">
       <Link href="/" replace className="nav-back">
         ← back
       </Link>
-      <div className="nav-title">{meta.heading}</div>
+      <div className="nav-title">Records</div>
       <ul className="nav-links">
-        {RECORDS_SECTIONS.map((id) => (
-          <li key={id} className={section === id ? 'active' : undefined}>
-            <Link href={`/records/${id}`}>{NAV_LABELS[id]}</Link>
+        {HOME_RECORDS_TABS.map((id) => (
+          <li key={id}>
+            <Link href={`/?p=${id}`}>{HOME_RECORDS_LABELS[id]}</Link>
           </li>
         ))}
       </ul>

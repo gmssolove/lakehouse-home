@@ -1,0 +1,486 @@
+/* TRPG scenario cards — reference ~390×244 (16:10), responsive safe of menu */
+
+#page-trpg {
+  overflow: visible !important;
+}
+
+.layout.layout--home #page-trpg.content-block.active,
+.layout.layout--home #page-trpg.active {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 0 !important;
+}
+
+.layout.layout--home #page-trpg .page-heading {
+  margin: 0 0 0.1rem !important;
+  transform: none !important;
+}
+
+.layout.layout--home #page-trpg .page-sub {
+  margin: 0 0 1rem !important;
+  opacity: 0.7;
+}
+
+.trpg-card-board {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0;
+}
+
+.trpg-card-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 0.95rem;
+  padding: 2px 4px;
+  border: 1px solid rgba(215, 169, 130, 0.18);
+  border-radius: 999px;
+  background: rgba(8, 10, 9, 0.28);
+}
+
+.trpg-card-filter {
+  position: relative;
+  height: 26px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(216, 213, 203, 0.48);
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-size: 11px;
+  font-weight: 500;
+  font-style: italic;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.trpg-card-filter + .trpg-card-filter::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1px;
+  height: 9px;
+  transform: translate(-0.5px, -50%);
+  background: rgba(215, 169, 130, 0.16);
+  pointer-events: none;
+}
+
+.trpg-card-filter:hover {
+  color: rgba(240, 207, 173, 0.86);
+}
+
+.trpg-card-filter.is-active {
+  background: rgba(215, 169, 130, 0.12);
+  color: #ebc9a8;
+}
+
+.trpg-card-grid,
+#page-trpg #trpg-cards.trpg-card-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 12px 12px !important;
+  width: 100% !important;
+  max-width: min(960px, 100%) !important;
+  margin: 0 !important;
+  padding: 0 0 8px !important;
+  justify-content: start !important;
+}
+
+.trpg-card {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  min-height: 0;
+  border-radius: 8px;
+  transform-origin: center center;
+}
+
+.trpg-card__hit {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  border-radius: inherit;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: linear-gradient(145deg, rgba(34, 38, 36, 0.92), rgba(12, 14, 14, 0.96));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  /* 히트박스 고정 — 호버 이동은 미디어 레이어만 */
+  transform: none !important;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.trpg-card__hit:hover,
+.trpg-card__hit:focus-visible {
+  border-color: rgba(240, 207, 173, 0.62);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.36),
+    0 0 12px rgba(215, 169, 130, 0.08);
+  z-index: 2;
+  outline: none;
+}
+
+.trpg-card__media,
+.trpg-card__media-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.25s ease;
+}
+
+.trpg-card__hit:hover .trpg-card__media,
+.trpg-card__hit:focus-visible .trpg-card__media {
+  transform: scale(1.03);
+}
+
+.trpg-card__media-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.28s ease, opacity 0.28s ease;
+  filter: saturate(0.94) contrast(1.02);
+}
+
+.trpg-card__hit:hover .trpg-card__media-img,
+.trpg-card__hit:focus-visible .trpg-card__media-img {
+  filter: blur(1.5px) saturate(0.88) brightness(0.72);
+  opacity: 0.55;
+}
+
+.trpg-card__media-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: linear-gradient(145deg, #1a1c1a, #0d0f0d);
+  color: rgba(240, 207, 173, 0.55);
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-size: 16px;
+  font-style: italic;
+  text-align: center;
+}
+
+.trpg-card__meta {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: auto;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  max-width: calc(100% - 16px);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.28s ease,
+    visibility 0.28s ease;
+  pointer-events: none;
+}
+
+.trpg-card__hit:hover .trpg-card__meta,
+.trpg-card__hit:focus-visible .trpg-card__meta {
+  opacity: 1;
+  visibility: visible;
+}
+
+.trpg-card__badge {
+  position: relative;
+  top: auto;
+  left: auto;
+  z-index: auto;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #ece6da !important;
+  font-family: 'Jost', var(--font-jost), sans-serif;
+  font-size: 9.5px;
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  pointer-events: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.trpg-card__badge--coc,
+.trpg-card__badge--insane,
+.trpg-card__badge--default {
+  background: rgba(0, 0, 0, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #ece6da !important;
+}
+
+.trpg-card__stamp {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  margin-left: 0;
+  padding: 3px 10px;
+  border: 1px solid rgba(201, 161, 92, 0.4) !important;
+  border-radius: 10px;
+  color: #c9a15c !important;
+  font-family: 'Jost', var(--font-jost), sans-serif;
+  font-size: 9px;
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  background: rgba(0, 0, 0, 0.5) !important;
+  box-shadow: none;
+  pointer-events: none;
+  transform: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.trpg-card__hover {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  opacity: 0;
+  visibility: hidden;
+  background: linear-gradient(
+    105deg,
+    rgba(8, 10, 10, 0.88) 0%,
+    rgba(8, 10, 10, 0.62) 52%,
+    rgba(8, 10, 10, 0.28) 78%,
+    rgba(8, 10, 10, 0.12) 100%
+  );
+  transition:
+    opacity 0.28s ease,
+    visibility 0.28s ease;
+  pointer-events: none;
+}
+
+.trpg-card__hit:hover .trpg-card__hover,
+.trpg-card__hit:focus-visible .trpg-card__hover {
+  opacity: 1;
+  visibility: visible;
+}
+
+.trpg-card__hover-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(72px, 34%);
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 24px 8px 10px 10px;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+.trpg-card__hover-body:not(.has-portrait) {
+  grid-template-columns: 1fr;
+}
+
+.trpg-card__hover-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.trpg-card__hover-title {
+  margin: 0;
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: clamp(12px, 1.05vw, 15px);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #f4ebe1;
+  line-height: 1.32;
+  white-space: pre-line;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+}
+
+.trpg-card__hover-pc {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(236, 224, 210, 0.9);
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trpg-card__hover-pc em {
+  flex-shrink: 0;
+  font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(215, 169, 130, 0.9);
+}
+
+.trpg-card__hover-pc > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trpg-card__hover-date {
+  margin: 0;
+  font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(216, 208, 196, 0.72);
+}
+
+.trpg-card__hover-portrait {
+  position: relative;
+  align-self: end;
+  justify-self: end;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.trpg-card__hover-portrait-frame {
+  position: relative !important;
+  inset: auto !important;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  /* image-frame-viewport 기본 overflow:hidden 이 네모 크롭을 만듦 */
+  overflow: visible !important;
+}
+
+.trpg-card__hover-portrait-img {
+  position: absolute !important;
+  /* 박스를 가득 채우지 않고 세로 실루엣 유지 (오른쪽·하단 앵커) */
+  inset: auto 0 0 auto !important;
+  width: auto !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: right bottom !important;
+}
+
+.trpg-card--editor-preview {
+  /* 실카드 그리드와 동일 폭 — 호버 초상 비율 맞춤 */
+  width: min(312px, 100%);
+  max-width: 312px;
+  pointer-events: none;
+}
+
+.trpg-card--editor-preview.is-portrait-edit .trpg-card__hover-portrait--editable {
+  pointer-events: auto;
+}
+
+.trpg-card--editor-preview .trpg-thumb-editor__stage-thumb {
+  pointer-events: auto;
+}
+
+.trpg-card--editor-preview .trpg-card__hit {
+  cursor: default;
+}
+
+.trpg-card--editor-preview .trpg-card__hover,
+.trpg-card--editor-preview .trpg-card__meta {
+  opacity: 1;
+  visibility: visible;
+}
+
+.trpg-card--editor-preview .trpg-card__media-img {
+  filter: blur(1.5px) saturate(0.88) brightness(0.72);
+  opacity: 0.55;
+}
+
+/* 썸네일 편집 중: 호버 오버레이 없이 원본 커버 조절 */
+.trpg-card--editor-preview.is-thumb-edit .trpg-card__media-img {
+  filter: none !important;
+  opacity: 1 !important;
+  /* width/height/inset 는 framedImageStyle(cover) 인라인이 담당 — !important로 덮지 않음 */
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+}
+
+.trpg-card--editor-preview.is-thumb-edit .trpg-card__media-frame,
+.trpg-card--editor-preview.is-thumb-edit .trpg-thumb-editor__stage-thumb .image-frame-viewport,
+.trpg-card--editor-preview.is-thumb-edit .trpg-thumb-editor__stage-thumb .image-frame-editor__viewport {
+  overflow: hidden !important;
+}
+
+@media (max-width: 1200px) {
+  .trpg-card-grid,
+  #page-trpg #trpg-cards.trpg-card-grid {
+    max-width: min(840px, 100%) !important;
+  }
+
+  .trpg-card {
+    max-width: 280px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .trpg-card-grid,
+  #page-trpg #trpg-cards.trpg-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    max-width: min(600px, 100%) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .trpg-card-grid,
+  #page-trpg #trpg-cards.trpg-card-grid {
+    grid-template-columns: 1fr !important;
+    max-width: min(360px, 100%) !important;
+  }
+
+  .trpg-card {
+    max-width: none;
+  }
+}

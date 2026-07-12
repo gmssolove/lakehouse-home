@@ -159,14 +159,15 @@
 }
 
 .layout.layout--home .content-block.active:not(#page-main) .page-heading {
-  margin: 0 0 0.75rem !important;
+  margin: 0 0 0.7rem !important;
   padding: 0 !important;
 }
 
 .layout.layout--home .content-block.active:not(#page-main) .page-sub {
-  margin: 0 0 1.25rem 0 !important;
+  margin: 0 0 1.45rem 0 !important;
   width: 100% !important;
   max-width: none !important;
+  opacity: 0.72;
 }
 
 .layout.layout--home .content-block.active:not(#page-main) .world-cards,

@@ -1,0 +1,92 @@
+/* Shared search field with magnifier — Guest / Scrap / OC */
+
+.lh-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.lh-search__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: #635f56;
+}
+
+.lh-search__input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  border: none;
+  background: none;
+  outline: none;
+  color: #ece6da;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+
+.lh-search__input::placeholder {
+  color: #635f56;
+}
+
+/* —— underline (Guest) —— */
+.lh-search--line {
+  width: 100%;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lh-search--line:focus-within {
+  border-bottom-color: rgba(201, 161, 92, 0.25);
+}
+
+.lh-search--line .lh-search__input {
+  padding: 8px 2px;
+}
+
+/* —— boxed (Scrap) —— */
+.lh-search--box {
+  width: 180px;
+  max-width: 100%;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lh-search--box:focus-within {
+  border-color: rgba(201, 161, 92, 0.25);
+}
+
+.lh-search--box .lh-search__input {
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+/* —— OC sidebar —— */
+.lh-search--oc {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg3, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  color: var(--text, #ece6da);
+}
+
+.lh-search--oc:focus-within {
+  border-color: var(--pink-dim, rgba(201, 161, 92, 0.45));
+}
+
+.lh-search--oc .lh-search__input {
+  font-size: 12px;
+  color: inherit;
+}
+
+.lh-search--oc .lh-search__input::placeholder {
+  color: var(--text-muted, #635f56);
+}
+
+@media (max-width: 900px) {
+  .lh-search--box {
+    width: 100%;
+  }
+}

@@ -266,6 +266,8 @@ export function BgmPlayer() {
     : progressMax > 0
       ? Math.min(currentTime, progressMax)
       : 0;
+  const progressPct =
+    progressMax > 0 ? Math.min(100, Math.max(0, (progressValue / progressMax) * 100)) : 0;
 
   const sizeStyle = collapsed
     ? undefined
@@ -304,6 +306,7 @@ export function BgmPlayer() {
               max={progressMax > 0 ? progressMax : 100}
               step={0.1}
               value={progressMax > 0 ? progressValue : 0}
+              style={{ ['--progress' as string]: `${progressPct}%` }}
               onPointerDown={(e) => {
                 e.stopPropagation();
                 if (progressMax <= 0) return;

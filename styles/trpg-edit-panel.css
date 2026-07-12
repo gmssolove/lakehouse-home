@@ -181,6 +181,37 @@
   margin-bottom: 8px;
 }
 
+.trpg-edit-order {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.trpg-edit-order__btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  border: 0.5px solid rgba(215, 169, 130, 0.22);
+  background: rgba(215, 169, 130, 0.06);
+  color: rgba(190, 186, 178, 0.78);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.trpg-edit-order__btn:hover:not(:disabled) {
+  border-color: rgba(215, 169, 130, 0.45);
+  color: rgba(240, 207, 173, 0.92);
+}
+
+.trpg-edit-order__btn:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
 .trpg-edit-card-item__actions {
   display: flex;
   align-items: center;
@@ -251,6 +282,93 @@
   width: 100%;
   margin-top: 4px;
   font-family: inherit;
+}
+
+.trpg-edit-add-btn--sub {
+  margin-top: 8px;
+  width: auto;
+  padding: 5px 10px;
+}
+
+.trpg-edit-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.trpg-edit-seg button {
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(210, 200, 188, 0.72);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.trpg-edit-seg button.is-on {
+  border-color: rgba(215, 169, 130, 0.55);
+  color: rgba(240, 207, 173, 0.95);
+  background: rgba(215, 169, 130, 0.1);
+}
+
+.trpg-edit-gallery-imgs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trpg-edit-gallery-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 0.5px solid rgba(215, 169, 130, 0.22);
+  background: rgba(215, 169, 130, 0.05);
+  color: rgba(210, 200, 188, 0.78);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.trpg-edit-gallery-toggle em {
+  font-style: normal;
+  letter-spacing: 0.04em;
+  color: rgba(215, 169, 130, 0.82);
+}
+
+.trpg-edit-gallery-toggle.is-open {
+  border-color: rgba(215, 169, 130, 0.4);
+}
+
+.trpg-edit-gallery-preview {
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 0.5px solid rgba(215, 169, 130, 0.18);
+  background: #111;
+}
+
+.trpg-edit-gallery-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.trpg-edit-gallery-imgs__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
 }
 
 .trpg-edit-add-btn:hover {

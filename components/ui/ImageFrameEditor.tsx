@@ -19,8 +19,12 @@ type Props = {
   aspectRatio?: string;
   clipPath?: string;
   className?: string;
+  imgClassName?: string;
+  viewportClassName?: string;
   /** false면 휠 확대 비활성 (Pair 썸네일 등) */
   allowWheelZoom?: boolean;
+  /** 스테이지용: 컨트롤/힌트 숨기고 부모 크기에 맞춤 */
+  stageMode?: boolean;
 };
 
 export function ImageFrameEditor({
@@ -32,7 +36,10 @@ export function ImageFrameEditor({
   aspectRatio = '10 / 16.5',
   clipPath,
   className = '',
+  imgClassName = '',
+  viewportClassName = '',
   allowWheelZoom = true,
+  stageMode = false,
 }: Props) {
   const frame = normalizeImageFrame(value);
   const frameRef = useRef(frame);
@@ -101,7 +108,7 @@ export function ImageFrameEditor({
   }, [allowWheelZoom, patch, src]);
 
   const viewportStyle = {
-    aspectRatio,
+    ...(stageMode ? null : { aspectRatio }),
     ...(clipPath ? { clipPath } : null),
   } as CSSProperties;
 
@@ -114,7 +121,9 @@ export function ImageFrameEditor({
   }
 
   return (
-    <div className={`image-frame-editor${className ? ` ${className}` : ''}`}>
+    <div
+      className={`image-frame-editor${stageMode ? ' image-frame-editor--stage' : ''}${className ? ` ${className}` : ''}`}
+    >
       <div
         ref={viewportRef}
         className={`image-frame-editor__viewport${dragging ? ' is-dragging' : ''}`}
@@ -124,32 +133,45 @@ export function ImageFrameEditor({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        <ImageFrameView src={src} frame={frame} fit={fit} pos={pos} />
+        <ImageFrameView
+          src={src}
+          frame={frame}
+          fit={fit}
+          pos={pos}
+          className={viewportClassName}
+          imgClassName={imgClassName}
+        />
       </div>
-      <div className="image-frame-editor__controls">
-        <label className="image-frame-editor__slider">
-          <span>확대</span>
-          <input
-            type="range"
-            min={55}
-            max={300}
-            step={1}
-            value={Math.round(frame.scale * 100)}
-            onChange={(e) => patch({ scale: clampFrameScale(Number(e.target.value) / 100) })}
-          />
-          <span>{Math.round(frame.scale * 100)}%</span>
-        </label>
-        <button
-          type="button"
-          className="image-frame-editor__reset"
-          onClick={() => onChangeRef.current({ ...DEFAULT_IMAGE_FRAME })}
-        >
-          위치 초기화
-        </button>
-      </div>
-      <p className="image-frame-editor__hint">
-        {allowWheelZoom ? '드래그로 이동 · 휠로 확대/축소' : '드래그로 이동 · 슬라이더로 확대'}
-      </p>
+      {!stageMode ? (
+        <>
+          <div className="image-frame-editor__controls">
+            <label className="image-frame-editor__slider">
+              <span>확대</span>
+              <input
+                type="range"
+                min={55}
+                max={300}
+                step={1}
+                value={Math.round(frame.scale * 100)}
+                onChange={(e) => patch({ scale: clampFrameScale(Number(e.target.value) / 100) })}
+              />
+              <span>{Math.round(frame.scale * 100)}%</span>
+            </label>
+            <button
+              type="button"
+              className="image-frame-editor__reset"
+              onClick={() => onChangeRef.current({ ...DEFAULT_IMAGE_FRAME })}
+            >
+              위치 초기화
+            </button>
+          </div>
+          <p className="image-frame-editor__hint">
+            {allowWheelZoom ? '드래그로 이동 · 휠로 확대/축소' : '드래그로 이동 · 슬라이더로 확대'}
+          </p>
+        </>
+      ) : (
+        <p className="image-frame-editor__stage-hint">드래그로 이동 · 휠로 확대/축소</p>
+      )}
     </div>
   );
 }

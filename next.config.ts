@@ -5,6 +5,9 @@ initOpenNextCloudflareForDev();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  devIndicators: {
+    position: 'bottom-left',
+  },
   serverExternalPackages: ['@aws-sdk/client-s3'],
   experimental: {
     serverActions: {

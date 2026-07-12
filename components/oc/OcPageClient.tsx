@@ -12,15 +12,17 @@ import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBa
 import { useOcData } from '@/lib/hooks/useOcData';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
-import { displayCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
+import { displayCategory, isTrpgCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
 import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
+import { lakeNavigate } from '@/lib/lake/routeTransition';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { buildCharacterNumberMap } from '@/lib/oc/characterOrder';
-import { collectProfileFieldValues, formatCardTag, getProfileFieldValue } from '@/lib/oc/profile';
+import { formatCardTag } from '@/lib/oc/profile';
 import type { OcCharacter } from '@/lib/types/character';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
+import { LakeSearchField } from '@/components/ui/LakeSearchField';
 
 const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -58,12 +60,15 @@ export function OcPageClient() {
   const [activeCat, setActiveCat] = useState('all');
   const [activeSub, setActiveSub] = useState('all');
   const [search, setSearch] = useState('');
-  const [filterGender, setFilterGender] = useState('all');
   const [sortMode, setSortMode] = useState<SortMode>('no');
   const [detail, setDetail] = useState<OcCharacter | null>(null);
   const [intro, setIntro] = useState<IntroState | null>(null);
   const [auIdx, setAuIdx] = useState(-1);
-  const [passwordGate, setPasswordGate] = useState<{ character: OcCharacter; au: number } | null>(null);
+  const [passwordGate, setPasswordGate] = useState<{
+    character: OcCharacter;
+    au: number;
+    skipIntro?: boolean;
+  } | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
 
   const charNumberMap = useMemo(() => buildCharacterNumberMap(characters), [characters]);
@@ -100,7 +105,7 @@ export function OcPageClient() {
   const handleDetailBack = requestOcBack;
 
   const leaveOc = useCallback(() => {
-    router.replace('/');
+    lakeNavigate(router, '/', '/oc');
   }, [router]);
 
   const routeGuard = useMemo(() => ({ guardPath: '/oc', router }), [router]);
@@ -131,10 +136,8 @@ export function OcPageClient() {
     }
   }, []);
 
-  const genders = useMemo(() => collectProfileFieldValues(characters, '성별'), [characters]);
-
   const subs = useMemo(() => {
-    if (activeCat === 'all') return [];
+    if (activeCat === 'all' || isTrpgCategory(activeCat)) return [];
     return [
       ...new Set(
         characters.filter((c) => normalizeCategory(c.category) === activeCat).map((c) => c.subcat).filter(Boolean),
@@ -148,7 +151,6 @@ export function OcPageClient() {
       const cat = normalizeCategory(c.category);
       if (activeCat !== 'all' && cat !== activeCat) return false;
       if (activeSub !== 'all' && c.subcat !== activeSub) return false;
-      if (filterGender !== 'all' && getProfileFieldValue(c, '성별') !== filterGender) return false;
       if (q && !c.name.toLowerCase().includes(q) && !(c.nameSub || '').toLowerCase().includes(q)) return false;
       return true;
     });
@@ -159,9 +161,9 @@ export function OcPageClient() {
       return String(a.id).localeCompare(String(b.id));
     });
     return list;
-  }, [characters, activeCat, activeSub, search, filterGender, sortMode]);
+  }, [characters, activeCat, activeSub, search, sortMode]);
 
-  function openDetail(c: OcCharacter, au: number) {
+  function openDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
     const hasTheme = characterHasBgmTheme(c);
     detailUsedThemeRef.current = hasTheme;
     if (hasTheme) {
@@ -169,7 +171,7 @@ export function OcPageClient() {
     } else {
       resumePageBgmIfNeeded();
     }
-    if (shouldShowPvIntro(c, ocSettings.pvIntroEnabled)) {
+    if (!opts?.skipIntro && shouldShowPvIntro(c, ocSettings.pvIntroEnabled)) {
       setIntro({ character: c, auIdx: au });
       setDetail(null);
       return;
@@ -179,19 +181,24 @@ export function OcPageClient() {
     setAuIdx(au);
   }
 
-  function requestOpenDetail(c: OcCharacter, au: number) {
+  function requestOpenDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
     if (isAdmin || isLakeAccessUnlocked('oc')) {
-      openDetail(c, au);
+      openDetail(c, au, opts);
       return;
     }
-    setPasswordGate({ character: c, au });
+    setPasswordGate({ character: c, au, skipIntro: opts?.skipIntro });
   }
 
   useEffect(() => {
     const charId = searchParams.get('c');
     if (!charId || !characters.length || detail || intro) return;
-    const c = characters.find((ch) => String(ch.id) === charId);
-    if (c) requestOpenDetail(c, -1);
+    const c = characters.find((ch) => String(ch.id) === String(charId));
+    if (!c) return;
+    const skipIntro =
+      searchParams.get('view') === 'detail' ||
+      searchParams.get('direct') === '1' ||
+      searchParams.get('from') === 'trpg';
+    requestOpenDetail(c, -1, { skipIntro });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from URL
   }, [characters, searchParams, detail, intro]);
 
@@ -219,44 +226,13 @@ export function OcPageClient() {
         <div className="sidebar">
           <div>
             <div className="s-title">Search</div>
-            <input
-              className="search-input"
+            <LakeSearchField
+              variant="oc"
               placeholder="이름으로 검색..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={setSearch}
             />
-            <div className="oc-filter-bar oc-filter-bar--sidebar" role="group" aria-label="OC 필터">
-              <select
-                id="oc-filter-gender"
-                className="oc-filter-select"
-                value={filterGender}
-                onChange={(e) => setFilterGender(e.target.value)}
-                aria-label="성별"
-              >
-                <option value="all">성별 · 전체</option>
-                {genders.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-              <select
-                id="oc-filter-category"
-                className="oc-filter-select"
-                value={activeCat}
-                onChange={(e) => {
-                  setActiveCat(e.target.value);
-                  setActiveSub('all');
-                }}
-                aria-label="카테고리"
-              >
-                <option value="all">카테고리 · 전체</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {displayCategory(cat)}
-                  </option>
-                ))}
-              </select>
+            <div className="oc-filter-bar oc-filter-bar--sidebar" role="group" aria-label="OC 정렬">
               <select
                 id="oc-filter-sort"
                 className="oc-filter-select"
@@ -360,12 +336,13 @@ export function OcPageClient() {
                       <div className="char-card-placeholder">{ROMANS[i] || ''}</div>
                     )}
                     <div className="char-card-hover">
-                      <div className="hover-name">{c.name}</div>
                       {c.nameSub && <div className="hover-sub">{c.nameSub}</div>}
+                      <div className="hover-name">{c.name}</div>
                       {cardTag && <div className="hover-tag">{cardTag}</div>}
                     </div>
                     <div className="char-card-bottom">
                       <div className="char-card-stars">{stars}</div>
+                      {c.nameSub && <div className="char-card-role">{c.nameSub}</div>}
                       <div className="char-card-name">{c.name}</div>
                       {cardTag && (
                         <div className="char-card-tags">
@@ -400,7 +377,7 @@ export function OcPageClient() {
         onSuccess={() => {
           const pending = passwordGate;
           setPasswordGate(null);
-          if (pending) openDetail(pending.character, pending.au);
+          if (pending) openDetail(pending.character, pending.au, { skipIntro: pending.skipIntro });
         }}
       />
       <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />

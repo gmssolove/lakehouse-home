@@ -11,6 +11,7 @@ import { uploadImageFile } from '@/lib/r2/client';
 import type { OcCharacter } from '@/lib/types/character';
 import type { PairChemistry, PairGalleryItem, PairItem } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
+import { finalizeCommaList, splitCommaListLive } from '@/lib/ui/commaList';
 
 type PairEditTab = 'basic' | 'story' | 'gallery';
 
@@ -129,7 +130,11 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, showPrev
   }
 
   async function handleSave() {
-    await onSave(form);
+    await onSave({
+      ...form,
+      keywords: finalizeCommaList(form.keywords),
+      flatLoreKeywords: finalizeCommaList(form.flatLoreKeywords),
+    });
     showSaveToast();
   }
 
@@ -209,10 +214,7 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, showPrev
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    keywords: e.target.value
-                      .split(/[,，、]/)
-                      .map((s) => s.trim())
-                      .filter(Boolean),
+                    keywords: splitCommaListLive(e.target.value),
                   })
                 }
               />
@@ -297,10 +299,7 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, showPrev
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    flatLoreKeywords: e.target.value
-                      .split(/[,，、]/)
-                      .map((s) => s.trim())
-                      .filter(Boolean),
+                    flatLoreKeywords: splitCommaListLive(e.target.value),
                   })
                 }
               />

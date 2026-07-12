@@ -17,16 +17,17 @@ import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
 import { lakeNavigate } from '@/lib/lake/routeTransition';
 import { auth } from '@/lib/firebase/client';
+import { HOME_RECORDS_TABS, isHomeRecordsTabId } from '@/lib/records/sections';
 import type { TrpgScenario } from '@/lib/types/site-content';
 
 type AdminPhase = 'idle' | 'open' | 'closing';
 
-const TAB_PARAMS: HomePageId[] = ['trpg', 'charArchive'];
+const TAB_PARAMS: HomePageId[] = ['trpg', 'charArchive', ...HOME_RECORDS_TABS];
 
 export function HomePageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin, refreshAuth } = useAuth();
   const { trpg, accessSettings, loaded: siteLoaded } = useSiteContent();
   const { setHidden: setMainBgmHidden } = useMainBgmVisibility();
   const [page, setPage] = useState<HomePageId>('main');
@@ -53,9 +54,13 @@ export function HomePageClient() {
 
   useEffect(() => {
     const tab = searchParams.get('p');
-    if (tab && ['diary', 'timeline', 'scrap', 'review', 'music', 'sadam'].includes(tab)) {
-      const target = tab === 'sadam' ? 'timeline' : tab;
-      router.replace(`/records/${target}`, { scroll: false });
+    if (tab === 'timeline' || tab === 'sadam') {
+      setPage('diary');
+      router.replace('/?p=diary', { scroll: false });
+      return;
+    }
+    if (tab === 'music') {
+      router.replace('/?p=diary', { scroll: false });
       return;
     }
     const pageTab = tab as HomePageId | null;
@@ -94,6 +99,11 @@ export function HomePageClient() {
     }
     setPage(next);
     if (adminPhase !== 'idle') setAdminPhase('idle');
+    if (next === 'trpg' || next === 'charArchive' || isHomeRecordsTabId(next)) {
+      router.replace(`/?p=${next}`, { scroll: false });
+    } else if (searchParams.get('p')) {
+      router.replace('/', { scroll: false });
+    }
   }
 
   const trpgUnlocked = isAdmin || isLakeAccessUnlocked('trpg');
@@ -130,15 +140,18 @@ export function HomePageClient() {
   return (
     <>
       <BackgroundDecor />
+      {/* Outside .layout so route slide transforms don't break fixed menu placement */}
+      <LeftNav
+        user={user}
+        profile={profile}
+        isAdmin={isAdmin}
+        activePage={adminPhase === 'open' ? 'admin' : page}
+        onPageChange={changePage}
+        onOpenAuth={() => setAuthOpen(true)}
+        onLogout={() => signOut(auth)}
+        onNicknameUpdated={refreshAuth}
+      />
       <div className="layout layout--home">
-        <LeftNav
-          user={user}
-          isAdmin={isAdmin}
-          activePage={adminPhase === 'open' ? 'admin' : page}
-          onPageChange={changePage}
-          onOpenAuth={() => setAuthOpen(true)}
-          onLogout={() => signOut(auth)}
-        />
         <div className="right-panel">
           <HomeContent
             page={page}

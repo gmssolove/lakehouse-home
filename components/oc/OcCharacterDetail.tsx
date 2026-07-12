@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { useBgm } from '@/lib/contexts/BgmContext';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
+import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { OcEditForm } from '@/components/admin/OcEditForm';
 import { LakeEditModal } from '@/components/ui/LakeEditModal';
 import { OcAuPicker } from '@/components/oc/OcAuPicker';
@@ -10,10 +12,13 @@ import { OcVnDialogue, useVnDialogue } from '@/components/oc/OcVnDialogue';
 import { applyCharacterTheme, characterHasBgmTheme, clearCharacterTheme, resolveCharacterTheme } from '@/lib/oc/characterTheme';
 import { formatGalleryCredit, gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
 import { displayCategory, isTrpgCategory } from '@/lib/oc/categories';
-import { buildDetailProfileRows, formatCardTag, formatStatDigits } from '@/lib/oc/profile';
+import { buildDetailProfileRows, formatCardTag, formatStatDigits, parseStatPercent } from '@/lib/oc/profile';
+import { OcRichText } from '@/lib/oc/richText';
+import { lakeNavigate } from '@/lib/lake/routeTransition';
+import { setTrpgReturnPath } from '@/lib/lake/trpgReturn';
 import { framedImageStyle } from '@/lib/shared/imageFrame';
 import type { GalleryItem, ImageFrame, OcCharacter, StoryLog, CharacterRelation } from '@/lib/types/character';
-import { newId } from '@/lib/types/site-content';
+import { newId, type TrpgScenario } from '@/lib/types/site-content';
 
 type Props = {
   character: OcCharacter;
@@ -30,6 +35,15 @@ type Props = {
 
 function isKeywordField(k: string) {
   return /^(키워드|keywords?)$/i.test(k.trim());
+}
+
+function findRelatedTrpgScenarios(scenarios: TrpgScenario[], ocId: string | number): TrpgScenario[] {
+  const id = String(ocId);
+  return scenarios.filter((s) => {
+    if ((s.characterIds ?? []).some((cid) => String(cid) === id)) return true;
+    if ((s.playerProfiles ?? []).some((p) => String(p.ocId || '') === id)) return true;
+    return false;
+  });
 }
 
 function parseKeywordTags(value: string | string[] | undefined): string[] {
@@ -50,10 +64,15 @@ function splitProfileRows(character: OcCharacter) {
 }
 
 function StatBar({ label, value }: { label: string; value: string }) {
+  const pct = parseStatPercent(value);
+  const display = formatStatDigits(value);
   return (
     <div className="oc-stat-row">
       <span className="oc-stat-label">{label}</span>
-      <span className="oc-stat-value-box">{formatStatDigits(value)}</span>
+      <div className="oc-stat-track" aria-hidden="true">
+        <span className="oc-stat-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="oc-stat-num">{display}</span>
     </div>
   );
 }
@@ -79,6 +98,8 @@ export function OcCharacterDetail({
   onAuChange,
   onSave,
 }: Props) {
+  const router = useRouter();
+  const { trpg } = useSiteContent();
   const { playCharacterTheme, playing } = useBgm();
   const bgmApi = useRef({ playCharacterTheme, playing });
   bgmApi.current = { playCharacterTheme, playing };
@@ -91,9 +112,13 @@ export function OcCharacterDetail({
   const [panelClosing, setPanelClosing] = useState(false);
   const [shownPortrait, setShownPortrait] = useState<ShownPortrait | null>(null);
   const [charBounce, setCharBounce] = useState(false);
+  const [charMotion, setCharMotion] = useState<'bounce' | 'shake' | null>(null);
+  const motionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [galleryLightbox, setGalleryLightbox] = useState<GalleryItem | null>(null);
   const wasPlayingRef = useRef(false);
   const panelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rightScrollRef = useRef<HTMLDivElement | null>(null);
+  const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const portraitRef = useRef<ShownPortrait>({ src: '', fit: 'contain', pos: 'center top' });
   const exprPortraitRef = useRef<{ front: 0 | 1; layers: [string, string] }>({
     front: 0,
@@ -108,7 +133,27 @@ export function OcCharacterDetail({
 
   useEffect(() => {
     setCharBounce(false);
+    setCharMotion(null);
   }, [character.id]);
+
+  const playCharMotion = useCallback((motion: 'bounce' | 'shake' | null) => {
+    if (motionClearRef.current) clearTimeout(motionClearRef.current);
+    if (!motion) {
+      setCharMotion(null);
+      return;
+    }
+    setCharMotion(null);
+    window.requestAnimationFrame(() => {
+      setCharMotion(motion);
+      motionClearRef.current = setTimeout(() => setCharMotion(null), motion === 'shake' ? 520 : 280);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (motionClearRef.current) clearTimeout(motionClearRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const el = document.getElementById('detail-screen');
@@ -274,6 +319,44 @@ export function OcCharacterDetail({
   const relationships: CharacterRelation[] = character.relationships || [];
   const starCount = character.stars ?? 5;
   const showStats = isTrpgCategory(character.category) && !!character.stats?.length;
+  const relatedTrpg = useMemo(
+    () => (isTrpgCategory(character.category) ? findRelatedTrpgScenarios(trpg, character.id) : []),
+    [character.category, character.id, trpg],
+  );
+
+  useEffect(() => {
+    const panel = rightPanelRef.current;
+    const scroll = rightScrollRef.current;
+    if (!panel || !scroll) return;
+
+    const syncRightBalance = () => {
+      const avail = panel.clientHeight;
+      if (avail <= 0) return;
+      const content = scroll.scrollHeight;
+      const ratio = content / avail;
+      let shift = 0;
+      if (ratio > 1.02) {
+        shift = -Math.min(52, (ratio - 1) * 60);
+      } else if (ratio < 0.72) {
+        shift = Math.min(36, (0.72 - ratio) * 70);
+      } else {
+        shift = -Math.min(22, (ratio - 0.72) * 48);
+      }
+      panel.style.setProperty('--oc-right-shift', `${Math.round(shift)}px`);
+      panel.classList.toggle('is-dense', ratio > 0.9);
+    };
+
+    const id = window.requestAnimationFrame(syncRightBalance);
+    const ro = new ResizeObserver(syncRightBalance);
+    ro.observe(panel);
+    ro.observe(scroll);
+    window.addEventListener('resize', syncRightBalance);
+    return () => {
+      window.cancelAnimationFrame(id);
+      ro.disconnect();
+      window.removeEventListener('resize', syncRightBalance);
+    };
+  }, [character.id, relatedTrpg.length, profileRows.length, keywordTags.length, showStats]);
 
   const dismissLeftPanel = useCallback(() => {
     if (!openLeft && !panelMounted) return;
@@ -369,7 +452,7 @@ export function OcCharacterDetail({
               <div key={log.id} className="oc-acc-log">
                 <div className="oc-acc-log-title">{log.title}</div>
                 {log.date && <div className="oc-acc-log-date">{log.date}</div>}
-                <div className="oc-acc-log-body">{log.body}</div>
+                <OcRichText text={log.body} className="oc-acc-log-body" />
               </div>
             ))}
           </div>
@@ -388,7 +471,7 @@ export function OcCharacterDetail({
               <div key={rel.id} className="oc-acc-rel">
                 <span className="oc-acc-rel-name">{rel.name}</span>
                 <span className="oc-acc-rel-type">{rel.relation}</span>
-                {rel.note && <p className="oc-acc-rel-note">{rel.note}</p>}
+                {rel.note ? <OcRichText text={rel.note} className="oc-acc-rel-note" /> : null}
               </div>
             ))}
           </div>
@@ -400,7 +483,7 @@ export function OcCharacterDetail({
       sections.push({
         id: 'intro',
         label: '소개',
-        content: <p className="oc-acc-text">{character.desc}</p>,
+        content: <OcRichText text={character.desc} className="oc-acc-text" />,
       });
     }
 
@@ -408,7 +491,7 @@ export function OcCharacterDetail({
       sections.push({
         id: 'appearance',
         label: '외관',
-        content: <p className="oc-acc-text">{character.appearance}</p>,
+        content: <OcRichText text={character.appearance} className="oc-acc-text" />,
       });
     }
 
@@ -416,7 +499,7 @@ export function OcCharacterDetail({
       sections.push({
         id: 'special',
         label: '특이사항',
-        content: <p className="oc-acc-text">{character.special}</p>,
+        content: <OcRichText text={character.special} className="oc-acc-text" />,
       });
     }
 
@@ -427,19 +510,22 @@ export function OcCharacterDetail({
         content: (
           <div className="oc-acc-etc">
             {character.hobby && (
-              <p>
-                <em>Hobby</em> {character.hobby}
-              </p>
+              <div className="oc-acc-etc-row">
+                <em>Hobby</em>
+                <OcRichText text={character.hobby} className="oc-acc-etc-value" />
+              </div>
             )}
             {character.likes?.length ? (
-              <p>
-                <em>Likes</em> {character.likes.join(', ')}
-              </p>
+              <div className="oc-acc-etc-row">
+                <em>Likes</em>
+                <OcRichText text={character.likes.join(', ')} className="oc-acc-etc-value" />
+              </div>
             ) : null}
             {character.hates?.length ? (
-              <p>
-                <em>Hates</em> {character.hates.join(', ')}
-              </p>
+              <div className="oc-acc-etc-row">
+                <em>Hates</em>
+                <OcRichText text={character.hates.join(', ')} className="oc-acc-etc-value" />
+              </div>
             ) : null}
           </div>
         ),
@@ -455,7 +541,7 @@ export function OcCharacterDetail({
             {character.novel.map((n, i) => (
               <div key={i} className="oc-acc-novel-item">
                 {n.title && <div className="oc-acc-log-title">{n.title}</div>}
-                {n.preview && <p className="oc-acc-text">{n.preview}</p>}
+                {n.preview ? <OcRichText text={n.preview} className="oc-acc-text" /> : null}
               </div>
             ))}
           </div>
@@ -488,7 +574,15 @@ export function OcCharacterDetail({
       <div className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.active ? ' vn-active' : ''}`}>
         <div className="game-left" id="game-left">
           <div className="game-char-gradient" />
-          <div className={`oc-char-slide${openLeft ? ' shifted' : ''}${charBounce ? ' oc-char-bounce-once' : ''}`}>
+          <div
+            className={`oc-char-slide${openLeft ? ' shifted' : ''}${
+              charBounce || charMotion === 'bounce'
+                ? ' oc-char-bounce-once'
+                : charMotion === 'shake'
+                  ? ' oc-char-shake-once'
+                  : ''
+            }`}
+          >
             {displayImgSrc ? (
               vn.active ? (
                 <div className="oc-char-portrait-stack">
@@ -556,7 +650,9 @@ export function OcCharacterDetail({
 
         {panelMounted && panelSection && (
           <div
-            className={`oc-left-panel-shell${panelClosing ? ' is-closing' : ' is-open'}${panelSection.layout ? ` oc-left-panel-shell--${panelSection.layout}` : ' oc-left-panel-shell--text'}`}
+            className={`oc-left-panel-shell${panelClosing ? ' is-closing' : ' is-open'}${
+              panelSection.layout ? ` oc-left-panel-shell--${panelSection.layout}` : ' oc-left-panel-shell--text'
+            }`}
             role="region"
             aria-label={panelSection.label}
             aria-hidden={panelClosing}
@@ -570,17 +666,46 @@ export function OcCharacterDetail({
           </div>
         )}
 
-        <div className="oc-detail-right">
-          <div className="oc-detail-right-scroll">
+        <div className="oc-detail-right" ref={rightPanelRef}>
+          <div className="oc-detail-right-scroll" ref={rightScrollRef}>
           <header className="oc-identity">
             <div className="oc-identity-no">
               <span className="oc-identity-no-label">No.</span>
               <span className="oc-identity-no-num">{charNo}</span>
             </div>
-            <h1 className="oc-identity-name">{character.name}</h1>
-            <div className="oc-identity-accent-line" aria-hidden="true" />
             {character.nameSub && <div className="oc-identity-sub">{character.nameSub}</div>}
+            <div className="oc-identity-name-block">
+              <h1 className="oc-identity-name">{character.name}</h1>
+              <div className="oc-identity-accent-line" aria-hidden="true" />
+            </div>
           </header>
+
+          {relatedTrpg.length > 0 && (
+            <section className="oc-trpg-links" aria-label="Related scenario">
+              <div className="oc-trpg-link-list">
+                {relatedTrpg.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="oc-trpg-link-btn"
+                    onClick={() => {
+                      setTrpgReturnPath(
+                        `/oc?c=${encodeURIComponent(String(character.id))}&view=detail&from=trpg`,
+                      );
+                      lakeNavigate(router, `/trpg/${encodeURIComponent(s.id)}`, '/oc');
+                    }}
+                  >
+                    <span className="oc-trpg-link-kicker">Related scenario</span>
+                    <span className="oc-trpg-link-title">{s.title || s.id}</span>
+                    {s.subtitle ? <span className="oc-trpg-link-sub">{s.subtitle}</span> : null}
+                    <span className="oc-trpg-link-arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           <div className="oc-identity-meta">
             <div className="oc-identity-stars" aria-label={`${starCount} stars`}>
@@ -602,8 +727,8 @@ export function OcCharacterDetail({
           <section className="oc-attr-panel oc-basic-info">
             <div className="oc-basic-info-block">
               <header className="oc-attr-head">
+                <span className="oc-attr-head-en">PROFILE</span>
                 <span className="oc-attr-head-ko">기본 정보</span>
-                <span className="oc-attr-head-en">Profile</span>
               </header>
               <div className="oc-basic-info-fields">
                 <div className="oc-attr-grid">
@@ -637,8 +762,8 @@ export function OcCharacterDetail({
           {showStats && character.stats && (
             <section className="oc-attr-panel oc-stat-section">
               <header className="oc-attr-head">
+                <span className="oc-attr-head-en">ATTRIBUTE</span>
                 <span className="oc-attr-head-ko">스테이터스</span>
-                <span className="oc-attr-head-en">Attribute</span>
               </header>
               <div className="oc-attr-grid oc-attr-grid-stats">
                 {character.stats.map((s) => (
@@ -657,6 +782,7 @@ export function OcCharacterDetail({
           active={vn.active}
           onClose={vn.close}
           onExpression={vn.setExpression}
+          onMotion={playCharMotion}
         />
       </div>
 

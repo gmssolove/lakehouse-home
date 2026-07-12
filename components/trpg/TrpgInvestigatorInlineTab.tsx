@@ -141,6 +141,15 @@ export function TrpgInvestigatorInlineTab({
                 </div>
               </div>
               <div className="trpg-edit-field">
+                <label>대표 한마디</label>
+                <input
+                  className="form-input"
+                  placeholder="캐릭터를 한 줄로…"
+                  value={player.quote || ''}
+                  onChange={(e) => updatePlayer(player.id, { quote: e.target.value })}
+                />
+              </div>
+              <div className="trpg-edit-field">
                 <label>프로필 이미지</label>
                 <ImageFileField
                   label=""
@@ -164,6 +173,61 @@ export function TrpgInvestigatorInlineTab({
                     />
                   </div>
                 ) : null}
+              </div>
+              <div className="trpg-edit-field">
+                <label>표정 · 버전</label>
+                {(player.expressions ?? []).map((ex, i) => (
+                  <div key={ex.id} className="trpg-inv-expr-edit" style={{ marginTop: 8 }}>
+                    <div className="trpg-edit-row col2">
+                      <input
+                        className="form-input"
+                        placeholder="라벨"
+                        value={ex.label || ''}
+                        onChange={(e) => {
+                          const expressions = [...(player.expressions ?? [])];
+                          expressions[i] = { ...expressions[i], label: e.target.value };
+                          updatePlayer(player.id, { expressions });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="trpg-edit-mini-del"
+                        onClick={() => {
+                          updatePlayer(player.id, {
+                            expressions: (player.expressions ?? []).filter((_, idx) => idx !== i),
+                          });
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <ImageFileField
+                      label=""
+                      value={ex.img || ''}
+                      folder="site/trpg/investigators"
+                      uploading={uploading}
+                      onUploadStart={onUploadStart}
+                      onUploadEnd={onUploadEnd}
+                      onChange={(img) => {
+                        const expressions = [...(player.expressions ?? [])];
+                        expressions[i] = { ...expressions[i], img, imgFrame: undefined };
+                        updatePlayer(player.id, { expressions });
+                      }}
+                    />
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="trpg-edit-add-btn"
+                  style={{ marginTop: 8 }}
+                  onClick={() =>
+                    updatePlayer(player.id, {
+                      expressions: [...(player.expressions ?? []), { id: newId(), label: '표정', img: '' }],
+                    })
+                  }
+                >
+                  + 표정 추가
+                </button>
               </div>
               <div className="trpg-edit-field">
                 <label>외관</label>

@@ -13,21 +13,24 @@ import type {
   TrpgDiceHighlight,
   TrpgGalleryItem,
   TrpgHandout,
+  TrpgListSettings,
   TrpgPlayerProfile,
   TrpgRelationship,
   TrpgSessionLog,
   TrpgScenario,
   UniverseCard,
 } from '@/lib/types/site-content';
-import { newId } from '@/lib/types/site-content';
+import { DEFAULT_TRPG_LIST_SETTINGS, newId } from '@/lib/types/site-content';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { BANNER_DIVIDER_PRESETS, BannerDividerIcon } from '@/lib/banner/dividerIcons';
 import { CLICK_SOUND_PRESETS, playClickSound } from '@/lib/sounds/clickSound';
 import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
 import { LakeToggle } from '@/components/ui/LakeToggle';
+import { LinkPickList } from '@/components/ui/LinkPickList';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { ImageFileField } from '@/components/ui/ImageFileField';
+import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { AudioFileField } from '@/components/ui/AudioFileField';
 import { TrpgInvestigatorInlineTab } from '@/components/trpg/TrpgInvestigatorInlineTab';
 import { TrpgLogTypographyControls } from '@/components/trpg/TrpgLogTypographyControls';
@@ -199,15 +202,34 @@ function PostEditForm({
 type TrpgProps = {
   items: TrpgScenario[];
   onSave: (next: TrpgScenario[]) => Promise<void>;
+  settings: TrpgListSettings;
+  onSaveSettings: (next: TrpgListSettings) => Promise<void>;
   initialEditId?: string | null;
 };
 
-export function TrpgAdminPanel({ items, onSave, initialEditId = null }: TrpgProps) {
+const TRPG_ASPECT_PRESETS = [
+  { value: '16 / 10', label: '16:10 (카드)' },
+  { value: '16 / 9', label: '16:9' },
+  { value: '2 / 1', label: '2:1 (와이드)' },
+  { value: '3 / 2', label: '3:2' },
+  { value: '4 / 3', label: '4:3' },
+  { value: '3 / 4', label: '3:4 (세로)' },
+  { value: '1 / 1', label: '1:1' },
+];
+
+export function TrpgAdminPanel({
+  items,
+  onSave,
+  settings,
+  onSaveSettings,
+  initialEditId = null,
+}: TrpgProps) {
   const { confirm } = useLakeDialog();
   const { showSaveToast, showDeleteToast } = useSaveToast();
   const { characters } = useOcData();
   const [editId, setEditId] = useState<string | null>(initialEditId);
   const [uploading, setUploading] = useState(false);
+  const [listSettings, setListSettings] = useState(settings);
   const editBodyRef = useRef<HTMLDivElement>(null);
   const selected = items.find((i) => i.id === editId);
 
@@ -215,10 +237,20 @@ export function TrpgAdminPanel({ items, onSave, initialEditId = null }: TrpgProp
     if (initialEditId) setEditId(initialEditId);
   }, [initialEditId]);
 
+  useEffect(() => {
+    setListSettings(settings);
+  }, [settings]);
+
   async function persist(next: TrpgScenario[], toast: ToastAction = false) {
     await onSave(next);
     if (toast === 'save') showSaveToast();
     if (toast === 'delete') showDeleteToast();
+  }
+
+  async function persistSettings(next: TrpgListSettings) {
+    setListSettings(next);
+    await onSaveSettings(next);
+    showSaveToast();
   }
 
   function addItem() {
@@ -227,9 +259,10 @@ export function TrpgAdminPanel({ items, onSave, initialEditId = null }: TrpgProp
       title: '새 시나리오',
       subtitle: '',
       thumbnail: '',
+      categoryId: listSettings.categories[0]?.id || '',
       author: '',
       kp: '',
-      system: '',
+      system: listSettings.categories[0]?.label || '',
       dateStart: '',
       dateEnd: '',
       players: '',
@@ -247,8 +280,99 @@ export function TrpgAdminPanel({ items, onSave, initialEditId = null }: TrpgProp
     setEditId(item.id);
   }
 
+  function addCategory() {
+    const id = `cat_${Date.now().toString(36)}`;
+    void persistSettings({
+      ...listSettings,
+      categories: [...listSettings.categories, { id, label: '새 카테고리' }],
+    });
+  }
+
   return (
     <>
+      <div className="trpg-edit-section" style={{ marginBottom: '1rem' }}>
+        <div className="trpg-edit-section__title">리스트 카드 설정</div>
+        <div className="trpg-edit-field">
+          <label className="form-label">카드 비율</label>
+          <div className="trpg-edit-row col2">
+            <select
+              className="form-input"
+              value={
+                TRPG_ASPECT_PRESETS.some((p) => p.value === listSettings.cardAspect)
+                  ? listSettings.cardAspect
+                  : '__custom'
+              }
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === '__custom') return;
+                void persistSettings({ ...listSettings, cardAspect: v });
+              }}
+            >
+              {TRPG_ASPECT_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+              <option value="__custom">커스텀…</option>
+            </select>
+            <input
+              className="form-input"
+              value={listSettings.cardAspect}
+              placeholder="예: 3 / 4"
+              onChange={(e) => setListSettings({ ...listSettings, cardAspect: e.target.value })}
+              onBlur={() => {
+                const next = listSettings.cardAspect.trim() || DEFAULT_TRPG_LIST_SETTINGS.cardAspect;
+                if (next !== settings.cardAspect) void persistSettings({ ...listSettings, cardAspect: next });
+              }}
+            />
+          </div>
+        </div>
+        <div className="trpg-edit-field">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label className="form-label">필터 카테고리</label>
+            <button type="button" className="btn-save" onClick={addCategory}>
+              + 카테고리
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            {listSettings.categories.map((cat, idx) => (
+              <div key={cat.id} className="trpg-edit-row col2" style={{ alignItems: 'center' }}>
+                <input
+                  className="form-input"
+                  value={cat.label}
+                  placeholder="표시 이름"
+                  onChange={(e) => {
+                    const categories = listSettings.categories.map((c, i) =>
+                      i === idx ? { ...c, label: e.target.value } : c,
+                    );
+                    setListSettings({ ...listSettings, categories });
+                  }}
+                  onBlur={() => {
+                    const categories = listSettings.categories
+                      .map((c) => ({ ...c, label: c.label.trim() || c.id }))
+                      .filter((c) => c.id);
+                    void persistSettings({ ...listSettings, categories });
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn-del"
+                  onClick={() => {
+                    const categories = listSettings.categories.filter((_, i) => i !== idx);
+                    void persistSettings({
+                      ...listSettings,
+                      categories: categories.length ? categories : DEFAULT_TRPG_LIST_SETTINGS.categories,
+                    });
+                  }}
+                >
+                  삭제
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '.75rem' }}>
         <span style={{ fontSize: 12, color: 'var(--lake-copper-soft, var(--pink))' }}>TRPG — 시나리오</span>
         <button type="button" className="btn-save" onClick={addItem}>
@@ -281,6 +405,7 @@ export function TrpgAdminPanel({ items, onSave, initialEditId = null }: TrpgProp
               key={selected.id}
               item={selected}
               characters={characters}
+              listSettings={listSettings}
               uploading={uploading}
               onUploadStart={() => setUploading(true)}
               onUploadEnd={() => setUploading(false)}
@@ -328,6 +453,7 @@ const TRPG_EDIT_TABS: { id: TrpgEditTab; label: string }[] = [
 export function TrpgEditForm({
   item,
   characters,
+  listSettings = DEFAULT_TRPG_LIST_SETTINGS,
   uploading,
   onUploadStart,
   onUploadEnd,
@@ -340,6 +466,7 @@ export function TrpgEditForm({
 }: {
   item: TrpgScenario;
   characters: OcCharacter[];
+  listSettings?: TrpgListSettings;
   uploading: boolean;
   onUploadStart: () => void;
   onUploadEnd: () => void;
@@ -355,6 +482,7 @@ export function TrpgEditForm({
   const [form, setForm] = useState(item);
   const [tab, setTab] = useState<TrpgEditTab>(initialTab);
   const [htmlPaste, setHtmlPaste] = useState('');
+  const [galleryImgsOpen, setGalleryImgsOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setForm(item);
@@ -365,17 +493,12 @@ export function TrpgEditForm({
   }, [initialTab, item.id]);
 
   useEffect(() => {
+    setGalleryImgsOpen({});
+  }, [item.id]);
+
+  useEffect(() => {
     onBindActions?.({ save: () => onSave(form), delete: onDelete });
   }, [form, onBindActions, onDelete, onSave]);
-
-  const selectedIds = new Set(form.characterIds ?? []);
-
-  function toggleCharacter(id: string) {
-    const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setForm({ ...form, characterIds: [...next] });
-  }
 
   function addLog() {
     const log: TrpgSessionLog = {
@@ -472,8 +595,39 @@ export function TrpgEditForm({
   }
 
   function addGalleryItem() {
-    const g: TrpgGalleryItem = { id: newId(), img: '', title: '', caption: '' };
+    const g: TrpgGalleryItem = { id: newId(), img: '', imgs: [''], title: '', caption: '' };
     setForm((f) => ({ ...f, gallery: [...(f.gallery ?? []), g] }));
+  }
+
+  function galleryImageList(g: TrpgGalleryItem): string[] {
+    if (g.imgs && g.imgs.length) return g.imgs;
+    return g.img ? [g.img] : [''];
+  }
+
+  function setGalleryImages(id: string, imgs: string[]) {
+    updateGallery(id, { img: imgs.find((s) => s.trim()) || '', imgs });
+  }
+
+  function moveGalleryItem(id: string, dir: -1 | 1) {
+    setForm((f) => {
+      const list = [...(f.gallery ?? [])];
+      const i = list.findIndex((g) => g.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= list.length) return f;
+      [list[i], list[j]] = [list[j], list[i]];
+      return { ...f, gallery: list };
+    });
+  }
+
+  function moveGalleryImage(id: string, index: number, dir: -1 | 1) {
+    const g = (form.gallery ?? []).find((item) => item.id === id);
+    if (!g) return;
+    const images = galleryImageList(g);
+    const j = index + dir;
+    if (j < 0 || j >= images.length) return;
+    const next = [...images];
+    [next[index], next[j]] = [next[j], next[index]];
+    setGalleryImages(id, next);
   }
 
   function updateGallery(id: string, patch: Partial<TrpgGalleryItem>) {
@@ -585,10 +739,10 @@ export function TrpgEditForm({
               </div>
             </div>
             <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">썸네일</div>
+              <div className="trpg-edit-section__title">썸네일 · 호버 카드</div>
               <div className="trpg-edit-thumb-block">
                 <ImageFileField
-                  label="이미지"
+                  label="썸네일 이미지"
                   value={form.thumbnail || ''}
                   folder="site/trpg"
                   uploading={uploading}
@@ -596,12 +750,53 @@ export function TrpgEditForm({
                   onUploadEnd={onUploadEnd}
                   onChange={(thumbnail) => setForm((prev) => ({ ...prev, thumbnail }))}
                 />
+                <ImageFileField
+                  label="호버 초상 (오른쪽 · 비우면 연결 OC·탐사자)"
+                  value={form.cardHoverImg || ''}
+                  folder="site/trpg/hover"
+                  uploading={uploading}
+                  onUploadStart={onUploadStart}
+                  onUploadEnd={onUploadEnd}
+                  onChange={(cardHoverImg) => setForm((prev) => ({ ...prev, cardHoverImg }))}
+                />
+                <div className="trpg-edit-row col2" style={{ marginTop: 10 }}>
+                  <div className="trpg-edit-field">
+                    <label>호버 제목 (Enter 줄바꿈 · 비우면 시나리오 제목)</label>
+                    <textarea
+                      className="form-input"
+                      rows={2}
+                      value={form.cardHoverTitle || ''}
+                      placeholder={form.title || '호버에 표시할 제목'}
+                      onChange={(e) => setForm({ ...form, cardHoverTitle: e.target.value })}
+                    />
+                  </div>
+                  <div className="trpg-edit-field">
+                    <label>호버 PC 이름</label>
+                    <input
+                      className="form-input"
+                      value={form.cardHoverPcName || ''}
+                      placeholder="비우면 연결 OC / 탐사자"
+                      onChange={(e) => setForm({ ...form, cardHoverPcName: e.target.value })}
+                    />
+                  </div>
+                </div>
                 {form.thumbnail ? (
                   <div className="trpg-edit-thumb-editor">
                     <TrpgThumbnailEditor
                       src={form.thumbnail}
                       frame={form.thumbnailFrame}
                       onChange={(thumbnailFrame) => setForm((prev) => ({ ...prev, thumbnailFrame }))}
+                      aspectRatio={listSettings.cardAspect || DEFAULT_TRPG_LIST_SETTINGS.cardAspect}
+                      hoverImg={form.cardHoverImg}
+                      hoverFrame={form.cardHoverImgFrame}
+                      onHoverFrameChange={(cardHoverImgFrame) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          cardHoverImgFrame,
+                          cardHoverImgFit: 'contain',
+                          cardHoverImgPos: prev.cardHoverImgPos || 'right bottom',
+                        }))
+                      }
                       preview={{
                         id: form.id,
                         title: form.title,
@@ -612,6 +807,14 @@ export function TrpgEditForm({
                         dateEnd: form.dateEnd,
                         players: form.players,
                         cleared: form.cleared,
+                        playerProfiles: form.playerProfiles,
+                        characterIds: form.characterIds,
+                        cardHoverTitle: form.cardHoverTitle,
+                        cardHoverPcName: form.cardHoverPcName,
+                        cardHoverImg: form.cardHoverImg,
+                        cardHoverImgFrame: form.cardHoverImgFrame,
+                        cardHoverImgFit: 'contain',
+                        cardHoverImgPos: form.cardHoverImgPos || 'right bottom',
                       }}
                     />
                   </div>
@@ -730,6 +933,29 @@ export function TrpgEditForm({
                   onChange={(e) => setForm({ ...form, system: e.target.value })}
                 />
               </div>
+              <div className="trpg-edit-field">
+                <label className="form-label">리스트 카테고리</label>
+                <select
+                  className="form-input"
+                  value={form.categoryId || ''}
+                  onChange={(e) => {
+                    const categoryId = e.target.value || undefined;
+                    const cat = listSettings.categories.find((c) => c.id === categoryId);
+                    setForm({
+                      ...form,
+                      categoryId,
+                      system: form.system?.trim() ? form.system : cat?.label || form.system,
+                    });
+                  }}
+                >
+                  <option value="">(시스템 문자열로 자동 매칭)</option>
+                  {listSettings.categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="trpg-edit-row col2">
                 <div className="trpg-edit-field">
                   <label className="form-label">플레이 시작일</label>
@@ -764,21 +990,17 @@ export function TrpgEditForm({
               </div>
             </div>
             <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">연결 캐릭터 (OC)</div>
-              {characters.length === 0 ? (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>OC 캐릭터가 없습니다.</span>
-              ) : (
-                <div className="lake-toggle-row">
-                  {characters.map((c) => (
-                    <LakeToggle
-                      key={String(c.id)}
-                      checked={selectedIds.has(String(c.id))}
-                      onChange={() => toggleCharacter(String(c.id))}
-                      label={c.name}
-                    />
-                  ))}
-                </div>
-              )}
+              <div className="trpg-edit-section__title">TRPG 연관 바로가기 · 연결 캐릭터 (OC)</div>
+              <p className="trpg-edit-hint">
+                OC를 선택해 추가하면 해당 캐릭터 상세에 이 시나리오가 연관 바로가기로 표시됩니다.
+              </p>
+              <LinkPickList
+                options={characters.map((c) => ({ id: String(c.id), label: c.name }))}
+                selectedIds={[...(form.characterIds ?? [])].map(String)}
+                onChange={(ids) => setForm({ ...form, characterIds: ids })}
+                emptyLabel="연결된 OC가 없습니다."
+                selectPlaceholder="OC 선택해서 추가…"
+              />
             </div>
             <div className="trpg-edit-section">
               <div className="trpg-edit-section__title">완료 여부</div>
@@ -1008,57 +1230,188 @@ export function TrpgEditForm({
           <div className="trpg-edit-section">
             <div className="trpg-edit-section__title">애프터 · 갤러리</div>
             <div className="trpg-edit-card-list">
-              {(form.gallery ?? []).map((g, index) => (
-                <div key={g.id} className="trpg-edit-card-item">
-                  <div className="trpg-edit-card-item__head">
-                    <span className="trpg-edit-card-item__label">{g.title || `이미지 ${index + 1}`}</span>
-                    <button type="button" className="trpg-edit-mini-del" onClick={() => removeGallery(g.id)}>
-                      ✕
-                    </button>
-                  </div>
-                  <ImageFileField
-                    label=""
-                    value={g.img}
-                    folder="site/trpg/gallery"
-                    uploading={uploading}
-                    onUploadStart={onUploadStart}
-                    onUploadEnd={onUploadEnd}
-                    onChange={(img) => updateGallery(g.id, { img })}
-                  />
-                  <div className="trpg-edit-row col2" style={{ marginTop: 8 }}>
-                    <div className="trpg-edit-field">
-                      <label>제목</label>
-                      <input
-                        className="form-input"
-                        placeholder="제목"
-                        value={g.title || ''}
-                        onChange={(e) => updateGallery(g.id, { title: e.target.value })}
-                      />
+              {(form.gallery ?? []).map((g, index) => {
+                const images = galleryImageList(g);
+                const galleryCount = form.gallery?.length ?? 0;
+                const filledCount = images.filter((u) => u.trim()).length;
+                const canCollapse = images.length > 1;
+                const imgsOpen = !canCollapse || galleryImgsOpen[g.id] === true;
+                return (
+                  <div key={g.id} className="trpg-edit-card-item">
+                    <div className="trpg-edit-card-item__head">
+                      <span className="trpg-edit-card-item__label">{g.title || `갤러리 ${index + 1}`}</span>
+                      <div className="trpg-edit-order">
+                        <button
+                          type="button"
+                          className="trpg-edit-order__btn"
+                          aria-label="박스 위로"
+                          disabled={index === 0}
+                          onClick={() => moveGalleryItem(g.id, -1)}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="trpg-edit-order__btn"
+                          aria-label="박스 아래로"
+                          disabled={index >= galleryCount - 1}
+                          onClick={() => moveGalleryItem(g.id, 1)}
+                        >
+                          ↓
+                        </button>
+                        <button type="button" className="trpg-edit-mini-del" onClick={() => removeGallery(g.id)}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                    <div className="trpg-edit-gallery-imgs">
+                      {canCollapse ? (
+                        <button
+                          type="button"
+                          className={`trpg-edit-gallery-toggle${imgsOpen ? ' is-open' : ''}`}
+                          aria-expanded={imgsOpen}
+                          onClick={() =>
+                            setGalleryImgsOpen((prev) => ({ ...prev, [g.id]: !imgsOpen }))
+                          }
+                        >
+                          <span>
+                            사진 {filledCount || images.length}장
+                            {!imgsOpen && images[0]?.trim() ? ' · 접힘' : ''}
+                          </span>
+                          <em>{imgsOpen ? '접기' : '펼치기'}</em>
+                        </button>
+                      ) : null}
+
+                      {!imgsOpen && canCollapse && images[0]?.trim() ? (
+                        <div className="trpg-edit-gallery-preview">
+                          <img src={images[0]} alt="" />
+                        </div>
+                      ) : null}
+
+                      {imgsOpen
+                        ? images.map((url, imgIndex) => (
+                            <div key={`${g.id}-${imgIndex}`} className="trpg-edit-gallery-imgs__row">
+                              <ImageFileField
+                                label={images.length > 1 ? `사진 ${imgIndex + 1}` : '사진'}
+                                value={url}
+                                folder="site/trpg/gallery"
+                                uploading={uploading}
+                                onUploadStart={onUploadStart}
+                                onUploadEnd={onUploadEnd}
+                                onChange={(img) => {
+                                  const next = [...images];
+                                  next[imgIndex] = img;
+                                  setGalleryImages(g.id, next);
+                                }}
+                              />
+                              <div className="trpg-edit-order">
+                                {images.length > 1 ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="trpg-edit-order__btn"
+                                      aria-label="사진 위로"
+                                      disabled={imgIndex === 0}
+                                      onClick={() => moveGalleryImage(g.id, imgIndex, -1)}
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="trpg-edit-order__btn"
+                                      aria-label="사진 아래로"
+                                      disabled={imgIndex >= images.length - 1}
+                                      onClick={() => moveGalleryImage(g.id, imgIndex, 1)}
+                                    >
+                                      ↓
+                                    </button>
+                                  </>
+                                ) : null}
+                                {images.length > 1 ? (
+                                  <button
+                                    type="button"
+                                    className="trpg-edit-mini-del"
+                                    aria-label="이 사진 삭제"
+                                    onClick={() => {
+                                      const next = images.filter((_, i) => i !== imgIndex);
+                                      setGalleryImages(g.id, next.length ? next : ['']);
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          ))
+                        : null}
+
+                      <button
+                        type="button"
+                        className="trpg-edit-add-btn trpg-edit-add-btn--sub"
+                        onClick={() => {
+                          setGalleryImages(g.id, [...images, '']);
+                          if (canCollapse) {
+                            setGalleryImgsOpen((prev) => ({ ...prev, [g.id]: true }));
+                          }
+                        }}
+                      >
+                        + 사진 추가
+                      </button>
+                    </div>
+                    <div className="trpg-edit-row col2" style={{ marginTop: 8 }}>
+                      <div className="trpg-edit-field">
+                        <label>제목</label>
+                        <input
+                          className="form-input"
+                          placeholder="제목"
+                          value={g.title || ''}
+                          onChange={(e) => updateGallery(g.id, { title: e.target.value })}
+                        />
+                      </div>
+                      <div className="trpg-edit-field">
+                        <label>작가/출처</label>
+                        <GalleryCreditInput
+                          value={g.artist || ''}
+                          onChange={(artist) => updateGallery(g.id, { artist })}
+                        />
+                      </div>
                     </div>
                     <div className="trpg-edit-field">
-                      <label>작가/출처</label>
+                      <label>캡션 (선택)</label>
                       <input
                         className="form-input"
-                        placeholder="작가/출처"
-                        value={g.artist || ''}
-                        onChange={(e) => updateGallery(g.id, { artist: e.target.value })}
+                        placeholder="이미지 설명"
+                        value={g.caption || ''}
+                        onChange={(e) => updateGallery(g.id, { caption: e.target.value })}
                       />
                     </div>
+                    {images.filter((u) => u.trim()).length > 1 || images.length > 1 ? (
+                      <div className="trpg-edit-field" style={{ marginTop: 8 }}>
+                        <label>복수 이미지 보기</label>
+                        <div className="trpg-edit-seg" role="group" aria-label="복수 이미지 보기 방식">
+                          <button
+                            type="button"
+                            className={g.viewMode !== 'scroll' ? 'is-on' : undefined}
+                            onClick={() => updateGallery(g.id, { viewMode: 'slider' })}
+                          >
+                            화살표로 넘기기
+                          </button>
+                          <button
+                            type="button"
+                            className={g.viewMode === 'scroll' ? 'is-on' : undefined}
+                            onClick={() => updateGallery(g.id, { viewMode: 'scroll' })}
+                          >
+                            스크롤로 보기
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="trpg-edit-field">
-                    <label>캡션 (선택)</label>
-                    <input
-                      className="form-input"
-                      placeholder="이미지 설명"
-                      value={g.caption || ''}
-                      onChange={(e) => updateGallery(g.id, { caption: e.target.value })}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <button type="button" className="trpg-edit-add-btn" onClick={addGalleryItem}>
-              + 이미지 추가
+              + 갤러리 박스 추가
             </button>
           </div>
         ) : null}
@@ -1324,23 +1677,37 @@ type GalleryProps = {
 export function GalleryAdminPanel({ items, onSave }: GalleryProps) {
   return (
     <MediaListAdminPanel
-      title="Gallery — 갤러리"
+      title="Records · Gallery"
       items={items}
       onSave={onSave}
-      createItem={() => ({ id: newId(), title: '새 이미지', img: '', caption: '' })}
+      createItem={() => ({ id: newId(), title: '', img: '', caption: '', date: new Date().toISOString().slice(0, 10) })}
       renderFields={(form, setForm) => (
         <>
           <div className="form-group">
-            <label className="form-label">제목</label>
-            <input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            <label className="form-label">제목 (선택)</label>
+            <input
+              className="form-input"
+              value={form.title || ''}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
           </div>
           <ImageFileField value={form.img} folder="site/gallery" onChange={(img) => setForm({ ...form, img })} />
           <div className="form-group">
-            <label className="form-label">캡션</label>
-            <input
+            <label className="form-label">코멘트</label>
+            <textarea
               className="form-input"
+              rows={3}
               value={form.caption || ''}
               onChange={(e) => setForm({ ...form, caption: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">날짜</label>
+            <input
+              className="form-input"
+              type="date"
+              value={form.date || ''}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
             />
           </div>
           <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
@@ -2061,7 +2428,7 @@ function MediaListAdminPanel<T extends { id: string; title: string }>({
                 setForm(item);
               }}
             >
-              <div>{item.title}</div>
+              <div>{item.title?.trim() ? item.title : '(제목 없음)'}</div>
             </div>
           ))}
         </div>

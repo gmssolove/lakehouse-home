@@ -39,6 +39,8 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
   const [revealedTracks, setRevealedTracks] = useState<Set<string>>(() => new Set());
   const [seeking, setSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
+  const seekingRef = useRef(false);
+  const seekInputRef = useRef<HTMLInputElement>(null);
 
   const playlist = musicPlaylists.find((p) => p.id === playlistId) ?? musicPlaylists[0] ?? null;
 
@@ -153,19 +155,58 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
     return isAdmin || !track.secret || revealedTracks.has(track.id);
   }
 
+  function resolveDuration(el?: HTMLAudioElement | null) {
+    const audio = el ?? audioRef.current;
+    if (!audio) return 0;
+    const d = audio.duration;
+    if (Number.isFinite(d) && d > 0) return d;
+    try {
+      if (audio.seekable.length > 0) {
+        const end = audio.seekable.end(audio.seekable.length - 1);
+        if (Number.isFinite(end) && end > 0) return end;
+      }
+    } catch {
+      /* ignore */
+    }
+    return 0;
+  }
+
   const progressMax = Number.isFinite(duration) && duration > 0 ? duration : 0;
   const progressValue = seeking
     ? seekValue
     : progressMax > 0
       ? Math.min(currentTime, progressMax)
       : 0;
+  const progressPct =
+    progressMax > 0 ? Math.min(100, Math.max(0, (progressValue / progressMax) * 100)) : 0;
 
   function applySeek(t: number) {
-    if (progressMax <= 0) return;
-    const next = Math.max(0, Math.min(t, progressMax));
+    const max = progressMax > 0 ? progressMax : resolveDuration();
+    if (max <= 0) return;
+    const next = Math.max(0, Math.min(t, max));
     setSeekValue(next);
     setCurrentTime(next);
     if (audioRef.current) audioRef.current.currentTime = next;
+  }
+
+  function beginSeek(el: HTMLInputElement, pointerId?: number) {
+    seekingRef.current = true;
+    setSeeking(true);
+    setSeekValue(parseFloat(el.value) || 0);
+    if (pointerId != null) {
+      try {
+        el.setPointerCapture(pointerId);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  function endSeek(el: HTMLInputElement) {
+    const next = parseFloat(el.value) || 0;
+    applySeek(next);
+    seekingRef.current = false;
+    setSeeking(false);
   }
 
   if (!musicPlaylists.length) {
@@ -212,13 +253,15 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
           <audio
             ref={audioRef}
             onTimeUpdate={(e) => {
-              if (seeking) return;
+              if (seekingRef.current) return;
               setCurrentTime(e.currentTarget.currentTime);
+              const d = resolveDuration(e.currentTarget);
+              if (d > 0 && d !== duration) setDuration(d);
             }}
-            onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-            onDurationChange={(e) => setDuration(e.currentTarget.duration)}
+            onLoadedMetadata={(e) => setDuration(resolveDuration(e.currentTarget))}
+            onDurationChange={(e) => setDuration(resolveDuration(e.currentTarget))}
             onSeeked={(e) => {
-              if (seeking) return;
+              if (seekingRef.current) return;
               setCurrentTime(e.currentTarget.currentTime);
             }}
             onEnded={onEnded}
@@ -234,31 +277,43 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
           </div>
           <div className="lh-music-player__lyric">{activeLyric}</div>
           <input
+            ref={seekInputRef}
             className="lh-music-player__seek"
             type="range"
             min={0}
             max={progressMax > 0 ? progressMax : 100}
             step={0.1}
             value={progressMax > 0 ? progressValue : 0}
-            disabled={!current || progressMax <= 0}
+            disabled={!current}
+            aria-label="재생 위치"
+            style={{ ['--progress' as string]: `${progressPct}%` }}
             onPointerDown={(e) => {
               e.stopPropagation();
-              if (progressMax <= 0) return;
-              setSeeking(true);
-              setSeekValue(parseFloat(e.currentTarget.value));
+              if (!current) return;
+              beginSeek(e.currentTarget, e.pointerId);
             }}
             onInput={(e) => {
-              if (progressMax <= 0) return;
-              setSeekValue(parseFloat(e.currentTarget.value));
+              if (!current) return;
+              if (!seekingRef.current) beginSeek(e.currentTarget);
+              setSeekValue(parseFloat(e.currentTarget.value) || 0);
             }}
             onPointerUp={(e) => {
               e.stopPropagation();
-              if (progressMax > 0) {
-                applySeek(parseFloat(e.currentTarget.value));
-              }
-              setSeeking(false);
+              if (!current) return;
+              endSeek(e.currentTarget);
             }}
-            onPointerCancel={() => setSeeking(false)}
+            onPointerCancel={(e) => {
+              if (!current) return;
+              endSeek(e.currentTarget);
+            }}
+            onKeyUp={(e) => {
+              if (!current) return;
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') {
+                applySeek(parseFloat(e.currentTarget.value) || 0);
+                seekingRef.current = false;
+                setSeeking(false);
+              }
+            }}
           />
           <div className="lh-music-player__times">
             <span>{formatTime(currentTime)}</span>
