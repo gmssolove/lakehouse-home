@@ -10,9 +10,19 @@ import {
   Playfair_Display,
   Pinyon_Script,
 } from 'next/font/google';
+import localFont from 'next/font/local';
 import Script from 'next/script';
 import Providers from './providers';
 import './globals.css';
+
+const chosunNm = localFont({
+  src: './fonts/ChosunNm.ttf',
+  variable: '--font-chosun-nm',
+  display: 'swap',
+  weight: '400',
+  fallback: ['Georgia', 'serif'],
+  adjustFontFallback: 'Times New Roman',
+});
 
 const notoSansKr = Noto_Sans_KR({
   subsets: ['latin'],
@@ -97,6 +107,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="ko"
       className={[
+        chosunNm.variable,
         notoSansKr.variable,
         notoSerifKr.variable,
         playfair.variable,
@@ -108,16 +119,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         mySoul.variable,
       ].join(' ')}
     >
-      <head>
-        <link
-          rel="preload"
-          href="/fonts/ChosunNm.ttf"
-          as="font"
-          type="font/ttf"
-          crossOrigin="anonymous"
-        />
-      </head>
-      <body>
+      <body className={chosunNm.className}>
         <Providers>{children}</Providers>
         <Script src="/lakehouse-r2.js" strategy="afterInteractive" />
       </body>

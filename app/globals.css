@@ -24,16 +24,8 @@
 @import '../styles/lake-toggle.css';
 @import '../styles/admin-sidebar.css';
 
-@font-face {
-  font-family: 'ChosunNm';
-  src: url('/fonts/ChosunNm.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
-  --lh-body-font: 'ChosunNm', serif;
+  --lh-body-font: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
 }
 
 /* 기본·본문 서체 — 이미 font-family가 잡힌 장식/UI는 그대로 둠 */
@@ -75,7 +67,7 @@ body {
 
 /* Notice 본문 — plain text 클라이언트 파싱 렌더 */
 .lh-notice-body {
-  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-family: var(--lh-body-font), 'ChosunNm', Georgia, serif;
   font-size: 13.5px;
   line-height: 1.9;
   color: #a19d92;

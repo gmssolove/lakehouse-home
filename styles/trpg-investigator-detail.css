@@ -20,7 +20,13 @@ body.trpg-inv-detail-open {
 
 .trpg-inv-detail.trpg-inv-archive.is-closing {
   animation: trpgInvDetailFadeOut 0.32s ease both;
-  pointer-events: none;
+  pointer-events: none !important;
+}
+
+/* 닫힌 뒤 혹시 남은 포탈이 클릭을 가로채지 않도록 */
+body:not(.trpg-inv-detail-open) .trpg-inv-detail.trpg-inv-archive {
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 @keyframes trpgInvDetailFade {

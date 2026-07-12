@@ -114,11 +114,21 @@ export function TrpgInvestigatorDetail({
     setClosing(true);
   }, [closing]);
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!closing) return;
-    const t = window.setTimeout(() => onClose(), CLOSE_MS);
+    const t = window.setTimeout(() => onCloseRef.current(), CLOSE_MS);
     return () => window.clearTimeout(t);
-  }, [closing, onClose]);
+  }, [closing]);
+
+  // 언마운트 시 body 잠금 잔여 제거
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove('trpg-inv-detail-open');
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
