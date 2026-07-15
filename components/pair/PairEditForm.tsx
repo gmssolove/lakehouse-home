@@ -5,6 +5,7 @@ import { DialogueNodesEditor } from '@/components/shared/DialogueNodesEditor';
 import { LineVoiceVolumeControl } from '@/components/shared/LineVoiceVolumeControl';
 import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
+import { EntrySplashFormFields } from '@/components/shared/EntrySplash';
 import { LakeEditTabs } from '@/components/ui/LakeEditTabs';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import {
@@ -20,8 +21,6 @@ import { DEFAULT_IMAGE_FRAME, type ImageFrame } from '@/lib/shared/imageFrame';
 import type {
   OcCharacter,
   PairChemistry,
-  PairCommission,
-  PairCommissionKind,
   PairFloatingQuote,
   PairGalleryItem,
   PairItem,
@@ -36,6 +35,8 @@ import {
   normalizePairFloatingQuotes,
   PAIR_QUOTE_SLOTS,
 } from '@/lib/oc/floatingQuotes';
+import { StoryEntriesEditor } from '@/components/shared/StoryEntriesEditor';
+import { hydratePairStories, pinPairStoriesForSave } from '@/lib/oc/storyEntries';
 
 type PairEditTab = 'basic' | 'chars' | 'relation' | 'story' | 'dialogue' | 'works' | 'gallery';
 
@@ -47,12 +48,6 @@ const PAIR_EDIT_TABS: { id: PairEditTab; label: string }[] = [
   { id: 'dialogue', label: '대사' },
   { id: 'works', label: '자료' },
   { id: 'gallery', label: '갤러리' },
-];
-
-const COMMISSION_KINDS: { id: PairCommissionKind; label: string }[] = [
-  { id: 'anecdote', label: 'Anecdote' },
-  { id: 'if', label: 'IF' },
-  { id: 'au', label: 'AU' },
 ];
 
 type Props = {
@@ -75,8 +70,9 @@ function formatDdayPreview(iso?: string) {
   return { main: `D${diff >= 0 ? '+' : ''}${diff}`, since: `Since ${iso}` };
 }
 
+/** undefined/null만 기본 3종 — []는 의도적 빈 목록 */
 function defaultChemistry(pair: PairItem): PairChemistry[] {
-  if (pair.chemistry?.length) return pair.chemistry;
+  if (pair.chemistry != null) return pair.chemistry;
   return [
     { label: '긴장감', value: 50 },
     { label: '신뢰도', value: 50 },
@@ -84,27 +80,26 @@ function defaultChemistry(pair: PairItem): PairChemistry[] {
   ];
 }
 
-function emptyCommission(kind: PairCommissionKind = 'anecdote'): PairCommission {
-  return { id: newId(), kind, title: '', body: '', url: '', note: '' };
-}
-
 export function PairEditForm({ pair, characters = [], onSave, onDelete, order, onMove }: Props) {
   const { showSaveToast } = useSaveToast();
-  const [form, setForm] = useState(() => ({
-    ...pair,
-    dialogueBySide: hydratePairDialogueBySide(pair),
-    floatingQuotes: hydratePairFloatingQuotes(pair),
-  }));
+  const [form, setForm] = useState(() => {
+    const hydrated = hydratePairStories(pair);
+    return {
+      ...hydrated,
+      dialogueBySide: hydratePairDialogueBySide(hydrated),
+      floatingQuotes: hydratePairFloatingQuotes(hydrated),
+    };
+  });
   const [tab, setTab] = useState<PairEditTab>('basic');
   const [dlgSide, setDlgSide] = useState<PairVnSide>('A');
   const [uploading, setUploading] = useState(false);
-  const [worksFilter, setWorksFilter] = useState<PairCommissionKind | 'all'>('all');
 
   useEffect(() => {
+    const hydrated = hydratePairStories(pair);
     setForm({
-      ...pair,
-      dialogueBySide: hydratePairDialogueBySide(pair),
-      floatingQuotes: hydratePairFloatingQuotes(pair),
+      ...hydrated,
+      dialogueBySide: hydratePairDialogueBySide(hydrated),
+      floatingQuotes: hydratePairFloatingQuotes(hydrated),
     });
     setDlgSide('A');
   }, [pair]);
@@ -121,9 +116,6 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, order, o
 
   const ddayPreview = useMemo(() => formatDdayPreview(form.dday), [form.dday]);
   const chemistry = defaultChemistry(form);
-  const commissions = form.commissions ?? [];
-  const filteredCommissions =
-    worksFilter === 'all' ? commissions : commissions.filter((c) => c.kind === worksFilter);
 
   const cover = pairCover(form);
   const nameA = form.chars[0] || 'A';
@@ -255,20 +247,6 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, order, o
     setForm({ ...form, charNotes: notes });
   }
 
-  function updateCommission(id: string, patch: Partial<PairCommission>) {
-    setForm((prev) => ({
-      ...prev,
-      commissions: (prev.commissions ?? []).map((c) => (c.id === id ? { ...c, ...patch } : c)),
-    }));
-  }
-
-  function removeCommission(id: string) {
-    setForm((prev) => ({
-      ...prev,
-      commissions: (prev.commissions ?? []).filter((c) => c.id !== id),
-    }));
-  }
-
   function updateGalleryItem(id: string, patch: Partial<PairGalleryItem>) {
     setForm((prev) => ({
       ...prev,
@@ -351,15 +329,15 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, order, o
       dialogueStart: _legacyStart,
       ...rest
     } = form;
-    await onSave({
+    const pinned = pinPairStoriesForSave({
       ...rest,
       ...dlg,
       keywords: finalizeCommaList(form.keywords),
       flatLoreKeywords: finalizeCommaList(form.flatLoreKeywords),
       floatingQuotes: normalizePairFloatingQuotes(form.floatingQuotes),
       floatingQuotesBySide: undefined,
-      commissions: (form.commissions ?? []).filter((c) => c.title.trim() || c.body?.trim() || c.url?.trim()),
     });
+    await onSave(pinned);
     showSaveToast();
   }
 
@@ -495,6 +473,54 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, order, o
                     onChange={(e) => setForm({ ...form, color: e.target.value })}
                   />
                 </div>
+                <div className="lake-edit-section-title" style={{ marginTop: 16 }}>정보판 호버 TMI</div>
+                <p className="pair-edit-hint">타이틀·관계·호칭에 마우스를 올리면 커서 옆에 작게 표시됩니다.</p>
+                <div className="form-group">
+                  <label className="form-label">타이틀 TMI</label>
+                  <input
+                    className="form-input"
+                    placeholder="예: 둘만의 암호 같은 이름"
+                    value={form.infoTips?.title || ''}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        infoTips: { ...form.infoTips, title: e.target.value },
+                      })
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">관계 라벨 TMI</label>
+                  <input
+                    className="form-input"
+                    value={form.infoTips?.relation || ''}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        infoTips: { ...form.infoTips, relation: e.target.value },
+                      })
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">호칭 TMI</label>
+                  <input
+                    className="form-input"
+                    value={form.infoTips?.honorifics || ''}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        infoTips: { ...form.infoTips, honorifics: e.target.value },
+                      })
+                    }
+                  />
+                </div>
+                <div className="lake-edit-section-title" style={{ marginTop: 16 }}>상세 진입 로딩 화면</div>
+                <EntrySplashFormFields
+                  key={pair.id}
+                  value={form.entrySplash}
+                  onChange={(entrySplash) => setForm((prev) => ({ ...prev, entrySplash }))}
+                />
                 <div className="form-group">
                   <label className="form-label">상세 배경</label>
                   <label className="file-input-label">
@@ -813,16 +839,6 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, order, o
                       onChange={(e) => updateCharNote(slot, { role: e.target.value })}
                     />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">캐릭터 서술 (HTML)</label>
-                    <textarea
-                      className="form-input"
-                      rows={5}
-                      placeholder="중앙 반투명 박스 — HTML 태그 사용 가능"
-                      value={form.charNotes?.[slot]?.story || ''}
-                      onChange={(e) => updateCharNote(slot, { story: e.target.value })}
-                    />
-                  </div>
                 </div>
               ))}
             </div>
@@ -969,17 +985,18 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, order, o
 
         {tab === 'story' ? (
           <>
-            <div className="lake-edit-section-title">페어 스토리 (공통 서사)</div>
-            <p className="pair-edit-hint">중앙 하단 넓은 박스에 표시됩니다. HTML 태그 사용 가능.</p>
-            <div className="form-group">
-              <textarea
-                className="form-input"
-                rows={12}
-                placeholder="페어 스토리…"
-                value={form.story || ''}
-                onChange={(e) => setForm({ ...form, story: e.target.value })}
-              />
-            </div>
+            <div className="lake-edit-section-title">스토리</div>
+            <p className="pair-edit-hint">
+              본편·AU·IF 등 분류별로 글을 등록합니다. PDF에서 텍스트를 가져올 수도 있습니다.
+              (이전 공통 서사·캐릭터 서술·글커미션은 목록으로 이전됩니다.)
+            </p>
+            <StoryEntriesEditor
+              entries={form.storyEntries || []}
+              categories={form.storyCategories}
+              onChange={(storyEntries, storyCategories) =>
+                setForm((f) => ({ ...f, storyEntries, storyCategories }))
+              }
+            />
           </>
         ) : null}
 
@@ -1188,109 +1205,11 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, order, o
 
         {tab === 'works' ? (
           <>
-            <div className="lake-edit-section-title">글커미션 · 자료 백업</div>
-            <p className="pair-edit-hint">Anecdote / IF / AU 글·자료를 여기에 백업해 둡니다.</p>
-            <div className="pair-works-filter" role="tablist" aria-label="자료 종류">
-              <button
-                type="button"
-                className={`pair-works-filter__btn${worksFilter === 'all' ? ' is-active' : ''}`}
-                onClick={() => setWorksFilter('all')}
-              >
-                전체
-              </button>
-              {COMMISSION_KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  className={`pair-works-filter__btn${worksFilter === k.id ? ' is-active' : ''}`}
-                  onClick={() => setWorksFilter(k.id)}
-                >
-                  {k.label}
-                </button>
-              ))}
-            </div>
-
-            {filteredCommissions.length === 0 ? (
-              <p className="pair-edit-hint">아직 자료가 없습니다. 아래에서 추가하세요.</p>
-            ) : null}
-
-            {filteredCommissions.map((c) => (
-              <div key={c.id} className="lake-edit-card pair-works-card">
-                <div className="lake-edit-row2">
-                  <div className="form-group">
-                    <label className="form-label">종류</label>
-                    <select
-                      className="form-input"
-                      value={c.kind}
-                      onChange={(e) => updateCommission(c.id, { kind: e.target.value as PairCommissionKind })}
-                    >
-                      {COMMISSION_KINDS.map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">제목</label>
-                    <input
-                      className="form-input"
-                      value={c.title}
-                      onChange={(e) => updateCommission(c.id, { title: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">본문 / 백업</label>
-                  <textarea
-                    className="form-input"
-                    rows={4}
-                    value={c.body || ''}
-                    onChange={(e) => updateCommission(c.id, { body: e.target.value })}
-                  />
-                </div>
-                <div className="lake-edit-row2">
-                  <div className="form-group">
-                    <label className="form-label">링크 URL</label>
-                    <input
-                      className="form-input"
-                      placeholder="https://…"
-                      value={c.url || ''}
-                      onChange={(e) => updateCommission(c.id, { url: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">메모</label>
-                    <input
-                      className="form-input"
-                      value={c.note || ''}
-                      onChange={(e) => updateCommission(c.id, { note: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <button type="button" className="lake-edit-mini-del" onClick={() => removeCommission(c.id)}>
-                  삭제
-                </button>
-              </div>
-            ))}
-
-            <div className="pair-edit-add-row">
-              {COMMISSION_KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  className="lake-edit-add-btn"
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      commissions: [...(prev.commissions ?? []), emptyCommission(k.id)],
-                    }))
-                  }
-                >
-                  + {k.label}
-                </button>
-              ))}
-            </div>
+            <div className="lake-edit-section-title">자료</div>
+            <p className="pair-edit-hint">
+              이전 글커미션(Anecdote / IF / AU)은 <strong>스토리</strong> 탭의 서사 목록으로 이전되었습니다.
+              이미지 자료는 <strong>갤러리</strong> 탭에서 관리하세요.
+            </p>
           </>
         ) : null}
 

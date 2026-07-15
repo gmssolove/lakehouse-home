@@ -81,6 +81,10 @@
   --oc-char-soft: var(--oc-accent-soft);
   --oc-vignette: 16%;
   --oc-panel: rgba(10, 12, 11, 0.72);
+  /* 좌측 메뉴: 하단쪽. 상단(22%)·바닥 고정 금지. top-anchored */
+  --oc-menu-top: 42%;
+  /* 패널 top은 JS가 활성 메뉴에 앵커 — 아래는 첫 프레임 fallback */
+  --oc-panel-top: 42%;
 }
 
 #detail-screen.active {
@@ -125,17 +129,20 @@
 }
 
 .oc-char-slide {
+  --oc-char-shift-x: 0px;
   position: absolute;
   inset: 0;
   z-index: 6;
   pointer-events: none;
   transition: transform 1.05s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   will-change: transform;
+  transform: translateX(var(--oc-char-shift-x));
 }
 
 .oc-char-slide.shifted,
 .oc-detail-body.has-left-open .oc-char-slide {
-  transform: translateX(clamp(80px, 10vw, 140px));
+  --oc-char-shift-x: clamp(80px, 10vw, 140px);
+  transform: translateX(var(--oc-char-shift-x));
 }
 
 .oc-char-slide .game-char-img,
@@ -267,6 +274,11 @@
   letter-spacing: 0.06em;
   color: rgba(216, 213, 203, 0.62);
   white-space: nowrap;
+}
+
+#detail-screen .oc-ghost-tools__hint strong {
+  color: rgba(240, 207, 173, 0.92);
+  font-weight: 600;
 }
 
 #detail-screen .oc-ghost-tools__hint.is-muted {
@@ -538,15 +550,7 @@
   pointer-events: auto !important;
 }
 
-#detail-screen .oc-left-panel-shell.is-open .oc-left-content-panel {
-  opacity: 1 !important;
-}
-
-#detail-screen .oc-left-panel-shell.is-open .oc-left-content-inner {
-  opacity: 1 !important;
-  filter: none !important;
-  transform: none !important;
-}
+/* 패널 인 애니는 oc-detail-v2 keyframes가 담당 — transform/filter 강제 해제 금지 */
 
 #detail-screen .oc-detail-body.is-ghost-layout-edit .oc-char-billboard-wrap.is-layout-editable,
 #detail-screen .oc-detail-body.is-ghost-layout-edit .oc-char-detail-layout.is-layout-editable {
@@ -624,72 +628,7 @@
   }
 }
 
-/* AU 이미지 전환 — 은은한 크로스페이드 */
-.oc-char-slide .oc-au-layer {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  right: auto;
-  width: auto;
-  height: 100%;
-  max-width: min(54vw, 780px);
-  transform: translateX(-50%);
-  transform-origin: center bottom;
-  will-change: opacity, filter;
-}
-
-.oc-char-slide .oc-au-layer.is-leaving {
-  z-index: 5;
-  pointer-events: none;
-  animation: ocAuCharOut 0.55s ease both;
-}
-
-.oc-char-slide .oc-au-layer.is-entering {
-  z-index: 6;
-  animation: ocAuCharIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes ocAuCharOut {
-  0% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  100% {
-    opacity: 0;
-    filter: blur(10px);
-  }
-}
-
-@keyframes ocAuCharIn {
-  0% {
-    opacity: 0;
-    filter: blur(10px);
-  }
-  100% {
-    opacity: 1;
-    filter: drop-shadow(0 28px 44px rgba(0, 0, 0, 0.55)) blur(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .oc-char-slide .oc-au-layer.is-leaving,
-  .oc-char-slide .oc-au-layer.is-entering,
-  .oc-detail-body .game-left > .oc-au-picker,
-  .oc-detail-body > .oc-au-picker {
-    animation: none !important;
-  }
-
-  .oc-detail-body .game-left > .oc-au-picker:not(.is-disabled),
-  .oc-detail-body > .oc-au-picker:not(.is-disabled) {
-    opacity: 1 !important;
-  }
-
-  .oc-char-slide .oc-au-layer.is-leaving,
-  .oc-char-slide .oc-au-layer.is-entering {
-    filter: drop-shadow(0 28px 44px rgba(0, 0, 0, 0.55)) !important;
-    transform: translateX(-50%) !important;
-  }
-}
+/* AU 전환은 .oc-char-portrait-stack.is-soft-revert 사용 */
 
 .oc-au-picker {
   transition:
@@ -797,7 +736,6 @@
   transition: opacity 0.22s ease !important;
 }
 
-#detail-screen #game-char-img.oc-au-layer:not(.is-leaving):not(.is-entering),
 #detail-screen #game-char-img.oc-char-portrait-layer,
 #detail-screen .oc-detail-body.vn-active #game-char-img,
 #detail-screen .oc-detail-body.vn-active .oc-char-portrait-layer {
@@ -860,7 +798,7 @@
 #detail-screen .oc-char-portrait-stack.is-soft-revert #game-char-img.is-front,
 #detail-screen .oc-char-portrait-stack.is-soft-revert .oc-char-portrait-layer.is-front,
 .oc-char-portrait-stack.is-soft-revert .oc-char-portrait-layer.is-front {
-  transition: opacity 0.28s ease-out !important;
+  transition: opacity 0.36s ease-out !important;
   opacity: 0 !important;
   z-index: 2;
   pointer-events: none;
@@ -879,16 +817,10 @@
   opacity: 0 !important;
 }
 
-#detail-screen #game-char-img:not(.is-leaving):not(.is-entering),
-#detail-screen .oc-char-portrait-layer:not(.is-leaving):not(.is-entering) {
+#detail-screen #game-char-img,
+#detail-screen .oc-char-portrait-layer {
   transform: translateX(-50%) translate(var(--oc-pf-x, 0%), var(--oc-pf-y, 0%)) scale(var(--oc-pf-s, 1)) !important;
   transform-origin: var(--oc-pf-o, center bottom) !important;
-}
-
-#detail-screen #game-char-img.oc-au-layer.is-leaving,
-#detail-screen #game-char-img.oc-au-layer.is-entering {
-  /* keyframe transform이 !important에 덮이지 않도록 */
-  transform: translateX(-50%);
 }
 
 #detail-screen #game-char-img.animate-out {
@@ -917,19 +849,20 @@
   transform: none !important;
 }
 
-/* ── Left accordion nav ── */
+/* 좌측 메뉴 — 위치는 #detail-screen --oc-menu-top */
 .oc-detail-left {
   position: absolute;
   left: clamp(1.15rem, 2.5vw, 1.85rem);
-  top: 50%;
-  transform: translateY(-50%);
+  top: var(--oc-menu-top, 42%);
+  bottom: auto;
+  transform: none;
   z-index: 40 !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
   width: min(188px, 20vw);
   min-width: 158px;
-  gap: 0.12rem;
+  gap: 0.7rem;
   opacity: 1 !important;
   visibility: visible !important;
   pointer-events: auto !important;
@@ -938,6 +871,55 @@
   border: none !important;
   box-shadow: none !important;
   overflow: visible;
+  max-height: min(68vh, calc(100vh - 8rem));
+}
+
+.oc-left-sec {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.08rem;
+  padding-top: 0.7rem;
+  margin-top: 0.35rem;
+  border-top: 1px solid var(--oc-line, rgba(215, 169, 130, 0.14));
+  position: relative;
+}
+
+.oc-left-sec:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+.oc-left-sec--solo {
+  padding-bottom: 0.2rem;
+  margin-bottom: 0.15rem;
+}
+
+.oc-left-sec__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0 0.1rem 0.45rem;
+}
+
+.oc-left-sec__en {
+  font-family: 'Cormorant Garamond', var(--font-noto-serif-kr), Georgia, serif;
+  font-style: italic;
+  font-size: 10.5px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--oc-personal, #d7a982) 70%, rgba(205, 179, 126, 0.75));
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
+}
+
+.oc-left-sec__ko {
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(244, 238, 229, 0.9);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.4);
 }
 
 .oc-left-acc {
@@ -1005,22 +987,51 @@
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
 }
 
-/* Reading panel — vertically centered with the menu column */
+/* Reading panel — top follows active menu item (inline px via JS); % is fallback only */
 .oc-left-panel-shell {
   position: absolute;
   left: calc(clamp(1.15rem, 2.5vw, 1.85rem) + min(188px, 20vw) + 0.85rem);
-  top: 50%;
-  transform: translateY(-50%);
+  top: var(--oc-panel-top, 42%);
   bottom: auto;
+  transform: none;
   z-index: 35 !important;
   width: min(400px, 42vw);
-  max-height: min(64vh, calc(100vh - 10rem));
+  max-height: min(64vh, calc(100vh - 9rem));
   height: auto;
   pointer-events: auto !important;
   visibility: visible !important;
 }
 
+.oc-left-panel-shell.is-anchored {
+  transition:
+    top 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-left-panel-shell.is-anchored {
+    transition: none;
+  }
+}
+
+/* 갤러리 박스 너비 — 이미지 개수(data-count)에 맞춤 */
 .oc-left-panel-shell--gallery {
+  width: min(520px, 52vw);
+}
+.oc-left-panel-shell--gallery[data-count='1'] {
+  width: min(188px, 30vw);
+}
+.oc-left-panel-shell--gallery[data-count='2'] {
+  width: min(268px, 38vw);
+}
+.oc-left-panel-shell--gallery[data-count='3'] {
+  width: min(348px, 44vw);
+}
+.oc-left-panel-shell--gallery[data-count='4'] {
+  width: min(428px, 50vw);
+}
+.oc-left-panel-shell--gallery[data-count='5'],
+.oc-left-panel-shell--gallery[data-count='6'] {
   width: min(520px, 52vw);
 }
 
@@ -1032,9 +1043,9 @@
   position: relative;
   width: 100%;
   height: auto;
-  max-height: min(62vh, calc(100vh - 10rem));
+  max-height: min(60vh, calc(100vh - 10rem));
   overflow: hidden;
-  border-radius: 0;
+  border-radius: 16px;
   border: none;
   background: linear-gradient(
     90deg,
@@ -1045,7 +1056,10 @@
   );
   box-shadow: none;
   opacity: 0;
-  transition: opacity 0.72s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition:
+    opacity 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 1.05s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: blur(6px);
 }
 
 .oc-left-content-panel::before {
@@ -1060,14 +1074,38 @@
   pointer-events: none;
   z-index: 3;
   border-radius: 1px;
+  opacity: 0;
+  transform: scaleY(0.72);
+  transform-origin: top center;
+  transition:
+    opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.12s,
+    transform 1.05s cubic-bezier(0.22, 1, 0.36, 1) 0.12s;
 }
 
 .oc-left-panel-shell.is-open .oc-left-content-panel {
-  opacity: 1 !important;
+  opacity: 1;
+  filter: none;
 }
 
 .oc-left-panel-shell.is-closing .oc-left-content-panel {
   opacity: 0;
+  filter: blur(5px);
+  transition:
+    opacity 0.85s cubic-bezier(0.4, 0, 0.2, 1),
+    filter 0.85s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.oc-left-panel-shell.is-open .oc-left-content-panel::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.oc-left-panel-shell.is-closing .oc-left-content-panel::before {
+  opacity: 0;
+  transform: scaleY(0.78);
+  transition:
+    opacity 0.55s ease,
+    transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .oc-left-content-panel::after {
@@ -1075,23 +1113,21 @@
 }
 
 .oc-left-panel-shell.is-open .oc-left-content-inner {
-  animation: ocPanelContentIn 0.95s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  animation: ocPanelContentIn 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .oc-left-panel-shell.is-closing .oc-left-content-inner {
-  animation: ocPanelContentOut 0.88s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  animation: ocPanelContentOut 0.9s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 @keyframes ocPanelContentIn {
   from {
     opacity: 0;
-    transform: translateX(-36px);
-    filter: blur(8px);
+    transform: translateX(-28px) translateY(8px) scale(0.985);
   }
   to {
     opacity: 1;
     transform: none;
-    filter: blur(0);
   }
 }
 
@@ -1099,12 +1135,10 @@
   from {
     opacity: 1;
     transform: none;
-    filter: blur(0);
   }
   to {
     opacity: 0;
-    transform: translateX(-28px);
-    filter: blur(6px);
+    transform: translateX(-20px) translateY(6px) scale(0.99);
   }
 }
 
@@ -1126,18 +1160,109 @@
 }
 
 .oc-left-content-title {
-  margin: 0 0 0.85rem;
+  margin: 0 0 1.35rem;
   padding-left: 0.15rem;
   font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
   text-transform: none;
-  color: color-mix(in srgb, var(--oc-personal, #d7a982) 48%, rgba(252, 246, 238, 0.95));
+  color: color-mix(in srgb, var(--oc-personal, #d7a982) 42%, rgba(220, 210, 196, 0.88));
+}
+
+.oc-left-panel-shell.is-open .oc-left-content-title {
+  animation: ocBodyTitleIn 1s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.oc-left-panel-shell.is-closing .oc-left-content-title {
+  animation: ocBodyTitleOut 0.7s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 .oc-left-content-body {
   /* animated via parent .oc-left-content-inner */
+}
+
+.oc-left-panel-shell.is-open .oc-left-content-body > * {
+  animation: ocBodyChildIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.oc-left-panel-shell.is-open .oc-left-content-body > *:nth-child(1) {
+  animation-delay: 0.16s;
+}
+.oc-left-panel-shell.is-open .oc-left-content-body > *:nth-child(2) {
+  animation-delay: 0.26s;
+}
+.oc-left-panel-shell.is-open .oc-left-content-body > *:nth-child(3) {
+  animation-delay: 0.36s;
+}
+.oc-left-panel-shell.is-open .oc-left-content-body > *:nth-child(n + 4) {
+  animation-delay: 0.44s;
+}
+
+.oc-left-panel-shell.is-closing .oc-left-content-body > * {
+  animation: ocBodyChildOut 0.65s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes ocBodyTitleIn {
+  from {
+    opacity: 0;
+    letter-spacing: 0.16em;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.06em;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes ocBodyTitleOut {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+    filter: blur(3px);
+  }
+}
+
+@keyframes ocBodyChildIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.992);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes ocBodyChildOut {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+    filter: blur(4px);
+  }
+}
+
+/* 패널 안 서사 목록도 동일 템포 */
+.oc-left-content-body .lh-story-list__tools,
+.oc-left-content-body .lh-story-row,
+.oc-left-content-body .lh-story-row-wrap {
+  animation-duration: 0.8s !important;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 
 .oc-acc-text,
@@ -1165,12 +1290,39 @@
 
 .oc-rich-strong {
   font-weight: 600;
-  color: rgba(252, 246, 238, 0.96);
+  /* color 고정 금지 — {#색} 중첩 시 덮이지 않게 */
+}
+
+.oc-rich-italic {
+  font-style: italic;
+}
+
+.oc-rich-underline {
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.oc-rich-strike {
+  text-decoration: line-through;
+  opacity: 0.78;
 }
 
 .oc-rich-soft {
   font-weight: 400;
   color: rgba(216, 213, 203, 0.42);
+}
+
+.oc-rich-font {
+  font-family: var(--oc-rich-font, inherit);
+}
+
+.oc-rich-size {
+  font-size: var(--oc-rich-size, inherit);
+  line-height: 1.55;
+}
+
+.oc-rich-color {
+  font-weight: inherit;
 }
 
 .oc-acc-etc-row {
@@ -1307,8 +1459,26 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 6px;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
+}
+
+.oc-acc-gallery[data-count='1'] {
+  grid-template-columns: minmax(96px, 1fr);
+  max-width: 128px;
+}
+.oc-acc-gallery[data-count='2'] {
+  grid-template-columns: repeat(2, minmax(96px, 1fr));
+}
+.oc-acc-gallery[data-count='3'] {
+  grid-template-columns: repeat(3, minmax(88px, 1fr));
+}
+.oc-acc-gallery[data-count='4'] {
+  grid-template-columns: repeat(4, minmax(84px, 1fr));
+}
+.oc-acc-gallery[data-count='5'],
+.oc-acc-gallery[data-count='6'] {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
 }
 
 .oc-acc-gallery-item {
@@ -1486,16 +1656,10 @@
   from {
     opacity: 0;
     transform: translateX(48px) scale(0.94);
-    filter: blur(14px);
-  }
-  60% {
-    opacity: 1;
-    filter: blur(0);
   }
   to {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 
@@ -1525,16 +1689,10 @@
   from {
     opacity: 0;
     transform: translateX(36px) translateY(20px) scale(0.9);
-    filter: blur(16px);
-  }
-  55% {
-    opacity: 1;
-    filter: blur(0);
   }
   to {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 
@@ -1748,16 +1906,10 @@
   from {
     opacity: 0;
     transform: translateX(24px) scale(0.92);
-    filter: blur(10px);
-  }
-  60% {
-    opacity: 1;
-    filter: blur(0);
   }
   to {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 
@@ -1982,7 +2134,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  animation: ocPvMetaIn 1s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+  /* 오른쪽 정보 패널과 같이 — 일러스트(0.55s) 지연 애니 금지 */
+  animation: none;
 }
 
 .oc-trpg-link-list {
@@ -2383,11 +2536,11 @@
 @keyframes ocLeftIn {
   from {
     opacity: 0;
-    transform: translateY(-48%) translateX(-16px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
-    transform: translateY(-48%) translateX(0);
+    transform: none;
   }
 }
 
@@ -2568,6 +2721,7 @@
 
 #detail-screen .oc-left-content-panel {
   border: none !important;
+  border-radius: 16px !important;
   background: linear-gradient(
     90deg,
     rgba(10, 12, 11, 0.88) 0%,
@@ -2612,12 +2766,16 @@
   font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif !important;
 }
 
-/* 왼쪽 메뉴 본문(소개·외관·특이사항 등) — 일기와 동일 ChosunNm */
+/* 왼쪽 메뉴 본문·서사 목록 (메뉴 라벨 제외) — ChosunNm */
 #detail-screen .oc-left-content-body,
 #detail-screen .oc-left-content-body .oc-rich-text,
 #detail-screen .oc-left-content-body .oc-acc-text,
 #detail-screen .oc-left-content-body .oc-acc-log-body,
-#detail-screen .oc-left-content-body .oc-acc-rel-note {
+#detail-screen .oc-left-content-body .oc-acc-rel-note,
+#detail-screen .oc-left-content-body .lh-story-row__title,
+#detail-screen .oc-left-content-body .lh-story-row__meta,
+#detail-screen .oc-left-content-body .lh-story-row__open,
+#detail-screen .oc-left-content-body .lh-story-list__empty {
   font-family: 'ChosunNm', serif !important;
 }
 

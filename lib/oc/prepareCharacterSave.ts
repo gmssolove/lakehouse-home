@@ -1,6 +1,7 @@
 import { formatGalleryCredit, normalizeGallery } from '@/lib/oc/gallery';
 import { uploadImageUrl, waitR2Pending } from '@/lib/r2/client';
 import { stripEmptyThemeFields } from '@/lib/oc/characterTheme';
+import { pinOcStoriesForSave } from '@/lib/oc/storyEntries';
 import type { GalleryItem, OcCharacter } from '@/lib/types/character';
 
 async function prepareGallery(items: (string | GalleryItem)[]): Promise<GalleryItem[]> {
@@ -94,7 +95,7 @@ export async function prepareCharacterForSave(character: OcCharacter): Promise<O
     );
   }
 
-  return stripEmptyThemeFields(next);
+  return pinOcStoriesForSave(stripEmptyThemeFields(next));
 }
 
 export async function prepareCharactersForSave(characters: OcCharacter[]): Promise<OcCharacter[]> {

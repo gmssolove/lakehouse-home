@@ -35,18 +35,25 @@ export function normalizePanelLayout(v?: string): PairPanelLayout {
   return DEFAULT_PANEL_LAYOUT;
 }
 
-/** 패널 이미지 줌 1.0~2.0 */
+/** 패널 이미지 줌 1.0~3.0 — object-position 크롭과 함께 사용 */
 export function clampPanelImageScale(n: number) {
-  return Math.min(2, Math.max(1, n));
+  return Math.min(3, Math.max(1, Number.isFinite(n) ? n : 1));
 }
 
-export function clampPanelImageOffset(n: number, scale = 1) {
-  const limit = Math.min(80, 28 + scale * 28);
-  return Math.min(limit, Math.max(-limit, n));
+/** object-position 오프셋 (±50 = 프레임 끝) */
+export function clampPanelImageOffset(n: number, _scale = 1) {
+  const v = Number.isFinite(n) ? n : 0;
+  return Math.min(50, Math.max(-50, v));
+}
+
+/** 이미지 판 크기 배율 — 기본 1.15 (여백 적게) */
+export function clampPanelMediaSize(n?: number) {
+  if (!Number.isFinite(n as number)) return 1.15;
+  return Math.min(1.45, Math.max(0.75, n as number));
 }
 
 export function normalizePanelView(view?: PairPanelView): Required<
-  Pick<PairPanelView, 'layout' | 'echo' | 'touchReactionOnly'>
+  Pick<PairPanelView, 'layout' | 'echo' | 'touchReactionOnly' | 'mediaSize'>
 > & {
   img: string;
   frame: Required<ImageFrame>;
@@ -58,6 +65,7 @@ export function normalizePanelView(view?: PairPanelView): Required<
     layout: normalizePanelLayout(view?.layout),
     echo: Boolean(view?.echo),
     img: view?.img?.trim() || '',
+    mediaSize: clampPanelMediaSize(view?.mediaSize),
     frame: normalizeImageFrame({
       ...view?.frame,
       scale: clampPanelImageScale(view?.frame?.scale ?? 1),
@@ -76,18 +84,12 @@ export function getPanelView(
   return views?.[key] ?? {};
 }
 
-/** 탭 히어로 이미지 URL 폴백 */
+/**
+ * 탭 히어로 이미지 — 탭에 지정한 이미지만 사용.
+ * 대표(커버)·갤러리·전신 폴백 없음.
+ */
 export function resolvePanelImageSrc(pair: PairItem, key: PairPanelSectionKey): string {
-  const custom = pair.panelViews?.[key]?.img?.trim();
-  if (custom) return custom;
-  if (key === 'gallery') {
-    const first = (pair.gallery ?? []).find((g) => g.src?.trim())?.src?.trim();
-    if (first) return first;
-  }
-  const cover = pair.img?.trim();
-  if (cover) return cover;
-  const body = pair.charBodyImgs?.find((u) => u?.trim())?.trim();
-  return body || '';
+  return pair.panelViews?.[key]?.img?.trim() || '';
 }
 
 export function patchPanelView(
@@ -104,6 +106,7 @@ export function patchPanelView(
   if (patch.layout !== undefined) nextView.layout = normalizePanelLayout(patch.layout);
   if (patch.echo !== undefined) nextView.echo = Boolean(patch.echo);
   if (patch.img !== undefined) nextView.img = patch.img.trim();
+  if (patch.mediaSize !== undefined) nextView.mediaSize = clampPanelMediaSize(patch.mediaSize);
   if (patch.touchZones !== undefined) {
     nextView.touchZones = normalizeTouchZones(patch.touchZones);
   }

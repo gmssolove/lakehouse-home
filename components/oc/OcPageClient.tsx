@@ -6,7 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
+import { EntrySplash } from '@/components/shared/EntrySplash';
+import { PageTipToast } from '@/components/shared/PageTipToast';
 import { useBgm } from '@/lib/contexts/BgmContext';
+import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useOcData } from '@/lib/hooks/useOcData';
@@ -15,11 +18,16 @@ import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
 import { displayCategory, isTrpgCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
 import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
-import { clearLakeRouteClasses, lakeNavigate } from '@/lib/lake/routeTransition';
+import {
+  clearLakeRouteClasses,
+  isLakeRouteEnterLocked,
+  lakeNavigate,
+} from '@/lib/lake/routeTransition';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { buildCharacterNumberMap } from '@/lib/oc/characterOrder';
 import { formatCardTag } from '@/lib/oc/profile';
+import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
 import type { OcCharacter } from '@/lib/types/character';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
@@ -29,6 +37,7 @@ const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 type SortMode = 'name' | 'stars' | 'no';
 
 type IntroState = { character: OcCharacter; auIdx: number };
+type SplashState = { character: OcCharacter; auIdx: number; skipIntro?: boolean };
 
 function charImg(c: OcCharacter, auIdx: number) {
   if (auIdx >= 0 && c.auVersions?.[auIdx]) {
@@ -63,6 +72,8 @@ export function OcPageClient() {
   const [sortMode, setSortMode] = useState<SortMode>('no');
   const [detail, setDetail] = useState<OcCharacter | null>(null);
   const [intro, setIntro] = useState<IntroState | null>(null);
+  const [entrySplash, setEntrySplash] = useState<SplashState | null>(null);
+  const splashPendingRef = useRef<SplashState | null>(null);
   const [auIdx, setAuIdx] = useState(-1);
   const [passwordGate, setPasswordGate] = useState<{
     character: OcCharacter;
@@ -75,12 +86,16 @@ export function OcPageClient() {
   const [touchHintDismissed, setTouchHintDismissed] = useState(false);
 
   useEffect(() => {
-    clearLakeRouteClasses();
     document.body.style.opacity = '1';
-    document.body.classList.remove('lh-leaving', 'lh-route-leaving', 'lh-route-enter');
-    document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
-      el.classList.remove('lh-route-panel-leaving');
-    });
+    document.body.classList.remove('lh-leaving');
+    /* OC↔Pair enter 애니가 마운트 직후 끊기지 않게 */
+    if (!isLakeRouteEnterLocked()) {
+      clearLakeRouteClasses();
+      document.body.classList.remove('lh-route-leaving', 'lh-route-enter');
+      document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
+        el.classList.remove('lh-route-panel-leaving');
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -93,15 +108,23 @@ export function OcPageClient() {
   }, [sidebarOpen]);
 
   const charNumberMap = useMemo(() => buildCharacterNumberMap(characters), [characters]);
-  const activeCharacter = detail ?? intro?.character ?? null;
+  const activeCharacter = detail ?? intro?.character ?? entrySplash?.character ?? null;
   const activeCharNo = activeCharacter ? charNumberMap.get(String(activeCharacter.id)) ?? 1 : 1;
 
+  /** 저장/RTDB 반영 후 detail 스냅샷이 뒤처지지 않게 목록에서 라이브로 조회 */
+  const liveDetail = useMemo(() => {
+    if (!detail) return null;
+    return characters.find((c) => String(c.id) === String(detail.id)) ?? detail;
+  }, [characters, detail]);
+
   const clearDetailView = useCallback(() => {
+    splashPendingRef.current = null;
+    setEntrySplash(null);
     setDetail(null);
     setIntro(null);
     const screen = document.getElementById('detail-screen');
     if (screen) {
-      screen.classList.remove('is-pv-done');
+      screen.classList.remove('is-pv-done', 'is-ui-enter', 'is-ui-leaving');
       screen.style.removeProperty('opacity');
       screen.style.removeProperty('filter');
       screen.style.removeProperty('transform');
@@ -114,13 +137,38 @@ export function OcPageClient() {
     detailBackHandlerRef.current = handler;
   }, []);
 
+  const leaveTimerRef = useRef(0);
+  const leavingRef = useRef(false);
+
   const leaveDetail = useCallback(() => {
-    if (detailUsedThemeRef.current) {
-      restorePageSnapshot(ocSettings.autoResumeMainBgm);
+    if (leavingRef.current) return;
+    const screen = document.getElementById('detail-screen');
+    const playLeave = !!(detail || intro) && !!screen?.classList.contains('active');
+    const finish = () => {
+      leavingRef.current = false;
+      if (detailUsedThemeRef.current) {
+        restorePageSnapshot(ocSettings.autoResumeMainBgm);
+      }
+      detailUsedThemeRef.current = false;
+      /* 목록은 상세 아래에 그대로 있음 — settle/강제 리플로우하면 퇴장 직후 뚝 끊김 */
+      clearDetailView();
+    };
+    if (!playLeave || !screen) {
+      finish();
+      return;
     }
-    detailUsedThemeRef.current = false;
-    clearDetailView();
-  }, [clearDetailView, ocSettings.autoResumeMainBgm, restorePageSnapshot]);
+    leavingRef.current = true;
+    window.clearTimeout(leaveTimerRef.current);
+    screen.classList.remove('is-ui-enter');
+    screen.classList.add('is-ui-leaving');
+    leaveTimerRef.current = window.setTimeout(finish, 720);
+  }, [clearDetailView, detail, intro, ocSettings.autoResumeMainBgm, restorePageSnapshot]);
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(leaveTimerRef.current);
+    };
+  }, []);
 
   const requestOcBack = useCallback(() => {
     if (detailBackHandlerRef.current) {
@@ -138,12 +186,12 @@ export function OcPageClient() {
 
   const routeGuard = useMemo(() => ({ guardPath: '/oc', router }), [router]);
 
-  useLakeBackNavigation(!!detail || !!intro, requestOcBack, 'oc-detail', routeGuard);
-  useLakeBackGesture(leaveOc, !detail && !intro);
+  useLakeBackNavigation(!!detail || !!intro || !!entrySplash, requestOcBack, 'oc-detail', routeGuard);
+  useLakeBackGesture(leaveOc, !detail && !intro && !entrySplash);
 
   useEffect(() => {
-    wasInDetailRef.current = !!(detail || intro);
-  }, [detail, intro]);
+    wasInDetailRef.current = !!(detail || intro || entrySplash);
+  }, [detail, intro, entrySplash]);
 
   const introRef = useRef(intro);
   introRef.current = intro;
@@ -196,6 +244,17 @@ export function OcPageClient() {
     return list;
   }, [characters, activeCat, activeSub, search, sortMode]);
 
+  function proceedAfterSplash(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
+    if (!opts?.skipIntro && shouldShowPvIntro(c, ocSettings.pvIntroEnabled)) {
+      setIntro({ character: c, auIdx: au });
+      setDetail(null);
+      return;
+    }
+    setIntro(null);
+    setDetail(c);
+    setAuIdx(au);
+  }
+
   function openDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
     const hasTheme = characterHasBgmTheme(c);
     detailUsedThemeRef.current = hasTheme;
@@ -214,15 +273,33 @@ export function OcPageClient() {
     } else {
       resumePageBgmIfNeeded();
     }
-    if (!opts?.skipIntro && shouldShowPvIntro(c, ocSettings.pvIntroEnabled)) {
-      setIntro({ character: c, auIdx: au });
+    if (normalizeEntrySplash(c.entrySplash).enabled) {
+      const pending = { character: c, auIdx: au, skipIntro: opts?.skipIntro };
+      splashPendingRef.current = pending;
+      setIntro(null);
+      setDetail(null);
+      setEntrySplash(pending);
+      return;
+    }
+    splashPendingRef.current = null;
+    setEntrySplash(null);
+    proceedAfterSplash(c, au, opts);
+  }
+
+  const finishEntrySplash = useCallback(() => {
+    const pending = splashPendingRef.current;
+    splashPendingRef.current = null;
+    setEntrySplash(null);
+    if (!pending) return;
+    if (!pending.skipIntro && shouldShowPvIntro(pending.character, ocSettings.pvIntroEnabled)) {
+      setIntro({ character: pending.character, auIdx: pending.auIdx });
       setDetail(null);
       return;
     }
     setIntro(null);
-    setDetail(c);
-    setAuIdx(au);
-  }
+    setDetail(pending.character);
+    setAuIdx(pending.auIdx);
+  }, [ocSettings.pvIntroEnabled]);
 
   function requestOpenDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
     if (isAdmin || isLakeAccessUnlocked('oc')) {
@@ -234,7 +311,7 @@ export function OcPageClient() {
 
   useEffect(() => {
     const charId = searchParams.get('c');
-    if (!charId || !characters.length || detail || intro) return;
+    if (!charId || !characters.length || detail || intro || entrySplash) return;
     const c = characters.find((ch) => String(ch.id) === String(charId));
     if (!c) return;
     const skipIntro =
@@ -243,9 +320,14 @@ export function OcPageClient() {
       searchParams.get('from') === 'trpg';
     requestOpenDetail(c, -1, { skipIntro });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from URL
-  }, [characters, searchParams, detail, intro]);
+  }, [characters, searchParams, detail, intro, entrySplash]);
 
-  const detailImg = detail ? charImg(detail, auIdx) : null;
+  const detailImg = liveDetail ? charImg(liveDetail, auIdx) : null;
+  const tipToastOc = useMemo(
+    () => normalizeTipToastSettings(ocSettings.tipToastOc),
+    [ocSettings.tipToastOc],
+  );
+  const showArchiveTip = !detail && !intro && !entrySplash;
 
   return (
     <>
@@ -253,7 +335,7 @@ export function OcPageClient() {
         title="OC — Original Characters"
         active="oc"
         back={
-          detail || intro ? (
+          detail || intro || entrySplash ? (
             <button type="button" className="nav-back" onClick={handleDetailBack}>
               ← back
             </button>
@@ -449,7 +531,7 @@ export function OcPageClient() {
       />
       <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />
 
-      <div id="detail-screen" className={detail || intro ? 'active' : ''}>
+      <div id="detail-screen" className={detail || intro || entrySplash ? 'active' : ''}>
         {intro && (
           <OcProfileIntro
             character={intro.character}
@@ -458,10 +540,10 @@ export function OcPageClient() {
             onCancel={leaveDetail}
           />
         )}
-        {detail && !intro && (
+        {liveDetail && !intro && (
           <OcCharacterDetail
-            key={`${detail.id}-${detailRevealKey}`}
-            character={detail}
+            key={`${liveDetail.id}-${detailRevealKey}`}
+            character={liveDetail}
             charNo={activeCharNo}
             auIdx={auIdx}
             isAdmin={isAdmin}
@@ -473,10 +555,11 @@ export function OcPageClient() {
             onSave={
               isAdmin
                 ? async (next) => {
-                    await saveCharacters(
+                    const saved = await saveCharacters(
                       characters.map((c) => (String(c.id) === String(next.id) ? next : c)),
                     );
-                    setDetail(next);
+                    const fresh = saved.find((c) => String(c.id) === String(next.id)) ?? next;
+                    setDetail(fresh);
                   }
                 : undefined
             }
@@ -485,6 +568,19 @@ export function OcPageClient() {
           />
         )}
       </div>
+
+      {entrySplash ? (
+        <EntrySplash
+          config={entrySplash.character.entrySplash}
+          imageSrc={charImg(entrySplash.character, entrySplash.auIdx).src}
+          eyebrow="OC"
+          title={entrySplash.character.name}
+          tipStorageKey={`lh_entry_tip_oc_${entrySplash.character.id}`}
+          onDone={finishEntrySplash}
+        />
+      ) : null}
+
+      <PageTipToast active={showArchiveTip} settings={tipToastOc} storageKey="lh_tip_toast_oc" />
     </>
   );
 }

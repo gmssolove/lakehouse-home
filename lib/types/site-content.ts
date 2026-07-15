@@ -440,16 +440,39 @@ export type SiteBgm = {
   playlist?: BgmPlaylistItem[];
 };
 
+/** OC/페어 탭 코너 Tip·TMI 알림 — 항목마다 kind 지정 */
+export type SiteTipToastItem = {
+  id: string;
+  kind: 'tip' | 'tmi';
+  text: string;
+};
+
+export type SiteTipToastSettings = {
+  enabled: boolean;
+  items: SiteTipToastItem[];
+};
+
+export const DEFAULT_SITE_TIP_TOAST: SiteTipToastSettings = {
+  enabled: false,
+  items: [],
+};
+
 export type SiteOcSettings = {
   pvIntroEnabled: boolean;
   pvIntroDurationMs: number;
   autoResumeMainBgm: boolean;
+  /** OC 아카이브 탭 진입 시 코너 알림 */
+  tipToastOc: SiteTipToastSettings;
+  /** Pair 아카이브 탭 진입 시 코너 알림 */
+  tipToastPair: SiteTipToastSettings;
 };
 
 export const DEFAULT_SITE_OC_SETTINGS: SiteOcSettings = {
   pvIntroEnabled: true,
   pvIntroDurationMs: 7500,
   autoResumeMainBgm: true,
+  tipToastOc: { ...DEFAULT_SITE_TIP_TOAST },
+  tipToastPair: { ...DEFAULT_SITE_TIP_TOAST },
 };
 
 export type ClickerButton = {
@@ -488,7 +511,17 @@ export type SiteUiSettings = {
   clickSoundPreset: 'thud' | 'wood' | 'felt' | 'damp' | 'muted' | 'custom';
   clickSoundCustom: string;
   customCursorEnabled: boolean;
-  cursorPreset: 'ring' | 'dot' | 'shard' | 'cross' | 'custom';
+  cursorPreset:
+    | 'ring'
+    | 'dot'
+    | 'shard'
+    | 'cross'
+    | 'classic'
+    | 'classicHand'
+    | 'classicCross'
+    | 'classicMove'
+    | 'classicWait'
+    | 'custom';
   cursorCustom: string;
   clickRippleEnabled: boolean;
   /** 메인 홈 클리커 위젯 */

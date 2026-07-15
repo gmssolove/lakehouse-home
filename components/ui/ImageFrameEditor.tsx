@@ -6,6 +6,7 @@ import {
   clampFrameScale,
   DEFAULT_IMAGE_FRAME,
   normalizeImageFrame,
+  wheelScaleStep,
   type ImageFrame,
 } from '@/lib/shared/imageFrame';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
@@ -57,10 +58,18 @@ export function ImageFrameEditor({
   const [selected, setSelected] = useState(false);
 
   const patch = useCallback((partial: Partial<ImageFrame>) => {
-    const next = { ...frameRef.current, ...partial };
-    if (!showBottomBlur) next.bottomBlur = 0;
-    frameRef.current = normalizeImageFrame(next);
-    onChangeRef.current(frameRef.current);
+    const merged = { ...frameRef.current, ...partial };
+    if (!showBottomBlur) merged.bottomBlur = 0;
+    const scale = clampFrameScale(merged.scale ?? 1);
+    const next = normalizeImageFrame({
+      ...merged,
+      scale,
+      /* 축소·확대 바꿀 때 오프셋을 한도에 다시 맞춰 잘림 방지 */
+      x: clampFrameOffset(merged.x ?? 0, scale),
+      y: clampFrameOffset(merged.y ?? 0, scale),
+    });
+    frameRef.current = next;
+    onChangeRef.current(next);
   }, [showBottomBlur]);
 
   useEffect(() => {
@@ -126,12 +135,46 @@ export function ImageFrameEditor({
     const onWheelNative = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const delta = e.deltaY > 0 ? -0.06 : 0.06;
-      patch({ scale: clampFrameScale(frameRef.current.scale + delta) });
+      const delta = wheelScaleStep(e.deltaY, 0.005);
+      if (!delta) return;
+      const next = clampFrameScale(frameRef.current.scale + delta);
+      if (next === frameRef.current.scale) return;
+      patch({ scale: next });
     };
     el.addEventListener('wheel', onWheelNative, { passive: false });
     return () => el.removeEventListener('wheel', onWheelNative);
   }, [allowWheelZoom, patch, selected, src]);
+
+  useEffect(() => {
+    if (!selected || !src) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === 'INPUT' ||
+          t.tagName === 'TEXTAREA' ||
+          t.tagName === 'SELECT' ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      const step = (e.shiftKey ? 1.4 : 0.35) * (e.altKey ? 0.35 : 1);
+      let dx = 0;
+      let dy = 0;
+      if (e.key === 'ArrowLeft') dx = -step;
+      else if (e.key === 'ArrowRight') dx = step;
+      else if (e.key === 'ArrowUp') dy = -step;
+      else if (e.key === 'ArrowDown') dy = step;
+      else return;
+      e.preventDefault();
+      patch({
+        x: frameRef.current.x + dx,
+        y: frameRef.current.y + dy,
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [patch, selected, src]);
 
   const viewportStyle = {
     ...(stageMode ? null : { aspectRatio }),
@@ -179,7 +222,7 @@ export function ImageFrameEditor({
               <span>확대</span>
               <input
                 type="range"
-                min={55}
+                min={70}
                 max={300}
                 step={1}
                 value={Math.round(frame.scale * 100)}
@@ -216,11 +259,11 @@ export function ImageFrameEditor({
           <p className="image-frame-editor__hint">
             {allowWheelZoom
               ? showBottomBlur
-                ? '이미지를 클릭해 선택한 뒤 드래그로 이동 · 휠로 확대/축소 · 하단은 투명 페이드'
-                : '이미지를 클릭해 선택한 뒤 드래그로 이동 · 휠로 확대/축소'
+                ? '클릭 선택 → 드래그·방향키 이동 · 휠 확대/축소 · 축소 시 전체 표시 · 하단 투명 페이드'
+                : '클릭 선택 → 드래그·방향키 이동 · 휠 확대/축소 · 축소 시 전체 표시'
               : showBottomBlur
-                ? '이미지를 클릭해 선택한 뒤 드래그로 이동 · 슬라이더로 확대 · 하단은 투명 페이드'
-                : '이미지를 클릭해 선택한 뒤 드래그로 이동 · 슬라이더로 확대'}
+                ? '클릭 선택 → 드래그·방향키 이동 · 슬라이더 확대 · 하단 투명 페이드'
+                : '클릭 선택 → 드래그·방향키 이동 · 슬라이더 확대'}
           </p>
         </>
       ) : (

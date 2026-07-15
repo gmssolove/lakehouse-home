@@ -23,13 +23,15 @@ body.lh-route-leaving {
 
 /* leaving 클래스가 패널에만 남고 body.lh-route-leaving이 빠지면
    화면이 opacity:0에 영구 고정됨 → 반드시 body.leaving일 때만 숨김 */
-body.lh-route-leaving .layout.lh-route-panel-leaving {
+body.lh-route-leaving .layout.lh-route-panel-leaving,
+body.lh-route-leaving #detail-screen.lh-route-panel-leaving,
+body.lh-route-leaving .lh-archive-topbar.lh-route-panel-leaving {
   opacity: 0 !important;
   pointer-events: none !important;
   transition:
-    opacity 0.45s cubic-bezier(0.33, 1, 0.32, 1),
-    transform 0.45s cubic-bezier(0.33, 1, 0.32, 1),
-    filter 0.45s cubic-bezier(0.33, 1, 0.32, 1) !important;
+    opacity 0.34s cubic-bezier(0.33, 1, 0.32, 1),
+    transform 0.34s cubic-bezier(0.33, 1, 0.32, 1),
+    filter 0.34s cubic-bezier(0.33, 1, 0.32, 1) !important;
 }
 
 /* 하드 리프레시·이탈 중단 후 잔여 클래스 → 다시 보이게 */
@@ -41,15 +43,19 @@ body:not(.lh-route-leaving) .lh-route-panel-leaving {
 }
 
 body.lh-route-leaving.lh-route-forward .layout.lh-route-panel-leaving,
-body.lh-route-leaving.lh-route-forward .main-content.pair-main.lh-route-panel-leaving {
-  transform: translateX(-40px) scale(0.992) !important;
-  filter: brightness(0.94) !important;
+body.lh-route-leaving.lh-route-forward .main-content.pair-main.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-forward #detail-screen.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-forward .lh-archive-topbar.lh-route-panel-leaving {
+  transform: translateX(-14px) scale(0.996) !important;
+  filter: brightness(0.97) !important;
 }
 
 body.lh-route-leaving.lh-route-back .layout.lh-route-panel-leaving,
-body.lh-route-leaving.lh-route-back .main-content.pair-main.lh-route-panel-leaving {
-  transform: translateX(40px) scale(0.992) !important;
-  filter: brightness(0.94) !important;
+body.lh-route-leaving.lh-route-back .main-content.pair-main.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-back #detail-screen.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-back .lh-archive-topbar.lh-route-panel-leaving {
+  transform: translateX(14px) scale(0.996) !important;
+  filter: brightness(0.97) !important;
 }
 
 body.lh-route-leaving #page-trpg.lh-route-panel-leaving,
@@ -90,14 +96,16 @@ body.lh-route-leaving.lh-route-back .layout.layout--home.lh-route-panel-leaving 
 
 body.lh-route-enter.lh-route-forward .layout,
 body.lh-route-enter.lh-route-forward .main-content.pair-main,
-body.lh-route-enter.lh-route-forward .trpg-scenario-shell {
-  animation: lhArchiveSlideInForward 0.72s cubic-bezier(0.22, 1, 0.32, 1) both !important;
+body.lh-route-enter.lh-route-forward .trpg-scenario-shell,
+body.lh-route-enter.lh-route-forward .lh-archive-topbar {
+  animation: lhArchiveSlideInForward 0.52s cubic-bezier(0.22, 1, 0.36, 1) both !important;
 }
 
 body.lh-route-enter.lh-route-back .layout,
 body.lh-route-enter.lh-route-back .main-content.pair-main,
-body.lh-route-enter.lh-route-back .trpg-scenario-shell {
-  animation: lhArchiveSlideInBack 0.72s cubic-bezier(0.22, 1, 0.32, 1) both !important;
+body.lh-route-enter.lh-route-back .trpg-scenario-shell,
+body.lh-route-enter.lh-route-back .lh-archive-topbar {
+  animation: lhArchiveSlideInBack 0.52s cubic-bezier(0.22, 1, 0.36, 1) both !important;
 }
 
 /* Fixed home menu stays viewport-anchored (not inside animated .layout) */
@@ -112,7 +120,7 @@ body.lh-route-enter.lh-route-back .trpg-scenario-shell {
 @keyframes lhArchiveSlideInForward {
   from {
     opacity: 0;
-    transform: translateX(36px) scale(0.992);
+    transform: translateX(16px) scale(0.997);
   }
   to {
     opacity: 1;
@@ -123,11 +131,58 @@ body.lh-route-enter.lh-route-back .trpg-scenario-shell {
 @keyframes lhArchiveSlideInBack {
   from {
     opacity: 0;
-    transform: translateX(-36px) scale(0.992);
+    transform: translateX(-16px) scale(0.997);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* 상세 → 목록: 이미 보이던 목록을 opacity:0으로 리셋하지 않음 (뚝/새로고침 감 방지) */
+.layout.oc-archive-layout.is-list-enter > .sidebar,
+.layout.oc-archive-layout.is-list-enter > .main-content {
+  animation: lhArchiveListSettle 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes lhArchiveListSettle {
+  from {
+    transform: translateY(8px);
+    filter: brightness(0.96);
+  }
+  to {
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes lhArchiveListEnter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+#detail-screen.active.is-ui-leaving,
+.pair-detail-screen.active.is-ui-leaving {
+  animation: lhDetailScreenLeave 0.72s cubic-bezier(0.4, 0, 0.2, 1) both !important;
+  pointer-events: none !important;
+}
+
+@keyframes lhDetailScreenLeave {
+  from {
+    opacity: 1;
+    filter: none;
+  }
+  to {
+    opacity: 0;
+    filter: blur(10px);
   }
 }
 
@@ -388,16 +443,9 @@ nav,
   filter: none !important;
 }
 
-.oc-left-panel-shell.is-open .oc-left-content-inner {
-  animation: ocPanelContentInLite 0.95s cubic-bezier(0.25, 0.46, 0.45, 0.94) both !important;
-  opacity: 1 !important;
-}
+/* 패널 인/아웃은 oc-detail-v2 통일 타이밍 사용 (Lite 오버라이드 제거) */
 
-.oc-left-panel-shell.is-closing .oc-left-content-inner {
-  animation: ocPanelContentOutLite 0.88s cubic-bezier(0.25, 0.46, 0.45, 0.94) both !important;
-}
-
-#detail-screen .oc-detail-left {
+#detail-screen:not(.is-ui-enter):not(.is-ui-leaving) .oc-detail-left {
   animation: none !important;
   opacity: 1 !important;
   visibility: visible !important;
@@ -405,35 +453,21 @@ nav,
   z-index: 50 !important;
 }
 
-@keyframes ocPanelContentInLite {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+#detail-screen.is-ui-enter .oc-detail-left,
+#detail-screen.is-ui-leaving .oc-detail-left {
+  opacity: 1;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 50 !important;
 }
 
-@keyframes ocPanelContentOutLite {
-  from {
-    opacity: 1;
-    transform: none;
-  }
-  to {
-    opacity: 0;
-    transform: translateX(-14px);
-  }
-}
-
-.oc-detail-right {
+#detail-screen:not(.is-ui-enter):not(.is-ui-leaving) .oc-detail-right {
   /* lake-perf 강제 애니 제거 — fill-mode both가 정보 패널을 opacity:0에 묶음 */
   animation: none !important;
   opacity: 1 !important;
 }
 
-.oc-detail-right .oc-attr-panel {
+#detail-screen:not(.is-ui-enter):not(.is-ui-leaving) .oc-detail-right .oc-attr-panel {
   animation: none !important;
   opacity: 1 !important;
 }
@@ -516,4 +550,82 @@ nav,
 
 .lh-vn-text.lh-typing {
   min-height: 1.5em;
+}
+
+/* ── 2026-07 전역 애니 비용 추가 축소 ── */
+
+/* 페어: 하강/착지 중 배경 레이어 애니 완전 정지 */
+.pair-detail-screen .pair-cherry-root.is-diving .pair-bg__haze,
+.pair-detail-screen .pair-cherry-root.is-landed .pair-bg__haze,
+.pair-detail-screen .pair-cherry-root.is-returning .pair-bg__haze {
+  animation-play-state: paused !important;
+}
+
+.pair-detail-screen .pair-bg__haze-orb,
+.pair-detail-screen .pair-bg__haze-shimmer {
+  will-change: auto !important;
+}
+
+/* 홈 메뉴 탭·콘텐츠 블록: 페인트 격리 */
+.layout.layout--home .content-block,
+.layout.layout--home .rq-menu-panel,
+.main-content.pair-main,
+.archive-layout {
+  contain: layout style;
+}
+
+/* OC/페어 카드: 레이아웃 격리만 (content-visibility는 썸네일 화질 저하) */
+.pair-card,
+.uni-skew__card {
+  contain: layout style;
+}
+
+/* 상시 will-change 제거 (애니 트리거 시점에만 GPU 레이어) */
+.pair-detail-screen .pair-menu__item,
+.oc-detail-body .oc-au-picker-btn,
+.oc-char-portrait-layer,
+.uni-skew__face img {
+  will-change: auto !important;
+}
+
+/* OC 레거시 셸: backdrop-filter 최소화 */
+.layout[style],
+.char-card-hover {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 라우트 전환: filter 대신 opacity/transform만 유지하도록 brightness 제거 */
+body.lh-route-leaving.lh-route-forward .layout.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-forward .main-content.pair-main.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-forward #detail-screen.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-forward .lh-archive-topbar.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-back .layout.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-back .main-content.pair-main.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-back #detail-screen.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-back .lh-archive-topbar.lh-route-panel-leaving {
+  filter: none !important;
+}
+
+/* 히든 스플래시·오프스크린: 무한 애니 pause */
+.lh-entry-splash:not(.is-visible):not([data-open='1']) .lh-entry-splash__fog,
+.lh-entry-splash[aria-hidden='true'] .lh-entry-splash__fog,
+.lh-entry-splash[hidden] * {
+  animation: none !important;
+}
+
+/* OC floating quotes 상시 breath 완화 */
+.oc-float-quotes.is-ambient .oc-float-quote__box.is-ambient-live {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-detail-screen .pair-bg__haze-orb,
+  .pair-detail-screen .pair-bg__haze-shimmer,
+  .lh-entry-splash__fog,
+  .lh-entry-splash__glow,
+  .lh-entry-splash__dust {
+    animation: none !important;
+    filter: none !important;
+  }
 }

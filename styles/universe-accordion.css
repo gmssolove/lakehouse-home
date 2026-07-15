@@ -374,21 +374,24 @@
   display: block;
   object-fit: cover;
   transform: scale(1.1);
-  filter: blur(calc(1.35px + var(--uni-depth, 0) * 1.05px));
+  filter: none;
+  opacity: calc(0.72 - var(--uni-depth, 0) * 0.08);
   transition:
     transform var(--uni-dur) var(--uni-ease),
-    filter var(--uni-dur) var(--uni-ease);
+    opacity var(--uni-dur) var(--uni-ease);
   pointer-events: none;
   user-select: none;
 }
 
 .uni-skew__card.is-active .uni-skew__face img {
   transform: scale(1);
-  filter: blur(0);
+  filter: none;
+  opacity: 1;
 }
 
 .uni-skew__track:has(.uni-skew__card.is-active) .uni-skew__card:not(.is-active) .uni-skew__face img {
-  filter: blur(calc(2px + var(--uni-depth, 0) * 1.2px));
+  filter: none;
+  opacity: 0.55;
   transform: scale(1.12);
 }
 
@@ -430,7 +433,7 @@
     rgba(12, 14, 12, 0.35) 40%,
     transparent 100%
   );
-  filter: blur(28px);
+  filter: none;
   pointer-events: none;
 }
 

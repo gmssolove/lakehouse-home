@@ -4,16 +4,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { onValue, ref, set } from 'firebase/database';
 import { db } from '@/lib/firebase/client';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
+import { hydratePairStories, pinPairStoriesForSave } from '@/lib/oc/storyEntries';
 import { DEFAULT_PAIRS, type PairItem } from '@/lib/types/character';
 
 function asPairList(val: unknown): PairItem[] {
-  if (Array.isArray(val)) return val.filter((p): p is PairItem => !!p && typeof p === 'object' && 'id' in p);
-  if (val && typeof val === 'object') {
-    return Object.values(val as Record<string, PairItem>).filter(
-      (p): p is PairItem => !!p && typeof p === 'object' && typeof p.id === 'string',
-    );
-  }
-  return [];
+  const raw = Array.isArray(val)
+    ? val.filter((p): p is PairItem => !!p && typeof p === 'object' && 'id' in p)
+    : val && typeof val === 'object'
+      ? Object.values(val as Record<string, PairItem>).filter(
+          (p): p is PairItem => !!p && typeof p === 'object' && typeof p.id === 'string',
+        )
+      : [];
+  return raw.map(hydratePairStories);
 }
 
 function readLocalPairs(): PairItem[] {
@@ -42,10 +44,16 @@ export function usePairData() {
   }, []);
 
   const savePairs = useCallback(async (next: PairItem[]) => {
-    const list = stripUndefinedDeep(asPairList(next));
+    /* pin 먼저 — storyEntries:[] 를 hydrate가 legacy로 되살리지 않게 */
+    const list = stripUndefinedDeep(
+      next
+        .filter((p): p is PairItem => !!p && typeof p === 'object' && typeof p.id === 'string')
+        .map((p) => pinPairStoriesForSave(p)),
+    ) as PairItem[];
     localStorage.setItem('oc_pairs', JSON.stringify(list));
     setPairs(list);
     await set(ref(db, 'lhdata/oc_pairs'), list);
+    return list;
   }, []);
 
   return { pairs, loaded, savePairs };

@@ -18,12 +18,13 @@ import Providers from './providers';
 import './globals.css';
 
 const chosunNm = localFont({
-  src: './fonts/ChosunNm.ttf',
+  /* 브라우저-safe 재패킹본 — scripts/build-chosun-web-font.mjs */
+  src: './fonts/ChosunNm.woff2',
   variable: '--font-chosun-nm',
   display: 'swap',
   weight: '400',
   fallback: ['Georgia', 'serif'],
-  adjustFontFallback: 'Times New Roman',
+  adjustFontFallback: false,
 });
 
 const notoSansKr = Noto_Sans_KR({
@@ -33,10 +34,11 @@ const notoSansKr = Noto_Sans_KR({
   display: 'swap',
 });
 
+/* 실제 Noto Serif — CSS 별칭 --font-noto-serif-kr(ChosunNm)과 충돌하지 않게 분리 */
 const notoSerifKr = Noto_Serif_KR({
   subsets: ['latin'],
   weight: ['300', '400', '500'],
-  variable: '--font-noto-serif-kr',
+  variable: '--font-noto-serif-google',
   display: 'swap',
 });
 
@@ -137,7 +139,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         quicksand.variable,
       ].join(' ')}
     >
-      <body className={chosunNm.className}>
+      {/* className 대신 CSS --lh-body-font('ChosunNm' 우선) — next/font Fallback이 Times로 가로채지 않게 */}
+      <body>
         <Providers>{children}</Providers>
         <Script src="/lakehouse-r2.js" strategy="afterInteractive" />
       </body>

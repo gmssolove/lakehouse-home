@@ -1,6 +1,7 @@
 'use client';
 
 import type { AuVersion, OcCharacter } from '@/lib/types/character';
+import { warmTouchPortrait } from '@/lib/oc/useTouchPortraitStack';
 
 type Props = {
   character: OcCharacter;
@@ -33,6 +34,9 @@ export function OcAuPicker({ character, auIdx, onAuChange, disabled = false }: P
         aria-pressed={auIdx === -1}
         title="Default"
         disabled={disabled}
+        onMouseEnter={() => {
+          if (defaultSrc) warmTouchPortrait(defaultSrc, 'high');
+        }}
         onClick={(e) => {
           e.stopPropagation();
           if (disabled) return;
@@ -52,6 +56,9 @@ export function OcAuPicker({ character, auIdx, onAuChange, disabled = false }: P
             aria-pressed={auIdx === i}
             title={au.label || `Ver.${i + 1}`}
             disabled={disabled}
+            onMouseEnter={() => {
+              if (src) warmTouchPortrait(src, 'high');
+            }}
             onClick={(e) => {
               e.stopPropagation();
               if (disabled) return;

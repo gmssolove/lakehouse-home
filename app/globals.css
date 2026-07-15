@@ -28,13 +28,23 @@
 @import '../styles/admin-sidebar.css';
 @import '../styles/clicker-widget.css';
 
+/* next/font는 hashed family명을 쓰므로, 하드코딩 'ChosunNm' 참조용 별칭 */
+@font-face {
+  font-family: 'ChosunNm';
+  src: url('/fonts/ChosunNm.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --lh-body-font: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
+  /* 'ChosunNm'(@font-face)를 최우선 — next/font Fallback(Times)에 막히지 않게 */
+  --lh-body-font: 'ChosunNm', var(--font-chosun-nm), Georgia, serif;
   /* 한글 UI — Noto/Zen 변수 슬롯을 ChosunNm으로 통일 */
-  --font-noto-serif-kr: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
-  --font-kb-mincho: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
-  --font-kb-kr: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
-  --font-kb-jp: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
+  --font-noto-serif-kr: 'ChosunNm', var(--font-chosun-nm), Georgia, serif;
+  --font-kb-mincho: 'ChosunNm', var(--font-chosun-nm), Georgia, serif;
+  --font-kb-kr: 'ChosunNm', var(--font-chosun-nm), Georgia, serif;
+  --font-kb-jp: 'ChosunNm', var(--font-chosun-nm), Georgia, serif;
 }
 
 /* 한글 본문/UI — 예외(Cormorant/Cinzel/Jost/VT323/Press Start 2P) 제외하고 ChosunNm */
@@ -658,6 +668,14 @@ html.lake-custom-cursor .char-card,
 html.lake-custom-cursor .oc-pv-intro-skip,
 html.lake-custom-cursor label.file-input-label {
   cursor: var(--lake-cursor-pointer, pointer) !important;
+}
+
+/* 폼·리사이즈 핸들은 UA 커서 유지 (커스텀 커서 !important가 nwse-resize를 죽임) */
+html.lake-custom-cursor textarea,
+html.lake-custom-cursor input:not([type='button']):not([type='submit']):not([type='reset']):not([type='color']):not([type='file']):not([type='checkbox']):not([type='radio']),
+html.lake-custom-cursor select,
+html.lake-custom-cursor [contenteditable='true'] {
+  cursor: auto !important;
 }
 
 .lake-click-fx {

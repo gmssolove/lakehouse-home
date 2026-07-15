@@ -30,13 +30,13 @@ import { isTrpgCategory } from '@/lib/oc/categories';
 import { OC_CARD_ASPECT } from '@/lib/oc/pairDefaults';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { uploadImageFile, uploadMediaFile } from '@/lib/r2/client';
-import type { AuVersion, DialogueNode, GalleryItem, OcCharacter, ProfileField, StoryLog, CharacterRelation } from '@/lib/types/character';
+import { EntrySplashFormFields } from '@/components/shared/EntrySplash';
+import { StoryEntriesEditor } from '@/components/shared/StoryEntriesEditor';
+import { StoryRichTextarea } from '@/components/shared/StoryRichTextarea';
+import { createPreviewItem, hydrateOcStories } from '@/lib/oc/storyEntries';
+import type { AuVersion, DialogueNode, GalleryItem, OcCharacter, ProfileField, PreviewItem, CharacterRelation } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
 import type { TrpgScenario } from '@/lib/types/site-content';
-
-function emptyStoryLog(): StoryLog {
-  return { id: newId(), title: '새 로그', body: '' };
-}
 
 function emptyRelation(): CharacterRelation {
   return { id: newId(), name: '', relation: '' };
@@ -70,16 +70,33 @@ function applyOcTrpgLinks(
   });
 }
 
-type OcEditTab = 'basic' | 'appear' | 'story' | 'gallery' | 'novel' | 'theme' | 'relations';
+type OcEditTab =
+  | 'basic'
+  | 'profile'
+  | 'story'
+  | 'gallery'
+  | 'preview'
+  | 'versions'
+  | 'relations'
+  | 'color'
+  | 'vn'
+  | 'themeSong'
+  | 'pv'
+  | 'loading';
 
 const OC_EDIT_TABS: { id: OcEditTab; label: string }[] = [
   { id: 'basic', label: '기본' },
-  { id: 'appear', label: '외형·성격' },
+  { id: 'profile', label: '프로필' },
   { id: 'story', label: '서사' },
   { id: 'gallery', label: '갤러리' },
-  { id: 'novel', label: '소설·AU' },
-  { id: 'theme', label: '컬러·VN' },
+  { id: 'preview', label: '프리뷰' },
+  { id: 'versions', label: '버전' },
   { id: 'relations', label: '관계' },
+  { id: 'color', label: '컬러' },
+  { id: 'vn', label: 'VN' },
+  { id: 'themeSong', label: '테마곡' },
+  { id: 'pv', label: 'PV 대사' },
+  { id: 'loading', label: '로딩' },
 ];
 
 type Props = {
@@ -123,7 +140,7 @@ function CommaSeparatedInput({
 export function OcEditForm({ character, categories, onSave, onDelete, compact }: Props) {
   const { showSaveToast } = useSaveToast();
   const { trpg, saveTrpg } = useSiteContent();
-  const [form, setForm] = useState(character);
+  const [form, setForm] = useState(() => hydrateOcStories(character));
   const [tab, setTab] = useState<OcEditTab>('basic');
   const [busy, setBusy] = useState(false);
   const [commaDraft, setCommaDraft] = useState({
@@ -144,6 +161,10 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     return row?.v ?? '';
   }
 
+  function getCoreTip(key: CoreProfileFieldKey): string {
+    return (form.profile ?? []).find((p) => p.k?.trim() === key)?.tip ?? '';
+  }
+
   function setCoreValue(key: CoreProfileFieldKey, value: string) {
     if (key === '나이') {
       set('role', value);
@@ -156,21 +177,30 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     set('profile', rows);
   }
 
+  function setCoreTip(key: CoreProfileFieldKey, tip: string) {
+    const rows = [...(form.profile || [])];
+    const idx = rows.findIndex((p) => p.k?.trim() === key);
+    if (idx >= 0) rows[idx] = { ...rows[idx], k: key, tip };
+    else rows.push({ k: key, v: key === '나이' ? form.role || '' : '', tip });
+    set('profile', rows);
+  }
+
   const extraProfileRows = splitExtraProfileRows(form.profile);
 
   useEffect(() => {
     const extras = splitExtraProfileRows(character.profile);
+    const hydrated = hydrateOcStories(character);
     setForm({
-      ...character,
-      gallery: normalizeGallery(character.gallery),
-      profile: mergeCharacterProfile(character.profile, character.role, extras),
+      ...hydrated,
+      gallery: normalizeGallery(hydrated.gallery),
+      profile: mergeCharacterProfile(hydrated.profile, hydrated.role, extras),
     });
     setCommaDraft({
-      keywords: (character.keywords || []).join(', '),
-      likes: (character.likes || []).join(', '),
-      hates: (character.hates || []).join(', '),
+      keywords: (hydrated.keywords || []).join(', '),
+      likes: (hydrated.likes || []).join(', '),
+      hates: (hydrated.hates || []).join(', '),
     });
-    setPersonalHexDraft(character.personalColor || '');
+    setPersonalHexDraft(hydrated.personalColor || '');
     setLinkedTrpgIds(linkedScenarioIds(trpg, character.id));
   }, [character, trpg]);
 
@@ -359,20 +389,6 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     set('gallery', galleryEditRows().filter((_, idx) => idx !== i));
   }
 
-  function updateStoryLog(i: number, patch: Partial<StoryLog>) {
-    const logs = [...(form.storyLogs || [])];
-    logs[i] = { ...logs[i], ...patch };
-    set('storyLogs', logs);
-  }
-
-  function addStoryLog() {
-    set('storyLogs', [...(form.storyLogs || []), emptyStoryLog()]);
-  }
-
-  function removeStoryLog(i: number) {
-    set('storyLogs', (form.storyLogs || []).filter((_, idx) => idx !== i));
-  }
-
   function updateRelation(i: number, patch: Partial<CharacterRelation>) {
     const rows = [...(form.relationships || [])];
     rows[i] = { ...rows[i], ...patch };
@@ -387,18 +403,26 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     set('relationships', (form.relationships || []).filter((_, idx) => idx !== i));
   }
 
-  function updateNovel(i: number, patch: { title?: string; preview?: string }) {
-    const rows = [...(form.novel || [])];
+  function updatePreview(i: number, patch: Partial<PreviewItem>) {
+    const rows = [...(form.previewItems || [])];
     rows[i] = { ...rows[i], ...patch };
-    set('novel', rows);
+    set('previewItems', rows);
   }
 
-  function addNovel() {
-    set('novel', [...(form.novel || []), { title: '', preview: '' }]);
+  function addPreview() {
+    set('previewItems', [
+      ...(form.previewItems || []),
+      createPreviewItem({ order: (form.previewItems || []).length }),
+    ]);
   }
 
-  function removeNovel(i: number) {
-    set('novel', (form.novel || []).filter((_, idx) => idx !== i));
+  function removePreview(i: number) {
+    set(
+      'previewItems',
+      (form.previewItems || [])
+        .filter((_, idx) => idx !== i)
+        .map((p, order) => ({ ...p, order })),
+    );
   }
 
   function updateAu(i: number, patch: Partial<AuVersion>) {
@@ -546,7 +570,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       </div>
       ) : null}
 
-      {tab === 'theme' ? (
+      {tab === 'color' ? (
       <>
       <SectionTitle>퍼스널 컬러 · 프로필 테마</SectionTitle>
       <div className="form-group">
@@ -689,15 +713,28 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
               value={getCoreValue(key)}
               onChange={(e) => setCoreValue(key, e.target.value)}
             />
+            <input
+              className="form-input"
+              style={{ marginTop: 6 }}
+              placeholder="호버 TMI (선택)"
+              value={getCoreTip(key)}
+              onChange={(e) => setCoreTip(key, e.target.value)}
+            />
           </div>
         ))}
       </div>
 
       <SectionTitle>추가 프로필 항목</SectionTitle>
       {extraProfileRows.map((row, i) => (
-        <div key={i} className="oc-edit-list-row">
+        <div key={i} className="oc-edit-list-row" style={{ flexWrap: 'wrap' }}>
           <input className="form-input" placeholder="항목" value={row.k} onChange={(e) => updateProfile(i, { k: e.target.value })} />
           <input className="form-input" placeholder="값" value={row.v} onChange={(e) => updateProfile(i, { v: e.target.value })} />
+          <input
+            className="form-input"
+            placeholder="호버 TMI"
+            value={row.tip || ''}
+            onChange={(e) => updateProfile(i, { tip: e.target.value })}
+          />
           <button type="button" className="btn-del" style={{ padding: '4px 8px' }} onClick={() => removeProfileRow(i)}>
             ✕
           </button>
@@ -725,7 +762,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       </>
       ) : null}
 
-      {tab === 'appear' ? (
+      {tab === 'profile' ? (
       <>
       <SectionTitle>이미지</SectionTitle>
       <div className="form-group">
@@ -734,7 +771,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       </div>
       <div className="form-group">
         <p style={{ fontSize: 11, opacity: 0.65, margin: '0 0 8px' }}>
-          목록 카드와 같은 비율·맞춤(cover)입니다. 여기서 맞추면 카드·프로필에 그대로 반영됩니다.
+          목록 카드 전용 크롭입니다. 상세 화면 중앙 메인 일러 위치는 상세 「위치」에서 따로 조절합니다.
         </p>
         <ImageFrameEditor
           className="oc-card-frame-editor"
@@ -932,6 +969,20 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           />
         </div>
       </div>
+
+      <SectionTitle>스테이터스 (TRPG)</SectionTitle>
+      {(form.stats || []).map((row, i) => (
+        <div key={i} className="oc-edit-list-row">
+          <input className="form-input" placeholder="항목" value={row.k} onChange={(e) => updateStat(i, { k: e.target.value })} />
+          <input className="form-input" placeholder="값" value={row.v} onChange={(e) => updateStat(i, { v: e.target.value })} />
+          <button type="button" className="btn-del" style={{ padding: '4px 8px' }} onClick={() => removeStatRow(i)}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addStatRow}>
+        + 스탯 추가
+      </button>
       </>
       ) : null}
 
@@ -939,24 +990,15 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       <>
       <SectionTitle>서사</SectionTitle>
       <p style={{ fontSize: 10, opacity: 0.55, margin: '0 0 8px' }}>
-        엔터 = 문단 나눔 · **텍스트** = 굵게 · %%텍스트%% = 옅게 (왼쪽 메뉴 내용에 반영)
+        본편·AU·IF 등 분류별로 글을 등록합니다. PDF에서 텍스트를 가져올 수도 있습니다.
       </p>
-      <div className="form-group">
-        <label className="form-label">메인 서사 (story)</label>
-        <textarea className="form-input" rows={4} value={form.story || ''} onChange={(e) => set('story', e.target.value)} />
-      </div>
-      {(form.storyLogs || []).map((log, i) => (
-        <div key={log.id || i} style={{ marginBottom: 10, padding: 8, border: '1px solid rgba(215,169,130,.14)', borderRadius: 10 }}>
-          <input className="form-input" placeholder="로그 제목" value={log.title} onChange={(e) => updateStoryLog(i, { title: e.target.value })} />
-          <textarea className="form-input" rows={3} style={{ marginTop: 6 }} value={log.body} onChange={(e) => updateStoryLog(i, { body: e.target.value })} />
-          <button type="button" className="btn-del" style={{ marginTop: 6, padding: '4px 10px' }} onClick={() => removeStoryLog(i)}>
-            로그 삭제
-          </button>
-        </div>
-      ))}
-      <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addStoryLog}>
-        + 서사 로그 추가
-      </button>
+      <StoryEntriesEditor
+        entries={form.storyEntries || []}
+        categories={form.storyCategories}
+        onChange={(storyEntries, storyCategories) =>
+          setForm((f) => ({ ...f, storyEntries, storyCategories }))
+        }
+      />
       </>
       ) : null}
 
@@ -1027,23 +1069,62 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       </>
       ) : null}
 
-      {tab === 'novel' ? (
+      {tab === 'preview' ? (
       <>
-      <SectionTitle>소설 / 프리뷰</SectionTitle>
-      {(form.novel || []).map((n, i) => (
-        <div key={i} style={{ marginBottom: 8 }}>
-          <input className="form-input" placeholder="제목" value={n.title || ''} onChange={(e) => updateNovel(i, { title: e.target.value })} />
-          <textarea className="form-input" rows={2} style={{ marginTop: 6 }} placeholder="미리보기" value={n.preview || ''} onChange={(e) => updateNovel(i, { preview: e.target.value })} />
-          <button type="button" className="btn-del" style={{ marginTop: 6, padding: '4px 10px' }} onClick={() => removeNovel(i)}>
+      <SectionTitle>프리뷰</SectionTitle>
+      <p style={{ fontSize: 10, opacity: 0.55, margin: '0 0 8px' }}>
+        상세에서 한 장씩 캐러셀로 표시됩니다.
+      </p>
+      {(form.previewItems || []).map((n, i) => (
+        <div key={n.id || i} style={{ marginBottom: 8 }}>
+          <input
+            className="form-input"
+            placeholder="제목"
+            value={n.title || ''}
+            onChange={(e) => updatePreview(i, { title: e.target.value })}
+          />
+          <div style={{ marginTop: 6 }}>
+            <StoryRichTextarea
+              rows={3}
+              placeholder="미리보기 본문 — 드래그 후 서식·폰트·크기 바로 적용"
+              value={n.body || ''}
+              onChange={(body) => updatePreview(i, { body })}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-del"
+            style={{ marginTop: 6, padding: '4px 10px' }}
+            onClick={() => removePreview(i)}
+          >
             삭제
           </button>
         </div>
       ))}
-      <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addNovel}>
-        + 소설 항목 추가
+      <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addPreview}>
+        + 프리뷰 추가
       </button>
+      </>
+      ) : null}
 
+      {tab === 'versions' ? (
+      <>
       <SectionTitle>AU / 버전</SectionTitle>
+      <div className="form-group" style={{ marginBottom: 12 }}>
+        <LakeToggle
+          checked={Boolean(form.dialogueKeepAu)}
+          onChange={(v) => set('dialogueKeepAu', v)}
+          label="대사창 열 때 버전 이미지 유지"
+        />
+        <p style={{ fontSize: 11, opacity: 0.62, margin: '6px 0 0' }}>
+          켜면 버전을 고른 상태에서 대사창·괴롭히기를 열어도 기본으로 돌아가지 않습니다.
+          끄면(기본) 대사창을 열 때 기본 이미지로 복귀합니다.
+        </p>
+        <p style={{ fontSize: 11, opacity: 0.62, margin: '8px 0 0' }}>
+          버전별 위치·터치 영역은 상세 화면에서 해당 버전을 고른 뒤 「위치」「터치」로 조절합니다.
+          기본과 따로 저장됩니다.
+        </p>
+      </div>
       {(form.auVersions || []).map((au, i) => (
         <div key={i} style={{ marginBottom: 8, padding: 8, border: '1px solid rgba(215,169,130,.14)', borderRadius: 10 }}>
           <input className="form-input" placeholder="라벨" value={au.label || ''} onChange={(e) => updateAu(i, { label: e.target.value })} />
@@ -1076,9 +1157,9 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       </>
       ) : null}
 
-      {tab === 'theme' ? (
+      {tab === 'themeSong' ? (
       <>
-      <SectionTitle>테마곡 · PV</SectionTitle>
+      <SectionTitle>테마곡</SectionTitle>
       <div className="lh-oc-admin-grid">
         <div className="form-group">
           <label className="form-label">테마곡명</label>
@@ -1132,24 +1213,30 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           }}
         />
       </label>
-      <SectionTitle>스테이터스 (TRPG)</SectionTitle>
-      {(form.stats || []).map((row, i) => (
-        <div key={i} className="oc-edit-list-row">
-          <input className="form-input" placeholder="항목" value={row.k} onChange={(e) => updateStat(i, { k: e.target.value })} />
-          <input className="form-input" placeholder="값" value={row.v} onChange={(e) => updateStat(i, { v: e.target.value })} />
-          <button type="button" className="btn-del" style={{ padding: '4px 8px' }} onClick={() => removeStatRow(i)}>
-            ✕
-          </button>
-        </div>
-      ))}
-      <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addStatRow}>
-        + 스탯 추가
-      </button>
+      </>
+      ) : null}
 
+      {tab === 'pv' ? (
+      <>
       <SectionTitle>PV 인트로 대사</SectionTitle>
       <p style={{ fontSize: 11, opacity: 0.65, margin: '0 0 8px' }}>
         캐릭터 진입 시 검은 화면에 표시되는 대사입니다. 소개·VN 대화와 별도로 입력하세요.
       </p>
+      <div className="form-group">
+        <label className="form-label">PV 인트로</label>
+        <select
+          className="form-input"
+          value={form.pvIntroEnabled == null ? 'default' : form.pvIntroEnabled ? 'on' : 'off'}
+          onChange={(e) => {
+            const v = e.target.value;
+            set('pvIntroEnabled', v === 'default' ? null : v === 'on');
+          }}
+        >
+          <option value="default">사이트 기본값 따름</option>
+          <option value="on">사용</option>
+          <option value="off">사용 안 함</option>
+        </select>
+      </div>
       <div className="form-group">
         <textarea
           className="form-input"
@@ -1175,7 +1262,11 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           placeholder="한 줄에 한 대사"
         />
       </div>
+      </>
+      ) : null}
 
+      {tab === 'vn' ? (
+      <>
       <SectionTitle>VN 대화 (이미지 클릭)</SectionTitle>
       <LineVoiceVolumeControl variant="panel" />
       <DialogueNodesEditor
@@ -1194,21 +1285,16 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
         startId={form.dialogueStart || form.dialogue?.[0]?.id || ''}
         onStartIdChange={(id) => set('dialogueStart', id)}
       />
-      <div className="form-group">
-        <label className="form-label">PV 인트로</label>
-        <select
-          className="form-input"
-          value={form.pvIntroEnabled == null ? 'default' : form.pvIntroEnabled ? 'on' : 'off'}
-          onChange={(e) => {
-            const v = e.target.value;
-            set('pvIntroEnabled', v === 'default' ? null : v === 'on');
-          }}
-        >
-          <option value="default">사이트 기본값 따름</option>
-          <option value="on">사용</option>
-          <option value="off">사용 안 함</option>
-        </select>
-      </div>
+      </>
+      ) : null}
+
+      {tab === 'loading' ? (
+      <>
+      <SectionTitle>상세 진입 로딩 화면</SectionTitle>
+      <EntrySplashFormFields
+        value={form.entrySplash}
+        onChange={(entrySplash) => set('entrySplash', entrySplash)}
+      />
       </>
       ) : null}
       <div className="lake-edit-shell__end-space" aria-hidden="true" />

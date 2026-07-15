@@ -27,6 +27,8 @@ import {
   resolvePanelImageSrc,
 } from '@/lib/pair/panelView';
 import { PairAnchoredQuotes } from '@/components/pair/PairAnchoredQuotes';
+import { CursorFollowTipHost, CursorTipZone } from '@/components/shared/CursorFollowTip';
+import { hydratePairStories } from '@/lib/oc/storyEntries';
 import { clampPairQuoteScale, hydratePairFloatingQuotes, normalizePairFloatingQuotes, PAIR_QUOTE_SLOTS } from '@/lib/oc/floatingQuotes';
 import { framedImageStyle, type ImageFrame } from '@/lib/shared/imageFrame';
 import type {
@@ -57,9 +59,12 @@ function formatDday(iso?: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diff = Math.floor((today.getTime() - start.getTime()) / 86400000);
+  const y = start.getFullYear();
+  const m = String(start.getMonth() + 1).padStart(2, '0');
+  const d = String(start.getDate()).padStart(2, '0');
   return {
     label: `D${diff >= 0 ? '+' : ''}${diff}`,
-    since: `Since ${iso}`,
+    since: `Since ${y}.${m}.${d}`,
   };
 }
 
@@ -282,10 +287,10 @@ function CharaSide({
   );
 }
 
-type PairSectionId = 'story' | 'relation' | 'flat' | 'archive' | 'gallery';
+type PairSectionId = 'story' | 'relation' | 'flat' | 'gallery';
 
-function isPanelSection(id: PairSectionId | null): id is PairPanelSectionKey {
-  return id === 'relation' || id === 'flat' || id === 'archive' || id === 'gallery';
+function isPanelSection(id: PairSectionId | null): id is PairSectionId {
+  return id === 'relation' || id === 'flat' || id === 'gallery' || id === 'story';
 }
 
 export function PairArchiveDetail({
@@ -315,23 +320,22 @@ export function PairArchiveDetail({
     return r;
   })();
   const tags = (pair.keywords || []).filter(Boolean);
-  const storyA = pair.charNotes?.[0]?.story?.trim() || '';
-  const storyB = pair.charNotes?.[1]?.story?.trim() || '';
-  const pairStory = pair.story?.trim() || '';
+  const hydratedPair = useMemo(
+    () => hydratePairStories(pair),
+    [pair, pair.storyEntries, pair.storyCategories],
+  );
+  const storyEntries = hydratedPair.storyEntries || [];
   const overview = pair.desc?.trim() || '';
   const aToB = pair.honorifics?.aToB?.trim() || '';
   const bToA = pair.honorifics?.bToA?.trim() || '';
   const colorA = pair.charColors?.[0]?.trim() || pair.color?.trim() || '';
   const colorB = pair.charColors?.[1]?.trim() || pair.color?.trim() || '';
-  const hasCharStories = Boolean(storyA || storyB);
   const dday = useMemo(() => formatDday(pair.dday), [pair.dday]);
   const chemistry = pair.chemistry?.filter((c) => c.label?.trim()) ?? [];
-  const commissions = (pair.commissions ?? []).filter(
-    (c) => c.title.trim() || c.body?.trim() || c.url?.trim(),
-  );
   const gallery = (pair.gallery ?? []).filter((g) => g.src?.trim());
   const flatLore = pair.flatLore?.trim() || '';
   const flatTags = (pair.flatLoreKeywords || []).filter(Boolean);
+
   const rootRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLElement>(null);
   const scrollGenRef = useRef(0);
@@ -353,23 +357,31 @@ export function PairArchiveDetail({
   const vignetteStrength = typeof pair.bgVignette === 'number' ? pair.bgVignette : 16;
   const bgDim = typeof pair.bgDim === 'number' ? pair.bgDim : 0;
 
-  const menuItems = useMemo(() => {
-    const items: { id: PairSectionId; en: string; ko: string }[] = [];
-    if (hasCharStories || pairStory) items.push({ id: 'story', en: 'Story', ko: '서사' });
-    if (dday || chemistry.length > 0 || overview) items.push({ id: 'relation', en: 'Relation', ko: '관계' });
-    if (flatLore || flatTags.length > 0) items.push({ id: 'flat', en: 'Flat Lore', ko: '납작캐해' });
-    if (commissions.length > 0) items.push({ id: 'archive', en: 'Archive', ko: '자료' });
-    if (gallery.length > 0) items.push({ id: 'gallery', en: 'Gallery', ko: '갤러리' });
+  type PairMenuItem = { id: PairSectionId; en: string; ko: string };
+
+  const menuItems = useMemo<PairMenuItem[]>(() => {
+    const items: PairMenuItem[] = [];
+    if (dday || chemistry.length > 0 || overview || tags.length) {
+      items.push({ id: 'relation', en: 'Relation', ko: '관계' });
+    }
+    if (flatLore || flatTags.length > 0) {
+      items.push({ id: 'flat', en: 'Flat Lore', ko: '납작캐해' });
+    }
+    if (storyEntries.length) {
+      items.push({ id: 'story', en: 'Story', ko: '자료' });
+    }
+    if (gallery.length > 0) {
+      items.push({ id: 'gallery', en: 'Gallery', ko: '갤러리' });
+    }
     return items;
   }, [
-    hasCharStories,
-    pairStory,
     dday,
     chemistry.length,
     overview,
+    tags.length,
     flatLore,
     flatTags.length,
-    commissions.length,
+    storyEntries.length,
     gallery.length,
   ]);
 
@@ -500,21 +512,21 @@ export function PairArchiveDetail({
           if (scrollGenRef.current !== gen) return;
           const p = Math.min(1, (now - t0) / duration);
           screen.scrollTop = start + delta * easeSilk(p);
+          /* reveal만 중반 — landed는 스크롤 완주 후(freeze가 중간에서 잠그지 않게) */
           if (!revealed && p >= 0.55) {
             revealed = true;
-            setTransit('landed');
             setPanelReveal(true);
           }
-          if (p < 1) scrollRaf = window.requestAnimationFrame(step);
-          else {
-            if (!revealed) {
-              setTransit('landed');
-              setPanelReveal(true);
-            }
-            landClearT = window.setTimeout(() => {
-              if (scrollGenRef.current === gen) setTransit('idle');
-            }, 640);
+          if (p < 1) {
+            scrollRaf = window.requestAnimationFrame(step);
+            return;
           }
+          screen.scrollTop = target;
+          if (!revealed) setPanelReveal(true);
+          setTransit('landed');
+          landClearT = window.setTimeout(() => {
+            if (scrollGenRef.current === gen) setTransit('idle');
+          }, 640);
         };
         scrollRaf = window.requestAnimationFrame(step);
       }, 260);
@@ -534,9 +546,9 @@ export function PairArchiveDetail({
     const screen = document.getElementById('detail-screen');
     if (!screen) return;
 
-    const userLocked =
-      vn.present || !activeSection || transit === 'diving' || transit === 'returning';
-    const cssLock = vn.present || !activeSection;
+    /* 히어로·메뉴 모두 수동 스크롤 금지 — 돌아가기는 ascend/Esc만 */
+    const userLocked = true;
+    const cssLock = vn.present || !activeSection || Boolean(activeSection);
 
     screen.classList.toggle('pair-vn-playing', vn.present);
     screen.classList.toggle('pair-scroll-locked', cssLock);
@@ -555,7 +567,7 @@ export function PairArchiveDetail({
     };
     const allowTarget = (t: EventTarget | null) =>
       (t as HTMLElement | null)?.closest?.(
-        '.pair-vn-stand.is-stand-editable, .lh-vn-box, .lh-vn-choice, .lh-vn-action-choice, .btn-edit, .pair-vn-stand-pose-btn, .pair-panel-stage__media, .pair-panel-stage__toolbar',
+        '.pair-vn-stand.is-stand-editable, .lh-vn-box, .lh-vn-choice, .lh-vn-action-choice, .btn-edit, .pair-vn-stand-pose-btn, .pair-panel-stage__media, .pair-panel-stage__edit, .pair-panel-stage__toolbar, .pair-page, .pair-panel, .lh-story-list, .lh-story-reader',
       );
     const blockWheel = (e: WheelEvent) => {
       if (allowTarget(e.target)) return;
@@ -711,6 +723,16 @@ export function PairArchiveDetail({
     },
     [activeSection, closeSection, transit],
   );
+
+  /* Esc만 복귀 (스크롤로는 못 올라감) */
+  useEffect(() => {
+    if (!activeSection || pageLeaving) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeSection();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeSection, closeSection, pageLeaving]);
   const startVn = useCallback(
     (side: PairVnSide) => {
       const ok = side === 'A' ? hasVnA : hasVnB;
@@ -829,8 +851,6 @@ export function PairArchiveDetail({
 
   const nameA = pair.chars[0] || 'A';
   const nameB = pair.chars[1] || 'B';
-  const boxTitleA = pair.charNotes?.[0]?.role?.trim() || nameA;
-  const boxTitleB = pair.charNotes?.[1]?.role?.trim() || nameB;
   const activeMeta = menuItems.find((m) => m.id === activeSection);
 
   return (
@@ -931,15 +951,21 @@ export function PairArchiveDetail({
                 />
               ) : null}
               <div className="pair-plate__title-block">
-                {pairHero ? (
-                  <h2 className="pair-plate__hero">{pairHero}</h2>
+                <CursorTipZone tip={pair.infoTips?.title} as="div">
+                  {pairHero ? (
+                    <h2 className="pair-plate__hero">{pairHero}</h2>
+                  ) : null}
+                  {pairHeroSub ? <p className="pair-plate__sub">{pairHeroSub}</p> : null}
+                </CursorTipZone>
+                {relationLine ? (
+                  <CursorTipZone tip={pair.infoTips?.relation} as="p" className="pair-plate__relation-line">
+                    {relationLine}
+                  </CursorTipZone>
                 ) : null}
-                {pairHeroSub ? <p className="pair-plate__sub">{pairHeroSub}</p> : null}
-                {relationLine ? <p className="pair-plate__relation-line">{relationLine}</p> : null}
                 <div className="pair-plate__accent" aria-hidden />
               </div>
               {aToB || bToA ? (
-                <section className="pair-calls" aria-label="호칭">
+                <CursorTipZone tip={pair.infoTips?.honorifics} as="section" className="pair-calls">
                   <span className="pair-calls__cap">호칭</span>
                   <div className="pair-calls__list">
                     {aToB ? (
@@ -961,7 +987,7 @@ export function PairArchiveDetail({
                       </>
                     ) : null}
                   </div>
-                </section>
+                </CursorTipZone>
               ) : null}
             </header>
 
@@ -979,7 +1005,9 @@ export function PairArchiveDetail({
                     ) : null}
                     <button
                       type="button"
-                      className={`pair-menu__item${activeSection === item.id ? ' is-active' : ''}`}
+                      className={`pair-menu__item${
+                        activeSection === item.id ? ' is-active' : ''
+                      }`}
                       style={{ ['--menu-i' as string]: i }}
                       onClick={() => openSection(item.id)}
                     >
@@ -1021,6 +1049,7 @@ export function PairArchiveDetail({
           />
         </div>
       </div>
+      <CursorFollowTipHost />
 
       {activeSection && activeMeta ? (
         <section
@@ -1040,51 +1069,23 @@ export function PairArchiveDetail({
                 </h3>
               </PairReveal>
             </div>
-            <button type="button" className="pair-panel__close" onClick={closeSection} aria-label="닫기">
-              ×
-            </button>
+            <PairReveal index={2} className="pair-panel__div">
+              <span />
+              <i />
+              <span />
+            </PairReveal>
           </header>
 
           <div className={`pair-panel__body${textReveal ? ' is-text-reveal' : ''}`}>
-            {activeSection === 'story' ? (
-              <div className="pair-panel__story">
-                {hasCharStories ? (
-                  <div className="pair-chara-wrapper">
-                    {storyA ? (
-                      <PairReveal index={2} className="pair-chara-desc">
-                        <div className="pair-chara-desc__head">
-                          <span className="pair-chara-desc__en">Character A</span>
-                          <div className="pair-chara-desc__title">{boxTitleA}</div>
-                        </div>
-                        <RichBlock html={storyA} className="pair-chara-desc__body" />
-                      </PairReveal>
-                    ) : null}
-                    {storyB ? (
-                      <PairReveal index={3} className="pair-chara-desc">
-                        <div className="pair-chara-desc__head">
-                          <span className="pair-chara-desc__en">Character B</span>
-                          <div className="pair-chara-desc__title">{boxTitleB}</div>
-                        </div>
-                        <RichBlock html={storyB} className="pair-chara-desc__body" />
-                      </PairReveal>
-                    ) : null}
-                  </div>
-                ) : null}
-                {pairStory ? (
-                  <PairReveal index={4}>
-                    <RichBlock html={pairStory} className="pair-desc" />
-                  </PairReveal>
-                ) : null}
-              </div>
-            ) : null}
-
             {activePanelKey && activePanelView ? (
               <PairPanelStage
                 layout={activePanelView.layout}
                 echo={activePanelView.echo}
                 imgSrc={activePanelImg}
                 imgValue={activePanelImgValue}
+                imgUploadFolder={`pair/panel/${activePanelKey}`}
                 frame={activePanelView.frame}
+                mediaSize={activePanelView.mediaSize}
                 editable={Boolean(layoutEditable && onLayoutChange)}
                 textReveal={textReveal}
                 onLayoutChange={(layout: PairPanelLayout) =>
@@ -1092,118 +1093,26 @@ export function PairArchiveDetail({
                 }
                 onEchoChange={(echo) => patchPanelField(activePanelKey, { echo })}
                 onFrameChange={(frame) => patchPanelField(activePanelKey, { frame })}
+                onMediaSizeChange={(mediaSize) => patchPanelField(activePanelKey, { mediaSize })}
                 onImgChange={(img) => patchPanelField(activePanelKey, { img })}
               >
-                {activeSection === 'relation' ? (
-                  <div className="pair-panel__relation">
-                    <PairReveal index={2} className="pair-panel__rule" />
-                    <div className="pair-extra__grid">
-                      {dday ? (
-                        <PairReveal index={3} className="pair-extra__dday">
-                          <span className="pair-extra__lbl">D-DAY</span>
-                          <strong className="pair-extra__dday-num">{dday.label}</strong>
-                          <span className="pair-extra__muted">{dday.since}</span>
-                        </PairReveal>
-                      ) : null}
-                      {chemistry.length > 0 ? (
-                        <PairReveal index={4} className="pair-extra__chem">
-                          {chemistry.map((row, i) => (
-                            <div key={`${row.label}-${i}`} className="pair-extra__chem-row">
-                              <span>{row.label}</span>
-                              <div className="pair-extra__chem-track">
-                                <div
-                                  className="pair-extra__chem-fill"
-                                  style={{
-                                    width: `${Math.min(100, Math.max(0, row.value))}%`,
-                                    background: vignetteColor,
-                                  }}
-                                />
-                              </div>
-                              <span>{row.value}</span>
-                            </div>
-                          ))}
-                        </PairReveal>
-                      ) : null}
-                    </div>
-                    {overview ? (
-                      <PairReveal index={5}>
-                        <p className="pair-extra__copy">{overview}</p>
-                      </PairReveal>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {activeSection === 'flat' ? (
-                  <div className="pair-panel__flat">
-                    <PairReveal index={2} className="pair-panel__rule" />
-                    {flatTags.length ? (
-                      <PairReveal index={3} className="pair-extra__tags">
-                        {flatTags.map((t, i) => (
-                          <span key={`${t}-${i}`} className="pair-extra__tag">
-                            {t}
-                          </span>
-                        ))}
-                      </PairReveal>
-                    ) : null}
-                    {flatLore ? (
-                      <PairReveal index={4}>
-                        <p className="pair-extra__copy">{flatLore}</p>
-                      </PairReveal>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {activeSection === 'archive' ? (
-                  <div className="pair-extra__works">
-                    <PairReveal index={2} className="pair-panel__rule" />
-                    {commissions.map((c, i) => (
-                      <PairReveal key={c.id} index={3 + i} className="pair-extra__work">
-                        <article>
-                          <div className="pair-extra__work-head">
-                            <span className="pair-extra__kind">{c.kind}</span>
-                            <strong>{c.title || '(제목 없음)'}</strong>
-                          </div>
-                          {c.body?.trim() ? <p className="pair-extra__copy">{c.body.trim()}</p> : null}
-                          {c.note?.trim() ? <p className="pair-extra__muted">{c.note.trim()}</p> : null}
-                          {c.url?.trim() ? (
-                            <a
-                              className="pair-extra__link"
-                              href={c.url.trim()}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              링크 열기
-                            </a>
-                          ) : null}
-                        </article>
-                      </PairReveal>
-                    ))}
-                  </div>
-                ) : null}
-
-                {activeSection === 'gallery' ? (
-                  <div className="pair-extra__gallery">
-                    <PairReveal index={2} className="pair-panel__rule" />
-                    {gallery.map((g, i) => (
-                      <PairReveal key={g.id} index={3 + i} className="pair-extra__gal-item">
-                        <figure>
-                          <img src={g.src} alt={g.title || ''} referrerPolicy="no-referrer" />
-                          {(g.title || g.credit) && (
-                            <figcaption>
-                              {g.title ? <span>{g.title}</span> : null}
-                              {g.credit ? (
-                                <span className="pair-extra__muted">{withCopyright(g.credit)}</span>
-                              ) : null}
-                            </figcaption>
-                          )}
-                        </figure>
-                      </PairReveal>
-                    ))}
-                  </div>
-                ) : null}
+                {null}
               </PairPanelStage>
             ) : null}
           </div>
+
+          <button
+            type="button"
+            className="pair-panel__ascend"
+            onClick={closeSection}
+            aria-label="클릭해서 돌아가기"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <path d="M12 19V5" strokeLinecap="round" />
+              <path d="M6 11l6-6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>클릭해서 돌아가기</span>
+          </button>
           </article>
         </section>
       ) : null}

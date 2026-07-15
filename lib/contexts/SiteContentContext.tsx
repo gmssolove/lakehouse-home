@@ -38,6 +38,7 @@ import {
 } from '@/lib/types/site-content';
 import { useFirebaseSection } from '@/lib/hooks/useFirebaseSection';
 import { normalizeMusicPlaylists, normalizeMusicTracks } from '@/lib/music/normalize';
+import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
 
 function mergeTrpgListSettings(raw: Partial<TrpgListSettings> | null | undefined): TrpgListSettings {
   const categories = Array.isArray(raw?.categories)
@@ -189,8 +190,17 @@ function mergeUiSettings(rawUi: Partial<SiteUiSettings>, legacy: Record<string, 
   };
 }
 
+function mergeTipToast(raw: unknown): SiteOcSettings['tipToastOc'] {
+  return normalizeTipToastSettings(raw as Parameters<typeof normalizeTipToastSettings>[0]);
+}
+
 function mergeOcSettings(data: Partial<SiteOcSettings>): SiteOcSettings {
-  const merged: SiteOcSettings = { ...DEFAULT_SITE_OC_SETTINGS, ...data };
+  const merged: SiteOcSettings = {
+    ...DEFAULT_SITE_OC_SETTINGS,
+    ...data,
+    tipToastOc: mergeTipToast(data.tipToastOc ?? DEFAULT_SITE_OC_SETTINGS.tipToastOc),
+    tipToastPair: mergeTipToast(data.tipToastPair ?? DEFAULT_SITE_OC_SETTINGS.tipToastPair),
+  };
   if (merged.pvIntroDurationMs > 12000) {
     merged.pvIntroDurationMs = DEFAULT_SITE_OC_SETTINGS.pvIntroDurationMs;
   }

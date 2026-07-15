@@ -8,6 +8,8 @@ import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { PairRevolveStage } from '@/components/pair/PairRevolveStage';
 import { PairArchiveDetail } from '@/components/pair/PairArchiveDetail';
 import { PairEditForm } from '@/components/pair/PairEditForm';
+import { EntrySplash } from '@/components/shared/EntrySplash';
+import { PageTipToast } from '@/components/shared/PageTipToast';
 import { LakeEditModal } from '@/components/ui/LakeEditModal';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
@@ -17,7 +19,10 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useOcData } from '@/lib/hooks/useOcData';
 import { usePairData } from '@/lib/hooks/usePairData';
-import { clearLakeRouteClasses } from '@/lib/lake/routeTransition';
+import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
+import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
+import { clearLakeRouteClasses, isLakeRouteEnterLocked } from '@/lib/lake/routeTransition';
 import type { PairItem } from '@/lib/types/character';
 
 type SortMode = 'order' | 'name';
@@ -26,6 +31,7 @@ export function PairPageClient() {
   const router = useRouter();
   const { pairs, savePairs } = usePairData();
   const { characters } = useOcData();
+  const { ocSettings } = useSiteContent();
   const { resumePageBgmIfNeeded } = useBgm();
   const { isAdmin } = useAuth();
   const { confirm } = useLakeDialog();
@@ -33,6 +39,8 @@ export function PairPageClient() {
   const [editOpen, setEditOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState(false);
   const [quoteMode, setQuoteMode] = useState(false);
+  const [entrySplash, setEntrySplash] = useState<PairItem | null>(null);
+  const splashPendingRef = useRef<PairItem | null>(null);
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('order');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -46,12 +54,15 @@ export function PairPageClient() {
   }, [detail, resumePageBgmIfNeeded]);
 
   useEffect(() => {
-    clearLakeRouteClasses();
     document.body.style.opacity = '1';
-    document.body.classList.remove('lh-leaving', 'lh-route-leaving', 'lh-route-enter');
-    document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
-      el.classList.remove('lh-route-panel-leaving');
-    });
+    document.body.classList.remove('lh-leaving');
+    if (!isLakeRouteEnterLocked()) {
+      clearLakeRouteClasses();
+      document.body.classList.remove('lh-route-leaving', 'lh-route-enter');
+      document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
+        el.classList.remove('lh-route-panel-leaving');
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -114,9 +125,9 @@ export function PairPageClient() {
   }, [pairs, search, sortMode]);
 
   async function persistPairs(next: PairItem[]) {
-    await savePairs(next);
+    const saved = await savePairs(next);
     if (detail) {
-      const updated = next.find((p) => p.id === detail.id);
+      const updated = saved.find((p) => p.id === detail.id);
       if (updated) setDetail(updated);
     }
   }
@@ -240,17 +251,53 @@ export function PairPageClient() {
     setEditOpen(false);
   }, [flushLayoutSave]);
 
+  const [detailLeaving, setDetailLeaving] = useState(false);
+  const leaveTimerRef = useRef(0);
+  const listEnterTimerRef = useRef(0);
+
+  const playArchiveListEnter = useCallback(() => {
+    const layout = document.querySelector('.layout.oc-archive-layout');
+    if (!layout) return;
+    layout.classList.remove('is-list-enter');
+    void (layout as HTMLElement).offsetWidth;
+    layout.classList.add('is-list-enter');
+    window.clearTimeout(listEnterTimerRef.current);
+    listEnterTimerRef.current = window.setTimeout(() => {
+      layout.classList.remove('is-list-enter');
+    }, 900);
+  }, []);
+
   const handleDetailBack = useCallback(() => {
+    if (detailLeaving) return;
     flushLayoutSave();
     setEditOpen(false);
     setLayoutMode(false);
     setQuoteMode(false);
-    setDetail(null);
-  }, [flushLayoutSave]);
+    splashPendingRef.current = null;
+    setEntrySplash(null);
+    if (!detail) {
+      setDetail(null);
+      return;
+    }
+    setDetailLeaving(true);
+    window.clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = window.setTimeout(() => {
+      setDetail(null);
+      setDetailLeaving(false);
+      requestAnimationFrame(() => playArchiveListEnter());
+    }, 720);
+  }, [detail, detailLeaving, flushLayoutSave, playArchiveListEnter]);
 
-  useLakeBackNavigation(!!detail, handleDetailBack, 'pair-detail', routeGuard);
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(leaveTimerRef.current);
+      window.clearTimeout(listEnterTimerRef.current);
+    };
+  }, []);
+
+  useLakeBackNavigation(!!detail || !!entrySplash, handleDetailBack, 'pair-detail', routeGuard);
   useLakeBackNavigation(editOpen, () => setEditOpen(false), 'pair-edit', routeGuard);
-  useLakeBackGesture(leavePair, !detail && !editOpen);
+  useLakeBackGesture(leavePair, !detail && !editOpen && !entrySplash);
 
   async function deletePair(id: string) {
     await persistPairs(pairs.filter((p) => p.id !== id));
@@ -268,11 +315,36 @@ export function PairPageClient() {
     setSidebarOpen(false);
     setLayoutMode(false);
     setQuoteMode(false);
+    if (normalizeEntrySplash(p.entrySplash).enabled) {
+      splashPendingRef.current = p;
+      setEntrySplash(p);
+      setDetail(null);
+      return;
+    }
+    splashPendingRef.current = null;
+    setEntrySplash(null);
     setDetail(p);
   }
 
-  const detailTitle = detail ? pairCardTitle(detail) : '';
-  const detailOrder = detail ? pairOrderMeta(pairs, detail.id) : null;
+  const finishEntrySplash = useCallback(() => {
+    const pending = splashPendingRef.current;
+    splashPendingRef.current = null;
+    setEntrySplash(null);
+    if (pending) setDetail(pending);
+  }, []);
+
+  const liveDetail = useMemo(() => {
+    if (!detail) return null;
+    return pairs.find((p) => p.id === detail.id) ?? detail;
+  }, [detail, pairs]);
+
+  const detailTitle = liveDetail ? pairCardTitle(liveDetail) : '';
+  const detailOrder = liveDetail ? pairOrderMeta(pairs, liveDetail.id) : null;
+  const tipToastPair = useMemo(
+    () => normalizeTipToastSettings(ocSettings.tipToastPair),
+    [ocSettings.tipToastPair],
+  );
+  const showArchiveTip = !detail && !entrySplash;
 
   return (
     <>
@@ -280,7 +352,7 @@ export function PairPageClient() {
         title="Pair — Relationships"
         active="pair"
         back={
-          detail ? (
+          detail || entrySplash ? (
             <button type="button" className="nav-back" onClick={handleDetailBack}>
               ← back
             </button>
@@ -356,8 +428,13 @@ export function PairPageClient() {
         </div>
       </div>
 
-      <div id="detail-screen" className={`pair-detail-screen${detail ? ' active' : ''}`}>
-        {detail ? (
+      <div
+        id="detail-screen"
+        className={`pair-detail-screen${detail || entrySplash || detailLeaving ? ' active' : ''}${
+          detailLeaving ? ' is-ui-leaving' : ''
+        }`}
+      >
+        {liveDetail ? (
           <>
             <div className="detail-nav">
               <button type="button" className="detail-back-btn" onClick={handleDetailBack}>
@@ -399,7 +476,7 @@ export function PairPageClient() {
             </div>
             <div className="pair-detail-layout pair-detail-layout--archive">
               <PairArchiveDetail
-                pair={detail}
+                pair={liveDetail}
                 layoutEditable={layoutMode}
                 quoteEditable={quoteMode}
                 standEditable={isAdmin}
@@ -410,7 +487,20 @@ export function PairPageClient() {
         ) : null}
       </div>
 
-      {detail ? (
+      {entrySplash ? (
+        <EntrySplash
+          config={entrySplash.entrySplash}
+          imageSrc=""
+          eyebrow="Pair"
+          title={pairCardTitle(entrySplash)}
+          tipStorageKey={`lh_entry_tip_pair_${entrySplash.id}`}
+          onDone={finishEntrySplash}
+        />
+      ) : null}
+
+      <PageTipToast active={showArchiveTip} settings={tipToastPair} storageKey="lh_tip_toast_pair" />
+
+      {liveDetail ? (
         <LakeEditModal
           open={editOpen}
           className="lake-edit-modal--pair"
@@ -419,7 +509,7 @@ export function PairPageClient() {
           onClose={() => setEditOpen(false)}
         >
           <PairEditForm
-            pair={detail}
+            pair={liveDetail}
             characters={characters}
             onSave={persistPair}
             order={
@@ -432,10 +522,10 @@ export function PairPageClient() {
                   }
                 : undefined
             }
-            onMove={(dir) => void movePair(detail.id, dir)}
+            onMove={(dir) => void movePair(liveDetail.id, dir)}
             onDelete={async () => {
               if (!(await confirm('이 페어 항목을 삭제할까요?'))) return;
-              await deletePair(detail.id);
+              await deletePair(liveDetail.id);
             }}
           />
         </LakeEditModal>

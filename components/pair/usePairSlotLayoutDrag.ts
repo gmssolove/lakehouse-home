@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Poin
 import {
   clampFrameScale,
   normalizeImageFrame,
+  wheelScaleStep,
   type ImageFrame,
 } from '@/lib/shared/imageFrame';
 
@@ -31,12 +32,20 @@ function clampLayoutOffset(n: number, scale = 1, axis: 'x' | 'y' = 'x') {
 type Options = {
   /** true면 클릭으로 선택한 뒤에만 드래그/휠 (기본 true) */
   requireSelect?: boolean;
-  /** offset % 이내면 0으로 스냅 (중앙선). 미설정 시 스냅 없음 */
+  /** 중앙(0) 근접 시 가이드 강조/릴리스 스냅 거리(%). 미설정 시 스냅 없음 */
   snapThreshold?: number;
+  /** true면 드래그 중엔 스냅하지 않고 놓을 때만 (기본: snapThreshold 있으면 true) */
+  snapOnRelease?: boolean;
+  /** 방향키 1회 이동량 (%) */
+  nudgeStep?: number;
 };
 
 function snapNear(value: number, target: number, threshold: number) {
   return Math.abs(value - target) <= threshold ? target : value;
+}
+
+function isNear(value: number, target: number, threshold: number) {
+  return Math.abs(value - target) <= threshold;
 }
 
 /** 전신 래퍼용: 드래그 이동 + 휠 확대 (TRPG 스탠딩과 동일 감각) */
@@ -48,6 +57,11 @@ export function usePairSlotLayoutDrag(
 ) {
   const requireSelect = options?.requireSelect !== false;
   const snapThreshold = options?.snapThreshold;
+  const snapOnRelease =
+    options?.snapOnRelease !== undefined
+      ? options.snapOnRelease
+      : snapThreshold != null && snapThreshold > 0;
+  const nudgeStep = options?.nudgeStep ?? 0.35;
   const frame = normalizeImageFrame(value);
   const frameRef = useRef(frame);
   frameRef.current = frame;
@@ -61,29 +75,47 @@ export function usePairSlotLayoutDrag(
 
   const canManipulate = enabled && (!requireSelect || selected);
 
-  const patch = useCallback((partial: Partial<ImageFrame>) => {
-    let next = normalizeImageFrame({ ...frameRef.current, ...partial });
-    if (snapThreshold != null && snapThreshold > 0) {
-      next = normalizeImageFrame({
-        ...next,
-        x: snapNear(next.x, 0, snapThreshold),
-        y: snapNear(next.y, 0, snapThreshold),
+  const patch = useCallback(
+    (partial: Partial<ImageFrame>, opts?: { applySnap?: boolean }) => {
+      let next = normalizeImageFrame({ ...frameRef.current, ...partial });
+      const thr = snapThreshold;
+      const shouldSnap = Boolean(opts?.applySnap && thr != null && thr > 0);
+      if (shouldSnap) {
+        next = normalizeImageFrame({
+          ...next,
+          x: snapNear(next.x, 0, thr!),
+          y: snapNear(next.y, 0, thr!),
+        });
+      }
+      frameRef.current = next;
+      const guideThr = thr != null && thr > 0 ? Math.max(thr, 1.1) : 0;
+      setSnap({
+        x: guideThr > 0 ? isNear(next.x, 0, guideThr) : next.x === 0,
+        y: guideThr > 0 ? isNear(next.y, 0, guideThr) : next.y === 0,
       });
-    }
-    frameRef.current = next;
-    setSnap({ x: next.x === 0, y: next.y === 0 });
-    onChangeRef.current?.(next);
-  }, [snapThreshold]);
+      onChangeRef.current?.(next);
+    },
+    [snapThreshold],
+  );
+
+  const valueX = value?.x ?? 0;
+  const valueY = value?.y ?? 0;
+  const valueScale = value?.scale ?? 1;
+  const valueBlur = value?.bottomBlur ?? 0;
 
   useEffect(() => {
     if (!enabled) {
-      setSelected(false);
-      setSnap({ x: false, y: false });
+      setSelected((prev) => (prev ? false : prev));
+      setSnap((prev) => (prev.x || prev.y ? { x: false, y: false } : prev));
       return;
     }
-    const cur = normalizeImageFrame(value);
-    setSnap({ x: cur.x === 0, y: cur.y === 0 });
-  }, [enabled, value]);
+    const thr = snapThreshold != null && snapThreshold > 0 ? Math.max(snapThreshold, 1.1) : 0;
+    const next = {
+      x: thr > 0 ? isNear(valueX, 0, thr) : valueX === 0,
+      y: thr > 0 ? isNear(valueY, 0, thr) : valueY === 0,
+    };
+    setSnap((prev) => (prev.x === next.x && prev.y === next.y ? prev : next));
+  }, [enabled, valueX, valueY, valueScale, valueBlur, snapThreshold]);
 
   useEffect(() => {
     if (!enabled || !requireSelect || !selected) return;
@@ -102,12 +134,52 @@ export function usePairSlotLayoutDrag(
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const delta = e.deltaY > 0 ? -0.06 : 0.06;
-      patch({ scale: clampFrameScale(frameRef.current.scale + delta) });
+      const delta = wheelScaleStep(e.deltaY, 0.01);
+      if (!delta) return;
+      const scale = clampFrameScale(frameRef.current.scale + delta);
+      if (scale === frameRef.current.scale) return;
+      patch({
+        scale,
+        x: clampLayoutOffset(frameRef.current.x, scale, 'x'),
+        y: clampLayoutOffset(frameRef.current.y, scale, 'y'),
+      });
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [canManipulate, patch]);
+
+  useEffect(() => {
+    if (!canManipulate || !onChangeRef.current) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === 'INPUT' ||
+          t.tagName === 'TEXTAREA' ||
+          t.tagName === 'SELECT' ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      const step = (e.shiftKey ? nudgeStep * 4 : nudgeStep) * (e.altKey ? 0.35 : 1);
+      let dx = 0;
+      let dy = 0;
+      if (e.key === 'ArrowLeft') dx = -step;
+      else if (e.key === 'ArrowRight') dx = step;
+      else if (e.key === 'ArrowUp') dy = -step;
+      else if (e.key === 'ArrowDown') dy = step;
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+      const scale = frameRef.current.scale;
+      patch({
+        x: clampLayoutOffset(frameRef.current.x + dx, scale, 'x'),
+        y: clampLayoutOffset(frameRef.current.y + dy, scale, 'y'),
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canManipulate, nudgeStep, patch]);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (!enabled || !onChangeRef.current) return;
@@ -135,8 +207,9 @@ export function usePairSlotLayoutDrag(
     if (r.width < 1 || r.height < 1) return;
     const dx = ((e.clientX - dragRef.current.sx) / r.width) * 100;
     const dy = ((e.clientY - dragRef.current.sy) / r.height) * 100;
-    if (Math.abs(dx) + Math.abs(dy) > 0.4) dragRef.current.moved = true;
+    if (Math.abs(dx) + Math.abs(dy) > 0.25) dragRef.current.moved = true;
     const scale = frameRef.current.scale;
+    /* 드래그 중에는 스냅하지 않음 — 미세 조정 가능 */
     patch({
       x: clampLayoutOffset(dragRef.current.ox + dx, scale, 'x'),
       y: clampLayoutOffset(dragRef.current.oy + dy, scale, 'y'),
@@ -149,6 +222,15 @@ export function usePairSlotLayoutDrag(
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
       /* ignore */
+    }
+    if (snapOnRelease && snapThreshold != null && snapThreshold > 0) {
+      patch(
+        {
+          x: frameRef.current.x,
+          y: frameRef.current.y,
+        },
+        { applySnap: true },
+      );
     }
     dragRef.current = null;
     setDragging(false);

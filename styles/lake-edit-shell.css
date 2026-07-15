@@ -355,3 +355,139 @@
   width: 100%;
 }
 
+.lh-tip-item-editor__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.55rem;
+}
+
+.lh-tip-item-editor__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lh-tip-item-editor__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(215, 169, 130, 0.18);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.lh-tip-item-editor__kind {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 0.18rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(215, 169, 130, 0.16);
+  color: rgba(232, 196, 140, 0.95);
+}
+
+.lh-tip-item-editor__kind.is-tip {
+  background: rgba(140, 180, 220, 0.16);
+  color: rgba(180, 210, 240, 0.95);
+}
+
+.lh-tip-item-editor__kind-select {
+  flex: 0 0 auto;
+  width: 88px !important;
+  min-width: 88px;
+}
+
+.lh-tip-item-editor__text,
+.lh-tip-item-editor__text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.lh-tip-item-editor__text-input {
+  width: auto !important;
+}
+
+.lh-tip-item-editor__empty {
+  font-size: 12px;
+  opacity: 0.55;
+  padding: 0.35rem 0;
+}
+
+.lh-story-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+}
+
+.lh-story-editor__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.lh-story-editor__card {
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  border-radius: 8px;
+  padding: 0.65rem;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.lh-story-editor__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.lh-story-editor__chapter {
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(215, 169, 130, 0.12);
+}
+
+.lh-story-editor__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0.55rem;
+  padding: 0.55rem 0 0.15rem;
+  border-top: 1px solid rgba(215, 169, 130, 0.12);
+}
+
+.lh-story-editor__color {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.lh-story-editor__color input[type='color'] {
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: transparent;
+  cursor: pointer;
+}
+
+.lh-story-editor__color .form-input {
+  flex: 1;
+  min-width: 120px;
+}
+
+

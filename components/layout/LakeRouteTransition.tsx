@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import {
   beginLakeRouteEnter,
   clearLakeRouteClasses,
@@ -16,17 +16,14 @@ export function LakeRouteTransition() {
   const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => {
+  /* paint 전에 enter 클래스를 붙여 새 페이지가 한 프레임 확 뜨는 "뚝" 끊김 방지 */
+  useLayoutEffect(() => {
     const dir = consumePendingLakeRouteDir();
     if (dir === 'neutral') {
       if (!isLakeRouteEnterLocked()) clearLakeRouteClasses();
       return;
     }
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        beginLakeRouteEnter(pathname, dir);
-      });
-    });
+    beginLakeRouteEnter(pathname, dir);
   }, [pathname]);
 
   useEffect(() => {

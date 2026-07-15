@@ -66,9 +66,11 @@ export function markLakeLeavingPanel(from: string, to: string) {
     return;
   }
 
-  // OC ↔ Pair — 아카이브 패널 슬라이드
+  // OC ↔ Pair — 아카이브 + 상세 스테이지까지 함께 페이드
   if ((from === '/oc' || from === '/pair') && (to === '/oc' || to === '/pair')) {
     document.querySelector('.layout.oc-archive-layout')?.classList.add('lh-route-panel-leaving');
+    document.querySelector('#detail-screen')?.classList.add('lh-route-panel-leaving');
+    document.querySelector('.lh-archive-topbar')?.classList.add('lh-route-panel-leaving');
     return;
   }
 
@@ -102,11 +104,11 @@ export function beginLakeRouteEnter(pathname: string, dir: 'forward' | 'back') {
   if (TRPG_SCENARIO.test(pathname)) {
     document.body.classList.add('lh-route-trpg-enter');
   }
-  pendingRouteLockUntil = Date.now() + 1000;
+  pendingRouteLockUntil = Date.now() + 780;
   window.setTimeout(() => {
     clearLakeRouteClasses();
     resetPendingLakeRouteDir();
-  }, 900);
+  }, 700);
 }
 
 export function lakeNavigate(
@@ -141,7 +143,7 @@ export function lakeNavigate(
 
   window.setTimeout(() => {
     router.push(`${url.pathname}${url.search}${url.hash}`);
-  }, 480);
+  }, 340);
 
   return dir;
 }
@@ -152,7 +154,7 @@ let pendingRouteLockUntil = 0;
 export function setPendingLakeRouteDir(dir: 'forward' | 'back' | 'neutral') {
   pendingRouteDir = dir;
   if (dir !== 'neutral') {
-    pendingRouteLockUntil = Date.now() + 1000;
+    pendingRouteLockUntil = Date.now() + 780;
   }
 }
 

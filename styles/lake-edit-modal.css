@@ -87,6 +87,12 @@
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
 }
 
+/* OC: keep dialog height stable across tabs (≈ color tab natural size) */
+.lake-edit-modal--oc .lake-edit-modal__dialog {
+  height: min(90vh, 640px);
+  max-height: min(90vh, 640px);
+}
+
 .lake-edit-modal__head {
   display: flex;
   align-items: center;

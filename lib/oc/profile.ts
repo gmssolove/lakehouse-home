@@ -50,17 +50,20 @@ export function mergeCharacterProfile(
     const keyTrimmed = keyRaw.trim();
     if (!keyTrimmed) {
       // 입력 중 앞뒤 공백을 지우지 않음 (띄어쓰기 허용)
-      pendingExtras.push({ k: keyRaw, v: row.v ?? '' });
+      pendingExtras.push({ k: keyRaw, v: row.v ?? '', tip: row.tip });
       continue;
     }
     if (isKeywordProfileKey(keyTrimmed) || isCoreProfileKey(keyTrimmed)) continue;
-    map.set(keyTrimmed, { k: keyRaw, v: row.v ?? '' });
+    map.set(keyTrimmed, { k: keyRaw, v: row.v ?? '', tip: row.tip });
   }
 
   const core = CORE_PROFILE_FIELD_KEYS.map((key) => {
-    if (key === '나이') return { k: key, v: age ?? '' };
+    if (key === '나이') {
+      const tip = (profile ?? []).find((p) => p.k?.trim() === key)?.tip;
+      return { k: key, v: age ?? '', tip };
+    }
     const fromProfile = (profile ?? []).find((p) => p.k?.trim() === key);
-    return { k: key, v: fromProfile?.v ?? '' };
+    return { k: key, v: fromProfile?.v ?? '', tip: fromProfile?.tip };
   });
 
   return [...core, ...[...map.values()], ...pendingExtras];
@@ -72,8 +75,9 @@ export function finalizeCharacterProfile(profile: ProfileField[] | undefined): P
     .map((p) => ({
       k: (p.k ?? '').trim(),
       v: (p.v ?? '').trim(),
+      tip: p.tip?.trim() || undefined,
     }))
-    .filter((p) => isCoreProfileKey(p.k) || p.k.length > 0 || p.v.length > 0);
+    .filter((p) => isCoreProfileKey(p.k) || p.k.length > 0 || p.v.length > 0 || Boolean(p.tip));
 }
 
 export function splitExtraProfileRows(profile: ProfileField[] | undefined): ProfileField[] {
@@ -86,21 +90,23 @@ export function splitExtraProfileRows(profile: ProfileField[] | undefined): Prof
 
 export function buildDetailProfileRows(character: OcCharacter): ProfileField[] {
   const rows: ProfileField[] = [];
+  const tipOf = (key: string) =>
+    (character.profile ?? []).find((p) => p.k?.trim() === key)?.tip?.trim() || undefined;
 
   for (const key of CORE_PROFILE_FIELD_KEYS) {
     const value = getProfileFieldValue(character, key);
-    if (value) rows.push({ k: key, v: value });
+    if (value) rows.push({ k: key, v: value, tip: tipOf(key) });
   }
 
   const faction = character.faction?.trim();
-  if (faction) rows.push({ k: '소속', v: faction });
+  if (faction) rows.push({ k: '소속', v: faction, tip: tipOf('소속') });
 
   for (const row of character.profile ?? []) {
     const key = row.k?.trim();
     if (!key || isCoreProfileKey(key) || isKeywordProfileKey(key) || key === '소속') continue;
     if (!row.v?.trim()) continue;
     if (rows.some((r) => r.k === key)) continue;
-    rows.push({ k: key, v: row.v.trim() });
+    rows.push({ k: key, v: row.v.trim(), tip: row.tip?.trim() || undefined });
   }
 
   return rows;

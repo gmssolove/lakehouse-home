@@ -5,14 +5,94 @@ export type { DialogueFx, DialogueMotion };
 export type GalleryItem = { src: string; credit?: string };
 
 
-export type ProfileField = { k: string; v: string };
+export type ProfileField = {
+  k: string;
+  v: string;
+  /** 호버 시 커서 따라다니는 TMI */
+  tip?: string;
+};
 
+/** 페어 중앙 정보판 영역별 TMI */
+export type PairInfoTips = {
+  title?: string;
+  relation?: string;
+  honorifics?: string;
+};
+
+/** OC/페어 상세 진입 로딩 화면 */
+export type EntrySplashLayout = 'fullbleed' | 'corner';
+
+export type EntrySplashLabel = 'tip' | 'tmi';
+
+export type EntrySplashTipItem = {
+  id: string;
+  kind: EntrySplashLabel;
+  text: string;
+};
+
+export type EntrySplashConfig = {
+  /** 기본 false — 관리자가 켠 경우에만 표시 */
+  enabled?: boolean;
+  layout?: EntrySplashLayout;
+  /** @deprecated items 사용 */
+  label?: EntrySplashLabel;
+  /** @deprecated items 사용 */
+  tips?: string[];
+  /** TIP/TMI 개별 항목 */
+  items?: EntrySplashTipItem[];
+};
+
+/** @deprecated StoryEntry 사용 — 로드 시 마이그레이션 */
 export type StoryLog = {
   id: string;
   title: string;
   date?: string;
   body: string;
 };
+
+/** 서사 분류 (본편/AU/IF/기타 + 커스텀) */
+export type StoryCategory = string;
+
+export type StoryChapter = {
+  id: string;
+  title?: string;
+  body: string;
+};
+
+/** 서사 리더 배경 분위기 */
+export type StoryBgEffect = 'bottom-gradient' | 'vignette';
+
+/** 비네트/그라데이션 accent — 캐릭터색 맞춤 | 커스텀 */
+export type StoryBgAccentMode = 'character' | 'custom';
+
+/** OC/페어 통합 서사 글 */
+export type StoryEntry = {
+  id: string;
+  title: string;
+  category: StoryCategory;
+  chapters: StoryChapter[];
+  order: number;
+  /** 작가/출처 — 앞에 © 권장 */
+  author?: string;
+  /** accent 출처. 기본 character */
+  bgAccentMode?: StoryBgAccentMode;
+  /** custom 모드일 때 비네트/그라데이션 색 (#hex) */
+  bgColor?: string;
+  /** 하단 그라데이션 | 중앙 비네트 */
+  bgEffect?: StoryBgEffect;
+  /** 분위기 레이어 투명도/세기 0~100 (기본 55) */
+  bgEffectOpacity?: number;
+};
+
+/** 프리뷰(한 장씩 캐러셀) */
+export type PreviewItem = {
+  id: string;
+  title?: string;
+  body: string;
+  order: number;
+};
+
+export const DEFAULT_STORY_CATEGORIES = ['본편', 'AU', 'IF', '기타'] as const;
 
 export type CharacterRelation = {
   id: string;
@@ -92,7 +172,12 @@ export type AuVersion = {
   img?: string;
   imgFit?: string;
   imgPos?: string;
+  /** 목록 카드용 크롭 — 기본(imgFrame)과 별개 */
   imgFrame?: ImageFrame;
+  /** 상세 스테이지 「위치」— 기본(detailLayout)과 별개 */
+  detailLayout?: ImageFrame;
+  /** 이 버전 전용 터치 영역. 없으면 기본 touchZones 상속(표시만) */
+  touchZones?: TouchZone[];
 };
 
 export type OcCharacter = {
@@ -121,9 +206,17 @@ export type OcCharacter = {
   ghostLayouts?: [ImageFrame, ImageFrame];
   desc?: string;
   profile?: ProfileField[];
+  /** @deprecated storyEntries 로 이관 */
   story?: string;
   gallery?: (string | GalleryItem)[];
+  /** @deprecated previewItems 로 이관 */
   novel?: { title?: string; preview?: string }[];
+  /** 통합 서사 목록 */
+  storyEntries?: StoryEntry[];
+  /** 서사 분류(커스텀 포함) */
+  storyCategories?: string[];
+  /** 프리뷰 목록 (캐러셀) */
+  previewItems?: PreviewItem[];
   /** PV 인트로 전용 대사 (프로필 소개·VN 대화와 분리) */
   pvIntroLines?: { text?: string }[];
   /**
@@ -135,6 +228,11 @@ export type OcCharacter = {
   vnLines?: { speaker?: string; text?: string }[];
   theme?: ThemeSong;
   auVersions?: AuVersion[];
+  /**
+   * true: 버전(AU) 이미지 선택 상태에서 대사창을 열어도 그 이미지를 유지.
+   * false/미설정: 대사창·괴롭히기 ON 시 기본 이미지로 복귀.
+   */
+  dialogueKeepAu?: boolean;
   special?: string;
   hobby?: string;
   keywords?: string[];
@@ -161,7 +259,10 @@ export type OcCharacter = {
   menuColor?: string;
   /** null/undefined = 사이트 기본값 따름 */
   pvIntroEnabled?: boolean | null;
+  /** 상세 진입 로딩 화면 (풀블리드 / 코너 스피너) */
+  entrySplash?: EntrySplashConfig;
   appearance?: string;
+  /** @deprecated storyEntries 로 이관 */
   storyLogs?: StoryLog[];
   relationships?: CharacterRelation[];
   /** 메인 포트레이트 터치 반응 영역 */
@@ -255,7 +356,7 @@ export type PairPanelLayout =
   | 'diagonal'
   | 'book';
 
-export type PairPanelSectionKey = 'relation' | 'flat' | 'archive' | 'gallery';
+export type PairPanelSectionKey = 'relation' | 'flat' | 'gallery' | 'story' | 'archive';
 
 /** 정보탭 터치 반응 — 호버 애니메이션 스타일 */
 export type TouchHoverStyle = 'corners' | 'dashed';
@@ -297,6 +398,8 @@ export type PairPanelView = {
   img?: string;
   /** pan(x/y %) + zoom(scale) */
   frame?: ImageFrame;
+  /** 이미지 판(영역) 크기 배율 0.75~1.45 — 레이아웃 여백 조절 */
+  mediaSize?: number;
   /** 터치 영역 (최대 5) */
   touchZones?: TouchZone[];
   /** 호버 애니메이션: corners=코너 브라켓, dashed=점선 아웃라인 */
@@ -343,7 +446,11 @@ export type PairItem = {
   pairSub?: string;
   desc?: string;
   keywords?: string[];
+  /** @deprecated storyEntries 로 이관 */
   story?: string;
+  /** 통합 서사 목록 */
+  storyEntries?: StoryEntry[];
+  storyCategories?: string[];
   color?: string;
   /** 상세 배경 이미지 */
   bg?: string;
@@ -390,14 +497,19 @@ export type PairItem = {
     A?: OcFloatingQuote[];
     B?: OcFloatingQuote[];
   };
+  /** @deprecated storyEntries 로 이관 (IF/AU/anecdote) */
   commissions?: PairCommission[];
   /** 페어 상세 진입 시 재생할 테마곡 (OC theme과 동일 구조) */
   theme?: ThemeSong;
   /**
-   * 정보 탭(관계/납작캐해/자료/갤러리)별 이미지 레이아웃
+   * 정보 탭(관계/납작캐해/스토리/갤러리)별 이미지 레이아웃
    * — layout · echo · pan/zoom · hero img 를 탭 독립 저장
    */
   panelViews?: PairPanelViews;
+  /** 중앙 정보판(타이틀·관계·호칭) 호버 TMI */
+  infoTips?: PairInfoTips;
+  /** 상세 진입 로딩 화면 */
+  entrySplash?: EntrySplashConfig;
 };
 
 export const DEFAULT_OC: OcCharacter[] = [];

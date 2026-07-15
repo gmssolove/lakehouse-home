@@ -17,7 +17,7 @@ import { LiveDevHud } from '@/components/dev/LiveDevHud';
 import { clearLakeRouteClasses, isLakeRouteEnterLocked } from '@/lib/lake/routeTransition';
 
 /** 하드 리프레시·이탈 중단 시 opacity:0 고착("무한 로딩") 방지 */
-function forceLakeVisible() {
+function forceLakeVisible(opts?: { allowDuringRouteLock?: boolean }) {
   const body = document.body;
   body.style.setProperty('opacity', '1');
   body.style.removeProperty('transform');
@@ -30,7 +30,7 @@ function forceLakeVisible() {
     el.classList.remove('lh-route-panel-leaving');
   });
 
-  if (!isLakeRouteEnterLocked()) {
+  if (opts?.allowDuringRouteLock || !isLakeRouteEnterLocked()) {
     clearLakeRouteClasses();
   }
 }
@@ -39,15 +39,20 @@ function RouteBodyReset() {
   const pathname = usePathname();
 
   useLayoutEffect(() => {
+    /* enter lock 중에는 leaving 잔여만 걷고, enter 클래스는 LakeRouteTransition이 담당 */
+    if (isLakeRouteEnterLocked()) {
+      document.body.style.setProperty('opacity', '1');
+      document.body.classList.remove('lh-leaving');
+      document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
+        el.classList.remove('lh-route-panel-leaving');
+      });
+      const t = window.setTimeout(() => {
+        forceLakeVisible({ allowDuringRouteLock: true });
+      }, 780);
+      return () => window.clearTimeout(t);
+    }
+
     forceLakeVisible();
-
-    if (!isLakeRouteEnterLocked()) return;
-
-    const t = window.setTimeout(() => {
-      forceLakeVisible();
-      clearLakeRouteClasses();
-    }, 1000);
-    return () => window.clearTimeout(t);
   }, [pathname]);
 
   useLayoutEffect(() => {

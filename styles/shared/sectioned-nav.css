@@ -1,0 +1,85 @@
+/* Sectioned info nav — PROFILE / STORY / ARCHIVE */
+
+.lh-sec-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  min-width: 0;
+}
+
+.lh-sec-nav__block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lh-sec-nav__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.2rem;
+  padding: 0 0.15rem;
+}
+
+.lh-sec-nav__en {
+  font-family: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(205, 179, 126, 0.72);
+}
+
+.lh-sec-nav__ko {
+  font-family: 'Noto Serif KR', 'Apple SD Gothic Neo', serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(244, 238, 229, 0.92);
+}
+
+.lh-sec-nav__item {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  align-items: baseline;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.42rem 0.2rem;
+  cursor: pointer;
+  color: rgba(200, 192, 178, 0.78);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  transition: color 0.2s ease;
+}
+
+.lh-sec-nav__block .lh-sec-nav__item:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lh-sec-nav__bar {
+  color: rgba(205, 179, 126, 0.45);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.lh-sec-nav__label {
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
+}
+
+.lh-sec-nav__item:hover,
+.lh-sec-nav__item.is-active {
+  color: rgba(232, 196, 140, 0.98);
+}
+
+.lh-sec-nav__item.is-active .lh-sec-nav__bar {
+  color: rgba(232, 196, 140, 0.9);
+}
+
+.lh-sec-nav__solo {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 0.25rem;
+}

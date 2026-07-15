@@ -96,24 +96,30 @@ function StandFigure({
   editable?: boolean;
   onPoseChange?: (pose: PairVnStandPose) => void;
 }) {
-  const frame: ImageFrame = {
-    x: pose?.x ?? 0,
-    y: pose?.y ?? 0,
-    scale: pose?.scale ?? 1,
-    bottomBlur: pose?.bottomBlur ?? 0,
-  };
+  const frame = useMemo<ImageFrame>(
+    () => ({
+      x: pose?.x ?? 0,
+      y: pose?.y ?? 0,
+      scale: pose?.scale ?? 1,
+      bottomBlur: pose?.bottomBlur ?? 0,
+    }),
+    [pose?.x, pose?.y, pose?.scale, pose?.bottomBlur],
+  );
   const blur = Math.max(0, Math.min(100, frame.bottomBlur ?? 0));
+  const handlePoseChange = useCallback(
+    (next: ImageFrame) => {
+      onPoseChange?.({
+        x: next.x,
+        y: next.y,
+        scale: next.scale,
+        bottomBlur: blur,
+      });
+    },
+    [blur, onPoseChange],
+  );
   const drag = usePairSlotLayoutDrag(
     frame,
-    onPoseChange
-      ? (next) =>
-          onPoseChange({
-            x: next.x,
-            y: next.y,
-            scale: next.scale,
-            bottomBlur: blur,
-          })
-      : undefined,
+    onPoseChange ? handlePoseChange : undefined,
     Boolean(editable && onPoseChange),
   );
 

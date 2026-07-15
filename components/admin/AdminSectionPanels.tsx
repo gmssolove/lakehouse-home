@@ -2396,6 +2396,139 @@ type OcSettingsProps = {
   onSave: (next: SiteOcSettings) => Promise<void>;
 };
 
+function TipToastSettingsBlock({
+  title,
+  value,
+  onChange,
+}: {
+  title: string;
+  value: SiteOcSettings['tipToastOc'];
+  onChange: (next: SiteOcSettings['tipToastOc']) => void;
+}) {
+  const [draftKind, setDraftKind] = useState<'tip' | 'tmi'>('tmi');
+  const [draftText, setDraftText] = useState('');
+
+  const addItem = () => {
+    const text = draftText.replace(/^\s+|\s+$/g, '');
+    if (!text) return;
+    const id = `tt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+    onChange({
+      ...value,
+      items: [...(value.items || []), { id, kind: draftKind, text }],
+    });
+    setDraftText('');
+  };
+
+  return (
+    <div className="form-group" style={{ marginTop: 18 }}>
+      <div className="lake-edit-section-title" style={{ marginBottom: 8 }}>
+        {title}
+      </div>
+      <p style={{ fontSize: 11, opacity: 0.65, margin: '0 0 10px' }}>
+        목록 진입 시 TIP·TMI를 각각 하나씩 코너에 띄웁니다. 항목을 하나씩 추가하세요.
+      </p>
+      <LakeToggle
+        checked={value.enabled}
+        onChange={(enabled) => onChange({ ...value, enabled })}
+        label="코너 Tip/TMI 알림 사용"
+      />
+      <div className="lh-tip-item-editor" style={{ marginTop: 10, opacity: value.enabled ? 1 : 0.45 }}>
+        <div className="lh-tip-item-editor__add">
+          <select
+            className="form-input"
+            style={{ width: 88 }}
+            disabled={!value.enabled}
+            value={draftKind}
+            onChange={(e) => setDraftKind(e.target.value === 'tip' ? 'tip' : 'tmi')}
+          >
+            <option value="tmi">TMI</option>
+            <option value="tip">TIP</option>
+          </select>
+          <input
+            className="form-input"
+            style={{ flex: 1 }}
+            disabled={!value.enabled}
+            placeholder="문구 입력 후 추가"
+            value={draftText}
+            onChange={(e) => setDraftText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addItem();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="btn-save"
+            style={{ padding: '6px 12px' }}
+            disabled={!value.enabled || !draftText.trim()}
+            onClick={addItem}
+          >
+            추가
+          </button>
+        </div>
+        <ul className="lh-tip-item-editor__list">
+          {(value.items || []).map((it) => (
+            <li key={it.id} className="lh-tip-item-editor__row">
+              <select
+                className="form-input lh-tip-item-editor__kind-select"
+                disabled={!value.enabled}
+                value={it.kind}
+                aria-label="종류"
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    items: (value.items || []).map((x) =>
+                      x.id === it.id
+                        ? { ...x, kind: e.target.value === 'tip' ? 'tip' : 'tmi' }
+                        : x,
+                    ),
+                  })
+                }
+              >
+                <option value="tmi">TMI</option>
+                <option value="tip">TIP</option>
+              </select>
+              <input
+                className="form-input lh-tip-item-editor__text-input"
+                disabled={!value.enabled}
+                value={it.text}
+                aria-label="문구"
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    items: (value.items || []).map((x) =>
+                      x.id === it.id ? { ...x, text: e.target.value } : x,
+                    ),
+                  })
+                }
+              />
+              <button
+                type="button"
+                className="btn-del"
+                style={{ padding: '2px 8px' }}
+                disabled={!value.enabled}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    items: (value.items || []).filter((x) => x.id !== it.id),
+                  })
+                }
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+          {!(value.items || []).length ? (
+            <li className="lh-tip-item-editor__empty">아직 항목이 없습니다</li>
+          ) : null}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export function OcSettingsAdminPanel({ data, onSave }: OcSettingsProps) {
   const [form, setForm] = useState(data);
   useEffect(() => setForm(data), [data]);
@@ -2428,6 +2561,16 @@ export function OcSettingsAdminPanel({ data, onSave }: OcSettingsProps) {
           label="OC 상세 이탈 시 메인 BGM 자동 재개"
         />
       </div>
+      <TipToastSettingsBlock
+        title="OC 탭 · 코너 Tip/TMI"
+        value={form.tipToastOc}
+        onChange={(tipToastOc) => setForm({ ...form, tipToastOc })}
+      />
+      <TipToastSettingsBlock
+        title="Pair 탭 · 코너 Tip/TMI"
+        value={form.tipToastPair}
+        onChange={(tipToastPair) => setForm({ ...form, tipToastPair })}
+      />
     </AdminPanelShell>
   );
 }

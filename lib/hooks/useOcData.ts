@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase/client';
 import { prepareCharactersForSave } from '@/lib/oc/prepareCharacterSave';
 import { stripEmptyThemeFields } from '@/lib/oc/characterTheme';
 import { mergeCategoryList, normalizeCategory } from '@/lib/oc/categories';
+import { hydrateOcStories } from '@/lib/oc/storyEntries';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import {
   DEFAULT_CATEGORIES,
@@ -14,10 +15,10 @@ import {
 } from '@/lib/types/character';
 
 function normalizeCharacter(c: OcCharacter): OcCharacter {
-  return {
+  return hydrateOcStories({
     ...c,
     category: normalizeCategory(c.category || ''),
-  };
+  });
 }
 
 function normalizeCharacters(list: OcCharacter[]): OcCharacter[] {
@@ -67,6 +68,7 @@ export function useOcData() {
     localStorage.setItem('oc_characters', JSON.stringify(prepared));
     setCharacters(prepared);
     await set(ref(db, 'lhdata/oc_characters'), prepared);
+    return prepared as OcCharacter[];
   }, []);
 
   const saveCategories = useCallback(async (next: string[]) => {

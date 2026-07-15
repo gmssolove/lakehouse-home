@@ -15,6 +15,7 @@ import { InvestigatorPortraitImage, portraitOptions } from '@/components/trpg/Tr
 import {
   clampFrameOffset,
   clampFrameScale,
+  wheelScaleStep,
   normalizeImageFrame,
   type ImageFrame,
 } from '@/lib/shared/imageFrame';
@@ -191,10 +192,13 @@ export function TrpgInvestigatorDetail({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const delta = e.deltaY > 0 ? -0.06 : 0.06;
+      const delta = wheelScaleStep(e.deltaY, 0.01);
+      if (!delta) return;
+      const scale = clampFrameScale(frameRef.current.scale + delta);
+      if (scale === frameRef.current.scale) return;
       const next = {
         ...frameRef.current,
-        scale: clampFrameScale(frameRef.current.scale + delta),
+        scale,
       };
       frameRef.current = normalizeImageFrame(next);
       onImgFrameChange(next);

@@ -6,7 +6,7 @@ import { flushSync } from 'react-dom';
 type Stack = { front: 0 | 1; layers: [string, string] };
 
 /* 밑장 불투명 → 위장만 페이드아웃 (캐릭터 소멸 없음) */
-const SOFT_MS = 280;
+const SOFT_MS = 360;
 
 const portraitCache = new Map<string, HTMLImageElement>();
 
@@ -195,6 +195,7 @@ export function useTouchPortraitStack(baseSrc: string) {
       setSoftRevert(false);
       const url = (src ?? baseRef.current).trim();
       if (url) warmTouchPortrait(url, 'high');
+      prevBaseSrcRef.current = url;
       const init: Stack = {
         front: 0,
         layers: url ? [url, url] : ['', ''],
@@ -217,15 +218,15 @@ export function useTouchPortraitStack(baseSrc: string) {
       reset(base);
       return;
     }
-    /* AU/디폴트 기본 일러 변경 → 표정 잔여 버리고 새 기본으로 */
+    /* AU/디폴트 기본 일러 변경 → soft 크로스페이드 (hard reset 금지) */
     if (prevBase && prevBase !== base) {
-      reset(base);
+      softSwapTo(base);
       return;
     }
     if (cur.layers[0] === cur.layers[1] && cur.layers[0] !== base) {
-      reset(base);
+      softSwapTo(base);
     }
-  }, [baseSrc, reset]);
+  }, [baseSrc, reset, softSwapTo]);
 
   useEffect(() => () => clearSoftTimer(), [clearSoftTimer]);
 

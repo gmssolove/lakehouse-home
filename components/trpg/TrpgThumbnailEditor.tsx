@@ -231,7 +231,7 @@ export function TrpgThumbnailEditor({
                 <span>확대</span>
                 <input
                   type="range"
-                  min={55}
+                  min={70}
                   max={300}
                   step={1}
                   value={Math.round(f.scale * 100)}
@@ -253,7 +253,7 @@ export function TrpgThumbnailEditor({
                 <span>확대</span>
                 <input
                   type="range"
-                  min={55}
+                  min={70}
                   max={300}
                   step={1}
                   value={Math.round(hf.scale * 100)}

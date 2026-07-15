@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import {
@@ -34,6 +34,11 @@ export function SecretItemGate({
   const { accessSettings } = useSiteContent();
   const [open, setOpen] = useState(false);
   const [unlocked, setUnlocked] = useState(() => isLakeItemUnlocked(scope, item.id));
+
+  /* 로그인 직후(uid 확보) 저장된 unlock 다시 읽기 */
+  useEffect(() => {
+    if (isLakeItemUnlocked(scope, item.id)) setUnlocked(true);
+  }, [scope, item.id, loggedIn]);
 
   if (isAdmin || !item.secret || unlocked) return <>{children}</>;
 
