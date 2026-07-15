@@ -1,5 +1,15 @@
 # lakehouse-home — AI 작업 가이드
 
+## 푸시 / 배포
+
+사용자가 **푸시**를 요청하면 `git push`로 끝내지 않는다.
+
+1. 커밋 → `main` push  
+2. GitHub Actions **Deploy to Cloudflare** 성공까지 대기  
+3. https://lakehouse.me.kr/ 반영 확인 후 완료 보고  
+
+`package.json` 의존성을 바꾸면 **`pnpm-lock.yaml`도 반드시** 같이 커밋한다 (`pnpm install --frozen-lockfile`).
+
 ## 어디를 수정해야 하나?
 
 | 목적 | 편집 경로 | 하지 말 것 |
