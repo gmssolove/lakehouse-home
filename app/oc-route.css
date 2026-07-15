@@ -1,6 +1,11 @@
 @import '../styles/shared/image-frame.css';
 @import '../src/oc/styles/index.css';
+@import '../styles/pair/touch-react.css';
 @import '../styles/shared/archive-topbar.css';
+@import '../styles/shared/vn-action-choices.css';
+@import '../styles/shared/dialogue-nodes-editor.css';
+@import '../styles/shared/line-voice-volume.css';
+@import '../styles/vn-char-motions.css';
 @import '../styles/oc-next-fixes.css';
 
 /* archive-layout: 상단바 아래 그리드가 남은 높이 채움 */
@@ -11,4 +16,27 @@
   max-width: none !important;
   margin: 6px 12px 12px !important;
   height: auto !important;
+}
+
+/* OC/Pair — archive pages keep BGM controls interactive */
+.archive-layout #bgm-player,
+body:has(.archive-layout) #bgm-player {
+  position: fixed !important;
+  z-index: var(--lh-z-bgm, 900) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.archive-layout #bgm-player:not(.collapsed),
+body:has(.archive-layout) #bgm-player:not(.collapsed) {
+  touch-action: auto !important;
+}
+
+.archive-layout #bgm-progress,
+.archive-layout #bgm-vol,
+body:has(.archive-layout) #bgm-progress,
+body:has(.archive-layout) #bgm-vol {
+  pointer-events: auto !important;
+  touch-action: pan-x !important;
 }

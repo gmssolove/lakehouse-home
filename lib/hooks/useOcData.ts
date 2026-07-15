@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase/client';
 import { prepareCharactersForSave } from '@/lib/oc/prepareCharacterSave';
 import { stripEmptyThemeFields } from '@/lib/oc/characterTheme';
 import { mergeCategoryList, normalizeCategory } from '@/lib/oc/categories';
+import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_OC,
@@ -62,7 +63,7 @@ export function useOcData() {
 
   const saveCharacters = useCallback(async (next: OcCharacter[]) => {
     const cleaned = normalizeCharacters(next).map(stripEmptyThemeFields);
-    const prepared = await prepareCharactersForSave(cleaned);
+    const prepared = stripUndefinedDeep(await prepareCharactersForSave(cleaned));
     localStorage.setItem('oc_characters', JSON.stringify(prepared));
     setCharacters(prepared);
     await set(ref(db, 'lhdata/oc_characters'), prepared);

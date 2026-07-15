@@ -1,8 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { useBgm } from '@/lib/contexts/BgmContext';
-import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import { buildPvIntroPlan, estimatePvIntroMs } from '@/lib/oc/pvIntroTiming';
 import type { OcCharacter } from '@/lib/types/character';
 import { pickQuoteLines } from '@/lib/oc/profileQuotes';
@@ -72,29 +70,8 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
   const onCancelRef = useRef(onCancel);
   onCompleteRef.current = onComplete;
   onCancelRef.current = onCancel;
-  const { playCharacterTheme } = useBgm();
-
-  useEffect(() => {
-    if (!characterHasBgmTheme(character)) return;
-    const th = character.theme;
-    playCharacterTheme(
-      {
-        fileData: th?.fileData,
-        youtubeId: th?.youtubeId,
-        title: th?.title || `${character.name} Theme`,
-        artist: th?.artist || '',
-      },
-      true,
-    );
-  }, [
-    character.id,
-    character.name,
-    character.theme?.fileData,
-    character.theme?.youtubeId,
-    character.theme?.title,
-    character.theme?.artist,
-    playCharacterTheme,
-  ]);
+  /* 테마곡은 OcPageClient.openDetail(카드 클릭)에서만 재생.
+     여기서 다시 play하면 silence 후 제스처 없이 재시작해 PV 동안 무음이 됨. */
 
   const finish = useCallback((instant = false) => {
     if (doneRef.current) return;
@@ -211,11 +188,18 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
                   <span className="oc-pv-intro-quote-inner">{line}</span>
                 </p>
               )}
-              {isCurrent && i === lines.length - 1 && (
-                <button type="button" className="oc-pv-intro-skip" onClick={() => finish(false)}>
+              {isCurrent ? (
+                <button
+                  type="button"
+                  className="oc-pv-intro-skip"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    finish(true);
+                  }}
+                >
                   SKIP
                 </button>
-              )}
+              ) : null}
             </div>
           );
         })}

@@ -317,6 +317,8 @@ export function normalizeTrpgScenario(raw: Partial<TrpgScenario> & Record<string
     dateEnd: String(raw.dateEnd || '').trim(),
     players: String(raw.players || legacyBody || '').trim(),
     cleared: Boolean(raw.cleared),
+    secret: Boolean(raw.secret),
+    secretPassword: String(raw.secretPassword || '').trim() || undefined,
     summary: String(raw.summary || '').trim() || undefined,
     review: String(raw.review || '').trim() || undefined,
     sessionUrl: String(raw.sessionUrl || '').trim() || undefined,

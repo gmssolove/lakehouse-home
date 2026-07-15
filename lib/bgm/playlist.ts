@@ -44,42 +44,32 @@ export function trackFromSrc(src: {
   artist?: string;
   scope?: 'page' | 'character';
 }): BgmTrack | null {
+  const scope = src.scope || 'page';
+  const title = src.title || 'BGM';
+  const artist = src.artist || '';
+
   if (src.fileData?.trim()) {
-    return {
-      kind: 'file',
-      id: src.fileData.trim(),
-      title: src.title || 'BGM',
-      artist: src.artist || '',
-      scope: src.scope || 'page',
-    };
+    const raw = src.fileData.trim();
+    /* 오디오 URL 칸에 YouTube 링크가 들어간 경우 */
+    const ytFromFile = parseYoutubeId(raw);
+    if (ytFromFile) {
+      return { kind: 'youtube', id: ytFromFile, title, artist, scope };
+    }
+    return { kind: 'file', id: raw, title, artist, scope };
   }
   if (src.youtubeId?.trim()) {
-    return {
-      kind: 'youtube',
-      id: src.youtubeId.trim(),
-      title: src.title || 'BGM',
-      artist: src.artist || '',
-      scope: src.scope || 'page',
-    };
+    const raw = src.youtubeId.trim();
+    const ytId = parseYoutubeId(raw) || (/^[A-Za-z0-9_-]{6,}$/.test(raw) ? raw : null);
+    if (ytId) {
+      return { kind: 'youtube', id: ytId, title, artist, scope };
+    }
   }
   if (src.url?.trim()) {
     const ytId = parseYoutubeId(src.url);
     if (ytId) {
-      return {
-        kind: 'youtube',
-        id: ytId,
-        title: src.title || 'BGM',
-        artist: src.artist || '',
-        scope: src.scope || 'page',
-      };
+      return { kind: 'youtube', id: ytId, title, artist, scope };
     }
-    return {
-      kind: 'url',
-      id: src.url.trim(),
-      title: src.title || 'BGM',
-      artist: src.artist || '',
-      scope: src.scope || 'page',
-    };
+    return { kind: 'url', id: src.url.trim(), title, artist, scope };
   }
   return null;
 }

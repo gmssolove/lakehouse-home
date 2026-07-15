@@ -1,4 +1,4 @@
-import type { OcCharacter } from '@/lib/types/character';
+import type { OcCharacter, ThemeSong } from '@/lib/types/character';
 
 export const DEFAULT_CHARACTER_THEME = {
   accentColor: '#d7a982',
@@ -105,9 +105,12 @@ export function hasCustomTheme(character: OcCharacter): boolean {
   return THEME_FIELD_KEYS.some((key) => normalizeHex(character[key]));
 }
 
-export function characterHasBgmTheme(character: OcCharacter): boolean {
-  const theme = character.theme;
+export function hasBgmTheme(theme?: ThemeSong | null): boolean {
   return !!(theme?.fileData?.trim() || theme?.youtubeId?.trim());
+}
+
+export function characterHasBgmTheme(character: { theme?: ThemeSong | null }): boolean {
+  return hasBgmTheme(character.theme);
 }
 
 export function resolveCharacterTheme(character: OcCharacter): ResolvedCharacterTheme {

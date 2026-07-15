@@ -10,6 +10,7 @@ import {
   type HomeRecordsTabId,
 } from '@/lib/records/sections';
 import { updateNickname, type UserProfile } from '@/lib/auth/userProfile';
+import { lakeNavigate } from '@/lib/lake/routeTransition';
 
 export type HomePageId =
   | 'main'
@@ -159,6 +160,7 @@ export function LeftNav({
   const [nickDraft, setNickDraft] = useState('');
   const [nickError, setNickError] = useState<string | null>(null);
   const [nickSaving, setNickSaving] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const displayName =
     profile?.nickname || user?.displayName || user?.email?.split('@')[0] || 'Guest';
@@ -166,6 +168,25 @@ export function LeftNav({
   useEffect(() => {
     if (!editingNick) setNickDraft(displayName === 'Guest' ? '' : displayName);
   }, [displayName, editingNick]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+      document.documentElement.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [activePage, pathname]);
+
+  function closeMobile() {
+    setMobileOpen(false);
+  }
 
   async function saveNickname() {
     if (!user || nickSaving) return;
@@ -219,7 +240,10 @@ export function LeftNav({
           type="button"
           className="rq-nav-item"
           aria-label={entry.label}
-          onClick={() => goHomeTab(entry.id)}
+          onClick={() => {
+            closeMobile();
+            goHomeTab(entry.id);
+          }}
         >
           <span className="rq-nav-label">{entry.label}</span>
         </button>
@@ -241,21 +265,30 @@ export function LeftNav({
           <button
             type="button"
             className={`rq-nav-sub${pathname === '/oc' ? ' is-active' : ''}`}
-            onClick={() => router.push('/oc')}
+            onClick={() => {
+              closeMobile();
+              lakeNavigate(router, '/oc', pathname);
+            }}
           >
             OC
           </button>
           <button
             type="button"
             className={`rq-nav-sub${pathname === '/pair' ? ' is-active' : ''}`}
-            onClick={() => router.push('/pair')}
+            onClick={() => {
+              closeMobile();
+              lakeNavigate(router, '/pair', pathname);
+            }}
           >
             Pair
           </button>
           <button
             type="button"
             className={`rq-nav-sub${isPageActive('charArchive') ? ' is-active' : ''}`}
-            onClick={() => goHomeTab('charArchive')}
+            onClick={() => {
+              closeMobile();
+              goHomeTab('charArchive');
+            }}
           >
             Archive
           </button>
@@ -267,7 +300,10 @@ export function LeftNav({
           key={id}
           type="button"
           className={`rq-nav-sub${isPageActive(id) ? ' is-active' : ''}`}
-          onClick={() => goHomeTab(id)}
+          onClick={() => {
+            closeMobile();
+            goHomeTab(id);
+          }}
         >
           {HOME_RECORDS_LABELS[id]}
         </button>
@@ -295,7 +331,14 @@ export function LeftNav({
   }
 
   const panel = (
-    <aside className={`rq-menu-panel${ready ? ' is-ready' : ''}`} aria-label="Site menu">
+    <aside
+      className={`rq-menu-panel${ready ? ' is-ready' : ''}${mobileOpen ? ' is-mobile-open' : ''}`}
+      aria-label="Site menu"
+      id="lh-site-menu"
+    >
+      <button type="button" className="rq-menu-close" aria-label="메뉴 닫기" onClick={closeMobile}>
+        ×
+      </button>
       <div className="rq-menu-auth">
         {user && editingNick ? (
           <form
@@ -373,7 +416,10 @@ export function LeftNav({
                 type="button"
                 className="rq-nav-item"
                 aria-label="Admin"
-                onClick={() => onPageChange('admin')}
+                onClick={() => {
+                  closeMobile();
+                  onPageChange('admin');
+                }}
               >
                 <span className="rq-nav-label">Admin</span>
               </button>
@@ -385,5 +431,29 @@ export function LeftNav({
   );
 
   if (!portalEl) return null;
-  return createPortal(panel, portalEl);
+  return createPortal(
+    <>
+      <button
+        type="button"
+        className={`rq-menu-burger${mobileOpen ? ' is-open' : ''}`}
+        aria-label="메뉴 열기"
+        aria-expanded={mobileOpen}
+        aria-controls="lh-site-menu"
+        onClick={() => setMobileOpen(true)}
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+      <button
+        type="button"
+        className={`rq-menu-backdrop${mobileOpen ? ' is-open' : ''}`}
+        aria-label="메뉴 닫기"
+        tabIndex={mobileOpen ? 0 : -1}
+        onClick={closeMobile}
+      />
+      {panel}
+    </>,
+    portalEl,
+  );
 }

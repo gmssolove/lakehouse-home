@@ -1,43 +1,129 @@
+/* OC와 동일 스타일 스택 + 페어 상세만 추가 */
 @import '../styles/shared/image-frame.css';
-@import '../styles/legacy/pair.css';
-@import '../styles/pair/pair-archive.css';
-@import '../styles/pair/pair-archive-detail.css';
+@import '../src/oc/styles/index.css';
 @import '../styles/shared/archive-topbar.css';
+@import '../styles/shared/vn-action-choices.css';
+@import '../styles/shared/dialogue-nodes-editor.css';
+@import '../styles/shared/line-voice-volume.css';
+@import '../styles/vn-char-motions.css';
+@import '../styles/oc-next-fixes.css';
+@import '../styles/pair/pair-cherry-detail.css';
+@import '../styles/pair/pair-panel-layouts.css';
+@import '../styles/legacy/pair.css';
 
-/* BGM — pair.css 레거시 row 레이아웃 + 화면 밖 좌표 보정 */
-#bgm-player {
+/* archive-layout: OC와 동일 */
+.archive-layout > .layout.oc-archive-layout {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  width: calc(100vw - 24px) !important;
+  max-width: none !important;
+  margin: 6px 12px 12px !important;
+  height: auto !important;
+}
+
+/* OC/Pair — archive pages keep BGM controls interactive */
+.archive-layout #bgm-player,
+body:has(.archive-layout) #bgm-player {
   position: fixed !important;
-  z-index: 900 !important;
-  flex-wrap: wrap !important;
-  align-content: flex-start !important;
-  align-items: center !important;
+  z-index: var(--lh-z-bgm, 900) !important;
   visibility: visible !important;
   opacity: 1 !important;
   pointer-events: auto !important;
 }
 
-#bgm-player:not(.collapsed) {
-  height: auto !important;
-  min-height: 128px !important;
-  max-height: min(260px, calc(100vh - 20px)) !important;
+.archive-layout #bgm-player:not(.collapsed),
+body:has(.archive-layout) #bgm-player:not(.collapsed) {
+  touch-action: auto !important;
 }
 
-#bgm-player.collapsed #bgm-expand-btn {
-  pointer-events: none !important;
-}
-
-#bgm-controls-row {
-  display: flex !important;
-}
-
-#bgm-play-btn,
-.bgm-skip-btn {
-  position: relative;
-  z-index: 6;
+.archive-layout #bgm-progress,
+.archive-layout #bgm-vol,
+body:has(.archive-layout) #bgm-progress,
+body:has(.archive-layout) #bgm-vol {
   pointer-events: auto !important;
+  touch-action: pan-x !important;
+}
+
+/* body 투명 고정만 막고, 패널 leave/enter 애니메이션은 허용 */
+html,
+body {
+  opacity: 1 !important;
+  animation: none !important;
+}
+
+/* 라우트 전환 잔여 클래스로 화면이 안 보이는 문제 방지 */
+.archive-layout,
+.archive-layout .layout.oc-archive-layout,
+.archive-layout .layout.oc-archive-layout.lh-route-panel-leaving,
+body.lh-route-enter .archive-layout .layout,
+body.lh-route-leaving .archive-layout .layout,
+.archive-layout .main-content {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  animation: none !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+}
+
+/* 페어 카드 = OC char-card 그대로 (포인트 컬러만 테두리에 반영) */
+#pair-grid.card-grid .char-card[style*='--pair-card-accent']:hover {
+  border-color: color-mix(in srgb, var(--pair-card-accent) 72%, white) !important;
+  box-shadow:
+    0 24px 52px rgba(0, 0, 0, 0.46),
+    0 0 22px color-mix(in srgb, var(--pair-card-accent) 28%, transparent) !important;
 }
 
 #detail-screen.pair-detail-screen.active {
   display: block !important;
   z-index: 450 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  position: fixed !important;
+  inset: 0 !important;
+  background: #0b0d0c !important;
+  scrollbar-gutter: stable;
+}
+
+/* 대사창·히어로(메뉴 미선택) 중엔 스크롤 잠금 — overflow 토글 폭 점프 최소화 */
+#detail-screen.pair-detail-screen.active.pair-vn-playing,
+#detail-screen.pair-detail-screen.active.pair-scroll-locked {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  scrollbar-gutter: stable;
+}
+
+#detail-screen.pair-detail-screen.pair-vn-playing .pair-panel__body {
+  overflow: hidden !important;
+}
+
+#detail-screen.pair-detail-screen > .detail-nav {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 450 !important;
+  height: 52px !important;
+  background: rgba(10, 12, 10, 0.97) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: auto !important;
+}
+
+.pair-detail-screen .pair-detail-layout--archive {
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+}
+
+.pair-detail-screen .pair-cherry-root {
+  overflow: visible;
+}
+
+#bgm-player {
+  position: fixed !important;
+  z-index: 900 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }

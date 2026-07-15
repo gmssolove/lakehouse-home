@@ -4,15 +4,18 @@ export type ImageFrame = {
   scale?: number;
   x?: number;
   y?: number;
+  /** 하단 잘림 페이드 블러 높이 0~100 (뷰포트 %) */
+  bottomBlur?: number;
 };
 
-export const DEFAULT_IMAGE_FRAME: ImageFrame = { scale: 1, x: 0, y: 0 };
+export const DEFAULT_IMAGE_FRAME: ImageFrame = { scale: 1, x: 0, y: 0, bottomBlur: 0 };
 
 export function normalizeImageFrame(frame?: ImageFrame): Required<ImageFrame> {
   return {
     scale: frame?.scale ?? 1,
     x: frame?.x ?? 0,
     y: frame?.y ?? 0,
+    bottomBlur: Math.max(0, Math.min(100, frame?.bottomBlur ?? 0)),
   };
 }
 
@@ -31,9 +34,14 @@ export function framedImageStyle(
   const origin =
     pos.includes('top') ? 'center top' : pos.includes('bottom') ? 'center bottom' : 'center center';
 
+  /* --oc-pf-* : 상세 포트레이트 CSS의 translateX(-50%) 와 합성용 */
   return {
     objectFit: (opts?.fit || 'cover') as CSSProperties['objectFit'],
     objectPosition: pos,
+    ['--oc-pf-x' as string]: `${x}%`,
+    ['--oc-pf-y' as string]: `${y}%`,
+    ['--oc-pf-s' as string]: String(scale),
+    ['--oc-pf-o' as string]: origin,
     transform: useTransform ? `translate(${x}%, ${y}%) scale(${scale})` : undefined,
     transformOrigin: origin,
   };

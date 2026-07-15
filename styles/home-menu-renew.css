@@ -497,19 +497,23 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
   transform: translateX(6px);
 }
 
-/* 메뉴 콘텐츠 — 패널 박스 없이 TRPG와 동일하게 배경 위 직접 배치 */
+/* 메뉴 콘텐츠 — 메뉴 오른쪽 스테이지 가로 중앙 */
 .layout.layout--home .content-block.active:not(#page-main) {
-  display: block !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
   position: absolute !important;
   left: var(--lh-menu-safe, 200px) !important;
-  right: auto !important;
+  right: 0 !important;
   top: clamp(3rem, 6.5vh, 5rem) !important;
   bottom: auto !important;
-  width: min(60rem, calc(100vw - var(--lh-menu-safe, 200px) - 1.5rem)) !important;
-  max-width: calc(100vw - var(--lh-menu-safe, 200px) - 1.25rem) !important;
+  width: auto !important;
+  max-width: none !important;
   max-height: calc(100vh - 4.5rem) !important;
   margin: 0 !important;
-  padding: 0.25rem 0 2.5rem !important;
+  padding: 0.25rem clamp(1rem, 4vw, 2.5rem) 2.5rem !important;
+  box-sizing: border-box !important;
+  transform: none !important;
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -522,6 +526,16 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
   overflow: auto !important;
   color: rgba(216, 213, 203, 0.88) !important;
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+.layout.layout--home .content-block.active:not(#page-main) > * {
+  width: min(56rem, 100%);
+  max-width: 100%;
+}
+
+.layout.layout--home #page-universe.content-block.active > * {
+  width: min(64rem, 100%);
 }
 
 /* TRPG — 카드 그리드용 overflow만 완화 */
@@ -550,16 +564,20 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
   }
 
   .layout.layout--home .content-block.active:not(#page-main) {
-    width: min(40rem, calc(100vw - var(--lh-menu-safe) - 1.25rem)) !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .layout.layout--home .content-block.active:not(#page-main) > * {
+    width: min(40rem, 100%);
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .layout.layout--home {
     --lh-menu-safe: 0px;
   }
 
-  /* 페이지 스크롤 허용 (레거시 overflow:hidden 해제) */
   html:has(.layout--home),
   body:has(.layout--home) {
     overflow-x: hidden !important;
@@ -577,57 +595,148 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
     overflow: visible !important;
   }
 
-  /* 하단 컴팩트 네비 */
-  body:has(.layout--home) .rq-menu-panel {
-    top: auto !important;
-    bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
-    left: 50% !important;
-    right: auto !important;
-    z-index: 60 !important;
-    max-width: calc(100vw - 16px) !important;
-    max-height: none !important;
-    justify-content: flex-end !important;
-    padding: 8px 10px !important;
-    border-radius: 14px !important;
-    background: rgba(10, 12, 11, 0.92) !important;
-    border: 1px solid var(--rq-line-soft) !important;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45) !important;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    transform: translate3d(-50%, 0, 0) !important;
-  }
-
-  body.lh-route-leaving:has(.layout--home) .rq-menu-panel,
-  body.lh-route-enter:has(.layout--home) .rq-menu-panel {
-    transform: translate3d(-50%, 0, 0) !important;
-  }
-
-  .rq-nav-list {
-    flex-direction: row;
-    flex-wrap: wrap;
+  /* Hamburger */
+  .rq-menu-burger {
+    display: flex !important;
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    left: max(14px, env(safe-area-inset-left));
+    z-index: 80;
+    width: 44px;
+    height: 44px;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    gap: 2px 12px;
-    max-width: min(100vw - 36px, 520px);
+    gap: 5px;
+    border: 1px solid rgba(215, 169, 130, 0.35);
+    border-radius: 10px;
+    background: rgba(10, 12, 11, 0.92);
+    cursor: pointer;
+    padding: 0;
   }
 
-  .rq-nav-label {
-    font-size: clamp(17px, 4.2vw, 22px);
+  .rq-menu-burger span {
+    display: block;
+    width: 18px;
+    height: 1.5px;
+    background: rgba(240, 207, 173, 0.85);
+  }
+
+  .rq-menu-burger.is-open {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .rq-menu-backdrop {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+  }
+
+  .rq-menu-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Full-height drawer */
+  body:has(.layout--home) .rq-menu-panel {
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    z-index: 75 !important;
+    width: min(86vw, 320px) !important;
+    max-width: 320px !important;
+    max-height: none !important;
+    height: 100dvh !important;
+    justify-content: flex-start !important;
+    padding: 1.25rem 1.1rem 1.5rem !important;
+    border-radius: 0 !important;
+    border-right: 1px solid rgba(215, 169, 130, 0.28) !important;
+    background: linear-gradient(180deg, #0c0e0c 0%, #090a09 100%) !important;
+    box-shadow: 18px 0 48px rgba(0, 0, 0, 0.5) !important;
+    transform: translate3d(-105%, 0, 0) !important;
+    transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) !important;
+    overflow-y: auto !important;
+  }
+
+  body:has(.layout--home) .rq-menu-panel.is-mobile-open {
+    transform: translate3d(0, 0, 0) !important;
+  }
+
+  .rq-menu-close {
+    display: grid !important;
+    place-items: center;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    background: transparent;
+    color: rgba(240, 207, 173, 0.8);
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
   }
 
   .rq-menu-auth {
-    display: none;
+    display: flex !important;
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
   }
 
+  .rq-nav-list {
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    max-width: none !important;
+  }
+
+  .rq-nav-item {
+    min-height: 48px !important;
+    justify-content: flex-start !important;
+    padding: 0.35rem 0.25rem !important;
+  }
+
+  .rq-nav-label {
+    font-size: clamp(20px, 5.5vw, 26px) !important;
+  }
+
+  .rq-nav-row.is-active .rq-nav-label,
+  .rq-nav-sub.is-active {
+    color: var(--lake-copper-soft, #f0cfad) !important;
+  }
+
+  /* Accordion subs — vertical under parent */
   .rq-nav-subs {
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: 100%;
-    margin: 0 0 8px !important;
-    padding: 6px 10px;
-    background: rgba(10, 12, 11, 0.96);
-    border: 1px solid var(--rq-line-soft);
-    border-radius: 10px;
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin: 0 0 0.35rem !important;
+    padding: 0 0 0 0.75rem !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .rq-nav-sub {
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    text-align: left !important;
+    font-size: 16px !important;
   }
 
   .layout.layout--home .content-block.active:not(#page-main) {
@@ -639,36 +748,68 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
     width: min(calc(100% - 24px), 40rem) !important;
     max-width: calc(100vw - 24px) !important;
     max-height: none !important;
-    margin: 16px auto calc(110px + env(safe-area-inset-bottom, 0px)) !important;
+    margin: 16px auto calc(88px + env(safe-area-inset-bottom, 0px)) !important;
     padding: 0.35rem 0 2rem !important;
+    transform: none !important;
+    align-items: stretch !important;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
     overflow: visible !important;
   }
 
-  /* BGM — 하단 네비와 겹치지 않게 */
-  body:has(.layout--home) #bgm-player {
-    bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important;
-    top: auto !important;
-    right: 10px !important;
-    left: auto !important;
-    max-width: min(280px, calc(100vw - 20px)) !important;
+  .layout.layout--home .content-block.active:not(#page-main) > * {
+    width: 100%;
   }
+
+  /* Home title clamp */
+  body:has(.layout--home) .main-typo,
+  body:has(.layout--home) .site-title,
+  .layout.layout--home .main-typo {
+    font-size: clamp(28px, 8vw, 44px) !important;
+  }
+
+  body:has(.layout--home) .main-desc,
+  body:has(.layout--home) .main-latin {
+    font-size: clamp(12px, 3.4vw, 15px) !important;
+  }
+
+  /* Corner brackets — shrink */
+  body:has(.layout--home) .lh-bracket,
+  body:has(.layout--home) .corner-bracket,
+  body:has(.layout--home) .rq-frame-corner {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  /* BGM — bottom thin bar */
+  body:has(.layout--home) #bgm-player {
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    border-radius: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.layout--home) #bgm-player.collapsed {
+    width: 100% !important;
+    height: 52px !important;
+    min-height: 52px !important;
+  }
+}
+
+/* Desktop: hide mobile-only chrome */
+.rq-menu-burger,
+.rq-menu-backdrop,
+.rq-menu-close {
+  display: none;
 }
 
 @media (max-width: 480px) {
   .rq-nav-label {
-    font-size: 16px;
-  }
-
-  .rq-nav-list {
-    gap: 2px 10px;
-  }
-
-  body:has(.layout--home) #bgm-player:not(.collapsed) {
-    max-width: calc(100vw - 20px) !important;
+    font-size: 18px !important;
   }
 }

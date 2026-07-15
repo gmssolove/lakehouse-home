@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
+import { SecretItemGate } from '@/components/lake/SecretItemGate';
+import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { useOcData } from '@/lib/hooks/useOcData';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import type { TrpgScenario } from '@/lib/types/site-content';
@@ -58,12 +60,13 @@ function TrpgCard({
           )}
         </div>
 
-        {(badge || item.cleared) ? (
+        {(badge || item.cleared || item.secret) ? (
           <div className="trpg-card__meta">
             {badge ? (
               <span className={`trpg-card__badge ${trpgSystemBadgeClass(badge)}`}>{badge}</span>
             ) : null}
             {item.cleared ? <span className="trpg-card__stamp">CLEARED</span> : null}
+            {item.secret ? <SecretLockBadge compact /> : null}
           </div>
         ) : null}
 
@@ -102,9 +105,19 @@ type Props = {
   items: TrpgScenario[];
   empty: string;
   onTicketClick: (item: TrpgScenario) => void;
+  isAdmin?: boolean;
+  loggedIn?: boolean;
+  onOpenAuth?: () => void;
 };
 
-export function TrpgScenarioList({ items, empty, onTicketClick }: Props) {
+export function TrpgScenarioList({
+  items,
+  empty,
+  onTicketClick,
+  isAdmin = false,
+  loggedIn = false,
+  onOpenAuth,
+}: Props) {
   const { trpgSettings } = useSiteContent();
   const { characters } = useOcData();
   const [filter, setFilter] = useState('all');
@@ -172,16 +185,28 @@ export function TrpgScenarioList({ items, empty, onTicketClick }: Props) {
         <div className="page-coming">— 이 카테고리에 시나리오가 없습니다 —</div>
       ) : (
         <div className="trpg-card-grid" id="trpg-cards">
-          {filtered.map((item) => (
-            <TrpgCard
-              key={item.id}
-              raw={item}
-              aspect={aspect}
-              ocNameById={ocNameById}
-              ocImgById={ocImgById}
-              onTicketClick={onTicketClick}
-            />
-          ))}
+          {filtered.map((raw) => {
+            const item = normalizeTrpgScenario(raw);
+            return (
+              <SecretItemGate
+                key={item.id}
+                scope="trpg"
+                item={item}
+                isAdmin={isAdmin}
+                loggedIn={loggedIn}
+                onRequestLogin={onOpenAuth || (() => undefined)}
+                lockedLabel="비밀 시나리오 — 탭하여 열람"
+              >
+                <TrpgCard
+                  raw={item}
+                  aspect={aspect}
+                  ocNameById={ocNameById}
+                  ocImgById={ocImgById}
+                  onTicketClick={onTicketClick}
+                />
+              </SecretItemGate>
+            );
+          })}
         </div>
       )}
     </div>

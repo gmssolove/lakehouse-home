@@ -1,0 +1,172 @@
+/* VN 세이브/로드 — 대사창 우측 상단 */
+
+.lh-vn-box {
+  position: relative;
+}
+
+/* 대사·선택지 드래그 선택 금지 */
+.lh-vn-overlay,
+.lh-vn-box,
+.lh-vn-speaker,
+.lh-vn-text,
+.lh-vn-location,
+.lh-vn-choices,
+.lh-vn-choice,
+.lh-vn-action-layer,
+.lh-vn-action-choices,
+.lh-vn-action-choice {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none;
+}
+
+/* 대사창 자동 재생 — X 왼쪽 */
+.lh-vn-auto {
+  position: absolute;
+  right: 36px;
+  top: 8px;
+  z-index: 5;
+  appearance: none;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(240, 207, 173, 0.45);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.lh-vn-auto:hover:not(:disabled) {
+  color: rgba(240, 207, 173, 0.82);
+  border-color: rgba(215, 169, 130, 0.28);
+}
+
+.lh-vn-auto.is-on {
+  color: rgba(240, 207, 173, 0.95);
+  border-color: rgba(215, 169, 130, 0.45);
+  background: rgba(215, 169, 130, 0.1);
+  text-shadow: 0 0 12px rgba(215, 169, 130, 0.35);
+}
+
+.lh-vn-auto:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.lh-vn-savebar {
+  position: absolute;
+  top: 10px;
+  right: 42px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+
+.lh-vn-save-btn {
+  appearance: none;
+  border: 1px solid rgba(215, 169, 130, 0.35);
+  background: rgba(12, 14, 13, 0.72);
+  color: rgba(240, 207, 173, 0.82);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.lh-vn-save-btn:hover {
+  border-color: rgba(240, 207, 173, 0.65);
+  color: #f0cfad;
+}
+
+.lh-vn-slot-panel {
+  position: absolute;
+  top: 36px;
+  right: 14px;
+  z-index: 6;
+  width: min(220px, 70vw);
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(215, 169, 130, 0.32);
+  background: rgba(10, 12, 11, 0.94);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lh-vn-slot-panel-title {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: rgba(240, 207, 173, 0.75);
+  margin-bottom: 2px;
+}
+
+.lh-vn-slot-btn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  background: rgba(215, 169, 130, 0.06);
+  color: rgba(240, 231, 220, 0.88);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.lh-vn-slot-btn:hover:not(:disabled) {
+  border-color: rgba(240, 207, 173, 0.5);
+}
+
+.lh-vn-slot-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.lh-vn-slot-num {
+  flex-shrink: 0;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(215, 169, 130, 0.4);
+  font-size: 11px;
+  color: rgba(240, 207, 173, 0.9);
+}
+
+.lh-vn-slot-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lh-vn-slot-meta em {
+  font-style: normal;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lh-vn-slot-meta small {
+  font-size: 10px;
+  color: rgba(232, 222, 211, 0.55);
+}
+
+.lh-vn-slot-msg {
+  font-size: 10px;
+  color: rgba(240, 207, 173, 0.8);
+  text-align: right;
+  margin-top: 2px;
+}

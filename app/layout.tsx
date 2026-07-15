@@ -9,6 +9,8 @@ import {
   Noto_Serif_KR,
   Playfair_Display,
   Pinyon_Script,
+  Gowun_Dodum,
+  Quicksand,
 } from 'next/font/google';
 import localFont from 'next/font/local';
 import Script from 'next/script';
@@ -90,6 +92,20 @@ const mySoul = My_Soul({
   display: 'swap',
 });
 
+const gowunDodum = Gowun_Dodum({
+  subsets: ['latin'],
+  weight: ['400'],
+  variable: '--font-gowun-dodum',
+  display: 'swap',
+});
+
+const quicksand = Quicksand({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-quicksand',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: 'lakehouse',
   description: 'archive & stories',
@@ -117,6 +133,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         marcellus.variable,
         pinyon.variable,
         mySoul.variable,
+        gowunDodum.variable,
+        quicksand.variable,
       ].join(' ')}
     >
       <body className={chosunNm.className}>

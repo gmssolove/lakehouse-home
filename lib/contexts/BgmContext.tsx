@@ -313,7 +313,18 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       const track = trackRef.current;
       if (!track?.id) return;
       if (playingRef.current && !isAudioPlaybackStuck()) return;
-      playInternalRef.current(0);
+      /* 재시도 시 0으로 되감기지 않도록 현재 위치 유지 */
+      let resumeAt = 0;
+      try {
+        if (track.kind === 'youtube' && ytRef.current?.getCurrentTime) {
+          resumeAt = ytRef.current.getCurrentTime() || 0;
+        } else if (audioRef.current) {
+          resumeAt = audioRef.current.currentTime || 0;
+        }
+      } catch {
+        resumeAt = 0;
+      }
+      playInternalRef.current(resumeAt > 0.25 ? resumeAt : undefined);
     };
     for (const ms of [150, 500, 1500]) {
       autoplayRetryTimersRef.current.push(window.setTimeout(retry, ms));
@@ -771,7 +782,8 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
       if (!changed) {
         if (wantPlay && (!playingRef.current || isAudioPlaybackStuck())) {
-          playInternal(seek);
+          const resumeAt = opts?.currentTime ?? getTime();
+          playInternal(resumeAt > 0.25 ? resumeAt : undefined);
         }
         return;
       }
@@ -849,13 +861,10 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         audio.loop = next.scope === 'character' ? true : !pageMulti;
         audio.load();
 
-        let started = false;
         const start = () => {
-          if (started) return;
           if (ac.signal.aborted) return;
           if (serial !== switchSerialRef.current) return;
           if (audioLoadGenRef.current !== loadGen) return;
-          started = true;
           syncDurationFromAudio();
           if (seek > 0) {
             try {
@@ -871,21 +880,17 @@ export function BgmProvider({ children }: { children: ReactNode }) {
           once: true,
           signal: ac.signal,
         });
-
-        if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-          start();
-        } else {
-          // Single ready signal only — canplay + loadeddata both firing caused double play()
-          audio.addEventListener('canplay', start, { once: true, signal: ac.signal });
-          audio.addEventListener(
-            'error',
-            () => {
-              if (serial !== switchSerialRef.current) return;
-              markPlaybackIdle();
-            },
-            { once: true, signal: ac.signal },
-          );
-        }
+        audio.addEventListener('canplay', start, { once: true, signal: ac.signal });
+        audio.addEventListener(
+          'error',
+          () => {
+            if (serial !== switchSerialRef.current) return;
+            markPlaybackIdle();
+          },
+          { once: true, signal: ac.signal },
+        );
+        /* 클릭 제스처 틱에서 즉시 play() — PV 중에도 테마가 바로 나오게 */
+        start();
       };
 
       // MP3/URL 전환 — YouTube 160ms 대기 없이 즉시 (자동 넘김·⏭)
@@ -905,14 +910,11 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const runSwitch = async () => {
+      const runSwitch = () => {
         const pageMulti = next.scope === 'page' && pagePlaylistRef.current.length > 1;
-
-        if (prev?.kind === 'youtube' || next.kind !== 'youtube') {
-          await stopAllMedia();
-        } else {
-          stopAudio();
-        }
+        /* await 금지 — microtask로 넘어가면 클릭 제스처가 끊겨 테마 자동재생이 막힘 */
+        silenceAllOutputs();
+        switchingTrackRef.current = false;
         if (serial !== switchSerialRef.current) return;
 
         persist(wantPlay);
@@ -932,20 +934,19 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         if (wantPlay) scheduleAutoplayRetries();
       };
 
-      void runSwitch();
+      runSwitch();
     },
     [
       applyVolume,
       commitTrackUi,
       deferYoutubePlay,
+      getTime,
       persistState,
       isAudioPlaybackStuck,
       markPlaybackIdle,
       playInternal,
       scheduleAutoplayRetries,
       silenceAllOutputs,
-      stopAllMedia,
-      stopAudio,
       syncDurationFromAudio,
     ],
   );
@@ -1190,22 +1191,27 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       src: { fileData?: string; youtubeId?: string; title?: string; artist?: string },
       _wasPlaying: boolean,
     ) => {
-      const id = src.fileData || src.youtubeId;
-      if (!id) return;
+      const file = src.fileData?.trim() || '';
+      const ytRaw = src.youtubeId?.trim() || '';
+      if (!file && !ytRaw) return;
 
       const next = trackFromSrc({
-        fileData: src.fileData,
-        youtubeId: src.youtubeId,
+        fileData: file || undefined,
+        youtubeId: ytRaw || undefined,
         title: src.title || 'Theme',
         artist: src.artist || '',
         scope: 'character',
       });
       if (!next) return;
 
-      if (sameTrack(trackRef.current, next)) {
-        if (!userPausedRef.current && isAudioPlaybackStuck()) {
-          playInternal(getTime());
-        }
+      /* 카드 클릭으로 이미 이 테마로 전환된 뒤 PV useEffect가 silence+재시작하면
+         제스처가 없어 PV 내내 무음이 됨. 같은 테마면 재시작하지 않음. */
+      if (
+        trackRef.current?.scope === 'character' &&
+        sameTrack(trackRef.current, next) &&
+        !userPausedRef.current
+      ) {
+        if (!playingRef.current) playInternal(getTime());
         return;
       }
 
@@ -1227,7 +1233,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       userPausedRef.current = false;
       applyTrack(next, { autoplay: true, currentTime: 0, force: true });
     },
-    [applyTrack, getTime, isAudioPlaybackStuck, playInternal, pushPageSnapshot, siteBgm],
+    [applyTrack, getTime, playInternal, pushPageSnapshot, siteBgm],
   );
 
   const applyTrackRef = useRef(applyTrack);
@@ -1296,6 +1302,10 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       if (!hasBgm || !pl[0]?.id) return;
 
       siteInitRef.current = true;
+      // OC/세계관/TRPG 테마가 이미 재생 중이면 메인 첫 곡으로 덮지 않음
+      if (track?.scope === 'character') {
+        return;
+      }
       userPausedRef.current = false;
       playlistIndexRef.current = 0;
       applyTrackRef.current(pl[0], { autoplay: true, currentTime: 0, force: true });
@@ -1303,6 +1313,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     }
 
     if (!track?.id && hasBgm) {
+      if (trackRef.current?.scope === 'character') return;
       applyTrackRef.current(pl[0], { autoplay: !userPausedRef.current, currentTime: 0, force: true });
       return;
     }

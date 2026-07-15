@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   BannerItem,
+  ClickerButton,
+  ClickerSoundPreset,
   GalleryItem,
   GuestEntry,
   SiteBgm,
@@ -25,11 +27,13 @@ import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { BANNER_DIVIDER_PRESETS, BannerDividerIcon } from '@/lib/banner/dividerIcons';
 import { CLICK_SOUND_PRESETS, playClickSound } from '@/lib/sounds/clickSound';
+import { CLICKER_SOUND_PRESETS, playClickerPreset } from '@/lib/clicker/sounds';
 import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
 import { LakeToggle } from '@/components/ui/LakeToggle';
 import { LinkPickList } from '@/components/ui/LinkPickList';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { ImageFileField } from '@/components/ui/ImageFileField';
+import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { AudioFileField } from '@/components/ui/AudioFileField';
 import { TrpgInvestigatorInlineTab } from '@/components/trpg/TrpgInvestigatorInlineTab';
@@ -1010,6 +1014,10 @@ export function TrpgEditForm({
                 label="CLEARED 스탬프 표시"
               />
             </div>
+            <div className="trpg-edit-section">
+              <div className="trpg-edit-section__title">비밀글</div>
+              <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+            </div>
           </>
         ) : null}
 
@@ -1602,9 +1610,13 @@ export function UniverseAdminPanel({ items, onSave }: UniverseProps) {
               onClick={() => setEditId(item.id)}
             >
               <div>{item.name}</div>
-              {item.comingSoon && (
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>Coming Soon</div>
-              )}
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
+                {item.comingSoon
+                  ? 'Coming Soon'
+                  : item.href === '/verse/gate'
+                    ? '게이트 · /verse/gate'
+                    : item.href || '링크 없음'}
+              </div>
             </div>
           ))}
         </div>
@@ -1639,16 +1651,36 @@ function UniverseEditForm({
   onDelete: () => void;
 }) {
   const [form, setForm] = useState(card);
+  const [linkMode, setLinkMode] = useState<'none' | 'kisaragi-gate' | 'custom'>(() => {
+    if (card.href === '/verse/gate') return 'kisaragi-gate';
+    if ((card.href || '').trim()) return 'custom';
+    return 'none';
+  });
 
   return (
-    <AdminPanelShell title="세계관 카드" onSave={() => onSave(form)} onDelete={onDelete}>
+    <AdminPanelShell
+      title="세계관 카드"
+      onSave={() => {
+        const hex = (form.glowColor || form.veilColor || '').trim();
+        const normalized =
+          /^#?[0-9a-fA-F]{6}$/.test(hex) ? (hex.startsWith('#') ? hex : `#${hex}`) : '#d7a982';
+        onSave({
+          ...form,
+          glowColor: normalized,
+          glowOpacity: Math.min(100, Math.max(0, form.glowOpacity ?? form.veilOpacity ?? 28)),
+          veilColor: undefined,
+          veilOpacity: undefined,
+        });
+      }}
+      onDelete={onDelete}
+    >
       <div className="lh-oc-admin-grid">
         <div className="form-group">
           <label className="form-label">이름</label>
           <input className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </div>
         <div className="form-group">
-          <label className="form-label">아이콘</label>
+          <label className="form-label">아이콘 (이미지 없을 때)</label>
           <input className="form-input" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} />
         </div>
       </div>
@@ -1656,15 +1688,184 @@ function UniverseEditForm({
         <label className="form-label">부제</label>
         <input className="form-input" value={form.sub} onChange={(e) => setForm({ ...form, sub: e.target.value })} />
       </div>
-      <div className="form-group">
-        <label className="form-label">링크 (비우면 Coming Soon)</label>
-        <input className="form-input" value={form.href} onChange={(e) => setForm({ ...form, href: e.target.value })} />
+
+      <div className="trpg-edit-section" style={{ marginTop: '0.75rem' }}>
+        <div className="trpg-edit-section__title">입장 연결</div>
+        <div className="trpg-edit-field">
+          <label>대상</label>
+          <select
+            className="form-input"
+            value={linkMode}
+            onChange={(e) => {
+              const v = e.target.value as 'none' | 'kisaragi-gate' | 'custom';
+              setLinkMode(v);
+              if (v === 'kisaragi-gate') {
+                setForm({
+                  ...form,
+                  href: '/verse/gate',
+                  comingSoon: false,
+                  name: form.name?.trim() ? form.name : '키사라기고교',
+                  sub: form.sub?.trim() ? form.sub : '如月高校 — Kisaragi High School',
+                  icon: form.icon?.trim() ? form.icon : '如',
+                });
+                return;
+              }
+              if (v === 'none') {
+                setForm({ ...form, href: '' });
+                return;
+              }
+              setForm({
+                ...form,
+                href: form.href === '/verse/gate' ? '' : form.href,
+              });
+            }}
+          >
+            <option value="none">없음 (링크 비움)</option>
+            <option value="kisaragi-gate">키사라기고교 게이트 (/verse/gate)</option>
+            <option value="custom">직접 입력</option>
+          </select>
+        </div>
+        {linkMode === 'kisaragi-gate' ? (
+          <div className="trpg-edit-field">
+            <label>링크 URL</label>
+            <input className="form-input" value="/verse/gate" readOnly />
+          </div>
+        ) : linkMode === 'custom' ? (
+          <div className="trpg-edit-field">
+            <label>링크 URL</label>
+            <input
+              className="form-input"
+              placeholder="/path 또는 https://…"
+              value={form.href}
+              onChange={(e) => setForm({ ...form, href: e.target.value })}
+            />
+          </div>
+        ) : null}
       </div>
+
       <LakeToggle
         checked={!!form.comingSoon}
         onChange={(comingSoon) => setForm({ ...form, comingSoon })}
-        label="Coming Soon (링크 비활성)"
+        label="준비중 / Coming Soon (링크 비활성)"
       />
+
+      <div className="form-group" style={{ marginTop: '1rem' }}>
+        <label className="form-label">카드 썸네일</label>
+        <ImageFileField
+          value={form.img || ''}
+          folder="site/universe"
+          onChange={(img) => setForm({ ...form, img })}
+        />
+      </div>
+      {form.img ? (
+        <div className="lh-oc-admin-grid">
+          <div className="form-group">
+            <label className="form-label">맞춤 (fit)</label>
+            <select
+              className="form-input"
+              value={form.imgFit || 'cover'}
+              onChange={(e) =>
+                setForm({ ...form, imgFit: e.target.value as 'cover' | 'contain' })
+              }
+            >
+              <option value="cover">cover</option>
+              <option value="contain">contain</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">위치 (object-position)</label>
+            <input
+              className="form-input"
+              placeholder="center / right bottom"
+              value={form.imgPos || ''}
+              onChange={(e) => setForm({ ...form, imgPos: e.target.value })}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <div className="trpg-edit-section" style={{ marginTop: '1.1rem' }}>
+        <div className="trpg-edit-section__title">펼침 액센트 그라데이션</div>
+        <div className="trpg-edit-row col2">
+          <div className="trpg-edit-field">
+            <label>색</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="color"
+                value={
+                  /^#[0-9a-fA-F]{6}$/.test(form.glowColor || form.veilColor || '')
+                    ? (form.glowColor || form.veilColor)!
+                    : '#d7a982'
+                }
+                onChange={(e) => setForm({ ...form, glowColor: e.target.value })}
+                style={{
+                  width: 42,
+                  height: 32,
+                  padding: 0,
+                  border: '1px solid rgba(215,169,130,.28)',
+                  background: 'transparent',
+                }}
+              />
+              <input
+                className="form-input"
+                value={form.glowColor || form.veilColor || '#d7a982'}
+                placeholder="#d7a982"
+                onChange={(e) => setForm({ ...form, glowColor: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="trpg-edit-field">
+            <label>
+              불투명도 ({Math.min(100, Math.max(0, form.glowOpacity ?? form.veilOpacity ?? 28))}%)
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={form.glowOpacity ?? form.veilOpacity ?? 28}
+              onChange={(e) => setForm({ ...form, glowOpacity: Number(e.target.value) })}
+              style={{ width: '100%' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="trpg-edit-section" style={{ marginTop: '1.25rem' }}>
+        <div className="trpg-edit-section__title">입장 BGM</div>
+        <div className="trpg-edit-row col2">
+          <div className="trpg-edit-field">
+            <label>곡 제목</label>
+            <input
+              className="form-input"
+              value={form.entryBgm?.title || ''}
+              onChange={(e) =>
+                setForm({ ...form, entryBgm: { ...form.entryBgm, title: e.target.value } })
+              }
+            />
+          </div>
+          <div className="trpg-edit-field">
+            <label>아티스트</label>
+            <input
+              className="form-input"
+              value={form.entryBgm?.artist || ''}
+              onChange={(e) =>
+                setForm({ ...form, entryBgm: { ...form.entryBgm, artist: e.target.value } })
+              }
+            />
+          </div>
+        </div>
+        <div className="trpg-edit-field">
+          <AudioFileField
+            label="BGM 파일"
+            value={form.entryBgm?.fileUrl || form.entryBgm?.url || ''}
+            folder="site/universe/bgm"
+            onChange={(fileUrl) => {
+              const entryBgm = { ...form.entryBgm, fileUrl, url: fileUrl };
+              setForm({ ...form, entryBgm });
+            }}
+          />
+        </div>
+      </div>
     </AdminPanelShell>
   );
 }
@@ -2366,6 +2567,304 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
           onChange={(clickRippleEnabled) => setForm({ ...form, clickRippleEnabled })}
           label="클릭 리플 이펙트"
         />
+      </div>
+
+      <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(215,169,130,.18)' }}>
+        <div style={{ fontSize: 11, color: 'var(--lake-copper-soft)', marginBottom: '.65rem', letterSpacing: '.12em' }}>
+          클리커 위젯
+        </div>
+        <div className="form-group">
+          <LakeToggle
+            checked={form.clickerEnabled}
+            onChange={(clickerEnabled) => setForm({ ...form, clickerEnabled })}
+            label="메인 화면에 클리커 표시"
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">타이틀</label>
+          <input
+            className="form-input"
+            value={form.clickerTitle}
+            onChange={(e) => setForm({ ...form, clickerTitle: e.target.value })}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">호버 힌트 문구 (박스 아래 · 한 번 누르면 숨김)</label>
+          <input
+            className="form-input"
+            value={form.clickerHint}
+            onChange={(e) => setForm({ ...form, clickerHint: e.target.value })}
+            placeholder="z · x · c · v"
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">기본 볼륨 (0–1)</label>
+          <input
+            className="form-input"
+            type="number"
+            min={0}
+            max={1}
+            step={0.05}
+            value={form.clickerDefaultVolume}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                clickerDefaultVolume: Math.min(1, Math.max(0, Number(e.target.value) || 0)),
+              })
+            }
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">기본 사운드 프리셋</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <select
+              className="form-input"
+              value={form.clickerSoundPreset}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  clickerSoundPreset: e.target.value as ClickerSoundPreset,
+                })
+              }
+            >
+              {CLICKER_SOUND_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn-save"
+              style={{ padding: '5px 12px', whiteSpace: 'nowrap' }}
+              onClick={() => {
+                const ref = { current: null as AudioContext | null };
+                playClickerPreset(ref, form.clickerSoundPreset, 0, form.clickerDefaultVolume || 0.5);
+              }}
+            >
+              미리듣기
+            </button>
+          </div>
+        </div>
+        <AudioFileField
+          label="공통 커스텀 사운드 (버튼별 없으면 사용)"
+          value={form.clickerSoundCustom}
+          folder="site/clicker"
+          onChange={(clickerSoundCustom) => setForm({ ...form, clickerSoundCustom })}
+        />
+        {form.clickerSoundCustom ? (
+          <button
+            type="button"
+            className="btn-edit"
+            style={{ marginBottom: 10 }}
+            onClick={() => setForm({ ...form, clickerSoundCustom: '' })}
+          >
+            공통 사운드 지우기
+          </button>
+        ) : null}
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            margin: '0.85rem 0 0.5rem',
+          }}
+        >
+          <span style={{ fontSize: 11, color: 'var(--lake-copper-soft)', letterSpacing: '.1em' }}>
+            버튼 ({(form.clickerButtons || []).length})
+          </span>
+          <button
+            type="button"
+            className="btn-save"
+            style={{ padding: '4px 10px' }}
+            onClick={() => {
+              const next: ClickerButton = {
+                id: newId(),
+                key: 'a',
+                label: '',
+              };
+              setForm({ ...form, clickerButtons: [...(form.clickerButtons || []), next] });
+            }}
+          >
+            + 버튼 추가
+          </button>
+        </div>
+
+        {(form.clickerButtons || []).map((btn, index) => (
+          <div
+            key={btn.id}
+            style={{
+              marginBottom: 12,
+              padding: '10px 12px',
+              border: '1px solid rgba(215,169,130,.16)',
+              borderRadius: 10,
+              background: 'rgba(8,10,9,.28)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 8,
+              }}
+            >
+              <span style={{ fontSize: 12, color: 'rgba(240,207,173,.88)' }}>버튼 {index + 1}</span>
+              <button
+                type="button"
+                className="btn-edit"
+                disabled={(form.clickerButtons || []).length <= 1}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    clickerButtons: (form.clickerButtons || []).filter((b) => b.id !== btn.id),
+                  })
+                }
+              >
+                삭제
+              </button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">키보드 키 (한 글자)</label>
+              <input
+                className="form-input"
+                value={btn.key}
+                maxLength={1}
+                onChange={(e) => {
+                  const key = e.target.value.slice(-1).toLowerCase() || '';
+                  setForm({
+                    ...form,
+                    clickerButtons: (form.clickerButtons || []).map((b) =>
+                      b.id === btn.id ? { ...b, key } : b,
+                    ),
+                  });
+                }}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">표시 라벨 (비우면 키)</label>
+              <input
+                className="form-input"
+                value={btn.label || ''}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    clickerButtons: (form.clickerButtons || []).map((b) =>
+                      b.id === btn.id ? { ...b, label: e.target.value } : b,
+                    ),
+                  })
+                }
+              />
+            </div>
+            <ImageFileField
+              label="이미지"
+              value={btn.img || ''}
+              folder="site/clicker"
+              onChange={(img) =>
+                setForm({
+                  ...form,
+                  clickerButtons: (form.clickerButtons || []).map((b) =>
+                    b.id === btn.id ? { ...b, img, imgFrame: undefined } : b,
+                  ),
+                })
+              }
+            />
+            {btn.img ? (
+              <>
+                <label
+                  className="form-group"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    marginBottom: 10,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(btn.cutout)}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        clickerButtons: (form.clickerButtons || []).map((b) =>
+                          b.id === btn.id ? { ...b, cutout: e.target.checked } : b,
+                        ),
+                      })
+                    }
+                  />
+                  <span style={{ fontSize: 12, color: 'rgba(230,210,180,.88)' }}>
+                    투명 컷아웃 (배경 지운 PNG · 실루엣 테두리)
+                  </span>
+                </label>
+                <div className="form-group lh-clicker-frame-edit">
+                  <ImageFrameEditor
+                    src={btn.img}
+                    value={btn.imgFrame}
+                    onChange={(imgFrame) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        clickerButtons: (prev.clickerButtons || []).map((b) =>
+                          b.id === btn.id ? { ...b, imgFrame: { ...imgFrame, bottomBlur: 0 } } : b,
+                        ),
+                      }))
+                    }
+                    fit={btn.cutout ? 'contain' : 'cover'}
+                    pos={btn.cutout ? 'center center' : 'center top'}
+                    aspectRatio="1 / 1"
+                    className={`image-frame-editor--clicker${btn.cutout ? ' is-cutout' : ''}`}
+                    showBottomBlur={false}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn-edit"
+                  style={{ marginBottom: 8 }}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      clickerButtons: (form.clickerButtons || []).map((b) =>
+                        b.id === btn.id ? { ...b, img: '', imgFrame: undefined } : b,
+                      ),
+                    })
+                  }
+                >
+                  이미지 지우기
+                </button>
+              </>
+            ) : null}
+            <AudioFileField
+              label="버튼 전용 사운드"
+              value={btn.sound || ''}
+              folder="site/clicker"
+              onChange={(sound) =>
+                setForm({
+                  ...form,
+                  clickerButtons: (form.clickerButtons || []).map((b) =>
+                    b.id === btn.id ? { ...b, sound } : b,
+                  ),
+                })
+              }
+            />
+            {btn.sound ? (
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    clickerButtons: (form.clickerButtons || []).map((b) =>
+                      b.id === btn.id ? { ...b, sound: '' } : b,
+                    ),
+                  })
+                }
+              >
+                버튼 사운드 지우기
+              </button>
+            ) : null}
+          </div>
+        ))}
       </div>
     </AdminPanelShell>
   );

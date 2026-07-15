@@ -28,6 +28,7 @@ import {
   type SiteUiSettings,
   type ScrapCategory,
   type TimelinePost,
+  type ClickerButton,
   DEFAULT_SCRAP_CATEGORIES,
   DEFAULT_SITE_GUEST_SETTINGS,
   type TrpgListSettings,
@@ -115,8 +116,62 @@ type SiteContentValue = {
 
 const SiteContentContext = createContext<SiteContentValue | null>(null);
 
+function migrateClickerButtons(rawUi: Partial<SiteUiSettings>): SiteUiSettings['clickerButtons'] {
+  if (Array.isArray(rawUi.clickerButtons) && rawUi.clickerButtons.length) {
+    return rawUi.clickerButtons.map((b, i) => {
+      const legacy = b as ClickerButton & { imgX?: number; imgY?: number; imgZoom?: number };
+      let imgFrame = legacy.imgFrame;
+      if (!imgFrame && (legacy.imgX != null || legacy.imgY != null || legacy.imgZoom != null)) {
+        imgFrame = {
+          scale: Math.min(3, Math.max(0.55, Number(legacy.imgZoom) || 1)),
+          x: ((Number(legacy.imgX) || 50) - 50) * 0.6,
+          y: ((Number(legacy.imgY) || 20) - 50) * 0.6,
+        };
+      }
+      return {
+        id: b.id || `ck-${i + 1}`,
+        key: (b.key || 'z').slice(0, 1).toLowerCase() || 'z',
+        label: b.label,
+        img: b.img,
+        sound: b.sound,
+        imgFrame,
+        cutout: Boolean(b.cutout),
+      };
+    });
+  }
+  const legacy = rawUi.clickerKeys;
+  if (legacy) {
+    return (['z', 'x', 'c', 'v'] as const).map((k) => ({
+      id: `ck-${k}`,
+      key: k,
+      label: legacy[k]?.label,
+      img: legacy[k]?.img,
+      sound: legacy[k]?.sound,
+    }));
+  }
+  return DEFAULT_SITE_UI_SETTINGS.clickerButtons.map((b) => ({ ...b }));
+}
+
 function mergeUiSettings(rawUi: Partial<SiteUiSettings>, legacy: Record<string, unknown>): SiteUiSettings {
   const merged: SiteUiSettings = { ...DEFAULT_SITE_UI_SETTINGS, ...rawUi };
+  merged.clickerDefaultVolume = Math.min(
+    1,
+    Math.max(0, Number(merged.clickerDefaultVolume) || DEFAULT_SITE_UI_SETTINGS.clickerDefaultVolume),
+  );
+  if (typeof merged.clickerHint !== 'string') {
+    merged.clickerHint = DEFAULT_SITE_UI_SETTINGS.clickerHint;
+  }
+  if (typeof merged.clickerTitle !== 'string') {
+    merged.clickerTitle = DEFAULT_SITE_UI_SETTINGS.clickerTitle;
+  }
+  if (!merged.clickerSoundPreset) {
+    merged.clickerSoundPreset = DEFAULT_SITE_UI_SETTINGS.clickerSoundPreset;
+  }
+  if (typeof merged.clickerSoundCustom !== 'string') {
+    merged.clickerSoundCustom = '';
+  }
+  merged.clickerButtons = migrateClickerButtons(rawUi);
+  delete merged.clickerKeys;
   if (rawUi.clickSoundEnabled !== undefined) return merged;
   if (legacy.clickSoundEnabled === undefined) return merged;
   return {

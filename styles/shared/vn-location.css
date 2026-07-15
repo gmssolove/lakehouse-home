@@ -1,0 +1,72 @@
+/* 대사창 내부 장소 — 화자 이름 바로 위 */
+
+.lh-vn-location {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  max-width: min(78%, calc(100% - 72px));
+  margin: 0 0 8px;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(5px);
+  filter: blur(4px);
+  clip-path: inset(0 100% 0 0);
+}
+
+.lh-vn-location.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+  clip-path: inset(0 0 0 0);
+  transition:
+    opacity 0.75s ease,
+    transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.7s ease,
+    clip-path 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lh-vn-location.is-revealed.is-dimmed {
+  opacity: 0.42;
+  transition: opacity 0.6s ease;
+}
+
+.lh-vn-location__label {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(215, 169, 130, 0.85);
+}
+
+.lh-vn-location__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: rgba(244, 232, 210, 0.95);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lh-vn-location,
+  .lh-vn-location.is-revealed,
+  .lh-vn-location.is-revealed.is-dimmed {
+    transition: none;
+    filter: none;
+    clip-path: none;
+    transform: none;
+  }
+
+  .lh-vn-location.is-revealed {
+    opacity: 1;
+  }
+
+  .lh-vn-location.is-revealed.is-dimmed {
+    opacity: 0.42;
+  }
+}

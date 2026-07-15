@@ -221,7 +221,7 @@ export const DEFAULT_TRPG_LIST_SETTINGS: TrpgListSettings = {
   cardAspect: '16 / 10',
 };
 
-export type TrpgScenario = {
+export type TrpgScenario = WithSecret & {
   id: string;
   title: string;
   subtitle?: string;
@@ -286,6 +286,13 @@ export type TrpgScenario = {
   logs?: TrpgSessionLog[];
 };
 
+export type UniverseEntryBgm = {
+  title?: string;
+  artist?: string;
+  fileUrl?: string;
+  url?: string;
+};
+
 export type UniverseCard = {
   id: string;
   name: string;
@@ -293,6 +300,20 @@ export type UniverseCard = {
   icon: string;
   href: string;
   comingSoon?: boolean;
+  /** 카드 썸네일 */
+  img?: string;
+  imgFit?: 'cover' | 'contain';
+  imgPos?: string;
+  /** 펼침 시 하단 액센트 그라데이션 색 (#rrggbb) */
+  glowColor?: string;
+  /** 펼침 액센트 그라데이션 불투명도 0–100 */
+  glowOpacity?: number;
+  /** @deprecated glowColor 사용 */
+  veilColor?: string;
+  /** @deprecated glowOpacity 사용 */
+  veilOpacity?: number;
+  /** 세계관 입장 시 BGM */
+  entryBgm?: UniverseEntryBgm;
 };
 
 export type GalleryCommentReply = {
@@ -431,6 +452,37 @@ export const DEFAULT_SITE_OC_SETTINGS: SiteOcSettings = {
   autoResumeMainBgm: true,
 };
 
+export type ClickerButton = {
+  id: string;
+  /** 키보드 바인딩 (예: z, 1, a) */
+  key: string;
+  label?: string;
+  img?: string;
+  sound?: string;
+  /** ImageFrameEditor 미리보기와 동일 (드래그·휠) */
+  imgFrame?: ImageFrame;
+  /**
+   * 투명 PNG 컷아웃 모드.
+   * 사각 박스 대신 알파 실루엣 테두리 + 박스 밖 살짝 튀어나옴.
+   */
+  cutout?: boolean;
+};
+
+export type ClickerSoundPreset =
+  | 'bell'
+  | 'harp'
+  | 'pluck'
+  | 'wood'
+  | 'glass'
+  | 'pop'
+  | 'type'
+  | 'keycap'
+  | 'linear'
+  | 'tactile'
+  | 'chime'
+  | 'soft'
+  | 'mute';
+
 export type SiteUiSettings = {
   clickSoundEnabled: boolean;
   clickSoundPreset: 'thud' | 'wood' | 'felt' | 'damp' | 'muted' | 'custom';
@@ -439,7 +491,25 @@ export type SiteUiSettings = {
   cursorPreset: 'ring' | 'dot' | 'shard' | 'cross' | 'custom';
   cursorCustom: string;
   clickRippleEnabled: boolean;
+  /** 메인 홈 클리커 위젯 */
+  clickerEnabled: boolean;
+  clickerHint: string;
+  clickerDefaultVolume: number;
+  clickerTitle: string;
+  clickerSoundPreset: ClickerSoundPreset;
+  /** 공통 커스텀 사운드 (버튼별 sound 없을 때) */
+  clickerSoundCustom: string;
+  clickerButtons: ClickerButton[];
+  /** @deprecated clickerButtons 사용 */
+  clickerKeys?: Partial<Record<'z' | 'x' | 'c' | 'v', { img?: string; sound?: string; label?: string }>>;
 };
+
+export const DEFAULT_CLICKER_BUTTONS: ClickerButton[] = [
+  { id: 'ck-z', key: 'z' },
+  { id: 'ck-x', key: 'x' },
+  { id: 'ck-c', key: 'c' },
+  { id: 'ck-v', key: 'v' },
+];
 
 export const DEFAULT_SITE_UI_SETTINGS: SiteUiSettings = {
   clickSoundEnabled: true,
@@ -449,6 +519,13 @@ export const DEFAULT_SITE_UI_SETTINGS: SiteUiSettings = {
   cursorPreset: 'ring',
   cursorCustom: '',
   clickRippleEnabled: true,
+  clickerEnabled: true,
+  clickerHint: 'z · x · c · v',
+  clickerDefaultVolume: 0.5,
+  clickerTitle: 'Clicker',
+  clickerSoundPreset: 'keycap',
+  clickerSoundCustom: '',
+  clickerButtons: DEFAULT_CLICKER_BUTTONS.map((b) => ({ ...b })),
 };
 
 export const DEFAULT_SITE_MAIN: SiteMain = {
@@ -465,15 +542,7 @@ export const DEFAULT_UNIVERSE: UniverseCard[] = [
     name: '키사라기고교',
     sub: '如月高校 — Kisaragi High School',
     icon: '如',
-    href: '/kisaragi.html',
-  },
-  {
-    id: 'coming-soon',
-    name: 'Coming Soon',
-    sub: '새로운 세계관 준비 중',
-    icon: '…',
-    href: '',
-    comingSoon: true,
+    href: '/verse/gate',
   },
 ];
 

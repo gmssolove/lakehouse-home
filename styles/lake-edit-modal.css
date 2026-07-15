@@ -10,6 +10,62 @@
   padding: 20px 14px;
 }
 
+.lake-edit-modal.is-entering .lake-edit-modal__backdrop {
+  animation: lakeEditBackdropIn 0.28s ease both;
+}
+
+.lake-edit-modal.is-entering .lake-edit-modal__dialog {
+  animation: lakeEditDialogIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.lake-edit-modal.is-leaving .lake-edit-modal__backdrop {
+  animation: lakeEditBackdropOut 0.24s ease both;
+}
+
+.lake-edit-modal.is-leaving .lake-edit-modal__dialog {
+  animation: lakeEditDialogOut 0.24s ease both;
+}
+
+@keyframes lakeEditBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lakeEditBackdropOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lakeEditDialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lakeEditDialogOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+
 .lake-edit-modal__backdrop {
   position: absolute;
   inset: 0;
@@ -129,4 +185,13 @@
 .lake-edit-modal .oc-edit-scroll-top {
   right: 18px;
   bottom: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lake-edit-modal.is-entering .lake-edit-modal__backdrop,
+  .lake-edit-modal.is-entering .lake-edit-modal__dialog,
+  .lake-edit-modal.is-leaving .lake-edit-modal__backdrop,
+  .lake-edit-modal.is-leaving .lake-edit-modal__dialog {
+    animation-duration: 0.01ms !important;
+  }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ImageFileField } from '@/components/ui/ImageFileField';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
@@ -142,26 +142,13 @@ export function TrpgInvestigatorBoard({
     setEditing(false);
     setDraft(null);
     setExpressionId('default');
+  }, []);
+
+  /* 상세 닫힌 뒤 body 잠금 잔여만 제거 (open 클래스는 Detail이 소유) */
+  useLayoutEffect(() => {
+    if (activeId) return;
     document.body.classList.remove('trpg-inv-detail-open');
-  }, []);
-
-  useEffect(() => {
-    if (!activeId) {
-      document.body.classList.remove('trpg-inv-detail-open');
-      return;
-    }
-    document.body.classList.add('trpg-inv-detail-open');
-    return () => {
-      document.body.classList.remove('trpg-inv-detail-open');
-    };
   }, [activeId]);
-
-  // 페이지 이탈 시 잔여 클래스/오버레이 차단 제거
-  useEffect(() => {
-    return () => {
-      document.body.classList.remove('trpg-inv-detail-open');
-    };
-  }, []);
 
   function startEdit(player: TrpgPlayerProfile) {
     setDraft({ ...player, infoFields: mergePlayerInfoFields(player.infoFields) });

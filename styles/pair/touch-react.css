@@ -1,0 +1,756 @@
+/* 정보탭 터치 반응 캐릭터 */
+
+.touch-react {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.touch-react.is-inert .touch-react__zone {
+  pointer-events: none;
+}
+
+.touch-react__mode-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(10, 12, 12, 0.72);
+  border: 1px solid rgba(205, 179, 126, 0.45);
+  color: rgba(240, 220, 180, 0.92);
+  font: 500 11px/1 var(--font-jost, 'Jost'), sans-serif;
+  letter-spacing: 0.06em;
+  pointer-events: auto;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.touch-react__mode-toggle input {
+  accent-color: #cdb37e;
+}
+
+.touch-react__toolbar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 7;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(8, 10, 10, 0.88);
+  border: 1px solid rgba(205, 179, 126, 0.28);
+  pointer-events: auto;
+  font: 400 11px/1.3 var(--font-jost, 'Jost'), sans-serif;
+  color: rgba(230, 220, 200, 0.88);
+}
+
+.touch-react__style-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.touch-react__style-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.touch-react__style-opt input {
+  accent-color: #cdb37e;
+}
+
+.touch-react__speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.touch-react__speaker input {
+  width: 110px;
+  max-width: 28vw;
+  padding: 3px 7px;
+  border: 1px solid rgba(205, 179, 126, 0.3);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font: inherit;
+}
+
+.touch-react__hint {
+  opacity: 0.65;
+  font-size: 10px;
+}
+
+.touch-react__layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.touch-react__layer.can-draw {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.touch-react__layer.is-editing {
+  pointer-events: auto;
+}
+
+.touch-react__zone {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: visible;
+  pointer-events: auto;
+  border-radius: 14px;
+}
+
+.touch-react__zone-hit {
+  position: absolute;
+  inset: 0;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.touch-react.is-editable .touch-react__zone-hit {
+  cursor: grab;
+}
+
+.touch-react.is-editable .touch-react__zone-hit:active {
+  cursor: grabbing;
+}
+
+.touch-react.is-editable .touch-react__zone-hit:focus,
+.touch-react.is-editable .touch-react__zone-hit:focus-visible,
+.touch-react.is-editable .touch-react__zone-hit:active {
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.touch-react__handle {
+  position: absolute;
+  z-index: 4;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: rgba(240, 207, 173, 0.95);
+  border: 1px solid rgba(20, 22, 20, 0.85);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch-react__handle--nw {
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  cursor: nwse-resize;
+}
+
+.touch-react__handle--ne {
+  right: 0;
+  top: 0;
+  transform: translate(50%, -50%);
+  cursor: nesw-resize;
+}
+
+.touch-react__handle--sw {
+  left: 0;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  cursor: nesw-resize;
+}
+
+.touch-react__handle--se {
+  right: 0;
+  bottom: 0;
+  transform: translate(50%, 50%);
+  cursor: nwse-resize;
+}
+
+.touch-react__zone.is-edit {
+  outline: none;
+  border: 1px dashed rgba(205, 179, 126, 0.45);
+  background: rgba(205, 179, 126, 0.06);
+}
+
+/* 편집 중 선택 강조(배경·두꺼운 테두리) 없음 — 핸들만으로 구분 */
+.touch-react__zone.is-selected {
+  outline: none;
+  border: 1px dashed rgba(205, 179, 126, 0.45);
+  background: rgba(205, 179, 126, 0.06);
+}
+
+/* ── 공통 마커 (미사용) ── */
+.touch-react__marker {
+  display: none;
+}
+
+@keyframes touchReactMarkerPulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+/* ── A. 코너 브라켓 ── */
+.touch-react__brackets {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.touch-react__zone--corners.is-hover .touch-react__brackets,
+.touch-react__zone--corners:focus-visible .touch-react__brackets {
+  opacity: 1;
+}
+
+.touch-react__zone--corners.is-hover {
+  box-shadow: inset 0 0 18px rgba(205, 179, 126, 0.28);
+}
+
+.touch-react__br {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(220, 190, 140, 0.92);
+  border-style: solid;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.touch-react__br--tl {
+  left: 2px;
+  top: 2px;
+  border-width: 2px 0 0 2px;
+  transform: translate(3px, 3px);
+}
+
+.touch-react__br--tr {
+  right: 2px;
+  top: 2px;
+  border-width: 2px 2px 0 0;
+  transform: translate(-3px, 3px);
+}
+
+.touch-react__br--bl {
+  left: 2px;
+  bottom: 2px;
+  border-width: 0 0 2px 2px;
+  transform: translate(3px, -3px);
+}
+
+.touch-react__br--br {
+  right: 2px;
+  bottom: 2px;
+  border-width: 0 2px 2px 0;
+  transform: translate(-3px, -3px);
+}
+
+.touch-react__zone--corners.is-hover .touch-react__br--tl,
+.touch-react__zone--corners:focus-visible .touch-react__br--tl {
+  transform: translate(0, 0);
+}
+
+.touch-react__zone--corners.is-hover .touch-react__br--tr,
+.touch-react__zone--corners:focus-visible .touch-react__br--tr {
+  transform: translate(0, 0);
+}
+
+.touch-react__zone--corners.is-hover .touch-react__br--bl,
+.touch-react__zone--corners:focus-visible .touch-react__br--bl {
+  transform: translate(0, 0);
+}
+
+.touch-react__zone--corners.is-hover .touch-react__br--br,
+.touch-react__zone--corners:focus-visible .touch-react__br--br {
+  transform: translate(0, 0);
+}
+
+.touch-react__ripple {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(205, 179, 126, 0.7);
+  pointer-events: none;
+  animation: touchReactRipple 0.5s ease-out forwards;
+  z-index: 1;
+}
+
+@keyframes touchReactRipple {
+  from {
+    opacity: 0.85;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 0;
+    transform: scale(4.2);
+  }
+}
+
+/* ── B. 점선 아웃라인 ── */
+.touch-react__dash {
+  position: absolute;
+  inset: 0;
+  border: 1.5px dashed rgba(210, 185, 135, 0.88);
+  border-radius: 14px;
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+  transition:
+    opacity 0.22s ease,
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: inset 0 0 12px rgba(205, 179, 126, 0.12);
+}
+
+.touch-react__zone--dashed.is-hover .touch-react__dash,
+.touch-react__zone--dashed:focus-visible .touch-react__dash {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── 드래그 미리보기 ── */
+.touch-react__draft {
+  position: absolute;
+  border: 1px dashed rgba(205, 179, 126, 0.75);
+  border-radius: 14px;
+  background: rgba(205, 179, 126, 0.12);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* 호버 시 커서 위쪽 터치 유도 — 텍스트만 */
+.touch-react__cursor-hint {
+  position: absolute;
+  z-index: 14;
+  pointer-events: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-family:
+    var(--font-cormorant-upright),
+    'Cormorant Upright',
+    var(--font-cormorant),
+    'Cormorant Garamond',
+    serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f7ecd8;
+  text-shadow:
+    0 0 1px rgba(0, 0, 0, 0.85),
+    0 1px 0 rgba(0, 0, 0, 0.75),
+    0 2px 10px rgba(0, 0, 0, 0.8),
+    0 0 18px rgba(205, 179, 126, 0.55);
+  white-space: nowrap;
+  will-change: transform, opacity;
+  transform: translate(-50%, calc(-100% - 14px));
+}
+
+.touch-react__cursor-hint.is-in {
+  animation:
+    touchReactHintIn 0.22s ease-out both,
+    touchReactHintFloat 2.8s ease-in-out 0.22s infinite;
+}
+
+.touch-react__cursor-hint.is-out {
+  animation: touchReactHintOut 0.18s ease-in both;
+}
+
+@keyframes touchReactHintIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 10px)) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, calc(-100% - 14px)) scale(1);
+  }
+}
+
+@keyframes touchReactHintFloat {
+  0%,
+  100% {
+    transform: translate(-50%, calc(-100% - 13.5px));
+    opacity: 0.94;
+  }
+  50% {
+    transform: translate(-50%, calc(-100% - 17px));
+    opacity: 1;
+  }
+}
+
+@keyframes touchReactHintOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, calc(-100% - 15px)) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 18px)) scale(0.97);
+  }
+}
+
+/* ── 글로우 텍스트 (존 옆) ── */
+/* 편집 패널이 떠 있어도 레이어·영역 드래그 가능하게 */
+.touch-react.has-editor .touch-react__layer {
+  pointer-events: auto;
+  cursor: default;
+}
+
+.touch-react.has-editor .touch-react__zone {
+  pointer-events: auto;
+}
+
+.touch-react__bubble {
+  --touch-blur: 10px;
+  position: absolute;
+  z-index: 6;
+  pointer-events: auto;
+  cursor: pointer;
+  max-width: min(42%, 280px);
+  width: max-content;
+}
+
+.touch-react__bubble-blur {
+  position: absolute;
+  inset: -28px -36px;
+  z-index: -1;
+  border: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(
+      ellipse 58% 52% at 50% 48%,
+      rgba(8, 6, 4, 0.42) 0%,
+      rgba(8, 6, 4, 0.18) 42%,
+      rgba(8, 6, 4, 0) 72%
+    );
+  backdrop-filter: blur(var(--touch-blur));
+  -webkit-backdrop-filter: blur(var(--touch-blur));
+  -webkit-mask-image: radial-gradient(
+    ellipse 62% 56% at 50% 48%,
+    #000 0%,
+    #000 38%,
+    transparent 74%
+  );
+  mask-image: radial-gradient(
+    ellipse 62% 56% at 50% 48%,
+    #000 0%,
+    #000 38%,
+    transparent 74%
+  );
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.touch-react__bubble-name {
+  position: relative;
+  font: 500 12px/1.2 var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  letter-spacing: 0.08em;
+  color: rgba(240, 220, 185, 0.9);
+  text-shadow:
+    0 0 10px rgba(205, 179, 126, 0.55),
+    0 2px 10px rgba(0, 0, 0, 0.8);
+  margin-bottom: 4px;
+}
+
+.touch-react__bubble-text {
+  position: relative;
+  font: 400 16.5px/1.45 var(--font-gowun-dodum), 'Gowun Dodum', var(--font-noto-sans-kr), sans-serif;
+  color: rgba(255, 248, 235, 0.96);
+  text-shadow:
+    0 0 10px rgba(205, 179, 126, 0.55),
+    0 2px 10px rgba(0, 0, 0, 0.8);
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+
+.touch-react__bubble.is-in {
+  animation: touchReactBubbleInNear 0.35s ease forwards;
+}
+
+.touch-react__bubble.is-out {
+  animation: touchReactBubbleOutNear 0.3s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes touchReactBubbleInNear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes touchReactBubbleOutNear {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── 편집 폼 — 기본은 하단, 헤더 드래그로 위치 이동 ── */
+.touch-react__editor {
+  position: absolute;
+  left: 50%;
+  top: auto;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: min(320px, 92%);
+  max-height: min(42vh, 360px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(12, 14, 14, 0.94);
+  border: 1px solid rgba(205, 179, 126, 0.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  font: 400 12px/1.4 var(--font-jost, 'Jost'), sans-serif;
+  color: rgba(235, 225, 210, 0.92);
+}
+
+.touch-react__editor.is-placed {
+  bottom: auto;
+  transform: none;
+}
+
+.touch-react__editor-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+  margin: -4px -4px 6px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.touch-react__editor-head:active {
+  cursor: grabbing;
+  background: rgba(205, 179, 126, 0.08);
+}
+
+.touch-react__editor-head strong {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.touch-react__editor-drag {
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.55;
+  letter-spacing: -0.08em;
+  color: rgba(205, 179, 126, 0.9);
+}
+
+.touch-react__editor-hint {
+  margin: 0 0 8px;
+  font-size: 10px;
+  opacity: 0.65;
+  letter-spacing: 0.02em;
+}
+
+.touch-react__line-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.touch-react__line-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.touch-react__line-idx {
+  flex: 0 0 1.25rem;
+  text-align: center;
+  font-size: 10px;
+  color: rgba(205, 179, 126, 0.7);
+}
+
+.touch-react__line-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(205, 179, 126, 0.28);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font: 400 13px/1.4 var(--font-gowun-dodum), 'Gowun Dodum', sans-serif;
+  outline: none;
+}
+
+.touch-react__line-row input:focus,
+.touch-react__line-row input:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: rgba(205, 179, 126, 0.28);
+}
+
+.touch-react__line-row select {
+  appearance: auto;
+  padding: 4px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(205, 179, 126, 0.28);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font: 400 11px/1.3 var(--font-jost, 'Jost'), sans-serif;
+  outline: none;
+}
+
+.touch-react__line-row select:focus,
+.touch-react__line-row select:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: rgba(205, 179, 126, 0.28);
+}
+
+.touch-react__editor input,
+.touch-react__editor select,
+.touch-react__editor button,
+.touch-react__editor textarea {
+  outline: none;
+}
+
+.touch-react__editor input:focus,
+.touch-react__editor input:focus-visible,
+.touch-react__editor select:focus,
+.touch-react__editor select:focus-visible,
+.touch-react__editor button:focus,
+.touch-react__editor button:focus-visible,
+.touch-react__editor textarea:focus,
+.touch-react__editor textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.touch-react__line-remove {
+  appearance: none;
+  flex: 0 0 28px;
+  height: 28px;
+  border: 1px solid rgba(205, 179, 126, 0.28);
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(220, 140, 120, 0.95);
+  cursor: pointer;
+  font: inherit;
+}
+
+.touch-react__line-remove:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.touch-react__line-add {
+  appearance: none;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px dashed rgba(205, 179, 126, 0.4);
+  border-radius: 5px;
+  background: rgba(205, 179, 126, 0.06);
+  color: rgba(230, 210, 180, 0.9);
+  cursor: pointer;
+  font: inherit;
+}
+
+.touch-react__line-add:hover {
+  border-color: rgba(205, 179, 126, 0.65);
+  background: rgba(205, 179, 126, 0.12);
+}
+
+.touch-react__editor-del {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(220, 140, 120, 0.95);
+  cursor: pointer;
+  font: inherit;
+}
+
+.touch-react__editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 88px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(205, 179, 126, 0.28);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font: 400 13px/1.45 var(--font-gowun-dodum), 'Gowun Dodum', sans-serif;
+}
+
+.touch-react__editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.touch-react__editor-actions button {
+  appearance: none;
+  border: 1px solid rgba(205, 179, 126, 0.3);
+  background: transparent;
+  color: inherit;
+  padding: 5px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.touch-react__editor-actions button.is-primary {
+  background: rgba(205, 179, 126, 0.22);
+  border-color: rgba(205, 179, 126, 0.55);
+}

@@ -1,0 +1,532 @@
+/* Pair info panel — 7 layout variants + echo + staggered text reveal */
+
+.pair-panel-stage {
+  --pps-gap: 1.25rem;
+  --pps-radius: 2px;
+  --pps-frame: rgba(215, 169, 130, 0.22);
+  --pps-echo-x: 18px;
+  --pps-echo-y: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 0;
+  width: 100%;
+}
+
+.pair-panel-stage__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.85rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  background: rgba(8, 10, 9, 0.55);
+  border-radius: var(--pps-radius);
+}
+
+.pair-panel-stage__tool-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(215, 169, 130, 0.2);
+}
+
+.pair-panel-stage__tool-tabs button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(215, 169, 130, 0.65);
+  font: 500 10px/1 var(--pair-sans, inherit);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.65rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.pair-panel-stage__tool-tabs button.is-active {
+  background: rgba(215, 169, 130, 0.2);
+  color: rgba(244, 238, 229, 0.95);
+}
+
+.pair-panel-stage__tool-tabs button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pair-panel-stage.is-editable .pair-panel-stage__media.is-touch-edit {
+  cursor: crosshair;
+}
+
+.pair-panel-stage.is-editable .pair-panel-stage__media.is-touch-edit:hover,
+.pair-panel-stage.is-editable .pair-panel-stage__media.is-touch-edit.is-dragging {
+  outline-color: rgba(205, 179, 126, 0.55);
+}
+
+.pair-panel-stage__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  min-width: 8.5rem;
+  font-family: var(--pair-sans, inherit);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(215, 169, 130, 0.62);
+}
+
+.pair-panel-stage__field--grow {
+  flex: 1 1 12rem;
+  min-width: 12rem;
+}
+
+.pair-panel-stage__field select,
+.pair-panel-stage__field input[type='url'] {
+  appearance: none;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: rgba(12, 14, 13, 0.85);
+  color: rgba(244, 238, 229, 0.9);
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  border-radius: 2px;
+}
+
+.pair-panel-stage__echo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--pair-sans, inherit);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(232, 222, 211, 0.82);
+  cursor: pointer;
+  user-select: none;
+  padding-bottom: 0.35rem;
+}
+
+.pair-panel-stage__echo input {
+  accent-color: #d7a982;
+}
+
+.pair-panel-stage__hint {
+  margin-left: auto;
+  font-family: var(--pair-sans, inherit);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(215, 169, 130, 0.5);
+  padding-bottom: 0.4rem;
+}
+
+.pair-panel-stage__body {
+  position: relative;
+  display: grid;
+  gap: var(--pps-gap);
+  min-height: 0;
+  align-items: stretch;
+}
+
+.pair-panel-stage__media {
+  position: relative;
+  overflow: hidden;
+  min-height: 200px;
+  isolation: isolate;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.pair-panel-stage.is-editable .pair-panel-stage__media {
+  cursor: grab;
+  outline: 1px dashed transparent;
+  transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pair-panel-stage.is-editable .pair-panel-stage__media:hover,
+.pair-panel-stage.is-editable .pair-panel-stage__media.is-dragging {
+  outline-color: rgba(160, 200, 240, 0.65);
+  box-shadow: 0 0 0 1px rgba(140, 180, 230, 0.2), 0 0 24px rgba(120, 170, 220, 0.12);
+}
+
+.pair-panel-stage.is-editable .pair-panel-stage__media.is-dragging {
+  cursor: grabbing;
+}
+
+.pair-panel-stage__media-layers {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+
+.pair-panel-stage__photo,
+.pair-panel-stage__echo-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  pointer-events: none;
+}
+
+.pair-panel-stage__echo-img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform: translate(var(--pps-echo-x), var(--pps-echo-y));
+  filter: blur(12px) brightness(0.65);
+  opacity: 0.55;
+}
+
+.pair-panel-stage.has-echo .pair-panel-stage__photo {
+  position: relative;
+  z-index: 1;
+}
+
+.pair-panel-stage__media-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.pair-panel-stage__gutter {
+  display: none;
+}
+
+.pair-panel-stage__content {
+  position: relative;
+  z-index: 3;
+  min-width: 0;
+}
+
+/* ── text reveal (스태거) ── */
+.pair-panel-stage .pair-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.pair-panel-stage.is-text-reveal .pair-reveal {
+  animation: pairPanelRevealIn 0.55s cubic-bezier(0.22, 1, 0.36, 1)
+    calc(var(--reveal-i, 0) * 90ms) both;
+}
+
+@keyframes pairPanelRevealIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-panel-stage .pair-reveal,
+  .pair-panel-stage.is-text-reveal .pair-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
+/* ══════════════════════════════════════
+   1. panel — 이미지 카드 + 옆 텍스트
+   ══════════════════════════════════════ */
+.pair-panel-stage--panel.has-media .pair-panel-stage__body {
+  grid-template-columns: minmax(180px, 38%) minmax(0, 1fr);
+  align-items: start;
+}
+
+.pair-panel-stage--panel .pair-panel-stage__media {
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--pps-frame);
+  border-radius: var(--pps-radius);
+  background: rgba(8, 10, 9, 0.55);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
+}
+
+.pair-panel-stage--panel .pair-panel-stage__media-fade {
+  display: none;
+}
+
+/* ══════════════════════════════════════
+   2. floating — 프레임 없이 컷아웃 + 그림자
+   ══════════════════════════════════════ */
+.pair-panel-stage--floating.has-media .pair-panel-stage__body {
+  grid-template-columns: minmax(180px, 40%) minmax(0, 1fr);
+  align-items: center;
+}
+
+.pair-panel-stage--floating .pair-panel-stage__media {
+  overflow: visible;
+  background: transparent;
+  min-height: 0;
+}
+
+.pair-panel-stage--floating .pair-panel-stage__media-layers {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pair-panel-stage--floating .pair-panel-stage__photo,
+.pair-panel-stage--floating .pair-panel-stage__echo-img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(58vh, 520px);
+  margin: 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 40px rgba(0, 0, 0, 0.55));
+}
+
+.pair-panel-stage--floating.has-echo .pair-panel-stage__echo-img {
+  filter: blur(12px) brightness(0.65);
+  opacity: 0.55;
+}
+
+.pair-panel-stage--floating .pair-panel-stage__media-fade {
+  display: none;
+}
+
+/* ══════════════════════════════════════
+   3. wide-split — 절반 이미지, 경계 그라데이션
+   ══════════════════════════════════════ */
+.pair-panel-stage--wide-split.has-media .pair-panel-stage__body {
+  grid-template-columns: 1fr 1fr;
+  min-height: min(52vh, 480px);
+  gap: 0;
+}
+
+.pair-panel-stage--wide-split .pair-panel-stage__media {
+  min-height: min(52vh, 480px);
+  border-radius: 0;
+}
+
+.pair-panel-stage--wide-split .pair-panel-stage__media-fade {
+  background: linear-gradient(
+    90deg,
+    transparent 48%,
+    rgba(10, 12, 11, 0.35) 72%,
+    rgba(10, 12, 11, 0.92) 100%
+  );
+}
+
+.pair-panel-stage--wide-split .pair-panel-stage__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.1rem 1.2rem 1.1rem 0.4rem;
+  background: linear-gradient(90deg, rgba(10, 12, 11, 0.55), transparent 40%);
+}
+
+/* ══════════════════════════════════════
+   4. cinematic — 풀블리드 배경 + 스크림 텍스트
+   ══════════════════════════════════════ */
+.pair-panel-stage--cinematic.has-media .pair-panel-stage__body {
+  display: block;
+  min-height: min(56vh, 520px);
+}
+
+.pair-panel-stage--cinematic .pair-panel-stage__media {
+  position: absolute;
+  inset: 0;
+  min-height: 100%;
+  border-radius: var(--pps-radius);
+}
+
+.pair-panel-stage--cinematic .pair-panel-stage__media-fade {
+  background: linear-gradient(
+    180deg,
+    rgba(8, 10, 9, 0.35) 0%,
+    rgba(8, 10, 9, 0.55) 38%,
+    rgba(8, 10, 9, 0.88) 100%
+  );
+}
+
+.pair-panel-stage--cinematic .pair-panel-stage__content {
+  position: relative;
+  z-index: 4;
+  padding: clamp(1.6rem, 4vh, 2.4rem) clamp(1.1rem, 3vw, 1.8rem);
+  max-width: min(520px, 92%);
+}
+
+/* ══════════════════════════════════════
+   5. banner — 상단 와이드 + 아래 텍스트
+   ══════════════════════════════════════ */
+.pair-panel-stage--banner.has-media .pair-panel-stage__body {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.pair-panel-stage--banner .pair-panel-stage__media {
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  min-height: 140px;
+  border-radius: var(--pps-radius);
+  border: 1px solid var(--pps-frame);
+}
+
+.pair-panel-stage--banner .pair-panel-stage__media-fade {
+  background: linear-gradient(180deg, transparent 55%, rgba(10, 12, 11, 0.55) 100%);
+}
+
+/* ══════════════════════════════════════
+   6. diagonal — 사선 컷 스플릿
+   ══════════════════════════════════════ */
+.pair-panel-stage--diagonal.has-media .pair-panel-stage__body {
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 0;
+  min-height: min(50vh, 460px);
+}
+
+.pair-panel-stage--diagonal .pair-panel-stage__media {
+  min-height: min(50vh, 460px);
+  clip-path: polygon(0 0, 92% 0, 78% 100%, 0 100%);
+}
+
+.pair-panel-stage--diagonal .pair-panel-stage__media-fade {
+  background: linear-gradient(
+    115deg,
+    transparent 62%,
+    rgba(10, 12, 11, 0.5) 82%,
+    rgba(10, 12, 11, 0.88) 100%
+  );
+}
+
+.pair-panel-stage--diagonal .pair-panel-stage__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.2rem 0.2rem 1.2rem 0;
+  margin-left: -8%;
+}
+
+/* ══════════════════════════════════════
+   7. book — 스프레드 + 제본선
+   ══════════════════════════════════════ */
+.pair-panel-stage--book.has-media .pair-panel-stage__body {
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  min-height: min(48vh, 440px);
+  border: 1px solid rgba(215, 169, 130, 0.16);
+  border-radius: 2px;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(14, 16, 14, 0.55), rgba(10, 12, 11, 0.72));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.36);
+}
+
+.pair-panel-stage--book .pair-panel-stage__media {
+  min-height: min(48vh, 440px);
+}
+
+.pair-panel-stage--book .pair-panel-stage__gutter {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -1px;
+  width: 28px;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.28) 42%,
+    rgba(0, 0, 0, 0.45) 50%,
+    rgba(0, 0, 0, 0.22) 62%,
+    transparent 100%
+  );
+  box-shadow: inset -8px 0 18px rgba(0, 0, 0, 0.25);
+}
+
+.pair-panel-stage--book .pair-panel-stage__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.35rem 1.45rem;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.22), transparent 18%),
+    linear-gradient(160deg, rgba(18, 16, 14, 0.35), transparent 55%);
+}
+
+.pair-panel-stage--book .pair-panel-stage__media-fade {
+  display: none;
+}
+
+/* no media — content only */
+.pair-panel-stage.no-media .pair-panel-stage__body {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 760px) {
+  .pair-panel-stage--panel.has-media .pair-panel-stage__body,
+  .pair-panel-stage--floating.has-media .pair-panel-stage__body,
+  .pair-panel-stage--wide-split.has-media .pair-panel-stage__body,
+  .pair-panel-stage--diagonal.has-media .pair-panel-stage__body,
+  .pair-panel-stage--book.has-media .pair-panel-stage__body {
+    grid-template-columns: 1fr;
+  }
+
+  .pair-panel-stage--diagonal .pair-panel-stage__media {
+    clip-path: none;
+    aspect-ratio: 16 / 10;
+    min-height: 0;
+  }
+
+  .pair-panel-stage--diagonal .pair-panel-stage__content {
+    margin-left: 0;
+    padding: 0.85rem 0 0;
+  }
+
+  .pair-panel-stage--wide-split .pair-panel-stage__media,
+  .pair-panel-stage--book .pair-panel-stage__media {
+    min-height: 0;
+    aspect-ratio: 16 / 10;
+  }
+
+  .pair-panel-stage--cinematic.has-media .pair-panel-stage__body {
+    min-height: 48vh;
+  }
+
+  .pair-panel-stage--wide-split .pair-panel-stage__media-fade {
+    background: linear-gradient(180deg, transparent 40%, rgba(10, 12, 11, 0.9) 100%);
+  }
+}
+
+/* 헤더·규칙선 reveal 보조 */
+.pair-detail-screen .pair-panel .pair-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.pair-detail-screen .pair-panel.is-text-reveal .pair-reveal {
+  animation: pairPanelRevealIn 0.55s cubic-bezier(0.22, 1, 0.36, 1)
+    calc(var(--reveal-i, 0) * 90ms) both;
+}
+
+.pair-detail-screen .pair-panel__rule {
+  height: 1px;
+  margin: 0.35rem 0 0.85rem;
+  background: linear-gradient(
+    90deg,
+    rgba(215, 169, 130, 0.45),
+    rgba(215, 169, 130, 0.12) 55%,
+    transparent
+  );
+}
+
+.pair-detail-screen .pair-extra__gal-item figure,
+.pair-detail-screen .pair-extra__work > article {
+  margin: 0;
+}

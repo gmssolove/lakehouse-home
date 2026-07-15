@@ -1,14 +1,30 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { VnActionChoices } from '@/components/shared/VnActionChoices';
+import { VnAutoPlayButton } from '@/components/shared/VnAutoPlayButton';
+import { VnDialogueChoices } from '@/components/shared/VnDialogueChoices';
+import { isNarrationSpeaker } from '@/components/shared/DialogueNodesEditor';
+import { VnLocationLabel } from '@/components/vn/VnLocationLabel';
+import { useBalancedDialogueText } from '@/lib/hooks/useBalancedDialogueText';
+import { playLineVoice, stopLineVoice } from '@/lib/vn/playLineVoice';
+import { VN_OUT_MS } from '@/lib/vn/presence';
+import { useVnAutoPlay } from '@/lib/vn/useVnAutoPlay';
+import { normalizeMotion, isDialogueFx, type DialogueFx, type DialogueMotion } from '@/lib/vn/motions';
 import type { DialogueNode, OcCharacter } from '@/lib/types/character';
+import '@/styles/shared/vn-location.css';
+import '@/styles/shared/vn-savebar.css';
 
 type Props = {
   character: OcCharacter;
   active: boolean;
+  present: boolean;
+  leaving: boolean;
   onClose: () => void;
   onExpression?: (src: string | null) => void;
-  onMotion?: (motion: 'bounce' | 'shake' | null) => void;
+  onMotion?: (motion: DialogueMotion | null) => void;
+  onFx?: (fx: DialogueFx | null) => void;
 };
 
 function buildDialogueList(c: OcCharacter): DialogueNode[] {
@@ -35,70 +51,133 @@ function nodeIndex(list: DialogueNode[], id: string | null, start?: string) {
   return idx >= 0 ? idx : 0;
 }
 
-export function OcVnDialogue({ character, active, onClose, onExpression, onMotion }: Props) {
+export function OcVnDialogue({
+  character,
+  active,
+  present,
+  leaving,
+  onClose,
+  onExpression,
+  onMotion,
+  onFx,
+}: Props) {
   const list = useMemo(() => buildDialogueList(character), [character]);
   const [pos, setPos] = useState(0);
   const [typedLen, setTypedLen] = useState(0);
   const typingDoneRef = useRef(true);
   const motionKeyRef = useRef('');
+  const fxKeyRef = useRef('');
 
   const node = list[pos];
-  const text = (node?.text || '').trim() || '...';
-  const speaker = node?.speaker || character.name || '';
+  const sourceText = (node?.text || '').trim() || '...';
+  const { ref: textRef, text } = useBalancedDialogueText(sourceText, present && active && !leaving);
+  const isNarration = isNarrationSpeaker(node?.speaker);
+  const speaker = isNarration ? '' : node?.speaker || character.name || '';
   const choices = node?.choices?.filter((c) => c.label) || [];
+  const isActionChoices = node?.choiceMode === 'action';
+  const lineChoices = isActionChoices ? [] : choices;
+  const actionChoices = isActionChoices ? choices : [];
   const isLastNode = list.length === 0 || pos >= list.length - 1;
   const isTyping = typedLen < text.length;
-  const atEnd = !choices.length && isLastNode && !isTyping;
+  const nextRaw = node?.next?.trim() || '';
+  const endsHere = nextRaw === '__end__';
+  const hasLinkedNext = Boolean(nextRaw) && !endsHere;
+  const atEnd = !choices.length && (endsHere || (!hasLinkedNext && isLastNode)) && !isTyping;
 
   useEffect(() => {
-    if (!active) {
+    if (!present) {
       setPos(0);
       setTypedLen(0);
       motionKeyRef.current = '';
+      fxKeyRef.current = '';
       onExpression?.(null);
       onMotion?.(null);
+      onFx?.(null);
       return;
     }
+    if (!active || leaving) return;
     const start = nodeIndex(list, character.dialogueStart || null, character.dialogueStart);
     setPos(start);
     setTypedLen(0);
-  }, [active, character.id, character.dialogueStart, list, onExpression, onMotion]);
+  }, [active, present, leaving, character.id, character.dialogueStart, list, onExpression, onMotion, onFx]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || leaving) return;
     const expr = node?.expression;
     onExpression?.(expr || null);
-  }, [active, node?.expression, onExpression]);
+  }, [active, leaving, node?.expression, onExpression]);
 
   useEffect(() => {
-    if (!active || !node) return;
+    if (!active || leaving || !node) return;
     const key = `${node.id || pos}:${node.motion || ''}`;
     if (motionKeyRef.current === key) return;
     motionKeyRef.current = key;
-    const m = node.motion;
-    if (m === 'bounce' || m === 'shake') onMotion?.(m);
+    const m = normalizeMotion(node.motion);
+    if (m) onMotion?.(m);
     else onMotion?.(null);
-  }, [active, node, pos, onMotion]);
-
-  useLayoutEffect(() => {
-    if (!active) return;
-    setTypedLen(0);
-    typingDoneRef.current = false;
-  }, [active, pos, text]);
+  }, [active, leaving, node, pos, onMotion]);
 
   useEffect(() => {
-    if (!active || typedLen >= text.length) {
+    if (!active || leaving || !node) return;
+    const key = `${node.id || pos}:${node.fx || ''}`;
+    if (fxKeyRef.current === key) return;
+    fxKeyRef.current = key;
+    const f = node.fx;
+    if (isDialogueFx(f)) onFx?.(f);
+    else onFx?.(null);
+  }, [active, leaving, node, pos, onFx]);
+
+  useEffect(() => {
+    if (!active || leaving) {
+      stopLineVoice();
+      return;
+    }
+    playLineVoice(node?.voice);
+    return () => stopLineVoice();
+  }, [active, leaving, pos, node?.id, node?.voice]);
+
+  useLayoutEffect(() => {
+    if (!active || leaving) return;
+    setTypedLen(0);
+    typingDoneRef.current = false;
+  }, [active, leaving, pos, text]);
+
+  useEffect(() => {
+    if (!active || leaving || typedLen >= text.length) {
       typingDoneRef.current = true;
       return;
     }
-    const t = window.setTimeout(() => setTypedLen((n) => n + 1), 46);
+    const t = window.setTimeout(() => setTypedLen((n) => n + 1), 68);
     return () => window.clearTimeout(t);
-  }, [active, text, typedLen]);
+  }, [active, leaving, text, typedLen]);
 
   const skipTyping = useCallback(() => {
     setTypedLen(text.length);
     typingDoneRef.current = true;
   }, [text]);
+
+  const advance = useCallback(() => {
+    if (choices.length) return;
+      const nextId = node?.next?.trim();
+    if (nextId === '__end__') {
+      onClose();
+      return;
+    }
+    if (nextId) {
+      const idx = list.findIndex((n) => String(n.id) === String(nextId));
+      if (idx < 0) {
+        onClose();
+        return;
+      }
+      setPos(idx);
+      return;
+    }
+    if (isLastNode || list.length === 0) {
+      onClose();
+      return;
+    }
+    setPos((p) => p + 1);
+  }, [choices.length, isLastNode, list, node?.next, onClose]);
 
   const handleBoxClick = useCallback(() => {
     if (choices.length) return;
@@ -106,12 +185,8 @@ export function OcVnDialogue({ character, active, onClose, onExpression, onMotio
       skipTyping();
       return;
     }
-    if (isLastNode || list.length === 0) {
-      onClose();
-      return;
-    }
-    setPos((p) => p + 1);
-  }, [choices.length, isLastNode, isTyping, list.length, onClose, skipTyping]);
+    advance();
+  }, [advance, choices.length, isTyping, skipTyping]);
 
   const handleSurfaceClick = useCallback(() => {
     if (choices.length) return;
@@ -119,16 +194,22 @@ export function OcVnDialogue({ character, active, onClose, onExpression, onMotio
       skipTyping();
       return;
     }
-    if (atEnd) {
+    if (atEnd && !node?.next?.trim()) {
       onClose();
       return;
     }
-    if (isLastNode || list.length === 0) {
-      onClose();
-      return;
-    }
-    setPos((p) => p + 1);
-  }, [atEnd, choices.length, isLastNode, isTyping, list.length, onClose, skipTyping]);
+    advance();
+  }, [advance, atEnd, choices.length, isTyping, node?.next, onClose, skipTyping]);
+
+  const { autoPlay, toggleAutoPlay } = useVnAutoPlay({
+    active: present && active,
+    leaving,
+    isTyping,
+    hasChoices: choices.length > 0,
+    lineKey: node?.id || pos,
+    textLength: text.length,
+    onAdvance: advance,
+  });
 
   const goTo = useCallback(
     (id: string) => {
@@ -143,7 +224,7 @@ export function OcVnDialogue({ character, active, onClose, onExpression, onMotio
   );
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || leaving) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -152,16 +233,16 @@ export function OcVnDialogue({ character, active, onClose, onExpression, onMotio
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, onClose]);
+  }, [active, leaving, onClose]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || leaving) return;
 
     function onDocClick(e: MouseEvent) {
       const t = e.target as HTMLElement;
       if (
         t.closest(
-          '.lh-vn-choice, .lh-vn-close, .lh-vn-box, .oc-left-acc, .oc-detail-right, .game-back, .oc-au-picker, .btn-edit, .oc-edit-panel',
+          '.lh-vn-choice, .lh-vn-action-choice, .lh-vn-close, .lh-vn-auto, .lh-vn-box, .oc-left-acc, .oc-detail-right, .game-back, .oc-au-picker, .btn-edit, .oc-edit-panel',
         )
       ) {
         return;
@@ -178,25 +259,58 @@ export function OcVnDialogue({ character, active, onClose, onExpression, onMotio
     }
     document.addEventListener('click', onDocClick, true);
     return () => document.removeEventListener('click', onDocClick, true);
-  }, [active, atEnd, handleSurfaceClick, onClose]);
+  }, [active, leaving, atEnd, handleSurfaceClick, onClose]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!present) return;
     function blockCopy(e: ClipboardEvent) {
-      if ((e.target as HTMLElement | null)?.closest?.('#lh-vn')) e.preventDefault();
+      if ((e.target as HTMLElement | null)?.closest?.('#lh-vn, .lh-vn-action-choices')) {
+        e.preventDefault();
+      }
+    }
+    function blockSelect(e: Event) {
+      if ((e.target as HTMLElement | null)?.closest?.('#lh-vn, .lh-vn-action-choices, .lh-vn-choice, .lh-vn-action-choice')) {
+        e.preventDefault();
+      }
+    }
+    function blockDrag(e: DragEvent) {
+      if ((e.target as HTMLElement | null)?.closest?.('#lh-vn, .lh-vn-action-choices')) {
+        e.preventDefault();
+      }
     }
     document.addEventListener('copy', blockCopy, true);
-    return () => document.removeEventListener('copy', blockCopy, true);
-  }, [active]);
+    document.addEventListener('cut', blockCopy, true);
+    document.addEventListener('selectstart', blockSelect, true);
+    document.addEventListener('dragstart', blockDrag, true);
+    return () => {
+      document.removeEventListener('copy', blockCopy, true);
+      document.removeEventListener('cut', blockCopy, true);
+      document.removeEventListener('selectstart', blockSelect, true);
+      document.removeEventListener('dragstart', blockDrag, true);
+    };
+  }, [present]);
 
-  if (!active) return null;
+  if (!present) return null;
 
   const display = typedLen > 0 ? text.slice(0, typedLen) : '';
-  const hasNext = !choices.length && !isLastNode;
+  const hasNext = !choices.length && !endsHere && (hasLinkedNext || !isLastNode);
+  const host =
+    typeof document !== 'undefined' ? document.getElementById('detail-screen') : null;
 
-  return (
+  const actionLayer =
+    actionChoices.length > 0 && !isTyping && !leaving ? (
+      <VnActionChoices
+        choices={actionChoices}
+        onPick={(next) => {
+          if (next) goTo(next);
+          else onClose();
+        }}
+      />
+    ) : null;
+
+  const overlay = (
     <div
-      className={`lh-vn-overlay active oc-vn-overlay`}
+      className={`lh-vn-overlay active oc-vn-overlay${leaving ? ' is-leaving' : ''}`}
       id="lh-vn"
       role="dialog"
       aria-label="대화"
@@ -205,36 +319,34 @@ export function OcVnDialogue({ character, active, onClose, onExpression, onMotio
         className={`lh-vn-box${hasNext && !isTyping && !choices.length ? ' has-next' : ''}`}
         onClick={(e) => {
           e.stopPropagation();
-          if ((e.target as HTMLElement).closest('.lh-vn-choice, .lh-vn-close')) return;
+          if (leaving) return;
+          if ((e.target as HTMLElement).closest('.lh-vn-choice, .lh-vn-close, .lh-vn-auto')) return;
           handleBoxClick();
         }}
       >
-        <button type="button" className="lh-vn-close" onClick={onClose} aria-label="닫기">
+        <VnAutoPlayButton on={autoPlay} onToggle={toggleAutoPlay} disabled={leaving} />
+        <button type="button" className="lh-vn-close" onClick={onClose} aria-label="닫기" disabled={leaving}>
           ×
         </button>
-        <div className="lh-vn-speaker" id="lh-vn-speaker">
-          {speaker}
+        <VnLocationLabel location={node?.location} />
+        <div className={`lh-vn-speaker${isNarration || !speaker ? ' is-empty' : ''}`} id="lh-vn-speaker">
+          {isNarration || !speaker ? '\u00A0' : speaker}
         </div>
-        <div className={`lh-vn-text${isTyping ? ' lh-typing' : ''}`} id="lh-vn-text">
+        <div
+          ref={textRef}
+          className={`lh-vn-text${isTyping ? ' lh-typing' : ''}`}
+          id="lh-vn-text"
+        >
           {display}
         </div>
-        {choices.length > 0 && !isTyping && (
-          <div className="lh-vn-choices" id="lh-vn-choices">
-            {choices.map((ch) => (
-              <button
-                key={`${ch.label}-${ch.next}`}
-                type="button"
-                className="lh-vn-choice"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (ch.next) goTo(ch.next);
-                  else onClose();
-                }}
-              >
-                {ch.label}
-              </button>
-            ))}
-          </div>
+        {lineChoices.length > 0 && !isTyping && (
+          <VnDialogueChoices
+            choices={lineChoices}
+            onPick={(next) => {
+              if (next) goTo(next);
+              else onClose();
+            }}
+          />
         )}
         {hasNext && !isTyping && !choices.length && (
           <span className="lh-vn-next" aria-hidden="true" />
@@ -242,17 +354,75 @@ export function OcVnDialogue({ character, active, onClose, onExpression, onMotio
       </div>
     </div>
   );
+
+  if (host) {
+    return createPortal(
+      <>
+        {actionLayer}
+        {overlay}
+      </>,
+      host,
+    );
+  }
+
+  return (
+    <>
+      {actionLayer}
+      {overlay}
+    </>
+  );
 }
 
 export function useVnDialogue(character: OcCharacter) {
+  void character;
   const [active, setActive] = useState(false);
+  const [present, setPresent] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [expression, setExpression] = useState<string | null>(null);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const presentRef = useRef(false);
+  presentRef.current = present;
 
-  const open = useCallback(() => setActive(true), []);
-  const close = useCallback(() => {
-    setActive(false);
-    setExpression(null);
+  const clearLeaveTimer = useCallback(() => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
   }, []);
 
-  return { active, expression, open, close, setExpression };
+  useEffect(() => () => clearLeaveTimer(), [clearLeaveTimer]);
+
+  const open = useCallback(() => {
+    clearLeaveTimer();
+    setExpression(null);
+    setLeaving(false);
+    setPresent(true);
+    setActive(true);
+  }, [clearLeaveTimer]);
+
+  const close = useCallback(() => {
+    stopLineVoice();
+    setActive(false);
+    if (!presentRef.current) {
+      setPresent(false);
+      setLeaving(false);
+      setExpression(null);
+      return;
+    }
+    setLeaving((wasLeaving) => {
+      if (wasLeaving) return true;
+      /* 퇴장과 동시에 표정→기본 soft 전환 시작 (present 유지 중 expression 해제) */
+      setExpression(null);
+      clearLeaveTimer();
+      leaveTimerRef.current = setTimeout(() => {
+        setPresent(false);
+        setLeaving(false);
+        setExpression(null);
+        leaveTimerRef.current = null;
+      }, VN_OUT_MS);
+      return true;
+    });
+  }, [clearLeaveTimer]);
+
+  return { active, present, leaving, expression, open, close, setExpression };
 }

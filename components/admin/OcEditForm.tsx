@@ -1,6 +1,8 @@
 'use client';
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { DialogueNodesEditor } from '@/components/shared/DialogueNodesEditor';
+import { LineVoiceVolumeControl } from '@/components/shared/LineVoiceVolumeControl';
 import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { LakeEditTabs } from '@/components/ui/LakeEditTabs';
@@ -23,10 +25,12 @@ import {
   type CoreProfileFieldKey,
 } from '@/lib/oc/profile';
 import { prepareCharacterForSave } from '@/lib/oc/prepareCharacterSave';
+import { normalizeFloatingQuotes } from '@/lib/oc/floatingQuotes';
 import { isTrpgCategory } from '@/lib/oc/categories';
+import { OC_CARD_ASPECT } from '@/lib/oc/pairDefaults';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { uploadImageFile, uploadMediaFile } from '@/lib/r2/client';
-import type { AuVersion, DialogueChoice, DialogueNode, GalleryItem, OcCharacter, ProfileField, StoryLog, CharacterRelation } from '@/lib/types/character';
+import type { AuVersion, DialogueNode, GalleryItem, OcCharacter, ProfileField, StoryLog, CharacterRelation } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
 import type { TrpgScenario } from '@/lib/types/site-content';
 
@@ -36,10 +40,6 @@ function emptyStoryLog(): StoryLog {
 
 function emptyRelation(): CharacterRelation {
   return { id: newId(), name: '', relation: '' };
-}
-
-function emptyDialogueNode(seq: number): DialogueNode {
-  return { id: String(seq), speaker: '', text: '', choices: [] };
 }
 
 function linkedScenarioIds(scenarios: TrpgScenario[], ocId: string | number): Set<string> {
@@ -78,7 +78,7 @@ const OC_EDIT_TABS: { id: OcEditTab; label: string }[] = [
   { id: 'story', label: '서사' },
   { id: 'gallery', label: '갤러리' },
   { id: 'novel', label: '소설·AU' },
-  { id: 'theme', label: '테마·VN' },
+  { id: 'theme', label: '컬러·VN' },
   { id: 'relations', label: '관계' },
 ];
 
@@ -252,6 +252,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
         keywords: parseCommaList(commaDraft.keywords),
         likes: parseCommaList(commaDraft.likes),
         hates: parseCommaList(commaDraft.hates),
+        floatingQuotes: normalizeFloatingQuotes(form.floatingQuotes).slice(0, 2),
         profile: finalizeCharacterProfile(
           mergeCharacterProfile(form.profile, form.role, splitExtraProfileRows(form.profile)),
         ),
@@ -288,6 +289,19 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       set('img', url);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '이미지 업로드에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadGhostImage(file: File) {
+    setBusy(true);
+    try {
+      const url = await uploadImageFile(file, 'oc/ghost');
+      set('ghostImg', url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '고스트 이미지 업로드에 실패했습니다.';
       alert(msg);
     } finally {
       setBusy(false);
@@ -401,17 +415,6 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     set('auVersions', (form.auVersions || []).filter((_, idx) => idx !== i));
   }
 
-  function updateDialogue(i: number, patch: Partial<DialogueNode>) {
-    const rows = [...(form.dialogue || [])];
-    rows[i] = { ...rows[i], ...patch };
-    set('dialogue', rows);
-  }
-
-  function addDialogueNode() {
-    const rows = form.dialogue || [];
-    set('dialogue', [...rows, emptyDialogueNode(rows.length + 1)]);
-  }
-
   async function uploadAuImage(i: number, file: File) {
     setBusy(true);
     try {
@@ -425,51 +428,32 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
     }
   }
 
-  function updateDialogueChoice(di: number, ci: number, patch: Partial<DialogueChoice>) {
-    const rows = [...(form.dialogue || [])];
-    const node = rows[di];
-    if (!node) return;
-    const choices = [...(node.choices || [])];
-    choices[ci] = { ...choices[ci], ...patch };
-    rows[di] = { ...node, choices };
-    set('dialogue', rows);
-  }
-
-  function addDialogueChoice(di: number) {
-    const rows = [...(form.dialogue || [])];
-    const node = rows[di];
-    if (!node) return;
-    rows[di] = { ...node, choices: [...(node.choices || []), { label: '', next: '' }] };
-    set('dialogue', rows);
-  }
-
-  function removeDialogueChoice(di: number, ci: number) {
-    const rows = [...(form.dialogue || [])];
-    const node = rows[di];
-    if (!node) return;
-    rows[di] = { ...node, choices: (node.choices || []).filter((_, idx) => idx !== ci) };
-    set('dialogue', rows);
-  }
-
-  function removeDialogueNode(i: number) {
-    set('dialogue', (form.dialogue || []).filter((_, idx) => idx !== i));
-  }
-
-  function moveDialogueNode(i: number, dir: -1 | 1) {
-    const rows = [...(form.dialogue || [])];
-    const j = i + dir;
-    if (j < 0 || j >= rows.length) return;
-    [rows[i], rows[j]] = [rows[j], rows[i]];
-    set('dialogue', rows);
-  }
-
   async function uploadExpressionImage(i: number, file: File) {
     setBusy(true);
     try {
       const url = await uploadImageFile(file, 'oc/expression');
-      updateDialogue(i, { expression: url });
+      const rows = [...(form.dialogue || [])];
+      if (!rows[i]) return;
+      rows[i] = { ...rows[i], expression: url };
+      set('dialogue', rows);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '표정 이미지 업로드에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadDialogueVoice(i: number, file: File) {
+    setBusy(true);
+    try {
+      const url = await uploadMediaFile(file, 'oc/vn-voice');
+      const rows = [...(form.dialogue || [])];
+      if (!rows[i]) return;
+      rows[i] = { ...rows[i], voice: url };
+      set('dialogue', rows);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '대사 음성 업로드에 실패했습니다.';
       alert(msg);
     } finally {
       setBusy(false);
@@ -492,7 +476,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', gap: 8 }}>
         <span style={{ fontSize: 12, color: 'var(--lake-copper-soft, var(--pink))' }}>
           {compact ? '캐릭터 수정' : 'OC Detail Edit'}
         </span>
@@ -749,13 +733,25 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
         <input className="form-input" value={form.img || ''} onChange={(e) => set('img', e.target.value)} />
       </div>
       <div className="form-group">
+        <p style={{ fontSize: 11, opacity: 0.65, margin: '0 0 8px' }}>
+          목록 카드와 같은 비율·맞춤(cover)입니다. 여기서 맞추면 카드·프로필에 그대로 반영됩니다.
+        </p>
         <ImageFrameEditor
+          className="oc-card-frame-editor"
           src={form.img || ''}
           value={form.imgFrame}
-          onChange={(imgFrame) => set('imgFrame', imgFrame)}
-          fit={form.imgFit || 'contain'}
+          onChange={(imgFrame) => {
+            setForm((f) => ({
+              ...f,
+              imgFrame,
+              imgFit: 'cover',
+              imgPos: f.imgPos || 'center top',
+            }));
+          }}
+          fit="cover"
           pos={form.imgPos || 'center top'}
-          aspectRatio="3 / 4.45"
+          aspectRatio={OC_CARD_ASPECT}
+          allowWheelZoom
         />
       </div>
       <label className="file-input-label" style={{ marginBottom: 8 }}>
@@ -772,10 +768,122 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
         />
       </label>
 
+      <SectionTitle>고스트 이미지</SectionTitle>
+      <p style={{ fontSize: 10, opacity: 0.55, margin: '0 0 8px' }}>
+        상세 화면 뒤 고스트(투명 배경 일러). 비우면 현재 표시 이미지를 씁니다.
+      </p>
+      <div className="form-group">
+        <label className="form-label">고스트 이미지 URL</label>
+        <input
+          className="form-input"
+          value={form.ghostImg || ''}
+          onChange={(e) => set('ghostImg', e.target.value)}
+          placeholder="비우면 메인/표시 이미지"
+        />
+      </div>
+      {form.ghostImg ? (
+        <div style={{ marginBottom: 8 }}>
+          <img
+            src={form.ghostImg}
+            alt=""
+            style={{ display: 'block', maxHeight: 96, borderRadius: 6, opacity: 0.72 }}
+          />
+        </div>
+      ) : null}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <label className="file-input-label" style={{ marginBottom: 0 }}>
+          고스트 업로드
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            disabled={busy}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void uploadGhostImage(f);
+              e.target.value = '';
+            }}
+          />
+        </label>
+        {form.ghostImg ? (
+          <button type="button" className="btn-edit" onClick={() => set('ghostImg', '')}>
+            초기화
+          </button>
+        ) : null}
+      </div>
+
+      <SectionTitle>대표 대사 (최대 2)</SectionTitle>
+      <p style={{ fontSize: 11, opacity: 0.65, margin: '0 0 8px' }}>
+        상세 화면에 고정으로 남는 인용 대사입니다. 최대 2줄. 진입 시 스윕 연출 후 유지됩니다. 저장 후 상단 「대사」로 위치·크기를 조절하세요.
+      </p>
+      {(form.floatingQuotes || []).slice(0, 2).map((q, i) => (
+        <div key={q.id} className="form-group" style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 11, opacity: 0.55, minWidth: 18, paddingTop: 8 }}>{i + 1}</span>
+            <textarea
+              className="form-input"
+              rows={2}
+              value={q.text}
+              onChange={(e) => {
+                const next = [...(form.floatingQuotes || [])];
+                next[i] = { ...q, text: e.target.value };
+                set('floatingQuotes', next);
+              }}
+              placeholder="…너는 뭐지?"
+              style={{ flex: 1 }}
+            />
+            <select
+              className="form-input"
+              style={{ width: 88, flex: '0 0 auto' }}
+              value={q.align || 'center'}
+              onChange={(e) => {
+                const align = e.target.value as 'left' | 'center' | 'right';
+                const next = [...(form.floatingQuotes || [])];
+                next[i] = { ...q, align };
+                set('floatingQuotes', next);
+              }}
+              aria-label="정렬"
+            >
+              <option value="left">왼쪽</option>
+              <option value="center">중앙</option>
+              <option value="right">오른쪽</option>
+            </select>
+            <button
+              type="button"
+              className="btn-ghost"
+              style={{ padding: '6px 10px', flex: '0 0 auto' }}
+              onClick={() =>
+                set(
+                  'floatingQuotes',
+                  (form.floatingQuotes || []).filter((_, j) => j !== i),
+                )
+              }
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn-save"
+        style={{ padding: '5px 12px', marginBottom: 12 }}
+        disabled={(form.floatingQuotes?.length ?? 0) >= 2}
+        onClick={() => {
+          if ((form.floatingQuotes?.length ?? 0) >= 2) return;
+          set('floatingQuotes', [
+            ...(form.floatingQuotes || []),
+            { id: newId(), text: '', x: 50, y: 72, scale: 1, align: 'center' },
+          ]);
+        }}
+      >
+        + 대표 대사 추가
+      </button>
+
       <div className="form-group">
         <label className="form-label">소개 (프로필 · 왼쪽 메뉴)</label>
         <p style={{ fontSize: 10, opacity: 0.55, margin: '0 0 6px' }}>
-          엔터 = 문단 나눔 · **텍스트** = 굵게
+          엔터 = 문단 나눔 · **텍스트** = 굵게 · %%텍스트%% = 옅게
         </p>
         <textarea
           className="form-input"
@@ -831,7 +939,7 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       <>
       <SectionTitle>서사</SectionTitle>
       <p style={{ fontSize: 10, opacity: 0.55, margin: '0 0 8px' }}>
-        엔터 = 문단 나눔 · **텍스트** = 굵게 (왼쪽 메뉴 내용에 반영)
+        엔터 = 문단 나눔 · **텍스트** = 굵게 · %%텍스트%% = 옅게 (왼쪽 메뉴 내용에 반영)
       </p>
       <div className="form-group">
         <label className="form-label">메인 서사 (story)</label>
@@ -1069,169 +1177,23 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
       </div>
 
       <SectionTitle>VN 대화 (이미지 클릭)</SectionTitle>
-      <p style={{ fontSize: 11, opacity: 0.65, margin: '0 0 8px' }}>
-        프로필에서 캐릭터 이미지를 클릭했을 때 나오는 대화입니다.
-      </p>
-      {(form.dialogue || []).map((node, i) => (
-        <div key={node.id || i} className="lh-dialogue-node">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--lake-copper-soft, var(--pink))' }}>대사 {i + 1}</span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button
-                type="button"
-                className="btn-save"
-                style={{ padding: '3px 8px', fontSize: 10 }}
-                disabled={i === 0}
-                onClick={() => moveDialogueNode(i, -1)}
-                aria-label="위로"
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                className="btn-save"
-                style={{ padding: '3px 8px', fontSize: 10 }}
-                disabled={i === (form.dialogue?.length ?? 0) - 1}
-                onClick={() => moveDialogueNode(i, 1)}
-                aria-label="아래로"
-              >
-                ↓
-              </button>
-            </div>
-          </div>
-          <div className="lh-oc-admin-grid">
-            <div className="form-group">
-              <label className="form-label">ID</label>
-              <input className="form-input" value={node.id} onChange={(e) => updateDialogue(i, { id: e.target.value })} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">화자</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-                <button
-                  type="button"
-                  className="btn-save"
-                  style={{ padding: '3px 10px', fontSize: 10 }}
-                  onClick={() => updateDialogue(i, { speaker: '나' })}
-                >
-                  나
-                </button>
-                {form.name?.trim() ? (
-                  <button
-                    type="button"
-                    className="btn-save"
-                    style={{ padding: '3px 10px', fontSize: 10 }}
-                    onClick={() => updateDialogue(i, { speaker: form.name.trim() })}
-                  >
-                    {form.name.trim()}
-                  </button>
-                ) : null}
-              </div>
-              <input
-                className="form-input"
-                list={`dialogue-speaker-${i}`}
-                placeholder="직접 입력"
-                value={node.speaker || ''}
-                onChange={(e) => updateDialogue(i, { speaker: e.target.value })}
-              />
-              <datalist id={`dialogue-speaker-${i}`}>
-                <option value="나" />
-                {form.name?.trim() ? <option value={form.name.trim()} /> : null}
-              </datalist>
-            </div>
-          </div>
-          <textarea
-            className="form-input"
-            rows={2}
-            style={{ marginTop: 6 }}
-            placeholder="대사"
-            value={node.text}
-            onChange={(e) => updateDialogue(i, { text: e.target.value })}
-          />
-          <div className="form-group" style={{ marginTop: 6 }}>
-            <label className="form-label">감정 연출</label>
-            <select
-              className="form-input"
-              value={node.motion || ''}
-              onChange={(e) =>
-                updateDialogue(i, {
-                  motion: (e.target.value || '') as '' | 'bounce' | 'shake',
-                })
-              }
-            >
-              <option value="">없음</option>
-              <option value="bounce">뽀잉 (튀어오름)</option>
-              <option value="shake">부들부들 (떨림)</option>
-            </select>
-          </div>
-          <div className="form-group" style={{ marginTop: 6 }}>
-            <label className="form-label">표정 이미지</label>
-            {node.expression ? (
-              <img
-                src={node.expression}
-                alt=""
-                style={{ display: 'block', maxHeight: 72, marginBottom: 6, borderRadius: 6 }}
-              />
-            ) : null}
-            <input
-              className="form-input"
-              placeholder="표정 이미지 URL (선택)"
-              value={node.expression || ''}
-              onChange={(e) => updateDialogue(i, { expression: e.target.value })}
-            />
-            <label className="file-input-label" style={{ marginTop: 6, display: 'inline-block' }}>
-              표정 이미지 파일 선택
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                disabled={busy}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void uploadExpressionImage(i, f);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <div className="form-label" style={{ marginBottom: 4 }}>
-              선택지 (대사 후 분기)
-            </div>
-            {(node.choices || []).map((ch, ci) => (
-              <div key={ci} className="oc-edit-list-row" style={{ marginBottom: 4, gridTemplateColumns: '1fr 1fr auto' }}>
-                <input
-                  className="form-input"
-                  placeholder="선택지 텍스트"
-                  value={ch.label}
-                  onChange={(e) => updateDialogueChoice(i, ci, { label: e.target.value })}
-                />
-                <input
-                  className="form-input"
-                  placeholder="다음 노드 ID"
-                  value={ch.next}
-                  onChange={(e) => updateDialogueChoice(i, ci, { next: e.target.value })}
-                />
-                <button type="button" className="btn-del" style={{ padding: '4px 8px' }} onClick={() => removeDialogueChoice(i, ci)}>
-                  ✕
-                </button>
-              </div>
-            ))}
-            <button type="button" className="btn-save" style={{ padding: '4px 10px', marginTop: 4 }} onClick={() => addDialogueChoice(i)}>
-              + 선택지 추가
-            </button>
-          </div>
-          <button type="button" className="btn-del" style={{ marginTop: 6, padding: '4px 10px' }} onClick={() => removeDialogueNode(i)}>
-            대사 삭제
-          </button>
-        </div>
-      ))}
-      <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addDialogueNode}>
-        + VN 대사 추가
-      </button>
-      <div className="form-group">
-        <label className="form-label">VN 시작 노드 ID</label>
-        <input className="form-input" value={form.dialogueStart || ''} onChange={(e) => set('dialogueStart', e.target.value)} placeholder="비우면 첫 대사" />
-      </div>
+      <LineVoiceVolumeControl variant="panel" />
+      <DialogueNodesEditor
+        nodes={form.dialogue || []}
+        onChange={(dialogue) => set('dialogue', dialogue)}
+        speakerPresets={[
+          { label: '나', value: '나' },
+          ...(form.name?.trim() ? [{ label: form.name.trim(), value: form.name.trim() }] : []),
+        ]}
+        defaultSpeaker={form.name?.trim() || ''}
+        onUploadExpression={uploadExpressionImage}
+        onUploadVoice={uploadDialogueVoice}
+        uploadBusy={busy}
+        listIdPrefix="oc-dlg"
+        hint="캐릭터를 클릭하면 이 목록이 재생됩니다. 1→2→3→4 순서대로 적고, 필요할 때만 선택지·연출을 켜 주세요."
+        startId={form.dialogueStart || form.dialogue?.[0]?.id || ''}
+        onStartIdChange={(id) => set('dialogueStart', id)}
+      />
       <div className="form-group">
         <label className="form-label">PV 인트로</label>
         <select

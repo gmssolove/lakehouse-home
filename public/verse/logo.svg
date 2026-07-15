@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 376 95" fill="none" aria-hidden="true">
+  <!-- Wordmark proportions match kagurabachi logo box (376�95) -->
+  <text
+    x="188"
+    y="52"
+    text-anchor="middle"
+    fill="#FBFBFB"
+    font-family="'Shippori Mincho', 'Noto Serif JP', serif"
+    font-size="42"
+    font-weight="600"
+    letter-spacing="0.28em"
+  >��!</text>
+  <text
+    x="188"
+    y="78"
+    text-anchor="middle"
+    fill="#FBFBFB"
+    font-family="Cinzel, serif"
+    font-size="11"
+    font-weight="500"
+    letter-spacing="0.62em"
+  >KISARAGI</text>
+</svg>

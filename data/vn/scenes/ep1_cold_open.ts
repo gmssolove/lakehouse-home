@@ -1,0 +1,141 @@
+import type { VNScene } from '@/components/vn/types';
+
+/** 1화 콜드 오픈 — gemini 스크립트 */
+const scene = {
+  id: 'ep1_cold_open',
+  title: '1화 — 찰나의 흔적',
+  location: '골목',
+  nextSceneId: 'ep1_rescue',
+  lines: [
+    {
+      id: 's0_01',
+      background: 'alley_dark',
+      bgm: 'none',
+      effect: 'ghastly-dim',
+      narrationOnly: true,
+      missionUpdate: { id: 'm_ep1_investigate_alley', status: 'start' },
+      text: '……어라.',
+    },
+    {
+      id: 's0_02',
+      background: 'alley_dark',
+      effect: 'shake-advanced',
+      narrationOnly: true,
+      text: '이거, 나 죽는 건가.',
+    },
+    {
+      id: 's0_03',
+      background: 'black',
+      effect: 'blackout',
+      narrationOnly: true,
+      text: '',
+    },
+    {
+      id: 's0_04',
+      effect: 'titlecard',
+      titleText: '如月高校',
+      text: '',
+    },
+    {
+      id: 's1_01',
+      background: 'school_gate_morning',
+      bgm: 'gakuen_light',
+      caption: '3시간 전',
+      speaker: '오무로',
+      text: '좋아! 오늘부터 이 히지카타 오무로 님의 위대한 신화가 시작된다 이 말이지!',
+    },
+    {
+      id: 's1_02',
+      background: 'school_gate_morning',
+      speaker: '오무로',
+      text: '정식 발족, 「괴이 연구부」! 부장 님 겸 유일한 부원인 나를 축하하듯 아침 햇살이 아주 눈부시구만. 크으, 청춘 냄새 대박이다 진짜.',
+    },
+    {
+      id: 's1_03',
+      background: 'school_gate_morning',
+      speaker: '오무로',
+      text: "중학교 3년 내내 나를 ‘괴담무새’라 부르며 찐따 취급하던 녀석들아, 똑똑히 봐라. 이 몸은 무려 그 전설의 명문 '키사라기 고교'에 당당히 합격했다고!",
+    },
+    {
+      id: 's1_04',
+      background: 'school_gate_morning',
+      speaker: '오무로',
+      text: '비록 커트라인 문짝을 머리로 들이받고 턱걸이로 들어오긴 했지만…… 어쨌든 입성은 입성이지! 안 그래?',
+    },
+    {
+      id: 's1_05',
+      background: 'school_gate_morning',
+      speaker: '오무로',
+      text: '도시 전설, 신수, 그리고 원인 불명의 실종 사건들…… 이 학교를 둘러싼 온갖 괴담들, 내가 전부 파헤쳐서 부원도 잔뜩 모으고 초인기 동아리로 만들고 말겠어.',
+    },
+    {
+      id: 's1_06',
+      background: 'school_gate_morning',
+      speaker: '오무로',
+      text: "정의감? 사명감? 아아, 그런 거 아니래도. 그냥…… 내 눈으로 직접 보고 싶을 뿐이야. 진짜 '괴이'라는 게 뭔지.",
+    },
+    {
+      id: 's1_07',
+      background: 'school_gate_morning',
+      speaker: '오무로',
+      text: '……라고 김칫국 마시며 주머니에 손 넣고 걷던 도중, 손끝에 닿는 차가운 감촉에 흠칫 놀라 멈춰 섰다.',
+    },
+    {
+      id: 's1_08',
+      background: 'school_gate_morning',
+      speaker: '오무로',
+      text: "휴대폰 액정에 선명하게 찍힌 시간은 '08시 24분'. 지각까지 정확히 6분 남았다. 첫날부터 담임한테 찍히는 배드엔딩은 사양인데!",
+    },
+    {
+      id: 's2_01',
+      background: 'alley_entrance',
+      bgm: 'gakuen_light',
+      speaker: '오무로',
+      text: '지각을 면하기 위한 유일한 생존 루트. 평소라면 쳐다보지도 않았을, 빌라 사이에 낀 좁고 어두컴컴한 뒷골목 지름길이다.',
+    },
+    {
+      id: 's2_02',
+      background: 'alley_entrance',
+      speaker: '오무로',
+      text: '이상하게 이 골목 입구에만 서면 발끝이 살짝 무거워지는 기분이 든다. 기분 탓인가? 아니, 괴이부장으로서의 본능적 경고인가?',
+    },
+    {
+      id: 's2_03',
+      background: 'alley_entrance',
+      speaker: '오무로',
+      text: '“아이, 몰라! 가자! 가면 갈 거 아냐!”',
+    },
+    {
+      id: 's2_04',
+      background: 'alley_dark',
+      bgm: 'none',
+      effect: 'ghastly-dim',
+      narrationOnly: true,
+      text: '골목 안으로 단 세 걸음 발을 들이밀자마자, 귓가를 찌르던 여름 매미 소리가 거짓말처럼 뚝 끊겼다.',
+    },
+    {
+      id: 's2_05',
+      background: 'alley_dark',
+      effect: 'ghastly-dim',
+      narrationOnly: true,
+      text: '정적. 오직 내 거친 숨소리와 침 넘어가는 소리만 비정상적으로 크게 울려 퍼진다.',
+    },
+    {
+      id: 's2_06',
+      background: 'alley_dark',
+      effect: 'shake-advanced',
+      narrationOnly: true,
+      text: '공기가…… 축축하고 무겁다. 사방에서 시선이 꽂히는 불쾌한 압박감. 계절 전체가 통째로 뒤틀려 버린 것 같은—',
+    },
+    {
+      id: 's2_07',
+      background: 'alley_dark',
+      effect: 'shake-advanced',
+      narrationOnly: true,
+      missionUpdate: { id: 'm_ep1_investigate_alley', status: 'complete' },
+      text: '……어라.',
+    },
+  ],
+} satisfies VNScene;
+
+export default scene;

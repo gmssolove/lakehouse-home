@@ -36,6 +36,49 @@
   },true);
 
   var typingTimer=0,typingDone=true,dialoguePos=0;
+  var lineVoiceAudio=null;
+  var LINE_VOICE_VOL_KEY='lh_line_voice_volume';
+
+  function getLineVoiceVol(){
+    try{
+      var raw=localStorage.getItem(LINE_VOICE_VOL_KEY);
+      if(raw==null||raw==='')return 0.85;
+      var n=Number(raw);
+      if(!isFinite(n))return 0.85;
+      return Math.min(1,Math.max(0,n));
+    }catch(e){return 0.85}
+  }
+
+  function setLineVoiceVol(v){
+    v=Math.min(1,Math.max(0,Number(v)||0));
+    try{localStorage.setItem(LINE_VOICE_VOL_KEY,String(v))}catch(e){}
+    if(lineVoiceAudio)try{lineVoiceAudio.volume=v}catch(e){}
+    var range=document.getElementById('lh-line-voice-vol-range');
+    var label=document.querySelector('.lh-line-voice-vol-panel__val');
+    var pct=Math.round(v*100);
+    if(range&&Number(range.value)!==pct)range.value=String(pct);
+    if(label)label.textContent=pct+'%';
+  }
+
+  window.lhSetLineVoiceVol=setLineVoiceVol;
+
+  function stopLineVoice(){
+    if(!lineVoiceAudio)return;
+    try{lineVoiceAudio.pause();lineVoiceAudio.removeAttribute('src');lineVoiceAudio.load()}catch(e){}
+    lineVoiceAudio=null;
+  }
+
+  function playLineVoice(url){
+    stopLineVoice();
+    url=String(url||'').trim();
+    if(!url)return;
+    try{
+      lineVoiceAudio=new Audio();
+      lineVoiceAudio.volume=getLineVoiceVol();
+      lineVoiceAudio.src=url;
+      lineVoiceAudio.play().catch(function(){});
+    }catch(e){}
+  }
 
   function typeText(el,text){
     if(!el)return;
@@ -111,12 +154,20 @@
     }
     box.classList.add('active');
     $('lh-vn-speaker').textContent=node.speaker||(c.name||'');
+    playLineVoice(node.voice);
     typeText(textEl,node.text||'');
     var choices=arr(node.choices);
     $('lh-vn-choices').innerHTML=choices.length?choices.map(function(ch){
       return '<button class="lh-vn-choice" onclick="showDialogueNode(\''+esc(ch.next||'')+'\')">'+esc(ch.label||'...')+'</button>';
     }).join(''):'';
     renderNext(node,list);
+  };
+
+  var _closeDialogue=window.closeDialogue;
+  window.closeDialogue=function(){
+    stopLineVoice();
+    if(typeof _closeDialogue==='function')_closeDialogue();
+    else{var v=$('lh-vn');if(v)v.classList.remove('active')}
   };
 
   function advanceDialogue(){

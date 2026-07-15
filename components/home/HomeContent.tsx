@@ -15,6 +15,7 @@ import { GalleryTab } from '@/components/records/GalleryTab';
 import { QuoteTab } from '@/components/records/QuoteTab';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
+import { UniverseAccordionCards, type SkewAccordionCard } from '@/components/home/UniverseAccordionCards';
 import type { SitePost, TrpgScenario } from '@/lib/types/site-content';
 import type { LakeAccessScope } from '@/lib/types/secret-content';
 import type { User } from 'firebase/auth';
@@ -26,6 +27,21 @@ type Props = {
   onOpenAuth: () => void;
   onTicketClick: (item: TrpgScenario) => void;
 };
+
+export function resolveUniverseHref(card: SkewAccordionCard & { href?: string }): string {
+  if (card.comingSoon) return '';
+
+  const href = (card.href || '').trim();
+  if (href) return href;
+
+  const isKisaragi =
+    card.id === 'kisaragi' ||
+    card.name === '키사라기고교' ||
+    (/如月|Kisaragi/i.test(card.sub || '') && card.icon === '如');
+  if (isKisaragi) return '/verse/gate';
+
+  return '';
+}
 
 function PostList({
   items,
@@ -128,34 +144,20 @@ export function HomeContent({ page, user, isAdmin, onOpenAuth, onTicketClick }: 
       <div className={`content-block${page === 'universe' ? ' active' : ''}`} id="page-universe">
         <div className="page-heading">Universe</div>
         <div className="page-sub">자작 세계관</div>
-        <div className="world-cards">
-          {site.universe.map((card) =>
-            card.comingSoon || !card.href ? (
-              <div key={card.id} className="world-card-item page-coming" style={{ cursor: 'default' }}>
-                <div className="world-card-icon">{card.icon}</div>
-                <div className="world-card-info">
-                  <div className="world-card-name">{card.name}</div>
-                  <div className="world-card-sub">{card.sub}</div>
-                </div>
-              </div>
-            ) : (
-              <a key={card.id} href={card.href} className="world-card-item">
-                <div className="world-card-icon">{card.icon}</div>
-                <div className="world-card-info">
-                  <div className="world-card-name">{card.name}</div>
-                  <div className="world-card-sub">{card.sub}</div>
-                </div>
-                <div className="world-card-arrow">→</div>
-              </a>
-            ),
-          )}
-        </div>
+        <UniverseAccordionCards cards={site.universe} resolveHref={resolveUniverseHref} />
       </div>
 
       <div className={`content-block${page === 'trpg' ? ' active' : ''}`} id="page-trpg">
         <div className="page-heading">TRPG</div>
         <div className="page-sub">시나리오</div>
-        <TrpgScenarioList items={site.trpg} empty="— 준비 중입니다 —" onTicketClick={onTicketClick} />
+        <TrpgScenarioList
+          items={site.trpg}
+          empty="— 준비 중입니다 —"
+          onTicketClick={onTicketClick}
+          isAdmin={isAdmin}
+          loggedIn={!!user}
+          onOpenAuth={onOpenAuth}
+        />
       </div>
 
       <div className={`content-block${page === 'guest' ? ' active' : ''}`} id="page-guest">

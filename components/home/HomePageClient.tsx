@@ -6,13 +6,13 @@ import { signOut } from 'firebase/auth';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { AdminOverlay } from '@/components/admin/AdminOverlay';
 import { HomeContent } from '@/components/home/HomeContent';
+import { ClickerWidget } from '@/components/home/ClickerWidget';
 import { BackgroundDecor } from '@/components/layout/BackgroundDecor';
 import { LeftNav, type HomePageId } from '@/components/layout/LeftNav';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { lakeBackClearAll, lakeBackConfigureGuard } from '@/lib/hooks/lakeBackStack';
-import { useMainBgmVisibility } from '@/lib/contexts/MainBgmVisibilityContext';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
 import { lakeNavigate } from '@/lib/lake/routeTransition';
@@ -22,14 +22,13 @@ import type { TrpgScenario } from '@/lib/types/site-content';
 
 type AdminPhase = 'idle' | 'open' | 'closing';
 
-const TAB_PARAMS: HomePageId[] = ['trpg', 'charArchive', ...HOME_RECORDS_TABS];
+const TAB_PARAMS: HomePageId[] = ['trpg', 'charArchive', 'universe', 'notice', 'guest', 'banner', ...HOME_RECORDS_TABS];
 
 export function HomePageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, isAdmin, refreshAuth } = useAuth();
-  const { trpg, accessSettings, loaded: siteLoaded } = useSiteContent();
-  const { setHidden: setMainBgmHidden } = useMainBgmVisibility();
+  const { trpg, accessSettings, uiSettings, loaded: siteLoaded } = useSiteContent();
   const [page, setPage] = useState<HomePageId>('main');
   const [authOpen, setAuthOpen] = useState(false);
   const [trpgGate, setTrpgGate] = useState<TrpgScenario | null>(null);
@@ -44,7 +43,10 @@ export function HomePageClient() {
     router.replace('/', { scroll: false });
   }, [router]);
 
-  const handlePageBack = useCallback(() => setPage('main'), []);
+  const handlePageBack = useCallback(() => {
+    setPage('main');
+    router.replace('/', { scroll: false });
+  }, [router]);
 
   const routeGuard = { guardPath: '/', router };
 
@@ -70,11 +72,6 @@ export function HomePageClient() {
     }
   }, [adminPhase, isAdmin, router, searchParams]);
 
-  useEffect(() => {
-    setMainBgmHidden(false);
-    return () => setMainBgmHidden(false);
-  }, [setMainBgmHidden]);
-
   useLakeBackNavigation(
     page !== 'main' && adminPhase === 'idle',
     handlePageBack,
@@ -99,7 +96,15 @@ export function HomePageClient() {
     }
     setPage(next);
     if (adminPhase !== 'idle') setAdminPhase('idle');
-    if (next === 'trpg' || next === 'charArchive' || isHomeRecordsTabId(next)) {
+    if (
+      next === 'trpg' ||
+      next === 'charArchive' ||
+      next === 'universe' ||
+      next === 'notice' ||
+      next === 'guest' ||
+      next === 'banner' ||
+      isHomeRecordsTabId(next)
+    ) {
       router.replace(`/?p=${next}`, { scroll: false });
     } else if (searchParams.get('p')) {
       router.replace('/', { scroll: false });
@@ -195,6 +200,17 @@ export function HomePageClient() {
         }}
       />
       <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />
+      {page === 'main' && adminPhase === 'idle' ? (
+        <ClickerWidget
+          enabled={uiSettings.clickerEnabled}
+          title={uiSettings.clickerTitle}
+          hint={uiSettings.clickerHint}
+          defaultVolume={uiSettings.clickerDefaultVolume}
+          soundPreset={uiSettings.clickerSoundPreset}
+          soundCustom={uiSettings.clickerSoundCustom}
+          buttons={uiSettings.clickerButtons}
+        />
+      ) : null}
     </>
   );
 }

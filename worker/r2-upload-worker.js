@@ -1,8 +1,11 @@
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization,Content-Type,X-File-Name,X-Folder,X-Upload-Token',
-  'Access-Control-Max-Age': '86400'
+  'Access-Control-Allow-Methods': 'GET,HEAD,POST,OPTIONS',
+  'Access-Control-Allow-Headers':
+    'Authorization,Content-Type,X-File-Name,X-Folder,X-Upload-Token,Range',
+  'Access-Control-Expose-Headers':
+    'Accept-Ranges,Content-Length,Content-Range,Content-Type,ETag',
+  'Access-Control-Max-Age': '86400',
 };
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -12,8 +15,8 @@ function json(data, status = 200) {
     status,
     headers: {
       ...CORS_HEADERS,
-      'Content-Type': 'application/json; charset=utf-8'
-    }
+      'Content-Type': 'application/json; charset=utf-8',
+    },
   });
 }
 
@@ -56,17 +59,51 @@ function publicUrl(env, request, key) {
   return `${url.origin}/file/${key}`;
 }
 
+function fileHeaders(object) {
+  const headers = new Headers(CORS_HEADERS);
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('Accept-Ranges', 'bytes');
+  /* immutable 제거 — Range 지원 배포 후 브라우저가 옛 응답을 영원히 붙잡지 않게 */
+  headers.set('Cache-Control', 'public, max-age=86400');
+  return headers;
+}
+
+/** HTMLAudioElement seek needs Accept-Ranges + 206 Content-Range */
 async function serveFile(request, env) {
   const url = new URL(request.url);
   const key = decodeURIComponent(url.pathname.replace(/^\/file\//, ''));
   if (!key) return json({ error: 'missing key' }, 400);
-  const object = await env.R2_BUCKET.get(key);
+
+  if (request.method === 'HEAD') {
+    const object = await env.R2_BUCKET.head(key);
+    if (!object) return json({ error: 'not found' }, 404);
+    const headers = fileHeaders(object);
+    headers.set('Content-Length', String(object.size));
+    return new Response(null, { status: 200, headers });
+  }
+
+  const hasRange = request.headers.has('Range');
+  const object = await env.R2_BUCKET.get(key, hasRange ? { range: request.headers } : undefined);
   if (!object) return json({ error: 'not found' }, 404);
-  const headers = new Headers(CORS_HEADERS);
-  object.writeHttpMetadata(headers);
-  headers.set('etag', object.httpEtag);
-  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-  return new Response(object.body, { headers });
+
+  const headers = fileHeaders(object);
+
+  if (object.range) {
+    const offset = 'offset' in object.range ? object.range.offset : 0;
+    const end =
+      'end' in object.range && typeof object.range.end === 'number'
+        ? object.range.end
+        : 'length' in object.range && typeof object.range.length === 'number'
+          ? offset + object.range.length - 1
+          : object.size - 1;
+    headers.set('Content-Range', `bytes ${offset}-${end}/${object.size}`);
+    headers.set('Content-Length', String(end - offset + 1));
+    return new Response(object.body, { status: 206, headers });
+  }
+
+  headers.set('Content-Length', String(object.size));
+  return new Response(object.body, { status: 200, headers });
 }
 
 async function upload(request, env) {
@@ -85,7 +122,7 @@ async function upload(request, env) {
   const key = `${folder}/${Date.now()}-${crypto.randomUUID()}-${fileName}`;
   const putOptions = {
     httpMetadata: { contentType },
-    customMetadata: { originalName: cleanMetadataValue(fileName) }
+    customMetadata: { originalName: cleanMetadataValue(fileName) },
   };
 
   if (contentType.startsWith('image/')) {
@@ -107,10 +144,22 @@ async function upload(request, env) {
 
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
     const url = new URL(request.url);
-    if (request.method === 'GET' && url.pathname.startsWith('/file/')) return serveFile(request, env);
-    if (request.method === 'POST' && (url.pathname === '/' || url.pathname === '/upload')) return upload(request, env);
-    return json({ ok: true, usage: 'POST /upload with an image/audio body. GET /file/:key serves private R2 objects.' });
-  }
+    if (
+      (request.method === 'GET' || request.method === 'HEAD') &&
+      url.pathname.startsWith('/file/')
+    ) {
+      return serveFile(request, env);
+    }
+    if (request.method === 'POST' && (url.pathname === '/' || url.pathname === '/upload')) {
+      return upload(request, env);
+    }
+    return json({
+      ok: true,
+      usage: 'POST /upload with an image/audio body. GET|HEAD /file/:key serves R2 objects (Range supported).',
+    });
+  },
 };

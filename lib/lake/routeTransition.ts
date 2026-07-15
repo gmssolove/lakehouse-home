@@ -2,6 +2,7 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 
 const ARCHIVE_PATHS = new Set(['/', '/oc', '/pair']);
 const TRPG_SCENARIO = /^\/trpg\/[^/]+$/;
+const VERSE_PATH = /^\/verse(\/|$)/;
 
 const ARCHIVE_ORDER: Record<string, number> = {
   '/': 0,
@@ -27,6 +28,8 @@ export function lakeRouteDirection(from: string, to: string): 'forward' | 'back'
 }
 
 export function shouldLakeRouteAnimate(from: string, to: string) {
+  // Verse gate/archive use their own page chrome — don't intercept
+  if (VERSE_PATH.test(from) || VERSE_PATH.test(to)) return false;
   if (from === '/' && TRPG_SCENARIO.test(to)) return true;
   if (TRPG_SCENARIO.test(from) && to === '/') return true;
   if (from === '/oc' && TRPG_SCENARIO.test(to)) return true;
@@ -59,6 +62,12 @@ export function markLakeLeavingPanel(from: string, to: string) {
 
   if (from === '/oc' && TRPG_SCENARIO.test(to)) {
     document.querySelector('#detail-screen')?.classList.add('lh-route-panel-leaving');
+    document.querySelector('.layout.oc-archive-layout')?.classList.add('lh-route-panel-leaving');
+    return;
+  }
+
+  // OC ↔ Pair — 아카이브 패널 슬라이드
+  if ((from === '/oc' || from === '/pair') && (to === '/oc' || to === '/pair')) {
     document.querySelector('.layout.oc-archive-layout')?.classList.add('lh-route-panel-leaving');
     return;
   }
@@ -132,7 +141,7 @@ export function lakeNavigate(
 
   window.setTimeout(() => {
     router.push(`${url.pathname}${url.search}${url.hash}`);
-  }, 400);
+  }, 480);
 
   return dir;
 }
@@ -150,6 +159,7 @@ export function setPendingLakeRouteDir(dir: 'forward' | 'back' | 'neutral') {
 export function consumePendingLakeRouteDir() {
   const dir = pendingRouteDir;
   if (dir === 'neutral') return 'neutral';
+  pendingRouteDir = 'neutral';
   return dir;
 }
 

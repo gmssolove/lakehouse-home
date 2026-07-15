@@ -15,7 +15,7 @@ import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
 import { displayCategory, isTrpgCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
 import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
-import { lakeNavigate } from '@/lib/lake/routeTransition';
+import { clearLakeRouteClasses, lakeNavigate } from '@/lib/lake/routeTransition';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { buildCharacterNumberMap } from '@/lib/oc/characterOrder';
@@ -53,7 +53,7 @@ export function OcPageClient() {
   const searchParams = useSearchParams();
   const { characters, categories, saveCharacters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
-  const { restorePageSnapshot, pushPageSnapshot, resumePageBgmIfNeeded } = useBgm();
+  const { restorePageSnapshot, resumePageBgmIfNeeded, playCharacterTheme } = useBgm();
   const { user, isAdmin } = useAuth();
   const wasInDetailRef = useRef(false);
   const detailUsedThemeRef = useRef(false);
@@ -70,6 +70,27 @@ export function OcPageClient() {
     skipIntro?: boolean;
   } | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  /** OC 페이지 마운트당 1회 — 영역 클릭 후 TOUCH! 숨김(새로고침/재진입 시 초기화) */
+  const [touchHintDismissed, setTouchHintDismissed] = useState(false);
+
+  useEffect(() => {
+    clearLakeRouteClasses();
+    document.body.style.opacity = '1';
+    document.body.classList.remove('lh-leaving', 'lh-route-leaving', 'lh-route-enter');
+    document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
+      el.classList.remove('lh-route-panel-leaving');
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [sidebarOpen]);
 
   const charNumberMap = useMemo(() => buildCharacterNumberMap(characters), [characters]);
   const activeCharacter = detail ?? intro?.character ?? null;
@@ -78,6 +99,13 @@ export function OcPageClient() {
   const clearDetailView = useCallback(() => {
     setDetail(null);
     setIntro(null);
+    const screen = document.getElementById('detail-screen');
+    if (screen) {
+      screen.classList.remove('is-pv-done');
+      screen.style.removeProperty('opacity');
+      screen.style.removeProperty('filter');
+      screen.style.removeProperty('transform');
+    }
   }, []);
 
   const detailBackHandlerRef = useRef<(() => void) | null>(null);
@@ -121,19 +149,24 @@ export function OcPageClient() {
   introRef.current = intro;
   const [detailRevealKey, setDetailRevealKey] = useState(0);
 
-  const finishIntro = useCallback((instant?: boolean) => {
+  const finishIntro = useCallback((_instant?: boolean) => {
     const payload = introRef.current;
     setIntro(null);
-    if (payload) {
-      setDetail(payload.character);
-      setAuIdx(payload.auIdx);
-      setDetailRevealKey((k) => k + 1);
-      if (instant) {
-        requestAnimationFrame(() => {
-          document.querySelector('#detail-screen .oc-detail-right')?.classList.add('is-ready');
-        });
+    if (!payload) return;
+    setDetail(payload.character);
+    setAuIdx(payload.auIdx);
+    setDetailRevealKey((k) => k + 1);
+    /* PV 스킵/종료 직후 lhDetailOpen(both)이 opacity:0에 묶이면 정보창이 영구히 안 보임 */
+    requestAnimationFrame(() => {
+      const screen = document.getElementById('detail-screen');
+      if (screen) {
+        screen.classList.add('is-pv-done');
+        screen.style.setProperty('opacity', '1');
+        screen.style.setProperty('filter', 'none');
+        screen.style.setProperty('transform', 'none');
       }
-    }
+      document.querySelector('#detail-screen .oc-detail-right')?.classList.add('is-ready');
+    });
   }, []);
 
   const subs = useMemo(() => {
@@ -167,7 +200,17 @@ export function OcPageClient() {
     const hasTheme = characterHasBgmTheme(c);
     detailUsedThemeRef.current = hasTheme;
     if (hasTheme) {
-      pushPageSnapshot();
+      /* 카드 클릭과 같은 동기 호출 스택에서 재생 — PV 시작 전부터 나와야 함 */
+      const th = c.theme;
+      playCharacterTheme(
+        {
+          fileData: th?.fileData,
+          youtubeId: th?.youtubeId,
+          title: th?.title || `${c.name} Theme`,
+          artist: th?.artist || '',
+        },
+        true,
+      );
     } else {
       resumePageBgmIfNeeded();
     }
@@ -222,12 +265,36 @@ export function OcPageClient() {
         }
       />
 
-      <div className="layout oc-archive-layout">
+      <div className={`layout oc-archive-layout${sidebarOpen ? ' is-sidebar-open' : ''}`}>
+        <button
+          type="button"
+          className="oc-mobile-burger"
+          aria-label="필터 메뉴"
+          aria-expanded={sidebarOpen}
+          onClick={() => setSidebarOpen(true)}
+        >
+          ☰
+        </button>
+        <button
+          type="button"
+          className="oc-mobile-backdrop"
+          aria-label="필터 닫기"
+          onClick={() => setSidebarOpen(false)}
+        />
         <div className="sidebar">
+          <button
+            type="button"
+            className="oc-mobile-burger"
+            style={{ position: 'absolute', top: 10, right: 10, left: 'auto' }}
+            aria-label="필터 닫기"
+            onClick={() => setSidebarOpen(false)}
+          >
+            ×
+          </button>
           <div>
             <div className="s-title">Search</div>
             <LakeSearchField
-              variant="oc"
+              variant="line"
               placeholder="이름으로 검색..."
               value={search}
               onChange={setSearch}
@@ -327,7 +394,7 @@ export function OcPageClient() {
                       <ImageFrameView
                         src={c.img}
                         frame={c.imgFrame}
-                        fit={(c.imgFit as React.CSSProperties['objectFit']) || 'cover'}
+                        fit="cover"
                         pos={c.imgPos || 'center top'}
                         className="char-card-img-wrap"
                         imgClassName="char-card-img"
@@ -402,7 +469,7 @@ export function OcPageClient() {
             img={detailImg?.src ? detailImg : null}
             onBack={leaveDetail}
             onBindBack={bindDetailBack}
-            onAuChange={(au) => openDetail(detail, au)}
+            onAuChange={(au) => setAuIdx(au)}
             onSave={
               isAdmin
                 ? async (next) => {
@@ -413,6 +480,8 @@ export function OcPageClient() {
                   }
                 : undefined
             }
+            touchHintDismissed={touchHintDismissed}
+            onTouchHintDismiss={() => setTouchHintDismissed(true)}
           />
         )}
       </div>

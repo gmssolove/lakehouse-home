@@ -103,6 +103,8 @@
   font: inherit;
   color: inherit;
   text-align: left;
+  z-index: 1;
+  pointer-events: auto;
   /* 호버 transform을 버튼 자체에 주면 mousedown/mouseup이 어긋나 첫 클릭이 씹힘 */
   transform: none !important;
   transition: none;
@@ -125,9 +127,10 @@
 
 .trpg-inv-archive .inv-card:hover .inv-card__lift {
   border-color: rgba(240, 207, 173, 0.72);
-  transform: translateY(-8px) scale(1.025);
+  /* translateY 금지 — 시각만 위로 뜨면 클릭 히트박스와 어긋남 */
+  transform: scale(1.02);
   box-shadow:
-    0 24px 52px rgba(0, 0, 0, 0.46),
+    0 18px 40px rgba(0, 0, 0, 0.42),
     0 0 22px rgba(215, 169, 130, 0.1);
 }
 

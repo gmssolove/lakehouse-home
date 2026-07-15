@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useBgm } from '@/lib/contexts/BgmContext';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
@@ -8,7 +8,9 @@ import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { OcEditForm } from '@/components/admin/OcEditForm';
 import { LakeEditModal } from '@/components/ui/LakeEditModal';
 import { OcAuPicker } from '@/components/oc/OcAuPicker';
+import { OcFloatingQuotes } from '@/components/oc/OcFloatingQuotes';
 import { OcVnDialogue, useVnDialogue } from '@/components/oc/OcVnDialogue';
+import { emptyFloatingQuote, normalizeFloatingQuotes } from '@/lib/oc/floatingQuotes';
 import { applyCharacterTheme, characterHasBgmTheme, clearCharacterTheme, resolveCharacterTheme } from '@/lib/oc/characterTheme';
 import { formatGalleryCredit, gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
 import { displayCategory, isTrpgCategory } from '@/lib/oc/categories';
@@ -16,9 +18,31 @@ import { buildDetailProfileRows, formatCardTag, formatStatDigits, parseStatPerce
 import { OcRichText } from '@/lib/oc/richText';
 import { lakeNavigate } from '@/lib/lake/routeTransition';
 import { setTrpgReturnPath } from '@/lib/lake/trpgReturn';
-import { framedImageStyle } from '@/lib/shared/imageFrame';
-import type { GalleryItem, ImageFrame, OcCharacter, StoryLog, CharacterRelation } from '@/lib/types/character';
+import { usePairSlotLayoutDrag } from '@/components/pair/usePairSlotLayoutDrag';
+import { framedImageStyle, normalizeImageFrame } from '@/lib/shared/imageFrame';
+import { uploadImageFile } from '@/lib/r2/client';
+import { DIALOGUE_FX_MS, DIALOGUE_MOTION_MS, isDialogueFx, normalizeMotion, ocMotionClass, type DialogueFx, type DialogueMotion } from '@/lib/vn/motions';
+import { VnCharBloom, VnCharFx } from '@/components/shared/VnCharFx';
+import type { GalleryItem, ImageFrame, OcCharacter, OcFloatingQuote, StoryLog, CharacterRelation, TouchHoverStyle, TouchZone, TouchZoneLine } from '@/lib/types/character';
+import { TouchReactOverlay } from '@/components/pair/TouchReactOverlay';
+import { normalizeTouchHoverStyle, normalizeTouchZones } from '@/lib/pair/touchZones';
+import { useTouchPortraitStack, warmTouchPortrait } from '@/lib/oc/useTouchPortraitStack';
 import { newId, type TrpgScenario } from '@/lib/types/site-content';
+
+const DEFAULT_OC_GHOST_LAYOUT: ImageFrame = { x: 0, y: 0, scale: 1.12 };
+const DEFAULT_OC_DETAIL_LAYOUT: ImageFrame = { x: 0, y: 0, scale: 1 };
+
+function resolveOcGhostLayout(character: OcCharacter): ImageFrame {
+  if (character.ghostLayout) return normalizeImageFrame(character.ghostLayout);
+  if (character.ghostLayouts?.[0]) return normalizeImageFrame(character.ghostLayouts[0]);
+  return normalizeImageFrame(DEFAULT_OC_GHOST_LAYOUT);
+}
+
+function resolveOcDetailLayout(character: OcCharacter): ImageFrame {
+  return normalizeImageFrame(character.detailLayout || DEFAULT_OC_DETAIL_LAYOUT);
+}
+
+type LayoutTarget = 'char' | 'ghost';
 
 type Props = {
   character: OcCharacter;
@@ -31,6 +55,9 @@ type Props = {
   onBindBack?: (handler: (() => void) | null) => void;
   onAuChange: (au: number) => void;
   onSave?: (next: OcCharacter) => void | Promise<void>;
+  /** OC 탭 방문 중 TOUCH! 힌트를 이미 닫았는지 */
+  touchHintDismissed?: boolean;
+  onTouchHintDismiss?: () => void;
 };
 
 function isKeywordField(k: string) {
@@ -97,6 +124,8 @@ export function OcCharacterDetail({
   onBindBack,
   onAuChange,
   onSave,
+  touchHintDismissed = false,
+  onTouchHintDismiss,
 }: Props) {
   const router = useRouter();
   const { trpg } = useSiteContent();
@@ -105,6 +134,32 @@ export function OcCharacterDetail({
   bgmApi.current = { playCharacterTheme, playing };
 
   const [editOpen, setEditOpen] = useState(false);
+  const [ghostLayoutMode, setGhostLayoutMode] = useState(false);
+  const [layoutTarget, setLayoutTarget] = useState<LayoutTarget>('char');
+  const [detailLayout, setDetailLayout] = useState<ImageFrame>(() => resolveOcDetailLayout(character));
+  const detailSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [quoteLayoutMode, setQuoteLayoutMode] = useState(false);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [touchEditMode, setTouchEditMode] = useState(false);
+  const [touchZones, setTouchZones] = useState<TouchZone[]>(() =>
+    normalizeTouchZones(character.touchZones),
+  );
+  const [touchHoverStyle, setTouchHoverStyle] = useState<TouchHoverStyle>(() =>
+    normalizeTouchHoverStyle(character.touchHoverStyle),
+  );
+  /** 「괴롭히기」는 열 때마다 꺼진 상태. 저장·공유하지 않음 */
+  const [touchEnabled, setTouchEnabled] = useState(false);
+  const [touchSpeaker, setTouchSpeaker] = useState(
+    () => character.touchSpeaker?.trim() || character.name || '',
+  );
+  const touchSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [ghostLayout, setGhostLayout] = useState<ImageFrame>(() => resolveOcGhostLayout(character));
+  const [ghostEnabled, setGhostEnabled] = useState(() => character.ghostEnabled !== false);
+  const [ghostImg, setGhostImg] = useState(() => character.ghostImg?.trim() || '');
+  const [ghostImgBusy, setGhostImgBusy] = useState(false);
+  const ghostFileRef = useRef<HTMLInputElement | null>(null);
+  const ghostSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [rightReady, setRightReady] = useState(true);
 
   const [openLeft, setOpenLeft] = useState<string | null>(null);
   const [panelId, setPanelId] = useState<string | null>(null);
@@ -112,21 +167,28 @@ export function OcCharacterDetail({
   const [panelClosing, setPanelClosing] = useState(false);
   const [shownPortrait, setShownPortrait] = useState<ShownPortrait | null>(null);
   const [charBounce, setCharBounce] = useState(false);
-  const [charMotion, setCharMotion] = useState<'bounce' | 'shake' | null>(null);
+  const [charMotion, setCharMotion] = useState<DialogueMotion | null>(null);
+  const [charFx, setCharFx] = useState<DialogueFx | null>(null);
+  /** 터치 대사에서 적용한 일시 표정 (VN 없을 때도) — ref로 onPlayEnd 스탈 방지 */
+  const [touchExpression, setTouchExpression] = useState<string | null>(null);
+  const touchExpressionRef = useRef<string | null>(null);
+  const [vnEnterAnim, setVnEnterAnim] = useState(false);
   const motionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fxClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const vnEnterClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [galleryLightbox, setGalleryLightbox] = useState<GalleryItem | null>(null);
   const wasPlayingRef = useRef(false);
   const panelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rightScrollRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const portraitRef = useRef<ShownPortrait>({ src: '', fit: 'contain', pos: 'center top' });
-  const exprPortraitRef = useRef<{ front: 0 | 1; layers: [string, string] }>({
-    front: 0,
-    layers: ['', ''],
-  });
-  const [exprPortrait, setExprPortrait] = useState(exprPortraitRef.current);
-  const exprSwapGenRef = useRef(0);
   const prevVnActiveRef = useRef(false);
+  const [auVisual, setAuVisual] = useState<{ front: string; back: string | null; gen: number }>({
+    front: '',
+    back: null,
+    gen: 0,
+  });
+  const prevAuImgRef = useRef((img?.src || '').trim());
   const vn = useVnDialogue(character);
   const { profileRows, keywordTags } = useMemo(() => splitProfileRows(character), [character]);
   const personalTheme = useMemo(() => resolveCharacterTheme(character), [character]);
@@ -134,24 +196,268 @@ export function OcCharacterDetail({
   useEffect(() => {
     setCharBounce(false);
     setCharMotion(null);
-  }, [character.id]);
+    setCharFx(null);
+    touchExpressionRef.current = null;
+    setTouchExpression(null);
+    setGhostLayoutMode(false);
+    setLayoutTarget('char');
+    setTouchEditMode(false);
+    setDetailLayout(resolveOcDetailLayout(character));
+    setGhostLayout(resolveOcGhostLayout(character));
+    setGhostEnabled(character.ghostEnabled !== false);
+    setGhostImg(character.ghostImg?.trim() || '');
+    setTouchZones(normalizeTouchZones(character.touchZones));
+    setTouchHoverStyle(normalizeTouchHoverStyle(character.touchHoverStyle));
+    setTouchEnabled(false);
+    setTouchSpeaker(character.touchSpeaker?.trim() || character.name || '');
+    prevAuImgRef.current = (img?.src || '').trim();
+  }, [character.id]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on character switch only
 
-  const playCharMotion = useCallback((motion: 'bounce' | 'shake' | null) => {
+  useEffect(() => {
+    if (ghostLayoutMode) return;
+    setDetailLayout(resolveOcDetailLayout(character));
+    setGhostLayout(resolveOcGhostLayout(character));
+    setGhostEnabled(character.ghostEnabled !== false);
+    setGhostImg(character.ghostImg?.trim() || '');
+  }, [
+    character.detailLayout,
+    character.ghostLayout,
+    character.ghostLayouts,
+    character.ghostEnabled,
+    character.ghostImg,
+    ghostLayoutMode,
+  ]);
+
+  useEffect(() => {
+    if (touchEditMode) return;
+    setTouchZones(normalizeTouchZones(character.touchZones));
+    setTouchHoverStyle(normalizeTouchHoverStyle(character.touchHoverStyle));
+    setTouchSpeaker(character.touchSpeaker?.trim() || character.name || '');
+  }, [
+    character.touchZones,
+    character.touchHoverStyle,
+    character.touchSpeaker,
+    character.name,
+    touchEditMode,
+  ]);
+
+  const persistGhostLayout = useCallback(
+    (next: ImageFrame) => {
+      const frame = normalizeImageFrame(next);
+      setGhostLayout(frame);
+      if (!onSave) return;
+      if (ghostSaveTimer.current) clearTimeout(ghostSaveTimer.current);
+      ghostSaveTimer.current = setTimeout(() => {
+        ghostSaveTimer.current = null;
+        const { ghostLayouts: _legacy, ...rest } = character;
+        void onSave({
+          ...rest,
+          ghostLayout: frame,
+          ghostEnabled,
+          ...(ghostImg ? { ghostImg } : { ghostImg: undefined }),
+        });
+      }, 420);
+    },
+    [character, ghostEnabled, ghostImg, onSave],
+  );
+
+  const persistDetailLayout = useCallback(
+    (next: ImageFrame) => {
+      const frame = normalizeImageFrame(next);
+      setDetailLayout(frame);
+      if (!onSave) return;
+      if (detailSaveTimer.current) clearTimeout(detailSaveTimer.current);
+      detailSaveTimer.current = setTimeout(() => {
+        detailSaveTimer.current = null;
+        void onSave({
+          ...character,
+          detailLayout: frame,
+        });
+      }, 420);
+    },
+    [character, onSave],
+  );
+
+  const persistGhostEnabled = useCallback(
+    (next: boolean) => {
+      setGhostEnabled(next);
+      if (!onSave) return;
+      const { ghostLayouts: _legacy, ...rest } = character;
+      void onSave({
+        ...rest,
+        ghostLayout,
+        ghostEnabled: next,
+        ...(ghostImg ? { ghostImg } : { ghostImg: undefined }),
+      });
+    },
+    [character, ghostLayout, ghostImg, onSave],
+  );
+
+  const persistGhostImg = useCallback(
+    (next: string) => {
+      const url = next.trim();
+      setGhostImg(url);
+      if (!onSave) return;
+      const { ghostLayouts: _legacy, ...rest } = character;
+      void onSave({
+        ...rest,
+        ghostLayout,
+        ghostEnabled,
+        ...(url ? { ghostImg: url } : { ghostImg: undefined }),
+      });
+    },
+    [character, ghostEnabled, ghostLayout, onSave],
+  );
+
+  const uploadGhostImg = useCallback(
+    async (file: File) => {
+      setGhostImgBusy(true);
+      try {
+        const url = await uploadImageFile(file, 'oc/ghost');
+        persistGhostImg(url);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '고스트 이미지 업로드에 실패했습니다.';
+        alert(msg);
+      } finally {
+        setGhostImgBusy(false);
+      }
+    },
+    [persistGhostImg],
+  );
+
+  const floatingQuotes = useMemo(
+    () => normalizeFloatingQuotes(character.floatingQuotes),
+    [character.floatingQuotes],
+  );
+
+  useEffect(() => {
+    if (!quoteLayoutMode) return;
+    if (selectedQuoteId && floatingQuotes.some((q) => q.id === selectedQuoteId)) return;
+    setSelectedQuoteId(floatingQuotes[0]?.id ?? null);
+  }, [quoteLayoutMode, floatingQuotes, selectedQuoteId]);
+
+  const persistFloatingQuotes = useCallback(
+    (next: OcFloatingQuote[]) => {
+      if (!onSave) return;
+      void onSave({
+        ...character,
+        floatingQuotes: normalizeFloatingQuotes(next),
+      });
+    },
+    [character, onSave],
+  );
+
+  useEffect(
+    () => () => {
+      if (ghostSaveTimer.current) clearTimeout(ghostSaveTimer.current);
+      if (detailSaveTimer.current) clearTimeout(detailSaveTimer.current);
+      if (touchSaveTimer.current) clearTimeout(touchSaveTimer.current);
+    },
+    [],
+  );
+
+  const persistTouchPatch = useCallback(
+    (
+      patch: Partial<{
+        touchZones: TouchZone[];
+        touchHoverStyle: TouchHoverStyle;
+        touchSpeaker: string;
+      }>,
+      debounce = false,
+    ) => {
+      if (!onSave) return;
+      const nextZones = patch.touchZones ?? touchZones;
+      const nextStyle = patch.touchHoverStyle ?? touchHoverStyle;
+      const nextSpeaker = patch.touchSpeaker ?? touchSpeaker;
+      const write = () => {
+        const { touchReactionOnly: _legacy, ...rest } = character;
+        void onSave({
+          ...rest,
+          touchZones: nextZones,
+          touchHoverStyle: nextStyle,
+          touchEnabled: false,
+          touchSpeaker: nextSpeaker.trim() || undefined,
+        });
+      };
+      if (!debounce) {
+        write();
+        return;
+      }
+      if (touchSaveTimer.current) clearTimeout(touchSaveTimer.current);
+      touchSaveTimer.current = setTimeout(() => {
+        touchSaveTimer.current = null;
+        write();
+      }, 420);
+    },
+    [character, onSave, touchHoverStyle, touchSpeaker, touchZones],
+  );
+
+  const layoutEdit = Boolean(isAdmin && onSave && ghostLayoutMode && !vn.present);
+  const charEdit = Boolean(layoutEdit && layoutTarget === 'char');
+  const ghostEdit = Boolean(layoutEdit && layoutTarget === 'ghost' && ghostEnabled);
+  const quoteEdit = Boolean(isAdmin && onSave && quoteLayoutMode && !vn.present);
+  const touchEditing = Boolean(isAdmin && onSave && touchEditMode && !vn.present);
+  const charDrag = usePairSlotLayoutDrag(detailLayout, persistDetailLayout, charEdit, {
+    requireSelect: false,
+    snapThreshold: 2.8,
+  });
+  const ghostDrag = usePairSlotLayoutDrag(ghostLayout, persistGhostLayout, ghostEdit, {
+    requireSelect: false,
+    snapThreshold: 2.8,
+  });
+  const activeSnap = charEdit ? charDrag.snap : ghostEdit ? ghostDrag.snap : { x: false, y: false };
+
+  const playCharMotion = useCallback((motion: DialogueMotion | null) => {
     if (motionClearRef.current) clearTimeout(motionClearRef.current);
     if (!motion) {
       setCharMotion(null);
       return;
     }
+    setVnEnterAnim(false);
+    if (vnEnterClearRef.current) clearTimeout(vnEnterClearRef.current);
     setCharMotion(null);
     window.requestAnimationFrame(() => {
-      setCharMotion(motion);
-      motionClearRef.current = setTimeout(() => setCharMotion(null), motion === 'shake' ? 520 : 280);
+      window.requestAnimationFrame(() => {
+        setCharMotion(motion);
+        motionClearRef.current = setTimeout(
+          () => setCharMotion(null),
+          DIALOGUE_MOTION_MS[motion],
+        );
+      });
+    });
+  }, []);
+
+  const playCharFx = useCallback((fx: DialogueFx | null) => {
+    if (fxClearRef.current) clearTimeout(fxClearRef.current);
+    if (!fx) {
+      setCharFx(null);
+      return;
+    }
+    setCharFx(null);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        setCharFx(fx);
+        fxClearRef.current = setTimeout(() => setCharFx(null), DIALOGUE_FX_MS);
+      });
     });
   }, []);
 
   useEffect(() => {
+    /* 상세에 이미 서 있는 캐릭터에 VN enter 애니를 다시 걸면
+       transform 잔여로 좌우 튐이 남음 — 퇴장(leaving)만 유지 */
+    if (!vn.present || vn.leaving) {
+      setVnEnterAnim(false);
+      if (vnEnterClearRef.current) clearTimeout(vnEnterClearRef.current);
+      return;
+    }
+    setVnEnterAnim(false);
+  }, [vn.present, vn.leaving, character.id]);
+
+  useEffect(() => {
     return () => {
       if (motionClearRef.current) clearTimeout(motionClearRef.current);
+      if (fxClearRef.current) clearTimeout(fxClearRef.current);
+      if (vnEnterClearRef.current) clearTimeout(vnEnterClearRef.current);
     };
   }, []);
 
@@ -159,21 +465,101 @@ export function OcCharacterDetail({
     const el = document.getElementById('detail-screen');
     if (!el) return;
     applyCharacterTheme(el, character);
-    const panel = el.querySelector('.oc-detail-right');
-    panel?.classList.add('is-ready');
     return () => clearCharacterTheme(el);
   }, [character]);
 
+  useLayoutEffect(() => {
+    /* 마운트 직후 정보 패널 표시 — imperative classList는 리렌더에 지워지므로 className으로 유지 */
+    setRightReady(true);
+    const screen = document.getElementById('detail-screen');
+    if (!screen) return;
+    screen.classList.add('is-pv-done', 'active');
+    screen.style.setProperty('opacity', '1');
+    screen.style.setProperty('filter', 'none');
+    screen.style.setProperty('transform', 'none');
+    screen.style.setProperty('visibility', 'visible');
+  }, [character.id]);
+
   const portraitTarget = useMemo(
     () => ({
-      src: vn.expression || img?.src || '',
+      /* VN 중에만 표정 URL — 평소는 기본 일러만 */
+      src: vn.present ? vn.expression || img?.src || '' : img?.src || '',
       fit: img?.fit || 'contain',
       pos: img?.pos || 'center top',
       frame: img?.frame,
     }),
-    [img?.fit, img?.frame, img?.pos, img?.src, vn.expression],
+    [img?.fit, img?.frame, img?.pos, img?.src, vn.expression, vn.present],
   );
   const displayImgSrc = shownPortrait?.src || portraitTarget.src;
+  const basePortraitSrc = (auVisual.front || img?.src || displayImgSrc || '').trim();
+  const touchStackApi = useTouchPortraitStack(basePortraitSrc);
+  const ghostDisplaySrc = (ghostImg || displayImgSrc || '').trim();
+  const showTouchOverlay = Boolean(
+    displayImgSrc &&
+      !vn.present &&
+      (touchEditing || (touchEnabled && touchZones.length > 0)),
+  );
+  const showTeaseToggle = Boolean(
+    !vn.present && (touchZones.length > 0 || (isAdmin && onSave)),
+  );
+  const teaseName = (character.name || '캐릭터').trim();
+
+  const ghostPickSources = useMemo(() => {
+    const rows: { key: string; src: string; label: string }[] = [];
+    const seen = new Set<string>();
+    const push = (key: string, src: string, label: string) => {
+      const url = src.trim();
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      rows.push({ key, src: url, label });
+    };
+    push('main', character.img || '', '기본');
+    (character.auVersions || []).forEach((au, i) => {
+      push(`au-${i}`, au.img || '', au.label?.trim() || `AU ${i + 1}`);
+    });
+    if (ghostImg && !seen.has(ghostImg)) {
+      push('custom', ghostImg, '커스텀');
+    }
+    return rows;
+  }, [character.auVersions, character.img, ghostImg]);
+
+  /* AU 전환 — 임시 표정 버리고 해당 버전 기본 일러로 */
+  useEffect(() => {
+    const next = (img?.src || '').trim();
+    const prev = prevAuImgRef.current;
+    prevAuImgRef.current = next;
+
+    if (!next) {
+      setAuVisual({ front: '', back: null, gen: 0 });
+      return;
+    }
+
+    if (prev && prev !== next) {
+      touchExpressionRef.current = null;
+      setTouchExpression(null);
+      touchStackApi.reset(next);
+      if (vn.present) vn.setExpression(null);
+    }
+
+    if (vn.present) {
+      setAuVisual({ front: next, back: null, gen: 0 });
+      return;
+    }
+
+    setAuVisual((prevVisual) => {
+      if (!prevVisual.front) return { front: next, back: null, gen: 0 };
+      if (prevVisual.front === next) return prevVisual;
+      return { front: next, back: prevVisual.front, gen: prevVisual.gen + 1 };
+    });
+  }, [img?.src, vn.present, vn.setExpression, touchStackApi.reset]);
+
+  useEffect(() => {
+    if (!auVisual.back) return;
+    const t = window.setTimeout(() => {
+      setAuVisual((prev) => (prev.back ? { ...prev, back: null } : prev));
+    }, 720);
+    return () => window.clearTimeout(t);
+  }, [auVisual.gen, auVisual.back]);
 
   const portraitImgStyle = useCallback(
     (fit: string, pos: string, frame?: ImageFrame): CSSProperties =>
@@ -181,51 +567,55 @@ export function OcCharacterDetail({
     [],
   );
 
+  const clearTouchExpression = useCallback(() => {
+    touchExpressionRef.current = null;
+    setTouchExpression(null);
+  }, []);
+
+  const applyTouchExpression = useCallback(
+    (url: string, onDone?: () => void) => {
+      const next = url.trim();
+      if (!next) {
+        onDone?.();
+        return;
+      }
+      touchExpressionRef.current = next;
+      /* setState는 hardSwap flushSync 이후에 — 표정 페인트를 막지 않음 */
+      touchStackApi.hardSwap(next, () => {
+        setTouchExpression(next);
+        onDone?.();
+      });
+    },
+    [touchStackApi],
+  );
+
+  /* VN 대사창 ↔ 터치와 동일 soft 표정 스택 */
   useEffect(() => {
-    if (vn.active && !prevVnActiveRef.current && portraitTarget.src) {
-      const init = { front: 0 as const, layers: [portraitTarget.src, portraitTarget.src] as [string, string] };
-      exprPortraitRef.current = init;
-      setExprPortrait(init);
-      exprSwapGenRef.current += 1;
+    if (vn.present && !prevVnActiveRef.current) {
+      touchExpressionRef.current = null;
+      setTouchExpression(null);
+      touchStackApi.reset(portraitTarget.src || img?.src || '');
     }
-    prevVnActiveRef.current = vn.active;
-  }, [vn.active, portraitTarget.src]);
+    if (!vn.present && prevVnActiveRef.current) {
+      touchExpressionRef.current = null;
+      setTouchExpression(null);
+      /* 닫을 때 reset() 하드컷 금지 — soft로 기본 복귀 (이미 기본이면 no-op) */
+      touchStackApi.softRevertToBase();
+    }
+    prevVnActiveRef.current = vn.present;
+  }, [vn.present, portraitTarget.src, img?.src, touchStackApi.reset, touchStackApi.softRevertToBase]);
 
   useEffect(() => {
-    if (!vn.active || !portraitTarget.src) return;
+    if (!vn.present || !portraitTarget.src) return;
+    touchStackApi.hardSwap(portraitTarget.src);
+  }, [vn.present, portraitTarget.src, touchStackApi.hardSwap]);
 
-    const nextSrc = portraitTarget.src;
-    const current = exprPortraitRef.current;
-    if (current.layers[current.front] === nextSrc) return;
-
-    const back = (current.front ^ 1) as 0 | 1;
-    const gen = ++exprSwapGenRef.current;
-
-    const applySwap = () => {
-      if (gen !== exprSwapGenRef.current) return;
-      const live = exprPortraitRef.current;
-      const layers: [string, string] = [...live.layers];
-      layers[back] = nextSrc;
-      const next = { front: back, layers };
-      exprPortraitRef.current = next;
-      setExprPortrait(next);
-    };
-
-    if (current.layers[back] === nextSrc) {
-      const next = { front: back, layers: current.layers };
-      exprPortraitRef.current = next;
-      setExprPortrait(next);
-      return;
-    }
-
-    const pre = new Image();
-    pre.src = nextSrc;
-    const finish = () => {
-      void pre.decode?.().then(applySwap).catch(applySwap);
-    };
-    if (pre.complete) finish();
-    else pre.onload = finish;
-  }, [vn.active, portraitTarget.src]);
+  /* X로 퇴장 시작 시 expression이 null → portraitTarget이 기본으로 바뀌며 soft 전환 */
+  useEffect(() => {
+    if (!vn.leaving) return;
+    touchExpressionRef.current = null;
+    setTouchExpression(null);
+  }, [vn.leaving]);
 
   useEffect(() => {
     if (panelTimerRef.current) clearTimeout(panelTimerRef.current);
@@ -236,6 +626,9 @@ export function OcCharacterDetail({
     setGalleryLightbox(null);
     setShownPortrait(null);
     portraitRef.current = { src: '', fit: 'contain', pos: 'center top' };
+    touchExpressionRef.current = null;
+    setTouchExpression(null);
+    touchStackApi.reset('');
     vn.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- character switch only
   }, [character.id]);
@@ -250,12 +643,62 @@ export function OcCharacterDetail({
       const expr = (line as { expression?: string }).expression;
       if (expr?.trim()) urls.add(expr.trim());
     }
+    for (const zone of touchZones) {
+      for (const line of zone.lines ?? []) {
+        const expr =
+          typeof line === 'string' ? '' : String((line as TouchZoneLine).expression ?? '').trim();
+        if (expr) urls.add(expr);
+      }
+    }
     urls.forEach((url) => {
-      const pre = new Image();
-      pre.decoding = 'async';
-      pre.src = url;
+      warmTouchPortrait(url, 'high');
     });
-  }, [character.id, character.dialogue, character.vnLines, img?.src]);
+  }, [character.id, character.dialogue, character.vnLines, touchZones, img?.src]);
+
+  /* 괴롭히기 ON 시 구역 표정 재워밍 */
+  useEffect(() => {
+    if (!touchEnabled) return;
+    for (const zone of touchZones) {
+      for (const line of zone.lines ?? []) {
+        const expr =
+          typeof line === 'string' ? '' : String((line as TouchZoneLine).expression ?? '').trim();
+        if (expr) warmTouchPortrait(expr, 'high');
+      }
+    }
+  }, [touchEnabled, touchZones]);
+
+  useEffect(() => {
+    if (touchEnabled) return;
+    if (!touchExpressionRef.current && !touchExpression) return;
+    touchStackApi.softRevertToBase(clearTouchExpression);
+  }, [touchEnabled]); // eslint-disable-line react-hooks/exhaustive-deps -- OFF 시에만
+
+  const ensureDefaultAu = useCallback(() => {
+    if (auIdx >= 0) onAuChange(-1);
+  }, [auIdx, onAuChange]);
+
+  const handleTouchPlayLine = useCallback(
+    (line: TouchZoneLine) => {
+      const expr = line.expression?.trim() || '';
+      if (expr) {
+        /* 같은 표정 파일이 연속이면 전환 애니 생략 */
+        if (touchExpressionRef.current !== expr) {
+          applyTouchExpression(expr);
+        }
+      } else if (touchExpressionRef.current) {
+        /* 표정 없는 다음 대사 → 기본 표정으로 복귀 */
+        touchStackApi.softRevertToBase(clearTouchExpression);
+      }
+      playCharMotion(normalizeMotion(line.motion));
+      playCharFx(isDialogueFx(line.fx) ? line.fx : null);
+    },
+    [applyTouchExpression, clearTouchExpression, playCharFx, playCharMotion, touchStackApi],
+  );
+
+  /* state 클로저에 의존하지 않음 — 대사 시작 때 null이어도 항상 스택 기준으로 복귀 */
+  const handleTouchPlayEnd = useCallback(() => {
+    touchStackApi.softRevertToBase(clearTouchExpression);
+  }, [touchStackApi, clearTouchExpression]);
 
   useEffect(() => {
     const target = portraitTarget;
@@ -291,16 +734,15 @@ export function OcCharacterDetail({
     if (!characterHasBgmTheme(character)) return;
 
     const th = character.theme;
+    const payload = {
+      fileData: th?.fileData,
+      youtubeId: th?.youtubeId,
+      title: th?.title || `${character.name} Theme`,
+      artist: th?.artist || '',
+    };
     wasPlayingRef.current = bgmApi.current.playing;
-    bgmApi.current.playCharacterTheme(
-      {
-        fileData: th?.fileData,
-        youtubeId: th?.youtubeId,
-        title: th?.title || `${character.name} Theme`,
-        artist: th?.artist || '',
-      },
-      bgmApi.current.playing,
-    );
+    /* PV에서 이미 재생 중이면 상세 마운트가 끊지 않음 (playCharacterTheme 내부에서도 가드) */
+    bgmApi.current.playCharacterTheme(payload, bgmApi.current.playing);
   }, [
     character.id,
     character.name,
@@ -397,6 +839,9 @@ export function OcCharacterDetail({
   useLakeBackNavigation(editOpen, () => setEditOpen(false), 'oc-detail-edit');
 
   function toggleLeft(id: string) {
+    if (ghostLayoutMode) setGhostLayoutMode(false);
+    if (quoteLayoutMode) setQuoteLayoutMode(false);
+    if (touchEditMode) setTouchEditMode(false);
     if (panelTimerRef.current) clearTimeout(panelTimerRef.current);
     if (openLeft === id) {
       setPanelClosing(true);
@@ -535,7 +980,7 @@ export function OcCharacterDetail({
     if (character.novel?.length) {
       sections.push({
         id: 'novel',
-        label: 'Novel',
+        label: '프리뷰',
         content: (
           <div className="oc-acc-novel">
             {character.novel.map((n, i) => (
@@ -565,67 +1010,437 @@ export function OcCharacterDetail({
           {formatCardTag(character.tag) ? ` · ${formatCardTag(character.tag)}` : ''}
         </div>
         {isAdmin && onSave && (
-          <button type="button" className="btn-edit" style={{ marginLeft: 'auto' }} onClick={() => setEditOpen(true)}>
-            ✎ 수정
-          </button>
+          <div className="game-topbar-actions">
+            <button
+              type="button"
+              className={`btn-edit${ghostLayoutMode ? ' is-active' : ''}`}
+              title="메인·고스트 위치 조절"
+              onClick={() => {
+                setGhostLayoutMode((v) => {
+                  const next = !v;
+                  if (next) {
+                    setLayoutTarget('char');
+                    setTouchEditMode(false);
+                    setQuoteLayoutMode(false);
+                    if (vn.present) vn.close();
+                  }
+                  return next;
+                });
+              }}
+            >
+              {ghostLayoutMode ? '✓ 위치' : '위치'}
+            </button>
+            <button
+              type="button"
+              className={`btn-edit${quoteLayoutMode ? ' is-active' : ''}`}
+              title="플로팅 대사 위치·크기"
+              onClick={() => {
+                setQuoteLayoutMode((v) => {
+                  const next = !v;
+                  if (next) {
+                    setGhostLayoutMode(false);
+                    setTouchEditMode(false);
+                    if (vn.present) vn.close();
+                  }
+                  return next;
+                });
+              }}
+            >
+              {quoteLayoutMode ? '✓ 대사' : '대사'}
+            </button>
+            <button
+              type="button"
+              className={`btn-edit${touchEditMode ? ' is-active' : ''}`}
+              title="터치 반응 영역 편집"
+              onClick={() => {
+                setTouchEditMode((v) => {
+                  const next = !v;
+                  if (next) {
+                    setGhostLayoutMode(false);
+                    setQuoteLayoutMode(false);
+                    if (vn.present) vn.close();
+                  }
+                  return next;
+                });
+              }}
+            >
+              {touchEditMode ? '✓ 터치' : '터치'}
+            </button>
+            <button type="button" className="btn-edit" onClick={() => setEditOpen(true)}>
+              ✎ 수정
+            </button>
+          </div>
         )}
       </div>
 
-      <div className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.active ? ' vn-active' : ''}`}>
+      <div
+        className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.present ? ' vn-active' : ''}${layoutEdit ? ' is-ghost-layout-edit' : ''}${charEdit ? ' is-char-layout-target' : ''}${ghostEdit ? ' is-ghost-layout-target' : ''}`}
+      >
+        {isAdmin && onSave && ghostLayoutMode ? (
+          <div className="oc-ghost-tools" role="toolbar" aria-label="위치 조절">
+            <div className="oc-ghost-tools__targets" role="tablist" aria-label="조절 대상">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={layoutTarget === 'char'}
+                className={`oc-ghost-tools__target${layoutTarget === 'char' ? ' is-active' : ''}`}
+                onClick={() => setLayoutTarget('char')}
+              >
+                메인
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={layoutTarget === 'ghost'}
+                className={`oc-ghost-tools__target${layoutTarget === 'ghost' ? ' is-active' : ''}`}
+                onClick={() => setLayoutTarget('ghost')}
+              >
+                고스트
+              </button>
+            </div>
+            <span className="oc-ghost-tools__sep" aria-hidden />
+            {layoutTarget === 'ghost' ? (
+              <>
+                <label className="oc-ghost-tools__toggle">
+                  <input
+                    type="checkbox"
+                    checked={ghostEnabled}
+                    onChange={(e) => persistGhostEnabled(e.target.checked)}
+                  />
+                  <span>표시</span>
+                </label>
+                {ghostEnabled ? (
+                  <>
+                    <span className="oc-ghost-tools__sep" aria-hidden />
+                    <div className="oc-ghost-tools__imgs" aria-label="고스트 이미지">
+                      {ghostPickSources.map((opt) => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          className={`oc-ghost-tools__thumb${ghostImg === opt.src ? ' is-active' : ''}`}
+                          title={opt.label}
+                          aria-label={`고스트: ${opt.label}`}
+                          aria-pressed={ghostImg === opt.src}
+                          onClick={() => persistGhostImg(opt.src)}
+                        >
+                          <img src={opt.src} alt="" draggable={false} />
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="oc-ghost-tools__upload"
+                        disabled={ghostImgBusy}
+                        title="고스트 이미지 업로드"
+                        aria-label="고스트 이미지 업로드"
+                        onClick={() => ghostFileRef.current?.click()}
+                      >
+                        {ghostImgBusy ? '…' : '+'}
+                      </button>
+                      <input
+                        ref={ghostFileRef}
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void uploadGhostImg(f);
+                          e.target.value = '';
+                        }}
+                      />
+                      {ghostImg ? (
+                        <button
+                          type="button"
+                          className="oc-ghost-tools__reset"
+                          title="메인과 동일하게"
+                          onClick={() => persistGhostImg('')}
+                        >
+                          초기화
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
+                <span className="oc-ghost-tools__sep" aria-hidden />
+                {ghostEnabled ? (
+                  <button
+                    type="button"
+                    className="oc-ghost-tools__reset"
+                    title="가로 중앙에 맞춤"
+                    onClick={() =>
+                      persistGhostLayout({
+                        ...normalizeImageFrame(ghostLayout),
+                        x: 0,
+                      })
+                    }
+                  >
+                    중앙
+                  </button>
+                ) : null}
+                <span className={`oc-ghost-tools__hint${ghostEnabled ? '' : ' is-muted'}`}>
+                  {ghostEnabled ? '드래그 · 휠 · 중앙선 스냅' : '표시를 켜면 조절할 수 있어요'}
+                </span>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="oc-ghost-tools__reset"
+                  title="가로 중앙에 맞춤"
+                  onClick={() =>
+                    persistDetailLayout({
+                      ...normalizeImageFrame(detailLayout),
+                      x: 0,
+                    })
+                  }
+                >
+                  중앙
+                </button>
+                <button
+                  type="button"
+                  className="oc-ghost-tools__reset"
+                  title="메인 위치·크기 초기화"
+                  onClick={() => persistDetailLayout({ ...DEFAULT_OC_DETAIL_LAYOUT })}
+                >
+                  초기화
+                </button>
+                <span className="oc-ghost-tools__sep" aria-hidden />
+                <span className="oc-ghost-tools__hint">드래그 · 휠 · 중앙선 스냅</span>
+              </>
+            )}
+            <button
+              type="button"
+              className="oc-ghost-tools__done"
+              onClick={() => setGhostLayoutMode(false)}
+            >
+              완료
+            </button>
+          </div>
+        ) : null}
+        {isAdmin && onSave && quoteLayoutMode ? (
+          <div className="oc-ghost-tools" role="toolbar" aria-label="플로팅 대사 조절">
+            <div className="oc-ghost-tools__imgs" aria-label="대사 선택">
+              {floatingQuotes.map((q, i) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  className={`oc-ghost-tools__thumb oc-fq-tools__chip${selectedQuoteId === q.id ? ' is-active' : ''}`}
+                  title={q.text}
+                  aria-pressed={selectedQuoteId === q.id}
+                  onClick={() => setSelectedQuoteId(q.id)}
+                >
+                  <span>{i + 1}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className="oc-ghost-tools__upload"
+                title="대사 추가"
+                aria-label="대사 추가"
+                onClick={() => {
+                  const q = emptyFloatingQuote('새 대사');
+                  persistFloatingQuotes([...floatingQuotes, q]);
+                  setSelectedQuoteId(q.id);
+                }}
+              >
+                +
+              </button>
+            </div>
+            <span className="oc-ghost-tools__sep" aria-hidden />
+            <span className="oc-ghost-tools__hint">드래그로 이동 · 휠로 크기</span>
+            <button
+              type="button"
+              className="oc-ghost-tools__done"
+              onClick={() => setQuoteLayoutMode(false)}
+            >
+              완료
+            </button>
+          </div>
+        ) : null}
         <div className="game-left" id="game-left">
           <div className="game-char-gradient" />
+          {layoutEdit ? (
+            <div className="oc-layout-guides" aria-hidden="true">
+              <span
+                className={`oc-layout-guides__line oc-layout-guides__line--v${activeSnap.x ? ' is-snap' : ''}`}
+              />
+              <span
+                className={`oc-layout-guides__line oc-layout-guides__line--h${activeSnap.y ? ' is-snap' : ''}`}
+              />
+              <span className="oc-layout-guides__label">CENTER</span>
+            </div>
+          ) : null}
+          {(floatingQuotes.length > 0 || quoteEdit) && (
+            <OcFloatingQuotes
+              quotes={floatingQuotes}
+              mode="ambient"
+              editing={quoteEdit}
+              selectedId={selectedQuoteId}
+              onSelectId={setSelectedQuoteId}
+              onChange={persistFloatingQuotes}
+              paused={vn.present || ghostLayoutMode || touchEditMode}
+            />
+          )}
+          {ghostDisplaySrc && ghostEnabled ? (
+            <div className="oc-char-billboards" aria-hidden={!ghostEdit}>
+              <div
+                ref={ghostDrag.elRef}
+                className={`oc-char-billboard-wrap${ghostEdit ? ' is-layout-editable' : ''}${ghostDrag.selected ? ' is-layout-selected' : ''}${ghostDrag.dragging ? ' is-dragging' : ''}`}
+                style={{
+                  ...ghostDrag.layoutStyle('translateX(-50%)'),
+                  transformOrigin: 'center bottom',
+                }}
+                {...ghostDrag.handlers}
+              >
+                <img className="oc-char-billboard" src={ghostDisplaySrc} alt="" decoding="async" draggable={false} />
+              </div>
+            </div>
+          ) : null}
           <div
             className={`oc-char-slide${openLeft ? ' shifted' : ''}${
-              charBounce || charMotion === 'bounce'
-                ? ' oc-char-bounce-once'
-                : charMotion === 'shake'
-                  ? ' oc-char-shake-once'
-                  : ''
-            }`}
+              vnEnterAnim ? ' is-vn-enter' : ''
+            }${auVisual.back ? ' is-au-swapping' : ''}${touchEditing ? ' is-touch-edit' : ''}`}
           >
-            {displayImgSrc ? (
-              vn.active ? (
-                <div className="oc-char-portrait-stack">
-                  {([0, 1] as const).map((layer) => (
-                    <img
-                      key={layer}
-                      id={layer === 0 ? 'game-char-img' : undefined}
-                      className={`game-char-img oc-char-portrait-layer${exprPortrait.front === layer ? ' is-front' : ' is-back'}`}
-                      src={exprPortrait.layers[layer] || portraitTarget.src}
-                      alt=""
-                      decoding="sync"
-                      style={portraitImgStyle(portraitTarget.fit, portraitTarget.pos, portraitTarget.frame)}
-                    />
-                  ))}
+            {displayImgSrc || basePortraitSrc ? (
+              <>
+                <div
+                  className={`oc-char-motion-host${
+                    charBounce ? ' oc-char-bounce-once is-char-motion' : ocMotionClass(charMotion)
+                  }`}
+                >
+                  <div
+                    ref={charDrag.elRef}
+                    className={`oc-char-detail-layout${charEdit ? ' is-layout-editable' : ''}${charDrag.selected ? ' is-layout-selected' : ''}${charDrag.dragging ? ' is-dragging' : ''}`}
+                    style={{
+                      ...charDrag.layoutStyle(),
+                      transformOrigin: 'center bottom',
+                    }}
+                    {...charDrag.handlers}
+                  >
+                    <div
+                      className={`oc-char-portrait-stack${touchStackApi.softRevert ? ' is-soft-revert' : ''}`}
+                    >
+                      {charMotion === 'pulse' ? (
+                        <VnCharBloom
+                          src={
+                            touchStackApi.stack.layers[touchStackApi.stack.front] ||
+                            portraitTarget.src ||
+                            basePortraitSrc
+                          }
+                          imgStyle={portraitImgStyle(
+                            shownPortrait?.fit || portraitTarget.fit,
+                            shownPortrait?.pos || portraitTarget.pos,
+                            portraitTarget.frame || img?.frame,
+                          )}
+                        />
+                      ) : null}
+                      {([0, 1] as const).map((layer) => (
+                        <img
+                          key={layer}
+                          id={layer === 0 ? 'game-char-img' : undefined}
+                          className={`game-char-img oc-char-portrait-layer${
+                            touchStackApi.stack.front === layer ? ' is-front' : ' is-back'
+                          }`}
+                          src={
+                            touchStackApi.stack.layers[layer] ||
+                            portraitTarget.src ||
+                            basePortraitSrc
+                          }
+                          alt=""
+                          decoding="sync"
+                          draggable={false}
+                          style={portraitImgStyle(
+                            shownPortrait?.fit || portraitTarget.fit,
+                            shownPortrait?.pos || portraitTarget.pos,
+                            portraitTarget.frame || img?.frame,
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (
+                              vn.present ||
+                              ghostLayoutMode ||
+                              touchEditMode ||
+                              touchEnabled ||
+                              touchStackApi.stack.front !== layer
+                            ) {
+                              return;
+                            }
+                            ensureDefaultAu();
+                            setCharBounce(true);
+                            vn.open();
+                            window.setTimeout(() => setCharBounce(false), 260);
+                          }}
+                        />
+                      ))}
+                      <VnCharFx fx={charFx} />
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <img
-                  id="game-char-img"
-                  className="game-char-img"
-                  src={displayImgSrc}
-                  alt=""
-                  decoding="async"
-                  style={portraitImgStyle(
-                    shownPortrait?.fit || portraitTarget.fit,
-                    shownPortrait?.pos || portraitTarget.pos,
-                    img?.frame,
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (vn.active) return;
-                    setCharBounce(true);
-                    vn.open();
-                    window.setTimeout(() => setCharBounce(false), 260);
-                  }}
-                />
-              )
+                {showTouchOverlay ? (
+                  <TouchReactOverlay
+                    zones={touchZones}
+                    hoverStyle={touchHoverStyle}
+                    touchEnabled={touchEnabled}
+                    speaker={touchSpeaker || character.name || ''}
+                    editable={touchEditing}
+                    interactive={!ghostLayoutMode && (touchEditing || touchEnabled)}
+                    onZonesChange={(zones) => {
+                      setTouchZones(zones);
+                      persistTouchPatch({ touchZones: zones }, true);
+                    }}
+                    onHoverStyleChange={(style) => {
+                      setTouchHoverStyle(style);
+                      persistTouchPatch({ touchHoverStyle: style });
+                    }}
+                    onTouchEnabledChange={setTouchEnabled}
+                    onSpeakerChange={(s) => {
+                      setTouchSpeaker(s);
+                      persistTouchPatch({ touchSpeaker: s }, true);
+                    }}
+                    onPlayLine={handleTouchPlayLine}
+                    onPlayEnd={handleTouchPlayEnd}
+                    touchHintDismissed={touchHintDismissed}
+                    onTouchHintDismiss={onTouchHintDismiss}
+                  />
+                ) : null}
+              </>
             ) : (
               <div className="game-char-placeholder" id="game-placeholder">
                 {character.name?.[0] || '?'}
               </div>
             )}
           </div>
+          {showTeaseToggle ? (
+            <button
+              type="button"
+              className={`oc-tease-fab${touchEnabled ? ' is-on' : ''}`}
+              aria-pressed={touchEnabled}
+              title={
+                touchEnabled
+                  ? '켜짐 — 일러스트를 만져 보세요. 다시 누르면 대사창 모드'
+                  : '꺼짐 — 누르면 터치 반응 모드'
+              }
+              onClick={() => {
+                if (!touchEnabled) ensureDefaultAu();
+                setTouchEnabled((v) => !v);
+              }}
+            >
+              <span className="oc-tease-fab__kicker">Touch</span>
+              <span className="oc-tease-fab__label">{teaseName} 괴롭히기</span>
+              <span className="oc-tease-fab__state" aria-hidden="true">
+                {touchEnabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
+          ) : null}
         </div>
+
+        {!vn.present ? (
+          <OcAuPicker
+            character={character}
+            auIdx={auIdx}
+            onAuChange={onAuChange}
+            disabled={touchEnabled}
+          />
+        ) : null}
 
         {leftSections.length > 0 && (
           <nav className="oc-detail-left" aria-label="추가 정보">
@@ -666,7 +1481,7 @@ export function OcCharacterDetail({
           </div>
         )}
 
-        <div className="oc-detail-right" ref={rightPanelRef}>
+        <div className={`oc-detail-right${rightReady ? ' is-ready' : ''}`} ref={rightPanelRef}>
           <div className="oc-detail-right-scroll" ref={rightScrollRef}>
           <header className="oc-identity">
             <div className="oc-identity-no">
@@ -775,14 +1590,15 @@ export function OcCharacterDetail({
           </div>
         </div>
 
-        <OcAuPicker character={character} auIdx={auIdx} onAuChange={onAuChange} />
-
         <OcVnDialogue
           character={character}
           active={vn.active}
+          present={vn.present}
+          leaving={vn.leaving}
           onClose={vn.close}
           onExpression={vn.setExpression}
           onMotion={playCharMotion}
+          onFx={playCharFx}
         />
       </div>
 
@@ -812,7 +1628,7 @@ export function OcCharacterDetail({
         </div>
       )}
 
-      {editOpen && isAdmin && onSave && (
+      {isAdmin && onSave ? (
         <LakeEditModal
           open={editOpen}
           className="lake-edit-modal--oc"
@@ -831,7 +1647,7 @@ export function OcCharacterDetail({
             }}
           />
         </LakeEditModal>
-      )}
+      ) : null}
     </>
   );
 }

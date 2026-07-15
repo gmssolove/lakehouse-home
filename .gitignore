@@ -69,6 +69,11 @@ node_modules/
 
 # Next.js
 .next/
+out/
+
+# Tauri desktop (VN)
+.tauri-frontend/
+src-tauri/target/
 
 # Cloudflare
 .wrangler/

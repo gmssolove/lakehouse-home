@@ -64,6 +64,7 @@ export function BgmPlayer() {
   const resizeRef = useRef({ active: false, sw: 0, sh: 0, ox: 0, oy: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
   const collapseBtnRef = useRef<HTMLButtonElement>(null);
+  const scrubbingRef = useRef(false);
   const [uiReady, setUiReady] = useState(false);
   const [animClass, setAnimClass] = useState('');
   const [scrubbing, setScrubbing] = useState(false);
@@ -310,26 +311,39 @@ export function BgmPlayer() {
               onPointerDown={(e) => {
                 e.stopPropagation();
                 if (progressMax <= 0) return;
+                scrubbingRef.current = true;
                 setScrubbing(true);
                 setSeekScrubbing(true);
-                setScrubValue(parseFloat(e.currentTarget.value));
+                const next = parseFloat(e.currentTarget.value);
+                setScrubValue(next);
               }}
               onInput={(e) => {
                 if (progressMax <= 0) return;
                 const next = parseFloat(e.currentTarget.value);
+                scrubbingRef.current = true;
+                setScrubbing(true);
+                setSeekScrubbing(true);
                 setScrubValue(next);
+              }}
+              onChange={(e) => {
+                if (progressMax <= 0) return;
+                const next = parseFloat(e.currentTarget.value);
+                setScrubValue(next);
+                seek(next);
               }}
               onPointerUp={(e) => {
                 e.stopPropagation();
-                if (scrubbing && progressMax > 0) {
+                if (scrubbingRef.current && progressMax > 0) {
                   const next = parseFloat(e.currentTarget.value);
                   setScrubValue(next);
                   seek(next);
                 }
+                scrubbingRef.current = false;
                 setScrubbing(false);
                 setSeekScrubbing(false);
               }}
               onPointerCancel={() => {
+                scrubbingRef.current = false;
                 setScrubbing(false);
                 setSeekScrubbing(false);
               }}
@@ -340,7 +354,7 @@ export function BgmPlayer() {
                 {artist ? <div id="bgm-artist">{artist}</div> : null}
               </div>
               <div id="bgm-time">
-                {formatBgmTime(currentTime)} / {formatBgmTime(duration)}
+                {formatBgmTime(scrubbing ? scrubValue : currentTime)} / {formatBgmTime(duration)}
               </div>
             </div>
           </div>

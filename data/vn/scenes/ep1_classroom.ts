@@ -1,0 +1,183 @@
+import type { VNScene } from '@/components/vn/types';
+
+/** 1화 — 당신, 괴이죠?! */
+const scene = {
+  id: 'ep1_classroom',
+  title: '1화 — 당신, 괴이죠?!',
+  location: '교실 안',
+  nextSceneId: 'ep1_encounter',
+  lines: [
+    {
+      id: 'c_01',
+      background: 'school_corridor',
+      bgm: 'gakuen_light',
+      narrationOnly: true,
+      text: '숨이 턱까지 차오른 채 복도에 도착했다. 시간은 8시 29분. 세이프. 진짜 세이프다.',
+    },
+    {
+      id: 'c_02',
+      background: 'school_corridor',
+      speaker: '오무로',
+      text: '후우…… 살았다. 역시 나는 위기 극복 주인공 체질인가?',
+    },
+    {
+      id: 'c_03',
+      background: 'school_corridor',
+      narrationOnly: true,
+      text: '숨을 고르며 교실 쪽으로 걸어가던 중, 뭔가 이상한 낌새를 느꼈다. 우리 반 뒷문 앞에 학생들이 잔뜩 몰려 있었다.',
+    },
+    {
+      id: 'c_04',
+      background: 'school_corridor',
+      narrationOnly: true,
+      text: '"야 봤어? 1반에 그 전학생" "완전 미친 미모래" "근데 뭔가 신비로운 느낌?" "나도 보러 가자"',
+    },
+    {
+      id: 'c_05',
+      background: 'school_corridor',
+      speaker: '오무로',
+      text: '……전학생? 아침부터 뭔 소란인가 싶어 나도 슬쩍 사람들 틈으로 고개를 들이밀었다.',
+    },
+    {
+      id: 'c_06',
+      background: 'school_classroom',
+      sprites: [{ character: 'ivee', expression: 'cold', position: 'center' }],
+      missionUpdate: { id: 'm_ep1_who_is_she', status: 'start' },
+      narrationOnly: true,
+      text: '……교실 안, 창가 자리에 무심하게 앉아있는 그 얼굴을 본 순간 심장이 내려앉았다.',
+    },
+    {
+      id: 'c_07',
+      background: 'school_classroom',
+      sprites: [{ character: 'ivee', expression: 'cold', position: 'center' }],
+      speaker: '오무로',
+      text: '……저거, 아까 그— 잠깐, 잠깐만. 같은 사람이라고? 아니 같은 얼굴이라고?',
+    },
+    {
+      id: 'c_08',
+      background: 'school_classroom',
+      sprites: [{ character: 'ivee', expression: 'cold', position: 'center' }],
+      narrationOnly: true,
+      text: '머릿속이 순식간에 복잡해졌다. 정체를 숨기고 잠입한 건가? 설마 이 학교를 통째로 노리는 건가? 아니면— 설마 나를 노리는 건가?',
+    },
+    {
+      id: 'c_09',
+      background: 'school_classroom',
+      narrationOnly: true,
+      text: '"자, 다들 자리에 앉아라. 오늘부터 전학 온 학생을 소개한다. 엔도 이브 양이다."',
+    },
+    {
+      id: 'c_10',
+      background: 'school_classroom',
+      sprites: [{ character: 'ivee', expression: 'cold', position: 'center' }],
+      narrationOnly: true,
+      text: '선생님의 소개에도 소녀는 별다른 인사 없이 살짝 고개만 숙였다. 교실 곳곳에서 작은 탄성이 새어 나왔다.',
+    },
+    {
+      id: 'c_11',
+      background: 'school_classroom',
+      speaker: '오무로',
+      text: '(엔도…… 엔도라고? 그 얼굴로 아무렇지 않게 여기 앉아있는 게 말이 되냐…….)',
+    },
+    {
+      id: 'c_12',
+      background: 'school_classroom',
+      narrationOnly: true,
+      text: '그날 오전 수업이 어떻게 지나갔는지 하나도 기억나지 않는다. 종이 울릴 때까지 나는 계속 창가 자리만 힐끔거렸다.',
+    },
+    {
+      id: 'c_13',
+      background: 'school_classroom',
+      narrationOnly: true,
+      text: '쉬는 시간을 알리는 종이 울리자마자, 나는 앞뒤 잴 것도 없이 자리를 박차고 일어났다.',
+    },
+    {
+      id: 'c_14',
+      background: 'school_classroom',
+      speaker: '오무로',
+      text: '거기 당신! 잠깐 학교 뒤편으로 좀 따라 나와주세요!',
+    },
+    {
+      id: 'c_15',
+      background: 'school_classroom',
+      narrationOnly: true,
+      text: '교실이 순간 조용해졌다가, 곧바로 시끄러워졌다.',
+    },
+    {
+      id: 'c_16',
+      background: 'school_classroom',
+      narrationOnly: true,
+      text: '"오무로 미쳤냐" "헐 고백하나 봐" "전학 첫날부터?" "용기 대박이다 진짜" "어떡해 차이겠다"',
+    },
+    {
+      id: 'c_17',
+      background: 'school_classroom',
+      speaker: '오무로',
+      text: '(아니 그게 아니라— 아 몰라, 일단 말은 뱉었으니까.)',
+    },
+    {
+      id: 'c_18',
+      background: 'school_classroom',
+      sprites: [{ character: 'ivee', expression: 'cold', position: 'center' }],
+      narrationOnly: true,
+      text: "소녀는 표정 변화 하나 없이 자리에서 일어나 조용히 나를 따라나섰다. 인간의 뻔한 '연애 감정' 따위엔 이골이 난 듯한 얼굴로.",
+    },
+    {
+      id: 'c_19',
+      background: 'school_backyard',
+      narrationOnly: true,
+      text: '학교 뒤편, 인적 드문 그늘. 나는 숨을 한 번 크게 들이쉬고 그녀를 마주 봤다.',
+    },
+    {
+      id: 'c_20',
+      background: 'school_backyard',
+      sprites: [{ character: 'ivee', expression: 'cold', position: 'center' }],
+      speaker: '오무로',
+      text: '당신, 괴이죠?!',
+    },
+    {
+      id: 'c_21',
+      background: 'school_backyard',
+      sprites: [{ character: 'ivee', expression: 'flustered', position: 'center' }],
+      missionUpdate: { id: 'm_ep1_who_is_she', status: 'complete' },
+      narrationOnly: true,
+      text: '고백을 예상했던 자리에 날아든 건 전혀 다른 말이었다. 수백 년간 조율자로 살며 단 한 번도 흔들린 적 없던 그 얼굴에, 처음으로 균열이 갔다.',
+    },
+    {
+      id: 'c_22',
+      background: 'school_backyard',
+      sprites: [{ character: 'ivee', expression: 'flustered', position: 'center' }],
+      speaker: '이브',
+      text: '……뭐?',
+    },
+    {
+      id: 'c_23',
+      background: 'school_backyard',
+      sprites: [{ character: 'ivee', expression: 'flustered', position: 'center' }],
+      speaker: '오무로',
+      text: '아까 그 골목! 그 손짓 한 번에 그게 반으로 갈라졌잖아요! 그거 인간이 할 수 있는 거 아니잖아요, 그죠?! 저 확실히 봤다고요!',
+    },
+    {
+      id: 'c_24',
+      background: 'school_backyard',
+      sprites: [
+        { character: 'myako', expression: 'surprised', position: 'left' },
+        { character: 'ivee', expression: 'flustered', position: 'center' },
+      ],
+      speaker: '???',
+      text: '이브 님?! 여기서 뭐 하세요, 웬 안경 쓴 인간이랑—',
+    },
+    {
+      id: 'c_25',
+      background: 'school_backyard',
+      sprites: [
+        { character: 'myako', expression: 'surprised', position: 'left' },
+        { character: 'ivee', expression: 'flustered', position: 'center' },
+      ],
+      narrationOnly: true,
+      text: '어디선가 불쑥, 작은 그림자 하나가 튀어나와 이브의 다리에 매달리듯 붙었다. 나는 오늘 벌써 두 번째로, 뭐가 뭔지 모를 존재와 눈이 마주쳤다.',
+    },
+  ],
+} satisfies VNScene;
+
+export default scene;

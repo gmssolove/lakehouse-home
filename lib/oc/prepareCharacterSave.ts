@@ -25,6 +25,14 @@ export async function prepareCharacterForSave(character: OcCharacter): Promise<O
     next.img = await uploadImageUrl(next.img, 'oc/main', `${character.name || 'char'}-main.png`);
   }
 
+  if (next.ghostImg?.trim()) {
+    next.ghostImg = await uploadImageUrl(
+      next.ghostImg,
+      'oc/ghost',
+      `${character.name || 'char'}-ghost.png`,
+    );
+  }
+
   if (next.gallery?.length) {
     next.gallery = await prepareGallery(next.gallery);
   }
@@ -60,6 +68,28 @@ export async function prepareCharacterForSave(character: OcCharacter): Promise<O
           ...node,
           expression: await uploadImageUrl(node.expression, 'oc/expression', `dlg-${node.id || i + 1}.png`),
         };
+      }),
+    );
+  }
+
+  if (next.touchZones?.length) {
+    next.touchZones = await Promise.all(
+      next.touchZones.map(async (zone, zi) => {
+        const lines = await Promise.all(
+          (zone.lines || []).map(async (line, li) => {
+            if (typeof line === 'string') return { text: line };
+            if (!line.expression?.trim()) return line;
+            return {
+              ...line,
+              expression: await uploadImageUrl(
+                line.expression,
+                'oc/expression',
+                `touch-${zone.id || zi}-${li + 1}.png`,
+              ),
+            };
+          }),
+        );
+        return { ...zone, lines };
       }),
     );
   }

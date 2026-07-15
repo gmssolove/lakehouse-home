@@ -84,7 +84,7 @@
   justify-content: center;
   align-items: stretch;
   overflow: visible;
-  padding: 1.1rem 0 2.35rem;
+  padding: 1.1rem 1.25rem 2rem;
 }
 
 .pair-stage::before {
@@ -103,7 +103,41 @@
   display: none;
 }
 
-/* Revolving-door 3D carousel */
+/* Universe와 동일 skew 카드 */
+.pair-skew-stage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.1rem;
+}
+
+.pair-skew-stage .uni-skew {
+  width: min(960px, 100%);
+  margin-top: 0;
+}
+
+.pair-skew-add {
+  appearance: none;
+  border: 1px solid rgba(215, 169, 130, 0.35);
+  background: rgba(215, 169, 130, 0.08);
+  color: rgba(240, 220, 196, 0.92);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  padding: 0.45rem 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.pair-skew-add:hover {
+  background: rgba(215, 169, 130, 0.16);
+  border-color: rgba(215, 169, 130, 0.55);
+}
+
+/* Revolving-door 3D carousel (legacy — unused by stage) */
 .pair-revolve {
   position: relative;
   z-index: 1;

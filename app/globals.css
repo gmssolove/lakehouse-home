@@ -14,6 +14,7 @@
 @import '../styles/main-stage-perf.css';
 @import '../styles/home-menu-renew.css';
 @import '../styles/lake-perf.css';
+@import '../styles/vn-char-motions.css';
 @import '../styles/lh-scrollbar.css';
 @import '../styles/shared/image-frame.css';
 @import '../styles/auth-modal.css';
@@ -22,10 +23,51 @@
 @import '../styles/lake-edit-modal.css';
 @import '../styles/lake-edit-shell.css';
 @import '../styles/lake-toggle.css';
+@import '../styles/universe-accordion.css';
+@import '../styles/archive-mobile.css';
 @import '../styles/admin-sidebar.css';
+@import '../styles/clicker-widget.css';
 
 :root {
   --lh-body-font: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
+  /* 한글 UI — Noto/Zen 변수 슬롯을 ChosunNm으로 통일 */
+  --font-noto-serif-kr: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
+  --font-kb-mincho: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
+  --font-kb-kr: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
+  --font-kb-jp: var(--font-chosun-nm), 'ChosunNm', Georgia, serif;
+}
+
+/* 한글 본문/UI — 예외(Cormorant/Cinzel/Jost/VT323/Press Start 2P) 제외하고 ChosunNm */
+.page-heading,
+.page-sub,
+.page-coming,
+.world-card-name,
+.world-card-sub,
+.world-card-icon,
+.hover-name,
+.hover-tag,
+.char-card-name,
+.char-card-tag,
+.oc-identity-name,
+.oc-attr-head-ko,
+.oc-left-content-title,
+.oc-keyword-chip,
+.guest-card__body,
+.guest-card__meta,
+.guest-empty,
+.guest-guide__inner,
+.lh-scrap__note,
+.lh-scrap__link-memo,
+.uni-acc__name,
+.uni-acc__sub,
+.uni-acc__tab-label,
+.uni-acc__icon,
+.form-label,
+.form-input,
+.btn-save,
+.rq-menu-auth__user,
+.rq-menu-auth__input {
+  font-family: var(--lh-body-font) !important;
 }
 
 /* 기본·본문 서체 — 이미 font-family가 잡힌 장식/UI는 그대로 둠 */
@@ -353,7 +395,7 @@ body:has(.layout--home) #bgm-player {
 }
 
 #bgm-title {
-  font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif !important;
+  font-family: var(--lh-body-font), 'ChosunNm', Georgia, serif;
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--lake-copper-soft, rgba(240, 207, 173, 0.82));
@@ -364,7 +406,7 @@ body:has(.layout--home) #bgm-player {
 }
 
 #bgm-artist {
-  font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif !important;
+  font-family: var(--lh-body-font), 'ChosunNm', Georgia, serif;
   font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--text-muted, rgba(216, 213, 203, 0.58));

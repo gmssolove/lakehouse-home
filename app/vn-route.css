@@ -1,0 +1,351 @@
+/* /vn/[sceneId] — OC·Pair와 동일한 대사창 CSS 스택 (건드리지 않고 그대로 로드) */
+
+@import '../src/oc/styles/index.css';
+@import '../styles/shared/vn-action-choices.css';
+@import '../styles/vn-char-motions.css';
+@import '../styles/oc-next-fixes.css';
+@import '../styles/lake-chrome.css';
+
+/* 페이지만의 풀스크린 셸 — 대사창·선택지 규칙은 위 스택에 맡김 */
+.vn-fullscreen {
+  --bg: #0b0d0c;
+  --lake-copper: #d7a982;
+  --lake-copper-soft: #f0cfad;
+  --oc-vn: #f0cfad;
+  --oc-vn-border: rgba(215, 169, 130, 0.38);
+  --oc-panel-solid: #101210;
+  --oc-accent: rgba(215, 169, 130, 0.72);
+  --oc-accent-soft: rgba(240, 207, 173, 0.84);
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: var(--bg);
+  color: rgba(252, 246, 238, 0.92);
+  overflow: hidden;
+}
+
+.vn-stage {
+  position: absolute;
+  inset: 0;
+}
+
+/* OC base.css: #detail-screen { display:none } → .active 필요.
+   고정 포지션 충돌 방지: 풀스크린 안에서만 absolute로 유지 */
+.vn-fullscreen > #detail-screen.active {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+  display: block !important;
+  background: transparent !important;
+}
+
+.vn-chrome {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 920;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vn-fullscreen .detail-back-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: rgba(215, 169, 130, 0.75);
+  padding: 0;
+}
+
+.vn-fullscreen .detail-back-btn:hover {
+  color: rgba(240, 207, 173, 0.95);
+}
+
+.vn-missing {
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.vn-missing p {
+  margin: 0;
+  color: rgba(232, 222, 211, 0.7);
+  font-size: 14px;
+}
+
+.vn-missing code {
+  color: rgba(240, 207, 173, 0.85);
+  font-size: 12px;
+}
+
+.vn-ended {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 1rem;
+  text-align: center;
+  color: rgba(232, 222, 211, 0.7);
+  z-index: 910;
+}
+
+.vn-main-menu {
+  --vn-gold: #c9a15c;
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  background: #050505;
+  overflow: hidden;
+}
+
+.vn-main-menu--fallback {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 30%, rgba(40, 32, 22, 0.55), transparent 70%),
+    linear-gradient(165deg, #0c0b09 0%, #050505 45%, #080706 100%);
+}
+
+.vn-main-menu__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.vn-main-menu__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(5, 5, 5, 0.35) 0%,
+    rgba(5, 5, 5, 0.55) 40%,
+    rgba(5, 5, 5, 0.78) 100%
+  );
+  pointer-events: none;
+}
+
+.vn-main-menu__content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vn-main-menu__latin {
+  margin: 0;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  color: rgba(232, 222, 211, 0.45);
+}
+
+.vn-main-menu__title {
+  margin: 0 0 1.75rem;
+  font-family: var(--font-cormorant), 'Cormorant Garamond', 'ChosunNm', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(2rem, 4.5vw, 2.85rem);
+  letter-spacing: 0.14em;
+  color: rgba(248, 242, 232, 0.94);
+}
+
+.vn-main-menu__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 11rem;
+}
+
+.vn-main-menu__btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.55rem 0.75rem;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  color: rgba(232, 222, 211, 0.78);
+  transition: color 0.18s ease;
+}
+
+.vn-main-menu__btn:hover,
+.vn-main-menu__btn:focus-visible {
+  color: var(--vn-gold);
+  outline: none;
+}
+
+.vn-menu-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgba(5, 5, 5, 0.62);
+}
+
+.vn-menu-panel {
+  width: min(100%, 22rem);
+  padding: 1.25rem 1.35rem 1.4rem;
+  background: rgba(12, 12, 12, 0.94);
+  border: 1px solid rgba(201, 161, 92, 0.18);
+  text-align: left;
+}
+
+.vn-menu-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.vn-menu-panel__title {
+  margin: 0;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: rgba(248, 242, 232, 0.88);
+}
+
+.vn-menu-panel__close {
+  appearance: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(232, 222, 211, 0.55);
+}
+
+.vn-menu-panel__close:hover {
+  color: var(--vn-gold);
+}
+
+.vn-menu-panel__hint {
+  margin: 0 0 0.75rem;
+  font-size: 12px;
+  color: rgba(232, 222, 211, 0.5);
+}
+
+.vn-menu-slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vn-menu-slot {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.7rem 0.85rem;
+  appearance: none;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid rgba(232, 222, 211, 0.12);
+  color: rgba(248, 242, 232, 0.88);
+  text-align: left;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.vn-menu-slot:hover:not(:disabled),
+.vn-menu-slot:focus-visible:not(:disabled) {
+  border-color: var(--vn-gold);
+  color: var(--vn-gold);
+  outline: none;
+}
+
+.vn-menu-slot.is-empty,
+.vn-menu-slot:disabled {
+  cursor: default;
+  opacity: 0.42;
+  color: rgba(232, 222, 211, 0.55);
+}
+
+.vn-menu-slot__label {
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+}
+
+.vn-menu-slot__meta {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(232, 222, 211, 0.45);
+}
+
+.vn-menu-slot:hover:not(:disabled) .vn-menu-slot__meta {
+  color: rgba(201, 161, 92, 0.75);
+}
+
+.vn-menu-settings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.vn-menu-settings__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.vn-menu-settings__label {
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: rgba(232, 222, 211, 0.72);
+}
+
+.vn-menu-settings__control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vn-menu-settings__control input[type='range'] {
+  flex: 1;
+  accent-color: var(--vn-gold);
+}
+
+.vn-menu-settings__value {
+  min-width: 2.5rem;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 12px;
+  color: rgba(232, 222, 211, 0.65);
+  text-align: right;
+}
+
+/* —— VN 가독성만 (텍스트 그림자 — 레이아웃 무변경) —— */
+.vn-fullscreen .lh-vn-speaker,
+.vn-fullscreen .lh-vn-text {
+  text-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.9),
+    0 0 20px rgba(0, 0, 0, 0.5);
+}

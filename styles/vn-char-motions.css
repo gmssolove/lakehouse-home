@@ -1,0 +1,443 @@
+/* VN 캐릭터 감정 연출 — 미세한 몸 움직임 + 두근 블룸 + 머리 위 기호 */
+
+/* —— 끄덕 —— */
+@keyframes ocCharNodOnce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(1.4px);
+  }
+  50% {
+    transform: translateY(0);
+  }
+  72% {
+    transform: translateY(0.9px);
+  }
+}
+
+@keyframes ocCharNodOnceShifted {
+  0%,
+  100% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(0);
+  }
+  25% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(1.4px);
+  }
+  50% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(0);
+  }
+  72% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(0.9px);
+  }
+}
+
+/* —— 갸우뚱 (살짝) —— */
+@keyframes ocCharTiltOnce {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  35% {
+    transform: rotate(-1.1deg);
+  }
+  70% {
+    transform: rotate(0.55deg);
+  }
+}
+
+@keyframes ocCharTiltOnceShifted {
+  0%,
+  100% {
+    transform: translateX(clamp(80px, 10vw, 140px)) rotate(0deg);
+  }
+  35% {
+    transform: translateX(clamp(80px, 10vw, 140px)) rotate(-1.1deg);
+  }
+  70% {
+    transform: translateX(clamp(80px, 10vw, 140px)) rotate(0.55deg);
+  }
+}
+
+/* —— 폴짝 (작은 통통) —— */
+@keyframes ocCharHopOnce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-3.5px);
+  }
+  70% {
+    transform: translateY(-0.5px);
+  }
+}
+
+@keyframes ocCharHopOnceShifted {
+  0%,
+  100% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(0);
+  }
+  40% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(-3.5px);
+  }
+  70% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(-0.5px);
+  }
+}
+
+/* —— 시무룩 (살짝 처짐) —— */
+@keyframes ocCharDroopOnce {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  40% {
+    transform: translateY(2.2px) rotate(-0.7deg);
+  }
+  75% {
+    transform: translateY(1.2px) rotate(-0.4deg);
+  }
+}
+
+@keyframes ocCharDroopOnceShifted {
+  0%,
+  100% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(0) rotate(0deg);
+  }
+  40% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(2.2px) rotate(-0.7deg);
+  }
+  75% {
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(1.2px) rotate(-0.4deg);
+  }
+}
+
+/* —— 두근: 심장 박동(쿵-쿵) 리듬, 발끝 고정 —— */
+@keyframes ocCharPulseOnce {
+  0% {
+    transform: scale(1) translateY(0);
+    filter: brightness(1);
+  }
+  12% {
+    transform: scale(1.012, 1.018) translateY(-1px);
+    filter: brightness(1.04);
+  }
+  22% {
+    transform: scale(1.002) translateY(0);
+    filter: brightness(1.01);
+  }
+  34% {
+    transform: scale(1.008, 1.012) translateY(-0.6px);
+    filter: brightness(1.03);
+  }
+  48% {
+    transform: scale(1) translateY(0);
+    filter: brightness(1);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    filter: brightness(1);
+  }
+}
+
+@keyframes ocCharPulseOnceShifted {
+  0% {
+    transform: translateX(clamp(80px, 10vw, 140px)) scale(1) translateY(0);
+    filter: brightness(1);
+  }
+  12% {
+    transform: translateX(clamp(80px, 10vw, 140px)) scale(1.012, 1.018) translateY(-1px);
+    filter: brightness(1.04);
+  }
+  22% {
+    transform: translateX(clamp(80px, 10vw, 140px)) scale(1.002) translateY(0);
+    filter: brightness(1.01);
+  }
+  34% {
+    transform: translateX(clamp(80px, 10vw, 140px)) scale(1.008, 1.012) translateY(-0.6px);
+    filter: brightness(1.03);
+  }
+  48% {
+    transform: translateX(clamp(80px, 10vw, 140px)) scale(1) translateY(0);
+    filter: brightness(1);
+  }
+  100% {
+    transform: translateX(clamp(80px, 10vw, 140px)) scale(1) translateY(0);
+    filter: brightness(1);
+  }
+}
+
+/* 블룸도 이중 박동에 맞춰 두 번 번쩍 */
+@keyframes vnCharBloomOut {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1);
+    filter: blur(0) brightness(1.05) saturate(1.05);
+  }
+  10% {
+    opacity: 0.32;
+    transform: translateX(-50%) scale(1.04);
+    filter: blur(2px) brightness(1.18) saturate(1.2);
+  }
+  22% {
+    opacity: 0.08;
+    transform: translateX(-50%) scale(1.1);
+    filter: blur(8px) brightness(1.12) saturate(1.12);
+  }
+  32% {
+    opacity: 0.26;
+    transform: translateX(-50%) scale(1.06);
+    filter: blur(3px) brightness(1.16) saturate(1.18);
+  }
+  55% {
+    opacity: 0.06;
+    transform: translateX(-50%) scale(1.16);
+    filter: blur(12px) brightness(1.1) saturate(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.26);
+    filter: blur(18px) brightness(1.05) saturate(1.05);
+  }
+}
+
+@keyframes vnCharBloomOutPair {
+  0% {
+    opacity: 0;
+    transform: scale(1);
+    filter: blur(0) brightness(1.05) saturate(1.05);
+  }
+  10% {
+    opacity: 0.3;
+    transform: scale(1.04);
+    filter: blur(2px) brightness(1.18) saturate(1.2);
+  }
+  22% {
+    opacity: 0.07;
+    transform: scale(1.1);
+    filter: blur(8px) brightness(1.12) saturate(1.12);
+  }
+  32% {
+    opacity: 0.24;
+    transform: scale(1.06);
+    filter: blur(3px) brightness(1.16) saturate(1.18);
+  }
+  55% {
+    opacity: 0.05;
+    transform: scale(1.15);
+    filter: blur(11px) brightness(1.1) saturate(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.24);
+    filter: blur(16px) brightness(1.05) saturate(1.05);
+  }
+}
+
+/* —— 휘청 — 몸 전체 이동(발 고정 회전 느낌 제거) —— */
+@keyframes ocCharStaggerOnce {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  22% {
+    transform: translate3d(-2.6px, 1px, 0);
+  }
+  48% {
+    transform: translate3d(2.2px, -0.8px, 0);
+  }
+  72% {
+    transform: translate3d(-1.2px, 0.4px, 0);
+  }
+}
+
+@keyframes ocCharStaggerOnceShifted {
+  0%,
+  100% {
+    transform: translate3d(clamp(80px, 10vw, 140px), 0, 0);
+  }
+  22% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) - 2.6px), 1px, 0);
+  }
+  48% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) + 2.2px), -0.8px, 0);
+  }
+  72% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) - 1.2px), 0.4px, 0);
+  }
+}
+
+/* —— 머리 위 기호 —— */
+@keyframes vnCharFxPop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.7);
+  }
+  18% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1.08);
+  }
+  32% {
+    transform: translateX(-50%) translateY(-2px) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px) scale(0.92);
+  }
+}
+
+/* ——— OC 적용: slide(구) + motion-host(신, 터치박스와 분리) ——— */
+#detail-screen .oc-char-slide.oc-char-nod-once,
+#detail-screen .oc-char-motion-host.oc-char-nod-once {
+  transition: none !important;
+  animation: ocCharNodOnce 0.5s ease-in-out both !important;
+}
+
+#detail-screen .oc-char-slide.shifted.oc-char-nod-once {
+  animation: ocCharNodOnceShifted 0.5s ease-in-out both !important;
+}
+
+#detail-screen .oc-char-slide.oc-char-tilt-once,
+#detail-screen .oc-char-motion-host.oc-char-tilt-once {
+  transition: none !important;
+  animation: ocCharTiltOnce 0.52s ease-in-out both !important;
+  transform-origin: center 70%;
+}
+
+#detail-screen .oc-char-slide.shifted.oc-char-tilt-once {
+  animation: ocCharTiltOnceShifted 0.52s ease-in-out both !important;
+}
+
+#detail-screen .oc-char-slide.oc-char-hop-once,
+#detail-screen .oc-char-motion-host.oc-char-hop-once {
+  transition: none !important;
+  animation: ocCharHopOnce 0.42s cubic-bezier(0.34, 1.15, 0.64, 1) both !important;
+}
+
+#detail-screen .oc-char-slide.shifted.oc-char-hop-once {
+  animation: ocCharHopOnceShifted 0.42s cubic-bezier(0.34, 1.15, 0.64, 1) both !important;
+}
+
+#detail-screen .oc-char-slide.oc-char-droop-once,
+#detail-screen .oc-char-motion-host.oc-char-droop-once {
+  transition: none !important;
+  animation: ocCharDroopOnce 0.56s ease-in-out both !important;
+  transform-origin: center bottom;
+}
+
+#detail-screen .oc-char-slide.shifted.oc-char-droop-once {
+  animation: ocCharDroopOnceShifted 0.56s ease-in-out both !important;
+}
+
+#detail-screen .oc-char-slide.oc-char-pulse-once,
+#detail-screen .oc-char-motion-host.oc-char-pulse-once {
+  transition: none !important;
+  animation: ocCharPulseOnce 0.9s cubic-bezier(0.33, 0.12, 0.25, 1) both !important;
+  transform-origin: center bottom;
+}
+
+#detail-screen .oc-char-slide.shifted.oc-char-pulse-once {
+  animation: ocCharPulseOnceShifted 0.9s cubic-bezier(0.33, 0.12, 0.25, 1) both !important;
+}
+
+#detail-screen .oc-char-slide.oc-char-stagger-once,
+#detail-screen .oc-char-motion-host.oc-char-stagger-once {
+  transition: none !important;
+  animation: ocCharStaggerOnce 0.52s ease-in-out both !important;
+  transform-origin: center center !important;
+}
+
+#detail-screen .oc-char-slide.shifted.oc-char-stagger-once {
+  animation: ocCharStaggerOnceShifted 0.52s ease-in-out both !important;
+}
+
+#detail-screen .oc-char-slide .vn-char-bloom,
+#detail-screen .oc-char-motion-host .vn-char-bloom {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+#detail-screen .oc-char-slide .vn-char-bloom__img,
+#detail-screen .oc-char-motion-host .vn-char-bloom__img {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  height: 100%;
+  width: auto;
+  max-width: none;
+  object-fit: contain;
+  object-position: center bottom;
+  transform-origin: center bottom;
+  animation: vnCharBloomOut 0.9s cubic-bezier(0.22, 0.55, 0.3, 1) both;
+}
+
+#detail-screen .oc-char-slide .vn-char-bloom__img--b,
+#detail-screen .oc-char-motion-host .vn-char-bloom__img--b {
+  animation-delay: 0.08s;
+}
+
+/* Pair / FX — 기존 유지 */
+.pair-detail-screen .vn-char-bloom {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.pair-detail-screen .vn-char-bloom__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  transform-origin: center bottom;
+  animation: vnCharBloomOutPair 0.9s cubic-bezier(0.22, 0.55, 0.3, 1) both;
+}
+
+.pair-detail-screen .vn-char-bloom__img--b {
+  animation-delay: 0.08s;
+}
+
+.vn-char-fx {
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  z-index: 12;
+  pointer-events: none;
+  font: 600 28px/1 var(--font-noto-serif-kr, 'Noto Serif KR'), serif;
+  color: rgba(255, 248, 235, 0.95);
+  text-shadow:
+    0 0 12px rgba(205, 179, 126, 0.55),
+    0 2px 10px rgba(0, 0, 0, 0.65);
+  animation: vnCharFxPop 0.9s ease both;
+  white-space: nowrap;
+}
+
+.vn-char-fx.is-heart {
+  color: rgba(240, 140, 160, 0.95);
+}
+
+.vn-char-fx.is-anger {
+  color: rgba(230, 120, 110, 0.95);
+}
+
+.vn-char-fx.is-sweat {
+  letter-spacing: -0.08em;
+  font-size: 22px;
+}
+
+.vn-char-fx.is-sparkle,
+.vn-char-fx.is-music {
+  color: rgba(240, 220, 170, 0.95);
+}

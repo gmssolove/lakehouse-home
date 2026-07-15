@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -21,6 +22,7 @@ import { normalizeHex } from '@/lib/oc/characterTheme';
 import type { TrpgPlayerExpressionKind, TrpgPlayerProfile } from '@/lib/types/site-content';
 
 const CLOSE_MS = 320;
+const BODY_OPEN_CLASS = 'trpg-inv-detail-open';
 const FRAME_SNAP = 2.8;
 const QUOTE_SNAP = 2.2;
 
@@ -117,18 +119,25 @@ export function TrpgInvestigatorDetail({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
+  /* body 클래스는 Detail이 단독 소유 — Board와 레이스하면 숨김 CSS에 잠김 */
+  useLayoutEffect(() => {
+    document.body.classList.add(BODY_OPEN_CLASS);
+    return () => {
+      document.body.classList.remove(BODY_OPEN_CLASS);
+    };
+  }, []);
+
   useEffect(() => {
     if (!closing) return;
     const t = window.setTimeout(() => onCloseRef.current(), CLOSE_MS);
     return () => window.clearTimeout(t);
   }, [closing]);
 
-  // 언마운트 시 body 잠금 잔여 제거
   useEffect(() => {
-    return () => {
-      document.body.classList.remove('trpg-inv-detail-open');
-    };
-  }, []);
+    setClosing(false);
+    setPortraitPanel('expression');
+    setPanelAnim(false);
+  }, [player.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -137,11 +146,6 @@ export function TrpgInvestigatorDetail({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [editing, requestClose]);
-
-  useEffect(() => {
-    setPortraitPanel('expression');
-    setPanelAnim(false);
-  }, [player.id]);
 
   useEffect(() => {
     if (!listScrollable) {
@@ -155,7 +159,6 @@ export function TrpgInvestigatorDetail({
       el = exprListRef.current;
       if (!el) return;
       const remain = el.scrollHeight - el.scrollTop - el.clientHeight;
-      // 하단 ~48px 구간에서 0→1로 보간
       setExprScrollFade(Math.min(1, Math.max(0, remain / 48)));
     };
 

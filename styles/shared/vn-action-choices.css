@@ -1,0 +1,249 @@
+/* VN 행동 선택지 — 화면 중앙 가로 박스 (대사창 옆 선택지와 분리) */
+
+.lh-vn-action-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.25rem;
+  pointer-events: none;
+}
+
+.lh-vn-action-choices {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(14px, 2.2vh, 22px);
+  width: min(520px, 78vw);
+  pointer-events: none;
+}
+
+.lh-vn-action-choice {
+  --vn-action-accent: var(--oc-vn, var(--pair-copper, #d7a982));
+  --vn-action-soft: var(--oc-accent-soft, var(--pair-copper-soft, rgba(240, 207, 173, 0.92)));
+  --vn-action-panel: var(--oc-panel-solid, var(--pair-panel, #101210));
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: clamp(48px, 6.2vh, 58px);
+  padding: 0.85rem 1.6rem;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--vn-action-accent) 42%, transparent);
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--vn-action-accent) 28%, rgba(18, 16, 14, 0.55)) 0%,
+    color-mix(in srgb, var(--vn-action-panel) 55%, rgba(12, 10, 9, 0.72)) 100%
+  );
+  color: color-mix(in srgb, var(--vn-action-soft) 88%, #1a120c);
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: clamp(14px, 1.45vw, 17px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.45;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--vn-action-accent) 12%, transparent),
+    0 18px 40px rgba(0, 0, 0, 0.38),
+    0 0 28px color-mix(in srgb, var(--vn-action-accent) 18%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    color 0.22s ease,
+    transform 0.22s ease;
+  animation: lhVnActionIn 0.58s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--vn-action-i, 0) * 90ms + 80ms);
+}
+
+.lh-vn-action-choice__sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 18%,
+    color-mix(in srgb, var(--vn-action-soft) 22%, transparent) 42%,
+    transparent 68%
+  );
+  opacity: 0.55;
+  pointer-events: none;
+  transform: translateX(-40%);
+  animation: lhVnActionSheen 1.1s cubic-bezier(0.33, 0.04, 0.18, 1) both;
+  animation-delay: calc(var(--vn-action-i, 0) * 90ms + 220ms);
+}
+
+.lh-vn-action-choice__label {
+  position: relative;
+  z-index: 1;
+}
+
+.lh-vn-action-choice:hover,
+.lh-vn-action-choice:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--vn-action-accent) 78%, white);
+  color: #fff8ee;
+  transform: translateY(-2px) scale(1.012);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--vn-action-accent) 28%, transparent),
+    0 22px 48px rgba(0, 0, 0, 0.42),
+    0 0 36px color-mix(in srgb, var(--vn-action-accent) 32%, transparent);
+}
+
+.lh-vn-action-choice:active {
+  transform: translateY(0) scale(0.992);
+}
+
+/* —— 선택 확정 연출 —— */
+.lh-vn-action-layer.is-resolving,
+.lh-vn-action-choices.is-resolving {
+  pointer-events: none;
+}
+
+.lh-vn-action-choice.is-picked {
+  z-index: 2;
+  animation: lhVnActionPicked 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+  animation-delay: 0s !important;
+  border-color: color-mix(in srgb, var(--vn-action-accent) 88%, white);
+  color: #fff8ee;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--vn-action-soft) 40%, transparent),
+    0 22px 48px rgba(0, 0, 0, 0.45),
+    0 0 42px color-mix(in srgb, var(--vn-action-accent) 48%, transparent);
+}
+
+.lh-vn-action-choice.is-picked .lh-vn-action-choice__sheen {
+  animation: lhVnActionPickSheen 0.62s ease-out forwards !important;
+  animation-delay: 0s !important;
+  opacity: 0.85;
+}
+
+.lh-vn-action-choice.is-dismissed {
+  animation: lhVnActionDismiss 0.5s ease forwards !important;
+  animation-delay: 0.08s !important;
+}
+
+@keyframes lhVnActionPicked {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(1.045);
+    filter: brightness(1.18);
+  }
+  36% {
+    opacity: 1;
+    transform: scale(1.02);
+    filter: brightness(1.1);
+  }
+  72% {
+    opacity: 0.85;
+    transform: scale(1.035) translateY(-4px);
+    filter: brightness(1.15) blur(1px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05) translateY(-10px);
+    filter: brightness(1.2) blur(5px);
+  }
+}
+
+@keyframes lhVnActionPickSheen {
+  from {
+    opacity: 0.4;
+    transform: translateX(-30%);
+  }
+  40% {
+    opacity: 0.95;
+  }
+  to {
+    opacity: 0.2;
+    transform: translateX(28%);
+  }
+}
+
+@keyframes lhVnActionDismiss {
+  from {
+    opacity: 1;
+    filter: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+    filter: blur(7px) brightness(0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lh-vn-action-choice.is-picked,
+  .lh-vn-action-choice.is-dismissed {
+    animation: none !important;
+  }
+}
+
+@keyframes lhVnActionIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.94);
+    filter: blur(10px);
+  }
+  62% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes lhVnActionSheen {
+  from {
+    opacity: 0;
+    transform: translateX(-55%);
+  }
+  35% {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 0.35;
+    transform: translateX(12%);
+  }
+}
+
+@media (max-width: 640px) {
+  .lh-vn-action-choices {
+    width: min(100%, calc(100vw - 28px));
+    gap: 12px;
+  }
+
+  .lh-vn-action-choice {
+    min-height: 46px;
+    padding: 0.75rem 1.1rem;
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lh-vn-action-choice,
+  .lh-vn-action-choice__sheen {
+    animation: none !important;
+  }
+
+  .lh-vn-action-choice:hover,
+  .lh-vn-action-choice:focus-visible {
+    transform: none;
+  }
+}

@@ -374,6 +374,7 @@ function PairAdminPanel({
         <div id="pair-list-panel">
           {pairs.map((p) => {
             const order = pairOrderMeta(pairs, p.id);
+            const title = p.pairTitle?.trim() || `${p.chars[0]} & ${p.chars[1]}`;
             return (
               <div
                 key={p.id}
@@ -382,7 +383,10 @@ function PairAdminPanel({
                 onClick={() => onSelect(p.id)}
               >
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  {p.chars[0]} & {p.chars[1]}
+                  {title}
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {p.chars[0]} & {p.chars[1]}
+                  </div>
                 </span>
                 {pairs.length > 1 && (
                   <span className="pair-order-controls__btns" onClick={(e) => e.stopPropagation()}>
@@ -415,7 +419,9 @@ function PairAdminPanel({
             <PairEditForm
               pair={selected}
               characters={characters}
-              onSave={(item) => void persist(pairs.map((p) => (p.id === item.id ? item : p)))}
+              onSave={async (item) => {
+                await persist(pairs.map((p) => (p.id === item.id ? item : p)));
+              }}
               order={
                 selectedOrder && selectedOrder.index >= 0
                   ? {

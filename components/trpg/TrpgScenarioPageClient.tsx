@@ -22,7 +22,8 @@ import { useBgm } from '@/lib/contexts/BgmContext';
 import { parseYoutubeId } from '@/lib/bgm/playlist';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
-import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
+import { isLakeAccessUnlocked, isLakeItemUnlocked, unlockLakeItem, verifyLakeAccessPassword } from '@/lib/lake/accessGate';
+import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { lakeNavigate, peekPendingLakeRouteDir, beginLakeRouteEnter } from '@/lib/lake/routeTransition';
 import { consumeTrpgReturnPath, consumeTrpgSkipBgmRestore, markTrpgSkipBgmRestore } from '@/lib/lake/trpgReturn';
 import { trpgFontFamily } from '@/lib/trpg/fonts';
@@ -81,13 +82,15 @@ export function TrpgScenarioPageClient({ id }: Props) {
   const router = useRouter();
   const { user, isAdmin } = useAuth();
   const { confirm } = useLakeDialog();
-  const { trpg, loaded, saveTrpg } = useSiteContent();
+  const { trpg, loaded, saveTrpg, accessSettings } = useSiteContent();
   const { playCharacterTheme, restorePageSnapshot, silenceMedia } = useBgm();
   const bgmActionsRef = useRef({ playCharacterTheme, restorePageSnapshot, silenceMedia });
   bgmActionsRef.current = { playCharacterTheme, restorePageSnapshot, silenceMedia };
   const raw = trpg.find((s) => s.id === id);
   const [authOpen, setAuthOpen] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+  const [itemGateOpen, setItemGateOpen] = useState(false);
+  const [itemUnlocked, setItemUnlocked] = useState(false);
   const [activeLogId, setActiveLogId] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<TrpgPanel>('overview');
   const [draft, setDraft] = useState<TrpgScenario | null>(null);
@@ -142,18 +145,6 @@ export function TrpgScenarioPageClient({ id }: Props) {
     setAuthOpen(true);
   }, []);
 
-  useLakeBackNavigation(loaded && !!raw && unlocked, goBack, `trpg-${id}`, routeGuard);
-
-  useEffect(() => {
-    const dir = peekPendingLakeRouteDir();
-    if (dir !== 'forward') return;
-    const timer = window.setTimeout(() => {
-      if (document.body.classList.contains('lh-route-trpg-enter')) return;
-      beginLakeRouteEnter(pathname, dir);
-    }, 48);
-    return () => window.clearTimeout(timer);
-  }, [pathname]);
-
   useEffect(() => {
     if (!loaded) return;
     const ok = isAdmin || isLakeAccessUnlocked('trpg');
@@ -165,6 +156,31 @@ export function TrpgScenarioPageClient({ id }: Props) {
 
   const item = useMemo(() => (raw ? normalizeTrpgScenario(raw) : null), [raw]);
   const dates = item ? formatTrpgDateRange(item) : '';
+
+  useEffect(() => {
+    if (!item) {
+      setItemUnlocked(false);
+      setItemGateOpen(false);
+      return;
+    }
+    const ok = isAdmin || !item.secret || isLakeItemUnlocked('trpg', item.id);
+    setItemUnlocked(ok);
+    setItemGateOpen(unlocked && !ok);
+  }, [item, isAdmin, unlocked]);
+
+  const canView = unlocked && itemUnlocked;
+
+  useLakeBackNavigation(loaded && !!raw && canView, goBack, `trpg-${id}`, routeGuard);
+
+  useEffect(() => {
+    const dir = peekPendingLakeRouteDir();
+    if (dir !== 'forward') return;
+    const timer = window.setTimeout(() => {
+      if (document.body.classList.contains('lh-route-trpg-enter')) return;
+      beginLakeRouteEnter(pathname, dir);
+    }, 48);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
 
   useEffect(() => {
     if (item && !activeLogId && item.logs?.length) setActiveLogId(item.logs[0].id);
@@ -199,7 +215,7 @@ export function TrpgScenarioPageClient({ id }: Props) {
   }, [id]);
 
   useEffect(() => {
-    if (!item || !unlocked) return;
+    if (!item || !canView) return;
     const bgm = item.pageBgm;
     const fileUrl = bgm?.fileUrl?.trim();
     const extUrl = bgm?.url?.trim();
@@ -224,7 +240,7 @@ export function TrpgScenarioPageClient({ id }: Props) {
       }
       bgmActionsRef.current.restorePageSnapshot(true);
     };
-  }, [item?.id, item?.pageBgm?.fileUrl, item?.pageBgm?.url, unlocked]);
+  }, [item?.id, item?.pageBgm?.fileUrl, item?.pageBgm?.url, canView]);
 
   if (!loaded) {
     return (
@@ -238,19 +254,55 @@ export function TrpgScenarioPageClient({ id }: Props) {
   }
   if (!raw || !item) notFound();
 
-  if (!unlocked) {
+  if (!unlocked || !itemUnlocked) {
     return (
       <>
-        <TrpgTopbar />
+        <TrpgTopbar
+          back={
+            <button type="button" className="nav-back" onClick={goBack}>
+              ← back
+            </button>
+          }
+        />
         <main className="trpg-scenario-shell trpg-scenario-layout trpg-scenario-layout--loading">
-          <p className="trpg-scenario-loading">불러오는 중…</p>
+          <p className="trpg-scenario-loading">
+            {!unlocked ? '불러오는 중…' : '비밀 시나리오 — 비밀번호가 필요합니다.'}
+          </p>
         </main>
+        <LakeAccessGateModal
+          open={itemGateOpen}
+          scope="trpg"
+          item={item}
+          accessSettings={accessSettings}
+          title={item.title || 'TRPG Scenario'}
+          description={`${item.title || '시나리오'} — 로그인 후 비밀번호를 입력하세요.`}
+          loggedIn={!!user}
+          onClose={() => {
+            setItemGateOpen(false);
+            goBack();
+          }}
+          onRequestLogin={() => {
+            setItemGateOpen(false);
+            setAuthOpen(true);
+          }}
+          onSuccess={() => {
+            unlockLakeItem('trpg', item.id);
+            setItemUnlocked(true);
+            setItemGateOpen(false);
+          }}
+          verifyOverride={(input) => {
+            if (!verifyLakeAccessPassword('trpg', input, accessSettings, item)) return false;
+            unlockLakeItem('trpg', item.id);
+            return true;
+          }}
+        />
+        <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />
       </>
     );
   }
 
   const scenario = item;
-  const canEdit = unlocked && isAdmin;
+  const canEdit = canView && isAdmin;
   const editing = canEdit && draft?.id === id;
   const view = editing && draft ? draft : scenario;
   const activeLog = (view.logs ?? []).find((l) => l.id === activeLogId) ?? view.logs?.[0] ?? null;

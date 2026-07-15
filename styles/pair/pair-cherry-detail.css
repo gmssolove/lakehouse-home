@@ -1,0 +1,3418 @@
+﻿/* Pair cherry detail — L/C/R layout, lakehouse / OC detail-v2 tone */
+
+.pair-detail-screen .pair-detail-layout--archive {
+  position: relative;
+  padding: 0;
+  overflow: visible;
+  min-height: auto;
+}
+
+.pair-detail-screen .pair-cherry-root {
+  --pair-copper: var(--lake-copper, #d7a982);
+  --pair-copper-soft: var(--lake-copper-soft, #f0cfad);
+  --pair-line: rgba(215, 169, 130, 0.14);
+  --pair-cream: rgba(252, 246, 238, 0.96);
+  --pair-body: rgba(232, 222, 211, 0.78);
+  --pair-muted: rgba(215, 169, 130, 0.55);
+  --pair-panel: rgba(10, 12, 11, 0.78);
+  /* 페어 정보 리뉴얼 타이포 */
+  --pair-display: var(--font-playfair), var(--font-chosun-nm), 'Playfair Display', Georgia, serif;
+  --pair-serif: var(--font-chosun-nm), var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  --pair-latin: var(--font-marcellus), 'Marcellus', Georgia, serif;
+  --pair-script: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  --pair-sans: var(--font-gowun-dodum), var(--font-noto-sans-kr), 'Gowun Dodum', sans-serif;
+  --pair-read: var(--font-gowun-dodum), var(--font-chosun-nm), serif;
+
+  position: relative;
+  min-height: calc(100vh - 52px);
+  font-family: var(--pair-sans);
+  color: var(--pair-cream);
+  overflow: visible;
+  background-color: #0b0d0c;
+}
+
+.pair-detail-screen #pair_background,
+.pair-detail-screen .pair-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #0b0d0c;
+  pointer-events: none;
+  --pair-vignette-color: #d7a982;
+  --pair-vignette: 16%;
+  --pair-bg-dim: 0%;
+}
+
+/* 배경을 cherry-root 전체(히어로+페이지)에 깔아 하단 색 단차 제거 */
+.pair-detail-screen .pair-cherry-root > .pair-bg {
+  position: absolute;
+  inset: 0;
+  min-height: 100%;
+  height: auto;
+  bottom: 0;
+}
+
+.pair-detail-screen .pair-bg__dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 9, var(--pair-bg-dim, 0%));
+  pointer-events: none;
+}
+
+.pair-detail-screen .pair-bg__vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 58% 70% at 50% 42%,
+    color-mix(in srgb, var(--pair-vignette-color) var(--pair-vignette, 16%), transparent),
+    transparent 68%
+  );
+  pointer-events: none;
+}
+
+/* 은은한 안개·빛 — 구리빛 톤으로 천천히 우글거림 */
+.pair-detail-screen .pair-bg__haze {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: soft-light;
+}
+
+.pair-detail-screen .pair-bg__haze-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: 0.28;
+  will-change: transform, opacity;
+}
+
+.pair-detail-screen .pair-bg__haze-orb--a {
+  width: min(58vw, 720px);
+  height: min(58vw, 720px);
+  left: -12%;
+  top: 8%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--pair-vignette-color) 42%, transparent) 0%,
+    transparent 70%
+  );
+  animation: pairHazeDriftA 28s ease-in-out infinite alternate;
+}
+
+.pair-detail-screen .pair-bg__haze-orb--b {
+  width: min(52vw, 640px);
+  height: min(52vw, 640px);
+  right: -14%;
+  bottom: 4%;
+  background: radial-gradient(circle, rgba(240, 207, 173, 0.22) 0%, transparent 72%);
+  animation: pairHazeDriftB 34s ease-in-out infinite alternate;
+}
+
+.pair-detail-screen .pair-bg__haze-orb--c {
+  width: min(40vw, 480px);
+  height: min(40vw, 480px);
+  left: 32%;
+  top: 42%;
+  background: radial-gradient(circle, rgba(252, 246, 238, 0.12) 0%, transparent 68%);
+  animation: pairHazeDriftC 22s ease-in-out infinite alternate;
+}
+
+.pair-detail-screen .pair-bg__haze-shimmer {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(ellipse 40% 28% at 30% 40%, rgba(240, 207, 173, 0.04), transparent 55%),
+    radial-gradient(ellipse 36% 24% at 72% 58%, rgba(215, 169, 130, 0.035), transparent 55%);
+  animation: pairHazeShimmer 22s ease-in-out infinite alternate;
+  opacity: 0.55;
+}
+
+@keyframes pairHazeDriftA {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(6%, 4%) scale(1.08);
+  }
+}
+
+@keyframes pairHazeDriftB {
+  from {
+    transform: translate(0, 0) scale(1.05);
+  }
+  to {
+    transform: translate(-5%, -6%) scale(1);
+  }
+}
+
+@keyframes pairHazeDriftC {
+  from {
+    transform: translate(0, 0) scale(0.96);
+    opacity: 0.4;
+  }
+  to {
+    transform: translate(4%, -5%) scale(1.1);
+    opacity: 0.7;
+  }
+}
+
+@keyframes pairHazeShimmer {
+  from {
+    transform: translate(-2%, 1%) rotate(0deg);
+    opacity: 0.55;
+  }
+  to {
+    transform: translate(3%, -2%) rotate(2deg);
+    opacity: 0.9;
+  }
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-bg {
+  animation: pairBgEnter 1.1s ease-out both;
+}
+
+@keyframes pairBgEnter {
+  from {
+    opacity: 0;
+    transform: scale(1.045);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.pair-detail-screen .pair-cherry-root.fullscreen-mode {
+  background: #0b0d0c;
+}
+
+.pair-detail-screen .pair-cherry-root.fullscreen-mode #pair_background,
+.pair-detail-screen .pair-cherry-root.fullscreen-mode .pair-bg {
+  position: fixed;
+}
+
+/* —— actions —— */
+.pair-detail-screen .bo_fx {
+  text-align: center !important;
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+
+.pair-detail-screen .bo_fx .ui-btn {
+  appearance: none;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: rgba(12, 14, 13, 0.72);
+  color: rgba(240, 207, 173, 0.88);
+  padding: 8px 16px;
+  font-family: var(--pair-sans);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+.pair-detail-screen .bo_fx .ui-btn:hover {
+  border-color: rgba(240, 207, 173, 0.55);
+  background: rgba(215, 169, 130, 0.1);
+  color: var(--pair-copper-soft);
+}
+
+/* —— layout —— */
+.pair-detail-screen .pair-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  text-align: center;
+  margin-top: 24px;
+  padding: 0 20px 40px;
+  position: relative;
+  z-index: 100;
+}
+
+.pair-detail-screen .chara-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.pair-detail-screen .chara-item img {
+  z-index: 10;
+}
+
+.pair-detail-screen .chara-item .chara-body-clip .chara-body {
+  z-index: 0;
+  position: relative;
+}
+
+.pair-detail-screen .chara-item .chara-img {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  gap: 20px;
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+}
+
+/* 캐릭터에 앵커된 대표 대사 — 자유 배치 없음 */
+.pair-detail-screen .pair-anchored-quotes {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.pair-detail-screen .pair-anchored-quote {
+  position: absolute;
+  width: max-content;
+  max-width: min(92%, 220px);
+  transform: translate(-50%, -50%) scale(var(--oc-fq-scale, 1));
+  transform-origin: center center;
+  pointer-events: none;
+  text-align: center;
+}
+
+.pair-detail-screen .pair-anchored-quote.is-editable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.pair-detail-screen .pair-anchored-quote.is-selected .oc-float-quote__box {
+  outline: 1px dashed rgba(240, 207, 173, 0.55);
+  outline-offset: 8px;
+}
+
+/* 왼캐 — 몸통 쪽(중앙 플레이트 방향)으로 붙임 */
+.pair-detail-screen .chara-left .pair-anchored-quote.is-slot-face {
+  left: 62%;
+  top: 16%;
+}
+.pair-detail-screen .chara-left .pair-anchored-quote.is-slot-chest {
+  left: 64%;
+  top: 34%;
+}
+.pair-detail-screen .chara-left .pair-anchored-quote.is-slot-waist {
+  left: 60%;
+  top: 52%;
+}
+
+/* 오른캐 — 몸통 쪽(중앙 방향) */
+.pair-detail-screen .chara-right .pair-anchored-quote.is-slot-face {
+  left: 38%;
+  top: 16%;
+}
+.pair-detail-screen .chara-right .pair-anchored-quote.is-slot-chest {
+  left: 36%;
+  top: 34%;
+}
+.pair-detail-screen .chara-right .pair-anchored-quote.is-slot-waist {
+  left: 40%;
+  top: 52%;
+}
+
+.pair-detail-screen .pair-cherry-root.is-quote-edit .pair-anchored-quotes {
+  z-index: 25;
+}
+
+.pair-detail-screen .pair-cherry-root.is-quote-edit .chara-item .chara-img {
+  overflow: visible;
+}
+
+.pair-detail-screen .pair-float-quote-tools {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(8, 10, 9, 0.82);
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  pointer-events: auto;
+  max-width: min(92vw, 720px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pair-detail-screen .pair-float-quote-tools__side {
+  border: 0;
+  background: transparent;
+  color: rgba(216, 206, 192, 0.72);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pair-detail-screen .pair-float-quote-tools__side.is-active {
+  color: rgba(240, 207, 173, 0.96);
+  background: rgba(215, 169, 130, 0.14);
+}
+
+.pair-detail-screen .pair-float-quote-tools__slot {
+  appearance: none;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: rgba(12, 14, 13, 0.9);
+  color: rgba(240, 207, 173, 0.92);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pair-detail-screen .pair-float-quote-tools__hint {
+  font-size: 10px;
+  color: rgba(168, 164, 156, 0.55);
+  white-space: nowrap;
+}
+
+/* 고스트 — 전신과 분리, 위치·크기 개별 드래그
+   transform(wrapper) ≠ blur/mask(soft): 같으면 사각 경계선이 생김 */
+.pair-detail-screen .chara-item .chara-ghost-wrapper {
+  position: absolute;
+  top: 0;
+  bottom: 72px;
+  width: min(46vw, 560px);
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+  filter: none;
+}
+
+.pair-detail-screen .chara-item.chara-left .chara-ghost-wrapper {
+  left: 0;
+  transform-origin: left top;
+}
+
+.pair-detail-screen .chara-item.chara-right .chara-ghost-wrapper {
+  right: 0;
+  transform-origin: right top;
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-item .chara-ghost-wrapper {
+  pointer-events: auto;
+  z-index: 7;
+}
+
+.pair-detail-screen .chara-item .chara-ghost-soft {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* transform은 wrapper에만 — soft에 blur만 (같이 두면 사각 컷) */
+  filter: blur(3px);
+  pointer-events: none;
+  /* 하단이 메뉴/페이지로 삐져나오지 않게 — 더 일찍 페이드 */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 48%,
+    rgba(0, 0, 0, 0.4) 72%,
+    transparent 92%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 48%,
+    rgba(0, 0, 0, 0.4) 72%,
+    transparent 92%
+  );
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-item .chara-ghost-soft {
+  filter: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.pair-detail-screen .chara-item .chara-ghost-wrapper .chara-billboard {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center top;
+  z-index: 0 !important;
+  pointer-events: none;
+  opacity: 0.3;
+  filter: none;
+  animation: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.pair-detail-screen .pair-cherry-root.vn-active .chara-item .chara-ghost-wrapper .chara-billboard {
+  opacity: 0.22;
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-ghost-wrapper.is-layout-editable {
+  outline: 1px dashed rgba(160, 190, 220, 0.35);
+  outline-offset: 4px;
+  cursor: pointer;
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-ghost-wrapper.is-layout-selected {
+  outline: 1px solid rgba(160, 200, 240, 0.9);
+  box-shadow: 0 0 0 1px rgba(140, 180, 230, 0.25), 0 0 28px rgba(120, 170, 220, 0.2);
+  cursor: grab;
+  z-index: 11;
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-ghost-wrapper.is-dragging {
+  cursor: grabbing;
+  z-index: 13;
+}
+
+/* quote / speech — OC quote-line */
+.pair-detail-screen .chara-comment {
+  position: relative;
+  align-self: center;
+  z-index: 5;
+  max-width: 92%;
+  min-width: 70%;
+  margin-bottom: 1rem;
+  padding: 0.65rem 1rem 0.65rem 1.05rem;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.92), rgba(16, 14, 12, 0.88));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 2px solid rgba(240, 207, 173, 0.55);
+  border-radius: 2px;
+  font-family: var(--pair-serif);
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.94);
+  text-align: left;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.pair-detail-screen .chara-comment::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 28px;
+  border: 6px solid transparent;
+  border-top-color: rgba(12, 11, 10, 0.94);
+}
+
+/* polaroid */
+.pair-detail-screen .chara-item .chara-head-wrapper {
+  position: relative;
+  background: linear-gradient(160deg, #1a1c19, #121412);
+  border: 1px solid rgba(215, 169, 130, 0.32);
+  padding: 14px 14px 48px;
+  box-sizing: border-box;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  transform: rotate(-4deg) translateY(-50%);
+  top: 60%;
+  z-index: 4;
+}
+
+.pair-detail-screen .chara-item.chara-right .chara-head-wrapper {
+  transform: rotate(4deg) translateY(-50%);
+}
+
+.pair-detail-screen .chara-item .chara-head-wrapper .chara-head-source {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 16px;
+  margin: 0;
+  font-family: var(--pair-sans);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: rgba(215, 169, 130, 0.55);
+  text-align: left;
+}
+
+.pair-detail-screen .chara-item .chara-head-frame {
+  width: 148px;
+  height: 186px;
+  overflow: hidden;
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  box-sizing: border-box;
+  background: rgba(10, 12, 11, 0.9);
+  position: relative;
+}
+
+.pair-detail-screen .chara-item .chara-head-frame .image-frame-viewport {
+  position: absolute;
+  inset: 0;
+}
+
+.pair-detail-screen .chara-item .chara-head-frame .image-frame-viewport__img,
+.pair-detail-screen .chara-item .chara-head {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  display: block;
+}
+
+.pair-detail-screen .chara-item .chara-head--ph {
+  width: 148px;
+  height: 186px;
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  box-sizing: border-box;
+  background: rgba(10, 12, 11, 0.9);
+  display: grid;
+  place-items: center;
+  font-family: var(--pair-serif);
+  font-size: 42px;
+  color: rgba(215, 169, 130, 0.28);
+}
+
+.pair-detail-screen .chara-item .chara-body-wrapper {
+  position: absolute;
+  top: 0;
+  bottom: 72px; /* 이름/푸터 위까지 — 박스처럼 잘리는 느낌 방지 */
+  width: min(34vw, 420px);
+  max-height: none;
+  height: auto;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: auto;
+  clip-path: none;
+  transition: opacity 0.22s ease;
+}
+
+/* 위치 편집 시에도 상단 네비 아래로 유지 (transform으로 올려도 네비가 덮음) */
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-item .chara-body-wrapper {
+  z-index: 2;
+}
+
+.pair-detail-screen .chara-item.chara-left .chara-body-wrapper {
+  left: 0;
+  transform-origin: left top;
+}
+
+.pair-detail-screen .chara-item.chara-right .chara-body-wrapper {
+  right: 0;
+  transform-origin: right top;
+}
+
+.pair-detail-screen .chara-item .chara-body-clip {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.pair-detail-screen .chara-item .chara-body {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  object-position: center top;
+  /* 큰 검정 drop-shadow는 세로 경계선 원인 → 평소엔 없음 */
+  filter: none;
+  user-select: none;
+  pointer-events: none;
+  transition: filter 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pair-detail-screen .chara-item .chara-body-clip {
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pair-detail-screen .chara-item.chara-left .chara-body-clip {
+  transform-origin: left top;
+}
+
+.pair-detail-screen .chara-item.chara-right .chara-body-clip {
+  transform-origin: right top;
+}
+
+/* 일러스트 호버 — clip만 미세 확대 (img frame transform과 충돌 없음) */
+.pair-detail-screen .chara-item .chara-body-wrapper:hover .chara-body-clip,
+.pair-detail-screen .chara-item .chara-body-wrapper.is-vn-trigger:hover .chara-body-clip {
+  transform: scale(1.01);
+}
+
+.pair-detail-screen .chara-item .chara-body-wrapper:hover .chara-body,
+.pair-detail-screen .chara-item .chara-body-wrapper.is-vn-trigger:hover .chara-body {
+  filter:
+    drop-shadow(0 0 10px rgba(215, 169, 130, 0.14))
+    brightness(1.025);
+}
+
+/* 대사창 열릴 때 호버 필터 전환·이중 전신 페인트 줄이기 */
+.pair-detail-screen .pair-cherry-root.vn-active .chara-item .chara-body {
+  transition: none !important;
+  filter: none !important;
+}
+
+.pair-detail-screen .pair-cherry-root.vn-active .chara-item .chara-body-wrapper {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.pair-detail-screen .pair-cherry-root.vn-active .pair-bg__haze,
+.pair-detail-screen .pair-cherry-root.vn-active .pair-glide {
+  animation-play-state: paused;
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+.pair-detail-screen.pair-vn-playing .chara-item .chara-body-wrapper:hover .chara-body,
+.pair-detail-screen .pair-cherry-root.vn-active .chara-item .chara-body-wrapper:hover .chara-body,
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-item .chara-body-wrapper:hover .chara-body {
+  filter: none;
+}
+
+.pair-detail-screen.pair-vn-playing .chara-item .chara-body-wrapper:hover .chara-body-clip,
+.pair-detail-screen .pair-cherry-root.vn-active .chara-item .chara-body-wrapper:hover .chara-body-clip,
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-item .chara-body-wrapper:hover .chara-body-clip {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-detail-screen .chara-item .chara-body {
+    transition: none;
+  }
+}
+
+.pair-detail-screen .chara-item .chara-body.is-framed {
+  /* legacy class — 동일 contain 처리 */
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  object-position: center top;
+}
+
+.pair-detail-screen .chara-item .chara-body-source {
+  font-family: var(--pair-sans);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  width: max-content;
+  z-index: 10;
+  color: rgba(215, 169, 130, 0.55);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  margin: 0;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .chara-item.chara-left .chara-body-clip {
+  animation: pairBodyInLeft 1.05s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .chara-item.chara-right .chara-body-clip {
+  animation: pairBodyInRight 1.05s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
+}
+
+/* 고스트 — is-enter일 때만 1회 페이드. 그 외엔 고정(깜빡임 방지) */
+.pair-detail-screen .pair-cherry-root.is-enter .chara-item.chara-left .chara-ghost-wrapper .chara-billboard {
+  animation: pairGhostFadeIn 2.15s ease-out 0.42s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .chara-item.chara-right .chara-ghost-wrapper .chara-billboard {
+  animation: pairGhostFadeIn 2.15s ease-out 0.58s both;
+}
+
+.pair-detail-screen .pair-cherry-root:not(.is-enter) .chara-item .chara-ghost-wrapper .chara-billboard {
+  opacity: 0.3;
+  animation: none;
+}
+
+.pair-detail-screen .pair-cherry-root.vn-active:not(.is-enter) .chara-item .chara-ghost-wrapper .chara-billboard {
+  opacity: 0.22;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .chara-item.chara-left .chara-footer {
+  animation: pairTextIn 0.75s ease-out 0.28s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .chara-item.chara-right .chara-footer {
+  animation: pairTextIn 0.75s ease-out 0.36s both;
+}
+
+@keyframes pairBodyInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-36px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes pairBodyInRight {
+  from {
+    opacity: 0;
+    transform: translateX(36px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes pairGhostFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+
+@keyframes pairTextIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pairTextInUp {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes CharafadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes CharafadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pair-detail-screen .chara-footer {
+  display: flex;
+  position: absolute;
+  bottom: 0;
+  z-index: 11;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.pair-detail-screen .chara-footer.chara-left {
+  left: 0;
+  text-align: left;
+  align-items: flex-start;
+}
+
+.pair-detail-screen .chara-footer.chara-right {
+  right: 0;
+  text-align: right;
+  align-items: flex-end;
+}
+
+.pair-detail-screen .chara-img .chara-name {
+  font-family: var(--pair-serif);
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 500;
+  font-style: italic;
+  color: var(--pair-cream);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.65);
+  line-height: 1.15;
+}
+
+.pair-detail-screen .chara-color {
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(240, 207, 173, 0.45);
+  box-sizing: border-box;
+  border-radius: 1px;
+}
+
+.pair-detail-screen .chara-right .chara-color {
+  align-self: flex-end;
+}
+
+.pair-detail-screen .chara-sub,
+.pair-detail-screen .chara-role {
+  margin: 0;
+  font-family: var(--pair-sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pair-muted);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+
+.pair-detail-screen .chara-role {
+  text-transform: none;
+  letter-spacing: 0.04em;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* —— center (legacy flex) —— */
+.pair-detail-screen .pair-info {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pair-detail-screen .pair-info .pair-info-header {
+  align-self: center;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-direction: column;
+  position: relative;
+  align-items: center;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-info-header .pair-logo {
+  animation: pairTextInUp 0.85s ease-out 0.12s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-info .pair-name {
+  animation: pairTextInUp 0.85s ease-out 0.2s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-info .pair-sub {
+  animation: pairTextIn 0.7s ease-out 0.3s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-info .pair-relation {
+  animation: pairTextIn 0.7s ease-out 0.38s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-info .pair-tags {
+  animation: pairTextIn 0.75s ease-out 0.46s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-nicknames {
+  animation: pairTextIn 0.75s ease-out 0.52s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-desc-wrapper {
+  animation: pairTextIn 0.9s ease-out 0.58s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-extra__sec {
+  animation: pairTextIn 0.8s ease-out both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-extra__sec:nth-child(1) {
+  animation-delay: 0.66s;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-extra__sec:nth-child(2) {
+  animation-delay: 0.74s;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-extra__sec:nth-child(3) {
+  animation-delay: 0.82s;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-extra__sec:nth-child(4) {
+  animation-delay: 0.9s;
+}
+
+.pair-detail-screen .pair-info .pair-name {
+  margin: 0;
+  font-family: var(--pair-serif);
+  font-size: clamp(28px, 3.2vw, 40px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--pair-cream);
+  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.55);
+}
+
+.pair-detail-screen .pair-info-header .pair-logo {
+  width: 90%;
+  max-width: 360px;
+  object-fit: contain;
+  margin: 0 auto 1rem;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.45));
+}
+
+.pair-detail-screen .pair-info .pair-sub {
+  margin: 0.45rem 0 0;
+  font-family: var(--pair-sans);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pair-muted);
+}
+
+.pair-detail-screen .pair-info .pair-relation {
+  margin: 0.4rem 0 0;
+  font-family: var(--pair-serif);
+  font-size: 13px;
+  color: rgba(240, 207, 173, 0.72);
+}
+
+.pair-detail-screen .pair-info .pair-tags {
+  margin: 0.85rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--pair-line);
+  font-family: var(--pair-sans);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(232, 222, 211, 0.72);
+}
+
+.pair-detail-screen .pair-info .pair-desc-wrapper {
+  margin: auto;
+  max-width: 86%;
+  width: 100%;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pair-detail-screen .pair-desc-wrapper .pair-chara-wrapper {
+  display: flex;
+  gap: 12px;
+}
+
+.pair-detail-screen .pair-desc-wrapper .pair-desc,
+.pair-detail-screen .pair-desc-wrapper .pair-chara-wrapper .pair-chara-desc {
+  position: relative;
+  box-sizing: border-box;
+  flex: 1;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 1.05rem 1.15rem 1.15rem 1.25rem;
+  text-align: left;
+  color: var(--pair-body);
+  font-family: var(--pair-read);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  border-radius: 2px;
+  border: 1px solid var(--pair-line);
+  background: linear-gradient(
+    135deg,
+    rgba(10, 12, 11, 0.88) 0%,
+    rgba(14, 16, 14, 0.72) 70%,
+    rgba(10, 12, 11, 0.55) 100%
+  );
+  box-shadow: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(215, 169, 130, 0.28) transparent;
+}
+
+.pair-detail-screen .pair-desc-wrapper .pair-chara-desc::before,
+.pair-detail-screen .pair-desc-wrapper .pair-desc::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  width: 2px;
+  background: color-mix(in srgb, var(--pair-copper) 78%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pair-copper) 28%, transparent);
+  border-radius: 1px;
+}
+
+.pair-detail-screen .pair-chara-desc__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0 0 0.75rem;
+  padding: 0 0 0.55rem;
+  border-bottom: 1px solid var(--pair-line);
+}
+
+.pair-detail-screen .pair-chara-desc__en {
+  font-family: var(--pair-sans);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pair-muted);
+}
+
+.pair-detail-screen .pair-chara-desc__title {
+  margin: 0;
+  font-family: var(--pair-serif);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--pair-copper) 48%, rgba(252, 246, 238, 0.95));
+}
+
+.pair-detail-screen .pair-chara-desc__body {
+  white-space: pre-wrap;
+}
+
+.pair-detail-screen .pair-chara-desc__body p,
+.pair-detail-screen .pair-desc p {
+  margin: 0 0 0.55em;
+}
+
+.pair-detail-screen .pair-chara-desc a,
+.pair-detail-screen .pair-desc a,
+.pair-detail-screen .chara-img a {
+  color: var(--pair-copper-soft);
+  text-decoration: none;
+}
+
+.pair-detail-screen .chara-head-wrapper > a {
+  display: block;
+  line-height: 0;
+}
+
+.pair-detail-screen .pair-nicknames {
+  margin: 2rem 0 1.5rem;
+}
+
+.pair-detail-screen .pair-nicknames .pair-arrow {
+  box-sizing: border-box;
+  position: relative;
+  padding: 10px 14px;
+  max-width: 62%;
+  font-family: var(--pair-serif);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: rgba(252, 246, 238, 0.9);
+}
+
+.pair-detail-screen .pair-nicknames .left-to-right {
+  border-bottom: 1px solid rgba(215, 169, 130, 0.45);
+  margin: 0 auto 1.5rem;
+}
+
+.pair-detail-screen .pair-nicknames .left-to-right::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  transform: translate(70%, 50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 10px solid rgba(215, 169, 130, 0.75);
+}
+
+.pair-detail-screen .pair-nicknames .right-to-left {
+  border-top: 1px solid rgba(215, 169, 130, 0.45);
+  margin: 1.5rem auto 0;
+}
+
+.pair-detail-screen .pair-nicknames .right-to-left::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-70%, -50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 10px solid rgba(215, 169, 130, 0.75);
+}
+
+/* —— extras —— */
+.pair-detail-screen .pair-extra {
+  position: relative;
+  z-index: 100;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pair-detail-screen .pair-extra__sec {
+  position: relative;
+  padding: 1.15rem 1.25rem 1.25rem 1.35rem;
+  color: var(--pair-body);
+  text-align: left;
+  border: 1px solid var(--pair-line);
+  border-radius: 2px;
+  background: linear-gradient(135deg, rgba(10, 12, 11, 0.86), rgba(14, 16, 14, 0.7));
+}
+
+.pair-detail-screen .pair-extra__sec::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  width: 2px;
+  background: color-mix(in srgb, var(--pair-copper) 78%, transparent);
+  border-radius: 1px;
+}
+
+.pair-detail-screen .pair-extra__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  margin: 0 0 0.9rem;
+  padding: 0.35rem 0 0.65rem;
+  border-bottom: 1px solid var(--pair-line);
+}
+
+.pair-detail-screen .pair-extra__en {
+  font-family: var(--pair-sans);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pair-muted);
+}
+
+.pair-detail-screen .pair-extra__title {
+  margin: 0;
+  font-family: var(--pair-serif);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: rgba(244, 238, 229, 0.9);
+}
+
+.pair-detail-screen .pair-extra__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.pair-detail-screen .pair-extra__dday {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 100px;
+}
+
+.pair-detail-screen .pair-extra__lbl {
+  font-family: var(--pair-sans);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pair-muted);
+}
+
+.pair-detail-screen .pair-extra__dday-num {
+  font-family: var(--pair-serif);
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--pair-cream);
+}
+
+.pair-detail-screen .pair-extra__muted {
+  font-family: var(--pair-sans);
+  font-size: 11px;
+  color: rgba(215, 169, 130, 0.5);
+}
+
+.pair-detail-screen .pair-extra__chem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pair-detail-screen .pair-extra__chem-row {
+  display: grid;
+  grid-template-columns: 72px 1fr 36px;
+  gap: 8px;
+  align-items: center;
+  font-family: var(--pair-sans);
+  font-size: 12px;
+  color: rgba(232, 222, 211, 0.8);
+}
+
+.pair-detail-screen .pair-extra__chem-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(215, 169, 130, 0.12);
+  overflow: hidden;
+}
+
+.pair-detail-screen .pair-extra__chem-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.pair-detail-screen .pair-extra__copy {
+  margin: 10px 0 0;
+  font-family: var(--pair-read);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: var(--pair-body);
+}
+
+.pair-detail-screen .pair-extra__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.pair-detail-screen .pair-extra__tag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: rgba(215, 169, 130, 0.08);
+  font-family: var(--pair-sans);
+  font-size: 11px;
+  color: rgba(240, 207, 173, 0.82);
+}
+
+.pair-detail-screen .pair-extra__works {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pair-detail-screen .pair-extra__work {
+  padding: 12px 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(215, 169, 130, 0.12);
+  background: rgba(8, 10, 9, 0.45);
+}
+
+.pair-detail-screen .pair-extra__work-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.pair-detail-screen .pair-extra__kind {
+  font-family: var(--pair-sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pair-muted);
+}
+
+.pair-detail-screen .pair-extra__work-head strong {
+  font-family: var(--pair-serif);
+  font-weight: 500;
+  color: var(--pair-cream);
+}
+
+.pair-detail-screen .pair-extra__link {
+  display: inline-block;
+  margin-top: 6px;
+  font-family: var(--pair-sans);
+  font-size: 12px;
+  color: var(--pair-copper-soft);
+}
+
+.pair-detail-screen .pair-vn-entry {
+  margin: 10px 0 0;
+  text-align: center;
+}
+
+.pair-detail-screen .pair-vn-entry .pair-extra__link {
+  margin-top: 0;
+}
+
+.pair-detail-screen .pair-extra__gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.pair-detail-screen .pair-extra__gal-item {
+  margin: 0;
+}
+
+.pair-detail-screen .pair-extra__gal-item img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  background: #121412;
+}
+
+.pair-detail-screen .pair-extra__gal-item figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  font-family: var(--pair-sans);
+  font-size: 11px;
+  color: rgba(232, 222, 211, 0.72);
+}
+
+.pair-detail-screen .pair-extra__gallery > .pair-panel__rule {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .pair-detail-screen .pair-container {
+    flex-direction: column;
+  }
+
+  .pair-detail-screen .chara-item .chara-body-wrapper {
+    width: 100%;
+    position: relative;
+    top: auto;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    max-height: 62vh;
+    height: 62vh;
+  }
+
+  .pair-detail-screen .chara-item .chara-body-clip {
+    position: absolute;
+    inset: 0;
+  }
+
+  .pair-detail-screen .chara-item .chara-body {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .pair-detail-screen .chara-item .chara-head-wrapper {
+    top: auto !important;
+    bottom: 0 !important;
+    right: auto !important;
+    left: 50% !important;
+    transform: rotate(4deg) translateX(-50%) !important;
+  }
+
+  .pair-detail-screen .pair-info {
+    min-height: 0 !important;
+  }
+
+  .pair-detail-screen .btn_fullscreen {
+    display: none !important;
+  }
+
+  .pair-detail-screen .pair-extra__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+#detail-screen.pair-detail-screen.pair-vn-playing,
+#detail-screen.pair-detail-screen.pair-scroll-locked {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+/* 상단 네비 — 전신·위치 드래그가 이 박스 위로 올라오지 않게 */
+.pair-detail-screen > .detail-nav {
+  position: sticky;
+  top: 0;
+  z-index: 450;
+  height: 52px;
+  flex-shrink: 0;
+  background: rgba(10, 12, 10, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(215, 169, 130, 0.28);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  isolation: isolate;
+}
+
+.pair-detail-screen .pair-detail-layout--archive {
+  position: relative;
+  z-index: 1;
+}
+
+.pair-detail-screen.pair-vn-playing .detail-nav {
+  z-index: 650;
+}
+
+/* —— Pair VN: 페어창 전체 위 (딤 + 스탠딩 + OC 대사창) —— */
+.pair-detail-screen .chara-comment {
+  display: none !important;
+}
+
+.pair-detail-screen .chara-body-wrapper.is-vn-trigger {
+  cursor: pointer;
+}
+
+/* —— 전신·폴라로이드 레이아웃 편집 (TRPG 스탠딩식) —— */
+.pair-detail-screen .detail-nav .btn-edit.is-active {
+  color: #0c0e0c;
+  background: rgba(240, 207, 173, 0.92);
+  border-color: rgba(240, 207, 173, 0.95);
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-body-wrapper.is-layout-editable {
+  outline: 1px dashed rgba(240, 207, 173, 0.28);
+  outline-offset: 4px;
+  z-index: 8;
+  user-select: none;
+  /* 드래그 중에도 네비(450) 아래 */
+  max-height: calc(100vh - 52px - 72px);
+  cursor: pointer;
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-body-wrapper.is-layout-selected {
+  outline: 1px solid rgba(240, 207, 173, 0.85);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 1px rgba(240, 207, 173, 0.2), 0 0 28px rgba(215, 169, 130, 0.18);
+  cursor: grab;
+  z-index: 10;
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-body-wrapper.is-dragging {
+  outline-color: rgba(240, 207, 173, 0.95);
+  cursor: grabbing;
+  z-index: 12;
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-footer {
+  pointer-events: none;
+}
+
+.pair-detail-screen > .pair-vn-layer {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 600 !important;
+  pointer-events: none;
+  animation: none;
+}
+
+.pair-detail-screen > .pair-vn-layer.is-leaving {
+  pointer-events: none !important;
+}
+
+.pair-detail-screen .pair-vn-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 4, 3, 0.78);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.pair-detail-screen .pair-vn-stage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 40px;
+  bottom: 0; /* 화면 맨 아래까지 — 대사창 뒤로 겹쳐도 됨 */
+  transform: none;
+  width: auto;
+  height: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+  pointer-events: none;
+  z-index: 1;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.pair-detail-screen .pair-vn-stand {
+  flex: 1 1 0;
+  max-width: 58%;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transition: filter 0.35s ease, opacity 0.35s ease;
+  pointer-events: auto;
+  transform-origin: center bottom;
+  will-change: transform, filter;
+}
+
+.pair-detail-screen .pair-vn-stand--a {
+  justify-content: flex-end;
+  margin-right: -4%;
+}
+
+.pair-detail-screen .pair-vn-stand--b {
+  justify-content: flex-start;
+  margin-left: -4%;
+}
+
+.pair-detail-screen .pair-vn-stand__clip {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.pair-detail-screen .pair-vn-stand__clip img {
+  display: block;
+  width: auto;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.45));
+  user-select: none;
+  pointer-events: none;
+  align-self: flex-end;
+}
+
+/* 전신·VN 스탠딩: 크기 유지(contain) + 하단만 투명 페이드로 경계 제거 */
+.pair-detail-screen .chara-body-clip.has-bottom-blur,
+.pair-detail-screen .pair-vn-stand__clip.has-bottom-blur {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(100% - var(--img-bottom-blur, 22%) - 20%),
+    rgba(0, 0, 0, 0.5) calc(100% - var(--img-bottom-blur, 22%) * 0.5),
+    rgba(0, 0, 0, 0.14) calc(100% - var(--img-bottom-blur, 22%) * 0.2),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(100% - var(--img-bottom-blur, 22%) - 20%),
+    rgba(0, 0, 0, 0.5) calc(100% - var(--img-bottom-blur, 22%) * 0.5),
+    rgba(0, 0, 0, 0.14) calc(100% - var(--img-bottom-blur, 22%) * 0.2),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.pair-detail-screen .chara-body-clip {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  line-height: 0;
+}
+
+/* 상세 전신 clip은 wrapper inset 기준으로 덮어씀 */
+.pair-detail-screen .chara-item .chara-body-clip {
+  position: absolute;
+  inset: 0;
+  display: block;
+  max-width: none;
+  max-height: none;
+}
+
+.pair-detail-screen .pair-vn-stand.is-stand-editable {
+  cursor: pointer;
+  outline: 1px dashed rgba(240, 207, 173, 0.28);
+  outline-offset: 6px;
+  z-index: 3;
+}
+
+.pair-detail-screen .pair-vn-stand.is-stand-editable.is-layout-selected {
+  cursor: grab;
+  outline: 1px solid rgba(240, 207, 173, 0.85);
+  box-shadow: 0 0 0 1px rgba(240, 207, 173, 0.18), 0 0 28px rgba(215, 169, 130, 0.16);
+  touch-action: none;
+  z-index: 4;
+}
+
+.pair-detail-screen .pair-vn-stand.is-stand-editable.is-dragging {
+  cursor: grabbing;
+  outline-color: rgba(240, 207, 173, 0.95);
+  z-index: 5;
+}
+
+.pair-detail-screen .pair-vn-stand-pose-btn {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 6;
+  padding: 5px 14px;
+  font-family: var(--pair-sans);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(215, 169, 130, 0.92);
+  background: rgba(8, 10, 9, 0.72);
+  border: 1px solid rgba(215, 169, 130, 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.pair-detail-screen .pair-vn-stand-pose-btn:hover {
+  color: rgba(240, 207, 173, 0.98);
+  border-color: rgba(215, 169, 130, 0.55);
+}
+
+.pair-detail-screen .pair-vn-stand-pose-btn.is-active {
+  color: #1a120c;
+  background: rgba(215, 169, 130, 0.88);
+  border-color: rgba(215, 169, 130, 0.95);
+}
+
+.pair-detail-screen .pair-vn-stand-hint {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  margin: 0;
+  padding: 0.4rem 0.85rem;
+  font-family: var(--pair-sans);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(240, 207, 173, 0.9);
+  background: rgba(8, 10, 9, 0.72);
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.pair-detail-screen .pair-vn-stand.is-speaking {
+  filter: brightness(1.06);
+  z-index: 2;
+}
+
+.pair-detail-screen .pair-vn-stand.is-dimmed {
+  filter: brightness(0.48) saturate(0.88);
+  opacity: 0.92;
+  z-index: 1;
+}
+
+.pair-detail-screen .pair-vn-stand__motion {
+  width: 100%;
+  height: 100%;
+  transform-origin: center bottom;
+}
+
+/* OC ocChar*Once — 등장 애니보다 우선은 oc-next-fixes / vn-char-motions */
+.pair-detail-screen .pair-vn-stand__motion.pair-char-bounce-once {
+  transition: none;
+  animation: ocCharBounceOnce 0.22s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+
+.pair-detail-screen .pair-vn-stand__motion.pair-char-shake-once {
+  transition: none;
+  animation: ocCharShakeOnce 0.34s linear both;
+  transform-origin: center center !important;
+}
+
+/* OC 테마 토큰 — Pair에도 동일 변수로 색·선택지 반응 맞춤 */
+.pair-detail-screen > .pair-vn-layer {
+  --oc-vn: var(--pair-copper-soft, #f0cfad);
+  --oc-vn-border: rgba(215, 169, 130, 0.38);
+  --oc-accent-soft: var(--pair-copper-soft, #f0cfad);
+  --oc-panel-solid: #101210;
+  --oc-accent: var(--pair-copper, #d7a982);
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-action-layer {
+  z-index: 18;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-action-choice {
+  --vn-action-accent: var(--oc-vn, var(--pair-copper, #d7a982));
+  --vn-action-soft: var(--oc-accent-soft, var(--pair-copper-soft, #f0cfad));
+  --vn-action-panel: var(--oc-panel-solid, #101210);
+}
+
+/* 위치 + 인/아웃 — 열릴 때마다 새 레이어이므로 .active 인 애니가 다시 재생됨 */
+.pair-detail-screen > .pair-vn-layer .lh-vn-overlay {
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 96px !important;
+  top: auto !important;
+  width: min(820px, calc(100vw - 86px)) !important;
+  z-index: 20 !important;
+  pointer-events: auto !important;
+  display: block !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-overlay.active:not(.is-leaving) {
+  animation: lhVNInSlow 1.2s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-overlay.active.is-leaving,
+.pair-detail-screen > .pair-vn-layer.is-leaving .lh-vn-overlay.active {
+  animation: lhVNOutSlow 0.42s cubic-bezier(0.4, 0, 0.2, 1) both !important;
+  pointer-events: none !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-box {
+  border-color: var(--oc-vn-border, rgba(215, 169, 130, 0.38)) !important;
+  background: linear-gradient(180deg, rgba(12, 14, 13, 0.92), rgba(8, 10, 10, 0.86));
+  box-shadow: 0 22px 60px color-mix(in srgb, var(--oc-panel-solid, #080a09) 72%, rgba(0, 0, 0, 0.5)) !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-speaker {
+  color: var(--oc-vn, var(--oc-accent-soft)) !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-text.lh-typing::after {
+  color: var(--oc-vn, var(--oc-accent-soft)) !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-next {
+  border-right-color: var(--oc-vn, rgba(240, 207, 173, 0.9)) !important;
+  border-bottom-color: var(--oc-vn, rgba(240, 207, 173, 0.9)) !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-choices {
+  top: auto !important;
+  bottom: calc(100% + 12px) !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  max-width: min(280px, 42vw) !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-choice {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: fit-content !important;
+  min-width: unset !important;
+  max-width: min(280px, 42vw) !important;
+  text-align: center !important;
+  border-color: var(--oc-vn-border, rgba(215, 169, 130, 0.28)) !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--oc-panel-solid, #101210) 94%, rgba(19, 21, 19, 0.94)),
+    color-mix(in srgb, var(--oc-vn) 18%, rgba(51, 43, 36, 0.88))
+  ) !important;
+  color: color-mix(in srgb, var(--oc-vn) 86%, rgba(240, 231, 220, 0.86)) !important;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--oc-panel-solid, #080a09) 38%, rgba(0, 0, 0, 0.38)) !important;
+}
+
+.pair-detail-screen > .pair-vn-layer .lh-vn-choice:hover {
+  border-color: color-mix(in srgb, var(--oc-vn) 72%, white) !important;
+  color: var(--oc-vn, #f0cfad) !important;
+}
+
+@media (max-width: 768px) {
+  .pair-detail-screen .pair-vn-stage {
+    top: 48px;
+    bottom: 0;
+    gap: 0;
+    padding: 0;
+  }
+
+  .pair-detail-screen .pair-vn-stand {
+    max-width: 55%;
+  }
+
+  .pair-detail-screen > .pair-vn-layer .lh-vn-overlay {
+    bottom: 72px !important;
+    width: calc(100vw - 20px) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-detail-screen .pair-bg__haze-orb,
+  .pair-detail-screen .pair-bg__haze-shimmer,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-bg,
+  .pair-detail-screen .pair-cherry-root.is-enter .chara-body-clip,
+  .pair-detail-screen .chara-ghost-wrapper .chara-billboard,
+  .pair-detail-screen .pair-cherry-root.is-enter .chara-footer,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-logo,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-name,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-sub,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-relation,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-tags,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-nicknames,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-menu,
+  .pair-detail-screen .pair-menu__item,
+  .pair-detail-screen .pair-panel {
+    animation: none !important;
+  }
+  .pair-detail-screen .pair-cherry-root.is-enter .chara-body-clip,
+  .pair-detail-screen .pair-cherry-root.is-enter .chara-footer,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-logo,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-name,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-sub,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-relation,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-tags,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-nicknames,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-menu,
+  .pair-detail-screen .pair-menu__item,
+  .pair-detail-screen .pair-panel {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    transition: none !important;
+  }
+  .pair-detail-screen .chara-ghost-soft {
+    filter: blur(3px) !important;
+  }
+  .pair-detail-screen .chara-ghost-wrapper .chara-billboard {
+    opacity: 0.3 !important;
+    filter: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+/* —— Pair identity / menu / panel refresh (OC info tone) —— */
+.pair-detail-screen .chara-footer {
+  gap: 0.45rem;
+  width: min(100%, 260px);
+  padding: 0 0.4rem 0.35rem;
+  pointer-events: none;
+}
+
+.pair-detail-screen .chara-id {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.pair-detail-screen .chara-footer.chara-left .chara-id,
+.pair-detail-screen .chara-footer.chara-left .chara-meta {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.pair-detail-screen .chara-footer.chara-right .chara-id,
+.pair-detail-screen .chara-footer.chara-right .chara-meta {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.pair-detail-screen .chara-name-block {
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.pair-detail-screen .chara-footer.chara-right .chara-name-block {
+  align-items: flex-end;
+}
+
+.pair-detail-screen .chara-footer.chara-left .chara-name-block {
+  align-items: flex-start;
+}
+
+.pair-detail-screen .chara-img .chara-name,
+.pair-detail-screen .chara-name {
+  margin: 0;
+  font-family: var(--font-noto-serif-kr), var(--pair-serif), serif;
+  font-size: clamp(1.45rem, 2.3vw, 1.95rem);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.12;
+  color: rgba(252, 246, 238, 0.98);
+  text-shadow:
+    0 0 28px rgba(215, 169, 130, 0.14),
+    0 2px 16px rgba(0, 0, 0, 0.5);
+}
+
+.pair-detail-screen .chara-accent-line {
+  width: min(100%, 4.8rem);
+  height: 1px;
+  margin-top: 0.38rem;
+  background: linear-gradient(
+    90deg,
+    rgba(215, 169, 130, 0.75),
+    rgba(240, 207, 173, 0.25) 70%,
+    transparent
+  );
+}
+
+.pair-detail-screen .chara-footer.chara-right .chara-accent-line {
+  background: linear-gradient(
+    270deg,
+    rgba(215, 169, 130, 0.75),
+    rgba(240, 207, 173, 0.25) 70%,
+    transparent
+  );
+}
+
+.pair-detail-screen .chara-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  margin-top: 0.45rem;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.pair-detail-screen .chara-footer .pair-attr-row {
+  justify-content: flex-start;
+}
+
+.pair-detail-screen .chara-footer.chara-right .pair-attr-row {
+  justify-content: flex-end;
+}
+
+.pair-detail-screen .chara-color {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(240, 207, 173, 0.35);
+  border-radius: 2px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.pair-detail-screen .chara-color-hex {
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.pair-detail-screen .chara-sub {
+  margin: 0 0 0.1rem;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: clamp(11px, 1.15vw, 13px);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(215, 169, 130, 0.65);
+}
+
+.pair-detail-screen .chara-role {
+  display: none;
+}
+
+.pair-detail-screen .chara-body-source {
+  margin: 0.35rem 0 0;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: rgba(215, 169, 130, 0.42);
+}
+
+.pair-detail-screen .pair-info {
+  align-items: center;
+  justify-content: center;
+  min-height: min(72vh, 640px);
+  gap: 1.75rem;
+  padding: 1.5rem 0.75rem 2rem;
+  z-index: 8;
+}
+
+.pair-detail-screen .pair-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 28rem;
+  width: 100%;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-logo {
+  animation: pairTextInUp 0.85s ease-out 0.12s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-sub {
+  animation: pairTextIn 0.7s ease-out 0.2s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-name {
+  animation: pairTextInUp 0.85s ease-out 0.28s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-relation {
+  animation: pairTextIn 0.7s ease-out 0.36s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-tags {
+  animation: pairTextIn 0.75s ease-out 0.44s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-identity .pair-nicknames {
+  animation: pairTextIn 0.75s ease-out 0.5s both;
+}
+
+.pair-detail-screen .pair-identity .pair-name {
+  margin: 0;
+  font-size: clamp(1.85rem, 3.4vw, 2.65rem);
+  letter-spacing: 0.02em;
+  line-height: 1.18;
+  text-shadow: 0 3px 22px rgba(0, 0, 0, 0.5);
+}
+
+.pair-detail-screen .pair-identity .pair-logo {
+  width: 88%;
+  max-width: 320px;
+  margin: 0 auto 1.1rem;
+  filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.4));
+}
+
+.pair-detail-screen .pair-identity .pair-sub {
+  margin: 0 0 0.55rem;
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  color: rgba(215, 169, 130, 0.58);
+}
+
+.pair-detail-screen .pair-identity .pair-relation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0.85rem 0 0;
+  width: 100%;
+}
+
+.pair-detail-screen .pair-relation__rule {
+  flex: 1;
+  max-width: 3.5rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(215, 169, 130, 0.45), transparent);
+}
+
+.pair-detail-screen .pair-relation__text {
+  font-family: var(--pair-serif);
+  font-size: clamp(12px, 1.15vw, 14px);
+  font-style: italic;
+  letter-spacing: 0.06em;
+  color: rgba(240, 207, 173, 0.78);
+  white-space: nowrap;
+}
+
+.pair-detail-screen .pair-identity .pair-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem 0.65rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0.85rem 0 0;
+  border-top: 1px solid rgba(215, 169, 130, 0.12);
+  width: 100%;
+}
+
+.pair-detail-screen .pair-identity .pair-tags li {
+  font-family: var(--pair-sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(232, 222, 211, 0.55);
+}
+
+.pair-detail-screen .pair-identity .pair-nicknames {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 1rem 0 0;
+  width: 100%;
+}
+
+.pair-detail-screen .pair-identity .pair-arrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  font-size: 12px;
+  color: rgba(232, 222, 211, 0.7);
+}
+
+/* 구 닉네임 CSS 화살표(삼각형) 제거 */
+.pair-detail-screen .pair-identity .pair-arrow::before,
+.pair-detail-screen .pair-identity .pair-arrow::after,
+.pair-detail-screen .pair-identity .left-to-right::after,
+.pair-detail-screen .pair-identity .right-to-left::before {
+  content: none !important;
+  display: none !important;
+  border: none !important;
+}
+
+.pair-detail-screen .pair-identity .left-to-right,
+.pair-detail-screen .pair-identity .right-to-left {
+  border: none !important;
+}
+
+.pair-detail-screen .pair-arrow__who {
+  font-family: var(--pair-sans);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(215, 169, 130, 0.5);
+}
+
+.pair-detail-screen .pair-arrow__mark {
+  color: rgba(215, 169, 130, 0.4);
+  font-size: 11px;
+}
+
+.pair-detail-screen .pair-arrow__call {
+  font-style: italic;
+}
+
+.pair-detail-screen .pair-menu {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+  max-width: 24rem;
+  margin-top: 0.35rem;
+  padding: 0.15rem;
+}
+
+.pair-detail-screen .pair-menu__item {
+  --menu-i: 0;
+  appearance: none;
+  position: relative;
+  border: 1px solid rgba(215, 169, 130, 0.16);
+  background:
+    linear-gradient(165deg, rgba(252, 246, 238, 0.045), transparent 52%),
+    rgba(10, 12, 11, 0.28);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.22rem;
+  min-width: 4.8rem;
+  padding: 0.72rem 0.85rem 0.78rem;
+  color: inherit;
+  overflow: hidden;
+  isolation: isolate;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: pairMenuIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) calc(0.55s + var(--menu-i) * 0.07s) both;
+  transition:
+    border-color 0.35s ease,
+    background 0.4s ease,
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s ease,
+    opacity 0.35s ease;
+}
+
+.pair-detail-screen .pair-cherry-root:not(.is-enter) .pair-menu__item {
+  opacity: 0.88;
+  transform: none;
+  animation: none;
+}
+
+.pair-detail-screen .pair-menu__item::before {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(215, 169, 130, 0.55), transparent);
+  transform: scaleX(0.35);
+  opacity: 0.45;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
+}
+
+.pair-detail-screen .pair-menu__glow {
+  position: absolute;
+  inset: -40% -20%;
+  background: radial-gradient(circle at 50% 100%, rgba(215, 169, 130, 0.22), transparent 58%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+  transition: opacity 0.45s ease;
+}
+
+.pair-detail-screen .pair-menu__item:hover {
+  opacity: 1;
+  border-color: rgba(215, 169, 130, 0.38);
+  background:
+    linear-gradient(165deg, rgba(252, 246, 238, 0.08), transparent 55%),
+    rgba(14, 16, 14, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+.pair-detail-screen .pair-menu__item:hover::before,
+.pair-detail-screen .pair-menu__item.is-active::before {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+.pair-detail-screen .pair-menu__item:hover .pair-menu__glow,
+.pair-detail-screen .pair-menu__item.is-active .pair-menu__glow {
+  opacity: 1;
+}
+
+.pair-detail-screen .pair-menu__item.is-active {
+  opacity: 1;
+  border-color: rgba(240, 207, 173, 0.42);
+  background:
+    linear-gradient(165deg, rgba(240, 207, 173, 0.1), transparent 58%),
+    rgba(12, 14, 12, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(215, 169, 130, 0.08),
+    0 14px 34px rgba(0, 0, 0, 0.32);
+  transform: translateY(-2px);
+}
+
+.pair-detail-screen .pair-menu__en {
+  font-family: var(--pair-sans);
+  font-size: 8px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(215, 169, 130, 0.5);
+  transition: color 0.3s ease, letter-spacing 0.35s ease;
+}
+
+.pair-detail-screen .pair-menu__item:hover .pair-menu__en,
+.pair-detail-screen .pair-menu__item.is-active .pair-menu__en {
+  color: rgba(240, 207, 173, 0.9);
+  letter-spacing: 0.32em;
+}
+
+.pair-detail-screen .pair-menu__ko {
+  font-family: var(--pair-serif);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: rgba(244, 238, 229, 0.88);
+  transition: color 0.3s ease;
+}
+
+.pair-detail-screen .pair-menu__item.is-active .pair-menu__ko {
+  color: rgba(252, 246, 238, 0.96);
+}
+
+@keyframes pairMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 0.88;
+    transform: none;
+    filter: none;
+  }
+}
+
+.pair-detail-screen .pair-panel {
+  position: relative;
+  z-index: 6;
+  width: min(920px, calc(100% - 2.5rem));
+  margin: 0 auto;
+  padding: 1.35rem 1.45rem 1.6rem;
+  border: 1px solid rgba(215, 169, 130, 0.14);
+  border-radius: 2px;
+  background: linear-gradient(
+    160deg,
+    rgba(10, 12, 11, 0.72) 0%,
+    rgba(12, 14, 13, 0.62) 55%,
+    rgba(10, 12, 11, 0.55) 100%
+  );
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.38);
+  opacity: 0;
+  transform: translateY(36px) scale(0.985);
+  filter: blur(8px);
+  transition:
+    opacity 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 1.05s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pair-detail-screen .pair-page.is-revealed .pair-panel {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  animation: pairPanelSettle 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pair-detail-screen .pair-page.is-leaving .pair-panel {
+  opacity: 0;
+  transform: translateY(20px) scale(0.98);
+  filter: blur(10px);
+  transition-duration: 0.45s, 0.55s, 0.45s;
+}
+
+@keyframes pairPanelSettle {
+  0% {
+    clip-path: inset(6% 4% 8% 4%);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.pair-detail-screen .pair-hero {
+  position: relative;
+  min-height: calc(100vh - 52px);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  z-index: 2;
+  /* pair-page와 동일 — pair-bg가 비치도록 transparent 유지 */
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transform-origin: center 40%;
+  transition:
+    opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* dive 필터는 배경이 아닌 콘텐츠에만 — hero bg(#0b0d0c)와 page bg 색차 방지 */
+.pair-detail-screen .pair-cherry-root.is-diving .pair-hero {
+  opacity: 1;
+  transform: scale(0.985) translateY(-1%);
+  filter: none;
+}
+
+/* brightness/saturate는 mask soft-edge를 가로 선으로 굳힘 → opacity만 사용 */
+.pair-detail-screen .pair-cherry-root.is-diving .pair-hero .pair-container {
+  opacity: 0.72;
+  filter: none;
+  transition: opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 복귀 중엔 scale/translate 금지 — 끝날 때 transform 해제로 위치 튀는 것 방지 */
+.pair-detail-screen .pair-cherry-root.is-returning .pair-hero {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+.pair-detail-screen .pair-cherry-root.is-returning .pair-hero .pair-container {
+  opacity: 0.92;
+  filter: none;
+}
+
+.pair-detail-screen .pair-cherry-root.is-landed .pair-hero {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+.pair-detail-screen .pair-cherry-root.is-landed .pair-hero .pair-container {
+  opacity: 1;
+  filter: none;
+}
+
+/* 전신 drop-shadow 잘림 방지 — wrapper는 visible, clip은 soft mask로 처리 */
+.pair-detail-screen .pair-hero .chara-item .chara-img,
+.pair-detail-screen .pair-hero .chara-item .chara-body-wrapper {
+  overflow: visible;
+}
+
+.pair-detail-screen .pair-hero .chara-item .chara-body-clip {
+  overflow: hidden;
+}
+
+.pair-detail-screen .pair-hero .chara-item .chara-body-wrapper {
+  bottom: 48px;
+}
+
+/* 히어로 전신: 하단 페이드 + 좌우 soft (세로 경계선 제거) */
+.pair-detail-screen .pair-hero .chara-body-clip.has-bottom-blur {
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 calc(100% - var(--img-bottom-blur, 28%) - 20%),
+      rgba(0, 0, 0, 0.55) calc(100% - var(--img-bottom-blur, 28%) * 0.55),
+      rgba(0, 0, 0, 0.18) calc(100% - var(--img-bottom-blur, 28%) * 0.22),
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 5%,
+      #000 95%,
+      transparent 100%
+    );
+  mask-image:
+    linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 calc(100% - var(--img-bottom-blur, 28%) - 20%),
+      rgba(0, 0, 0, 0.55) calc(100% - var(--img-bottom-blur, 28%) * 0.55),
+      rgba(0, 0, 0, 0.18) calc(100% - var(--img-bottom-blur, 28%) * 0.22),
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 5%,
+      #000 95%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.pair-detail-screen .pair-hero .chara-body-clip:not(.has-bottom-blur) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 5%,
+    #000 95%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 5%,
+    #000 95%,
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* dive/return 중만 호버 끄기 — is-landed는 메뉴 열린 동안도 유지돼서 호버를 죽이면 안 됨 */
+.pair-detail-screen .pair-cherry-root.is-diving .chara-item .chara-body,
+.pair-detail-screen .pair-cherry-root.is-returning .chara-item .chara-body,
+.pair-detail-screen .pair-cherry-root.is-diving .chara-item .chara-body-wrapper:hover .chara-body,
+.pair-detail-screen .pair-cherry-root.is-returning .chara-item .chara-body-wrapper:hover .chara-body {
+  filter: none !important;
+}
+
+.pair-detail-screen .pair-cherry-root.is-diving .chara-item .chara-body-wrapper:hover .chara-body-clip,
+.pair-detail-screen .pair-cherry-root.is-returning .chara-item .chara-body-wrapper:hover .chara-body-clip {
+  transform: none !important;
+}
+
+.pair-detail-screen .pair-cherry-root.is-diving .pair-hero .chara-body-clip.has-bottom-blur,
+.pair-detail-screen .pair-cherry-root.is-returning .pair-hero .chara-body-clip.has-bottom-blur,
+.pair-detail-screen .pair-cherry-root.is-landed .pair-hero .chara-body-clip.has-bottom-blur {
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 calc(100% - max(34%, var(--img-bottom-blur, 28%)) - 8%),
+      rgba(0, 0, 0, 0.4) calc(100% - max(34%, var(--img-bottom-blur, 28%)) * 0.5),
+      rgba(0, 0, 0, 0.08) calc(100% - max(34%, var(--img-bottom-blur, 28%)) * 0.15),
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 5%,
+      #000 95%,
+      transparent 100%
+    ) !important;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 calc(100% - max(34%, var(--img-bottom-blur, 28%)) - 8%),
+      rgba(0, 0, 0, 0.4) calc(100% - max(34%, var(--img-bottom-blur, 28%)) * 0.5),
+      rgba(0, 0, 0, 0.08) calc(100% - max(34%, var(--img-bottom-blur, 28%)) * 0.15),
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 5%,
+      #000 95%,
+      transparent 100%
+    ) !important;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.pair-detail-screen .pair-page {
+  position: relative;
+  z-index: 3;
+  min-height: calc(100vh - 52px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5.5rem 1.25rem 5rem;
+  box-sizing: border-box;
+  scroll-margin-top: 52px;
+  /* pair-hero와 동일 — pair-bg 공유 */
+  background: transparent;
+  border: none;
+  border-top: none;
+  box-shadow: none;
+  opacity: 0.4;
+  transform: translateY(18px);
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.85s ease;
+}
+
+.pair-detail-screen .pair-page.is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+.pair-detail-screen .pair-page.is-leaving {
+  opacity: 0;
+  transform: translateY(14px) scale(0.992);
+  filter: blur(6px);
+  pointer-events: none;
+  transition-duration: 0.42s, 0.55s, 0.42s;
+}
+
+/* 히어로↔페이지 경계 페이드 — solid 밴드 없이 부드럽게 */
+.pair-detail-screen .pair-page::before {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -52px;
+  height: 104px;
+  pointer-events: none;
+  z-index: 40;
+  background: linear-gradient(
+    to bottom,
+    rgba(11, 13, 12, 0) 0%,
+    rgba(11, 13, 12, 0.35) 40%,
+    rgba(11, 13, 12, 0.72) 70%,
+    rgba(11, 13, 12, 0.35) 90%,
+    rgba(11, 13, 12, 0) 100%
+  );
+}
+
+.pair-detail-screen .pair-hero::after {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 72px;
+  pointer-events: none;
+  z-index: 40;
+  background: linear-gradient(
+    to bottom,
+    rgba(11, 13, 12, 0) 0%,
+    rgba(11, 13, 12, 0.35) 45%,
+    rgba(11, 13, 12, 0.85) 100%
+  );
+}
+
+/* 전환용 mist + spark */
+.pair-detail-screen .pair-glide {
+  position: fixed;
+  inset: 52px 0 0 0;
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.85s ease;
+}
+
+.pair-detail-screen .pair-cherry-root.is-diving .pair-glide,
+.pair-detail-screen .pair-cherry-root.is-returning .pair-glide {
+  opacity: 1;
+}
+
+.pair-detail-screen .pair-cherry-root.is-landed .pair-glide {
+  opacity: 0;
+  transition-duration: 1s;
+}
+
+.pair-detail-screen .pair-glide__mist {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 58% 40% at 50% 28%, rgba(215, 169, 130, 0.1), transparent 70%),
+    linear-gradient(180deg, rgba(8, 10, 9, 0.06) 0%, rgba(8, 10, 9, 0.22) 55%, rgba(8, 10, 9, 0.34) 100%);
+}
+
+.pair-detail-screen .pair-glide__spark {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 22% 38%, rgba(240, 207, 173, 0.08), transparent 22%),
+    radial-gradient(circle at 78% 62%, rgba(215, 169, 130, 0.07), transparent 20%);
+  animation: pairGlideSpark 2.4s ease-in-out infinite alternate;
+  opacity: 0.7;
+}
+
+@keyframes pairGlideSpark {
+  from {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0.85;
+    transform: translateY(-1.5%);
+  }
+}
+
+/* 페어 상세 — 스크롤바 숨김 (스크롤은 유지) */
+.pair-detail-screen,
+.pair-detail-screen .pair-panel__body,
+.pair-detail-screen .pair-extra__chem,
+.pair-detail-screen .lh-vn-text {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.pair-detail-screen::-webkit-scrollbar,
+.pair-detail-screen *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-detail-screen .pair-glide,
+  .pair-detail-screen .pair-glide__spark,
+  .pair-detail-screen .pair-cherry-root.is-diving .pair-hero,
+  .pair-detail-screen .pair-cherry-root.is-returning .pair-hero,
+  .pair-detail-screen .pair-cherry-root.is-diving .pair-hero .pair-container,
+  .pair-detail-screen .pair-cherry-root.is-returning .pair-hero .pair-container,
+  .pair-detail-screen .pair-page,
+  .pair-detail-screen .pair-panel,
+  .pair-detail-screen .pair-menu__item {
+    transition: none !important;
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
+.pair-detail-screen .pair-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(215, 169, 130, 0.12);
+}
+
+.pair-detail-screen .pair-panel__titles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+}
+
+.pair-detail-screen .pair-panel__en {
+  font-family: var(--pair-sans);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(215, 169, 130, 0.55);
+}
+
+.pair-detail-screen .pair-panel__title {
+  margin: 0;
+  font-family: var(--pair-serif);
+  font-size: clamp(15px, 1.4vw, 17px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: rgba(244, 238, 229, 0.9);
+}
+
+.pair-detail-screen .pair-panel__close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(215, 169, 130, 0.55);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+}
+
+.pair-detail-screen .pair-panel__close:hover {
+  color: rgba(240, 207, 173, 0.9);
+}
+
+.pair-detail-screen .pair-panel__story {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pair-detail-screen .pair-panel .pair-chara-wrapper {
+  display: flex;
+  gap: 12px;
+}
+
+.pair-detail-screen .pair-panel .pair-desc,
+.pair-detail-screen .pair-panel .pair-chara-desc {
+  position: relative;
+  box-sizing: border-box;
+  flex: 1;
+  max-height: none;
+  overflow: visible;
+  padding: 1.05rem 1.15rem 1.15rem 1.25rem;
+  text-align: left;
+  color: var(--pair-body);
+  font-family: var(--pair-read);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  border-radius: 2px;
+  border: 1px solid var(--pair-line);
+  background: rgba(8, 10, 9, 0.45);
+}
+
+.pair-detail-screen .pair-panel .pair-chara-desc::before,
+.pair-detail-screen .pair-panel .pair-desc::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  width: 2px;
+  background: color-mix(in srgb, var(--pair-copper) 78%, transparent);
+  border-radius: 1px;
+}
+
+.pair-detail-screen .pair-panel .pair-extra__grid {
+  margin-bottom: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .pair-detail-screen .pair-panel .pair-chara-wrapper {
+    flex-direction: column;
+  }
+
+  .pair-detail-screen .pair-menu {
+    max-width: 100%;
+  }
+
+  .pair-detail-screen .pair-info {
+    min-height: 0;
+  }
+}
+
+
+
+
+/* ========== Pair info v4 — L/R stands restored + center plate menu ========== */
+
+.pair-detail-screen .pair-hero {
+  display: flex;
+  flex-direction: column;
+}
+
+.pair-detail-screen .pair-container {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+  text-align: center;
+  margin-top: 0 !important;
+  padding: 16px 16px 40px !important;
+  position: relative;
+  z-index: 100;
+  flex: 1 1 auto;
+  min-height: calc(100vh - 52px);
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.pair-detail-screen .pair-cherry-root.is-diving .pair-hero .pair-container {
+  opacity: 0.72;
+  filter: none;
+  transition: opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pair-detail-screen .pair-cherry-root.is-returning .pair-hero .pair-container {
+  opacity: 0.92;
+  filter: none;
+}
+
+.pair-detail-screen .pair-cherry-root.is-landed .pair-hero .pair-container {
+  opacity: 1;
+  filter: none;
+}
+
+.pair-detail-screen .pair-info {
+  flex: 2 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  /* 정중앙보다 위 — 상단 붙음 방지용 여백 */
+  justify-content: flex-start !important;
+  gap: 1.05rem !important;
+  min-width: 0 !important;
+  min-height: min(60vh, 520px) !important;
+  padding: clamp(3.6rem, 9.5vh, 6.2rem) 0.5rem 1.5rem !important;
+  text-align: center !important;
+  z-index: 8;
+}
+
+.pair-detail-screen .pair-plate {
+  position: relative;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: min(30rem, 100%);
+  width: 100%;
+  margin: 0 auto;
+  padding: 0.5rem 0.75rem 0.2rem;
+  text-align: center;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.pair-detail-screen .pair-plate__kicker,
+.pair-detail-screen .pair-plate__aura,
+.pair-detail-screen .pair-plate__glow,
+.pair-detail-screen .pair-plate__veil,
+.pair-detail-screen .pair-plate__mote,
+.pair-detail-screen .pair-plate__diamond {
+  display: none !important;
+}
+
+.pair-detail-screen .pair-plate__logo {
+  max-width: min(200px, 42vw);
+  max-height: 56px;
+  width: auto;
+  object-fit: contain;
+  margin: 0 0 0.55rem;
+  opacity: 0.95;
+}
+
+/* OC identity-sub 톤 — 페어 로마/서브 (히어로 보조) */
+.pair-detail-screen .pair-plate__sub {
+  margin: 0.2rem 0 0;
+  order: 2;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: clamp(11px, 1.15vw, 13px);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.28em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: rgba(215, 169, 130, 0.65);
+  text-shadow: none;
+}
+
+.pair-detail-screen .pair-plate__title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* 페어명(페어타이틀/페어서브)이 중앙 히어로 */
+.pair-detail-screen .pair-plate__hero {
+  order: 1;
+  margin: 0;
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', var(--pair-serif), serif;
+  font-size: clamp(1.85rem, 3.6vw, 2.75rem);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.12;
+  color: rgba(252, 246, 238, 0.98);
+  text-shadow:
+    0 0 40px rgba(215, 169, 130, 0.18),
+    0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+/* 멤버 이름 라인 제거 */
+.pair-detail-screen .pair-plate__members {
+  display: none !important;
+}
+
+.pair-detail-screen .pair-plate__relation-line {
+  order: 3;
+  margin: 0.35rem 0 0;
+  font-family: var(--font-cormorant), var(--pair-script), serif;
+  font-size: 13px;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  color: rgba(215, 169, 130, 0.62);
+}
+
+.pair-detail-screen .pair-plate__title {
+  display: none !important;
+}
+
+.pair-detail-screen .pair-plate__accent {
+  order: 4;
+  width: min(9.5rem, 58%);
+  height: 1px;
+  margin: 0.65rem auto 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(215, 169, 130, 0.55) 18%,
+    rgba(240, 207, 173, 0.88) 50%,
+    rgba(215, 169, 130, 0.55) 82%,
+    transparent
+  );
+}
+
+.pair-detail-screen .pair-plate__attrs {
+  display: none !important;
+}
+
+.pair-detail-screen .pair-attr-block,
+.pair-detail-screen .pair-attr-head,
+.pair-detail-screen .pair-attr-head-en,
+.pair-detail-screen .pair-attr-head-ko {
+  display: none !important;
+}
+
+/* 호칭 — 누가 → 호칭 (같은 방향) */
+.pair-detail-screen .pair-calls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: auto;
+  max-width: min(24rem, 100%);
+  margin: 0.7rem auto 0;
+}
+
+.pair-detail-screen .pair-calls__cap {
+  margin: 0;
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', var(--pair-sans), sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: rgba(240, 207, 173, 0.7);
+}
+
+.pair-detail-screen .pair-calls__list {
+  display: grid;
+  grid-template-columns: max-content 1.2rem max-content;
+  align-items: center;
+  justify-content: center;
+  column-gap: 0.4rem;
+  row-gap: 0.3rem;
+  width: max-content;
+  max-width: 100%;
+}
+
+.pair-detail-screen .pair-calls__who {
+  justify-self: end;
+  text-align: right;
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', var(--pair-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  color: rgba(240, 207, 173, 0.88);
+  word-break: keep-all;
+}
+
+.pair-detail-screen .pair-calls__to {
+  justify-self: center;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.35em;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  color: rgba(240, 207, 173, 0.8);
+}
+
+.pair-detail-screen .pair-calls__what {
+  justify-self: start;
+  text-align: left;
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', var(--pair-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.96);
+  word-break: keep-all;
+}
+
+.pair-detail-screen .pair-calls__row,
+.pair-detail-screen .pair-calls__side,
+.pair-detail-screen .pair-calls__rule {
+  display: none !important;
+}
+
+.pair-detail-screen .pair-attr-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.4rem;
+  max-width: 100%;
+}
+
+.pair-detail-screen .pair-attr-label {
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', var(--pair-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: rgba(240, 207, 173, 0.88);
+  white-space: nowrap;
+}
+
+.pair-detail-screen .pair-attr-value {
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', var(--pair-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.96);
+  word-break: break-word;
+}
+
+.pair-detail-screen .pair-attr-value--swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pair-detail-screen .chara-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+.pair-detail-screen .pair-plate__relation {
+  display: none !important;
+}
+
+
+/* 메뉴: 박스 없음 — 텍스트·화살표·구분선만 */
+.pair-detail-screen .pair-menu {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.1rem 0.05rem !important;
+  max-width: none !important;
+  width: auto !important;
+  margin: 0.2rem auto 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  isolation: auto !important;
+}
+
+.pair-detail-screen .pair-menu__slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.05rem;
+  background: transparent !important;
+}
+
+.pair-detail-screen .pair-menu__arrow {
+  font-family: var(--pair-latin), serif;
+  font-size: 15px;
+  line-height: 1;
+  color: rgba(240, 207, 173, 0.72);
+  padding: 0 0.55rem;
+  user-select: none;
+  text-shadow: 0 0 14px rgba(215, 169, 130, 0.35);
+  transition: color 0.35s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), text-shadow 0.4s ease;
+}
+
+.pair-detail-screen .pair-menu:hover .pair-menu__arrow:first-child {
+  color: rgba(252, 246, 238, 0.92);
+  transform: translateX(-3px);
+  text-shadow: 0 0 18px rgba(215, 169, 130, 0.55);
+}
+
+.pair-detail-screen .pair-menu:hover .pair-menu__arrow:last-child {
+  color: rgba(252, 246, 238, 0.92);
+  transform: translateX(3px);
+  text-shadow: 0 0 18px rgba(215, 169, 130, 0.55);
+}
+
+.pair-detail-screen .pair-menu__sep {
+  color: rgba(215, 169, 130, 0.42);
+  font-size: 11px;
+  padding: 0 0.55rem;
+  user-select: none;
+  transition: color 0.3s ease, opacity 0.3s ease;
+}
+
+.pair-detail-screen .pair-menu:hover .pair-menu__sep {
+  color: rgba(215, 169, 130, 0.28);
+}
+
+.pair-detail-screen .pair-menu__item {
+  appearance: none;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0.2rem 0.15rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer;
+  isolation: auto !important;
+  overflow: visible !important;
+  animation: none;
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.3s ease;
+}
+
+/* 메뉴 인 — 항목·‹› 순차 페이드 (opacity !important 금지: 애니 차단됨) */
+.pair-detail-screen .pair-cherry-root.is-enter .pair-menu__item {
+  animation: pairMenuTextIn 0.72s cubic-bezier(0.22, 1, 0.36, 1)
+    calc(0.48s + var(--menu-i, 0) * 0.08s) both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-menu__arrow {
+  animation: pairMenuArrowIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-menu__sep {
+  animation: pairMenuSepIn 0.5s ease calc(0.52s + var(--menu-i, 0) * 0.08s) both;
+}
+
+.pair-detail-screen .pair-cherry-root:not(.is-enter) .pair-menu__item,
+.pair-detail-screen .pair-cherry-root:not(.is-enter) .pair-menu__arrow,
+.pair-detail-screen .pair-cherry-root:not(.is-enter) .pair-menu__sep {
+  animation: none;
+  opacity: 1;
+}
+
+.pair-detail-screen .pair-menu__item::before,
+.pair-detail-screen .pair-menu__item::after,
+.pair-detail-screen .pair-menu__glow,
+.pair-detail-screen .pair-menu__en,
+.pair-detail-screen .pair-menu__idx,
+.pair-detail-screen .pair-menu__label,
+.pair-detail-screen .pair-menu__chev,
+.pair-detail-screen .pair-menu__rail,
+.pair-detail-screen .pair-menu__hint {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.pair-detail-screen .pair-menu__ko {
+  position: relative;
+  display: inline-block;
+  font-family: var(--pair-sans), var(--font-gowun-dodum), sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.22em !important;
+  color: rgba(244, 238, 229, 0.86) !important;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+  transition:
+    color 0.3s ease,
+    letter-spacing 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    text-shadow 0.35s ease !important;
+}
+
+.pair-detail-screen .pair-menu__ko::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -0.38em;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 207, 173, 0.85), transparent);
+  transform: scaleX(0);
+  opacity: 0;
+  transform-origin: center;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+
+.pair-detail-screen .pair-cherry-root:not(.is-enter) .pair-menu__item:hover {
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: translateY(-2px);
+}
+
+.pair-detail-screen .pair-menu__item:hover .pair-menu__ko {
+  color: #f7e7cf !important;
+  letter-spacing: 0.28em !important;
+  text-shadow:
+    0 0 16px rgba(215, 169, 130, 0.45),
+    0 1px 10px rgba(0, 0, 0, 0.4);
+}
+
+.pair-detail-screen .pair-menu__item:hover .pair-menu__ko::after {
+  transform: scaleX(0.72);
+  opacity: 0.7;
+}
+
+.pair-detail-screen .pair-cherry-root:not(.is-enter) .pair-menu__item:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.pair-detail-screen .pair-menu__item:active .pair-menu__ko {
+  color: #ffe8c4 !important;
+}
+
+.pair-detail-screen .pair-cherry-root:not(.is-enter) .pair-menu__item.is-active {
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: translateY(-1px);
+}
+
+.pair-detail-screen .pair-menu__item.is-active .pair-menu__ko {
+  color: #f0cfad !important;
+  letter-spacing: 0.26em !important;
+  text-decoration: none !important;
+  text-shadow:
+    0 0 20px rgba(215, 169, 130, 0.5),
+    0 1px 12px rgba(0, 0, 0, 0.35);
+}
+
+.pair-detail-screen .pair-menu__item.is-active .pair-menu__ko::after {
+  transform: scaleX(1);
+  opacity: 1;
+  animation: pairMenuUnderlinePulse 2.4s ease-in-out infinite;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-plate {
+  animation: none;
+}
+
+.pair-detail-screen .pair-cherry-root.is-enter .pair-menu {
+  animation: none;
+}
+
+@keyframes pairMenuTextIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes pairMenuArrowIn {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes pairMenuSepIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pairMenuUnderlinePulse {
+  0%,
+  100% {
+    opacity: 0.75;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 4px rgba(215, 169, 130, 0.55));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-menu__item,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-menu__arrow,
+  .pair-detail-screen .pair-cherry-root.is-enter .pair-menu__sep,
+  .pair-detail-screen .pair-menu__item.is-active .pair-menu__ko::after {
+    animation: none !important;
+  }
+
+  .pair-detail-screen .pair-menu__item,
+  .pair-detail-screen .pair-menu__arrow,
+  .pair-detail-screen .pair-menu__ko {
+    transition: none !important;
+  }
+}
+
+/* hide leftover stage/panel styles if any linger */
+.pair-detail-screen .pair-stage,
+.pair-detail-screen .pair-stands,
+.pair-detail-screen .pair-char-panel {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .pair-detail-screen .pair-container {
+    flex-direction: column !important;
+    min-height: 0 !important;
+  }
+
+  .pair-detail-screen .pair-info {
+    order: -1;
+    min-height: 0 !important;
+  }
+}

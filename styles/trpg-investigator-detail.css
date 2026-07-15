@@ -7,7 +7,8 @@ body.trpg-inv-detail-open {
 .trpg-inv-detail.trpg-inv-archive {
   position: fixed;
   inset: 0;
-  z-index: 420;
+  /* BGM(999)·갤러리(1200)보다 위, 수정 모달(12000)보다 아래 */
+  z-index: 5500;
   display: flex;
   flex-direction: column;
   background:
@@ -16,17 +17,14 @@ body.trpg-inv-detail-open {
   animation: trpgInvDetailFade 0.38s ease both;
   font-family: inherit;
   color: rgba(236, 232, 224, 0.92);
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .trpg-inv-detail.trpg-inv-archive.is-closing {
   animation: trpgInvDetailFadeOut 0.32s ease both;
   pointer-events: none !important;
-}
-
-/* 닫힌 뒤 혹시 남은 포탈이 클릭을 가로채지 않도록 */
-body:not(.trpg-inv-detail-open) .trpg-inv-detail.trpg-inv-archive {
-  pointer-events: none !important;
-  visibility: hidden !important;
 }
 
 @keyframes trpgInvDetailFade {

@@ -21,32 +21,41 @@ body.lh-route-leaving {
   transform: none !important;
 }
 
-.layout.lh-route-panel-leaving,
-.main-content.pair-main.lh-route-panel-leaving {
+/* leaving 클래스가 패널에만 남고 body.lh-route-leaving이 빠지면
+   화면이 opacity:0에 영구 고정됨 → 반드시 body.leaving일 때만 숨김 */
+body.lh-route-leaving .layout.lh-route-panel-leaving {
   opacity: 0 !important;
   pointer-events: none !important;
   transition:
-    opacity 0.3s cubic-bezier(0.45, 0, 0.15, 1),
-    transform 0.3s cubic-bezier(0.45, 0, 0.15, 1),
-    filter 0.3s cubic-bezier(0.45, 0, 0.15, 1) !important;
+    opacity 0.45s cubic-bezier(0.33, 1, 0.32, 1),
+    transform 0.45s cubic-bezier(0.33, 1, 0.32, 1),
+    filter 0.45s cubic-bezier(0.33, 1, 0.32, 1) !important;
+}
+
+/* 하드 리프레시·이탈 중단 후 잔여 클래스 → 다시 보이게 */
+body:not(.lh-route-leaving) .lh-route-panel-leaving {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  filter: none !important;
 }
 
 body.lh-route-leaving.lh-route-forward .layout.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-forward .main-content.pair-main.lh-route-panel-leaving {
-  transform: translateX(-56px) scale(0.988) !important;
-  filter: brightness(0.9) !important;
+  transform: translateX(-40px) scale(0.992) !important;
+  filter: brightness(0.94) !important;
 }
 
 body.lh-route-leaving.lh-route-back .layout.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-back .main-content.pair-main.lh-route-panel-leaving {
-  transform: translateX(56px) scale(0.988) !important;
-  filter: brightness(0.9) !important;
+  transform: translateX(40px) scale(0.992) !important;
+  filter: brightness(0.94) !important;
 }
 
-#page-trpg.lh-route-panel-leaving,
-.layout.layout--home .right-panel.lh-route-panel-leaving,
-.layout.layout--home.lh-route-panel-leaving,
-.layout.layout--home > .content-area.lh-route-panel-leaving {
+body.lh-route-leaving #page-trpg.lh-route-panel-leaving,
+body.lh-route-leaving .layout.layout--home .right-panel.lh-route-panel-leaving,
+body.lh-route-leaving .layout.layout--home.lh-route-panel-leaving,
+body.lh-route-leaving .layout.layout--home > .content-area.lh-route-panel-leaving {
   opacity: 0 !important;
   pointer-events: none !important;
   transition:
@@ -82,13 +91,13 @@ body.lh-route-leaving.lh-route-back .layout.layout--home.lh-route-panel-leaving 
 body.lh-route-enter.lh-route-forward .layout,
 body.lh-route-enter.lh-route-forward .main-content.pair-main,
 body.lh-route-enter.lh-route-forward .trpg-scenario-shell {
-  animation: lhArchiveSlideInForward 0.82s cubic-bezier(0.22, 1, 0.32, 1) both !important;
+  animation: lhArchiveSlideInForward 0.72s cubic-bezier(0.22, 1, 0.32, 1) both !important;
 }
 
 body.lh-route-enter.lh-route-back .layout,
 body.lh-route-enter.lh-route-back .main-content.pair-main,
 body.lh-route-enter.lh-route-back .trpg-scenario-shell {
-  animation: lhArchiveSlideInBack 0.82s cubic-bezier(0.22, 1, 0.32, 1) both !important;
+  animation: lhArchiveSlideInBack 0.72s cubic-bezier(0.22, 1, 0.32, 1) both !important;
 }
 
 /* Fixed home menu stays viewport-anchored (not inside animated .layout) */
@@ -103,7 +112,7 @@ body.lh-route-enter.lh-route-back .trpg-scenario-shell {
 @keyframes lhArchiveSlideInForward {
   from {
     opacity: 0;
-    transform: translateX(64px) scale(0.986);
+    transform: translateX(36px) scale(0.992);
   }
   to {
     opacity: 1;
@@ -114,7 +123,7 @@ body.lh-route-enter.lh-route-back .trpg-scenario-shell {
 @keyframes lhArchiveSlideInBack {
   from {
     opacity: 0;
-    transform: translateX(-64px) scale(0.986);
+    transform: translateX(-36px) scale(0.992);
   }
   to {
     opacity: 1;
@@ -157,7 +166,8 @@ nav,
 #detail-screen #game-char-img.animate-out {
   animation: none !important;
   opacity: 1 !important;
-  transform: translateX(-50%) !important;
+  transform: translateX(-50%) translate(var(--oc-pf-x, 0%), var(--oc-pf-y, 0%)) scale(var(--oc-pf-s, 1)) !important;
+  transform-origin: var(--oc-pf-o, center bottom) !important;
 }
 
 @keyframes lhCharacterExitLite {
@@ -194,7 +204,7 @@ nav,
     transform: translateY(0);
   }
   42% {
-    transform: translateY(-11px);
+    transform: translateY(-4px);
   }
   100% {
     transform: translateY(0);
@@ -206,87 +216,122 @@ nav,
     transform: translateX(clamp(80px, 10vw, 140px)) translateY(0);
   }
   42% {
-    transform: translateX(clamp(80px, 10vw, 140px)) translateY(-11px);
+    transform: translateX(clamp(80px, 10vw, 140px)) translateY(-4px);
   }
   100% {
     transform: translateX(clamp(80px, 10vw, 140px)) translateY(0);
   }
 }
 
+/* 파르르 — 발 고정 회전 없이 몸 전체(수평·수직) 고주파 이동 */
 @keyframes ocCharShakeOnce {
-  0%,
-  100% {
-    transform: translateX(0) rotate(0deg);
+  0% {
+    transform: translate3d(0, 0, 0);
   }
-  15% {
-    transform: translateX(-5px) rotate(-0.55deg);
+  8% {
+    transform: translate3d(-2.4px, 1.1px, 0);
   }
-  30% {
-    transform: translateX(5px) rotate(0.55deg);
+  16% {
+    transform: translate3d(2.6px, -1px, 0);
   }
-  45% {
-    transform: translateX(-4px) rotate(-0.4deg);
+  24% {
+    transform: translate3d(-2.2px, 0.9px, 0);
   }
-  60% {
-    transform: translateX(4px) rotate(0.4deg);
+  32% {
+    transform: translate3d(2.3px, -0.8px, 0);
   }
-  75% {
-    transform: translateX(-2px) rotate(-0.2deg);
+  40% {
+    transform: translate3d(-1.8px, 0.7px, 0);
+  }
+  48% {
+    transform: translate3d(1.7px, -0.55px, 0);
+  }
+  58% {
+    transform: translate3d(-1.2px, 0.4px, 0);
+  }
+  68% {
+    transform: translate3d(0.9px, -0.3px, 0);
+  }
+  80% {
+    transform: translate3d(-0.5px, 0.15px, 0);
   }
   90% {
-    transform: translateX(2px) rotate(0.15deg);
+    transform: translate3d(0.25px, -0.08px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes ocCharShakeOnceShifted {
-  0%,
-  100% {
-    transform: translateX(clamp(80px, 10vw, 140px)) rotate(0deg);
+  0% {
+    transform: translate3d(clamp(80px, 10vw, 140px), 0, 0);
   }
-  15% {
-    transform: translateX(calc(clamp(80px, 10vw, 140px) - 5px)) rotate(-0.55deg);
+  8% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) - 2.4px), 1.1px, 0);
   }
-  30% {
-    transform: translateX(calc(clamp(80px, 10vw, 140px) + 5px)) rotate(0.55deg);
+  16% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) + 2.6px), -1px, 0);
   }
-  45% {
-    transform: translateX(calc(clamp(80px, 10vw, 140px) - 4px)) rotate(-0.4deg);
+  24% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) - 2.2px), 0.9px, 0);
   }
-  60% {
-    transform: translateX(calc(clamp(80px, 10vw, 140px) + 4px)) rotate(0.4deg);
+  32% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) + 2.3px), -0.8px, 0);
   }
-  75% {
-    transform: translateX(calc(clamp(80px, 10vw, 140px) - 2px)) rotate(-0.2deg);
+  40% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) - 1.8px), 0.7px, 0);
+  }
+  48% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) + 1.7px), -0.55px, 0);
+  }
+  58% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) - 1.2px), 0.4px, 0);
+  }
+  68% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) + 0.9px), -0.3px, 0);
+  }
+  80% {
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) - 0.5px), 0.15px, 0);
   }
   90% {
-    transform: translateX(calc(clamp(80px, 10vw, 140px) + 2px)) rotate(0.15deg);
+    transform: translate3d(calc(clamp(80px, 10vw, 140px) + 0.25px), -0.08px, 0);
+  }
+  100% {
+    transform: translate3d(clamp(80px, 10vw, 140px), 0, 0);
   }
 }
 
-#detail-screen .oc-char-slide.oc-char-bounce-once {
+#detail-screen .oc-char-slide.oc-char-bounce-once,
+#detail-screen .oc-char-motion-host.oc-char-bounce-once {
   transition: none !important;
-  animation: ocCharBounceOnce 0.22s cubic-bezier(0.34, 1.45, 0.64, 1) both !important;
+  animation: ocCharBounceOnce 0.28s cubic-bezier(0.34, 1.2, 0.64, 1) both !important;
 }
 
 #detail-screen .oc-char-slide.shifted.oc-char-bounce-once {
-  animation: ocCharBounceOnceShifted 0.22s cubic-bezier(0.34, 1.45, 0.64, 1) both !important;
+  animation: ocCharBounceOnceShifted 0.28s cubic-bezier(0.34, 1.2, 0.64, 1) both !important;
 }
 
-#detail-screen .oc-char-slide.oc-char-shake-once {
+#detail-screen .oc-char-slide.oc-char-shake-once,
+#detail-screen .oc-char-motion-host.oc-char-shake-once {
   transition: none !important;
-  animation: ocCharShakeOnce 0.48s ease-in-out both !important;
+  animation: ocCharShakeOnce 0.34s linear both !important;
+  /* 발끝 pivot 금지 — 몸 전체가 같이 이동 */
+  transform-origin: center center !important;
 }
 
 #detail-screen .oc-char-slide.shifted.oc-char-shake-once {
-  animation: ocCharShakeOnceShifted 0.48s ease-in-out both !important;
+  animation: ocCharShakeOnceShifted 0.34s linear both !important;
 }
 
-#detail-screen .oc-detail-body.vn-active .oc-char-slide.oc-char-bounce-once {
-  animation-duration: 0.22s !important;
+#detail-screen .oc-detail-body.vn-active .oc-char-slide.oc-char-bounce-once,
+#detail-screen .oc-detail-body.vn-active .oc-char-motion-host.oc-char-bounce-once {
+  animation-duration: 0.28s !important;
 }
 
-#detail-screen .oc-detail-body.vn-active .oc-char-slide.oc-char-shake-once {
-  animation-duration: 0.48s !important;
+#detail-screen .oc-detail-body.vn-active .oc-char-slide.oc-char-shake-once,
+#detail-screen .oc-detail-body.vn-active .oc-char-motion-host.oc-char-shake-once {
+  animation-duration: 0.34s !important;
 }
 
 @keyframes ocCharPopOnce {
@@ -315,16 +360,49 @@ nav,
 #detail-screen .oc-detail-body.vn-active .oc-char-portrait-layer {
   transition: none !important;
   animation: none !important;
+}
+
+/* VN 중에도 더블버퍼 뒷장 숨김 — 양쪽 불투명·이중 그림자(검은 비네트) 방지 */
+#detail-screen .oc-detail-body.vn-active .oc-char-portrait-layer.is-front {
   opacity: 1 !important;
   filter: drop-shadow(0 28px 44px rgba(0, 0, 0, 0.55)) !important;
 }
 
+#detail-screen .oc-detail-body.vn-active .oc-char-portrait-layer.is-back {
+  opacity: 0 !important;
+  filter: none !important;
+}
+
+#detail-screen .oc-detail-body.vn-active .oc-char-portrait-stack {
+  filter: none !important;
+}
+
+/* soft 전환 중: 밑장만 그림자, 위장은 페이드만 */
+#detail-screen .oc-detail-body.vn-active .oc-char-portrait-stack.is-soft-revert .oc-char-portrait-layer.is-back {
+  opacity: 1 !important;
+  filter: drop-shadow(0 28px 44px rgba(0, 0, 0, 0.55)) !important;
+}
+
+#detail-screen .oc-detail-body.vn-active .oc-char-portrait-stack.is-soft-revert .oc-char-portrait-layer.is-front {
+  opacity: 0 !important;
+  filter: none !important;
+}
+
 .oc-left-panel-shell.is-open .oc-left-content-inner {
   animation: ocPanelContentInLite 0.95s cubic-bezier(0.25, 0.46, 0.45, 0.94) both !important;
+  opacity: 1 !important;
 }
 
 .oc-left-panel-shell.is-closing .oc-left-content-inner {
   animation: ocPanelContentOutLite 0.88s cubic-bezier(0.25, 0.46, 0.45, 0.94) both !important;
+}
+
+#detail-screen .oc-detail-left {
+  animation: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 50 !important;
 }
 
 @keyframes ocPanelContentInLite {
@@ -350,35 +428,14 @@ nav,
 }
 
 .oc-detail-right {
-  animation: ocRightInLite 0.72s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both !important;
-  opacity: 1;
-}
-
-@keyframes ocRightInLite {
-  from {
-    opacity: 0;
-    transform: translateX(16px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  /* lake-perf 강제 애니 제거 — fill-mode both가 정보 패널을 opacity:0에 묶음 */
+  animation: none !important;
+  opacity: 1 !important;
 }
 
 .oc-detail-right .oc-attr-panel {
-  animation: ocAttrInLite 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.18s both !important;
-  opacity: 1;
-}
-
-@keyframes ocAttrInLite {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  animation: none !important;
+  opacity: 1 !important;
 }
 
 /* 그리드 페인트 격리 */
@@ -387,13 +444,12 @@ nav,
 }
 
 .char-card {
-  contain: layout paint;
-  content-visibility: auto;
-  contain-intrinsic-size: 220px 325px;
+  /* paint/content-visibility는 카드 이미지를 저해상도로 래스터라이즈해 화질이 떨어짐 */
+  contain: layout style;
 }
 
 #detail-screen.active {
-  contain: layout style paint;
+  contain: layout style;
 }
 
 /* 리플 이펙트: box-shadow 대신 단순 border */

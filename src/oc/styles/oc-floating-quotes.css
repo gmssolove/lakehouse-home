@@ -1,0 +1,323 @@
+/* OC floating stage quotes — TRPG PV sweep + decorative mark above */
+
+.oc-float-quotes {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.oc-float-quotes.is-editing {
+  pointer-events: none;
+}
+
+.oc-float-quote {
+  position: absolute;
+  z-index: 1;
+  width: max-content;
+  max-width: min(88%, 560px);
+  transform: translate(-50%, -50%) scale(var(--oc-fq-scale, 1));
+  transform-origin: center center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.oc-float-quote.is-align-left {
+  text-align: left;
+}
+
+.oc-float-quote.is-align-right {
+  text-align: right;
+}
+
+.oc-float-quote.is-draggable {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+.oc-float-quote.is-draggable:active {
+  cursor: grabbing;
+}
+
+.oc-float-quote.is-dimmed {
+  opacity: 0.38;
+}
+
+.oc-float-quote.is-selected {
+  opacity: 1;
+  z-index: 3;
+}
+
+.oc-float-quote.is-selected .oc-float-quote__box {
+  outline: 1px dashed rgba(240, 207, 173, 0.55);
+  outline-offset: 10px;
+}
+
+.oc-float-quote__box {
+  position: relative;
+  display: inline-block;
+  margin: 0;
+  padding: 1.15em 0.15em 0.1em;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-family: var(--font-im-fell), 'IM Fell English', 'Noto Serif KR', 'Playfair Display', serif;
+  font-size: clamp(20px, 2.45vw, 32px);
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  color: rgba(255, 252, 248, 0.98);
+}
+
+.oc-float-quote__mark {
+  position: absolute;
+  left: 50%;
+  top: 0.05em;
+  transform: translateX(-50%);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.92em;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
+  color: rgba(255, 252, 248, 0.42);
+  pointer-events: none;
+  user-select: none;
+  text-shadow: none;
+}
+
+.oc-float-quote.is-align-left .oc-float-quote__mark {
+  left: 0.15em;
+  transform: none;
+}
+
+.oc-float-quote.is-align-right .oc-float-quote__mark {
+  left: auto;
+  right: 0.15em;
+  transform: none;
+}
+
+.oc-float-quote__blur {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.1em;
+  z-index: 0;
+  margin: 0;
+  white-space: pre-wrap;
+  color: rgba(255, 248, 236, 0.38);
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  pointer-events: none;
+  user-select: none;
+  transform: scale(1.03);
+  transform-origin: center bottom;
+  filter: blur(9px);
+  opacity: 0;
+}
+
+.oc-float-quote__text {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+}
+
+.oc-float-quote__inner {
+  display: inline-block;
+  white-space: pre-wrap;
+  -webkit-text-stroke: 0.55px rgba(22, 20, 18, 0.55);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 0 12px rgba(0, 0, 0, 0.28),
+    -0.6px 0 rgba(18, 16, 14, 0.35),
+    0.6px 0 rgba(18, 16, 14, 0.35);
+}
+
+.oc-float-quote__box.is-sweeping .oc-float-quote__blur {
+  clip-path: inset(0 100% 0 0);
+  animation:
+    ocFqRevealClip 0.72s cubic-bezier(0.33, 0.04, 0.18, 1) var(--oc-fq-delay, 0.28s) forwards,
+    ocFqBlurIn 0.85s cubic-bezier(0.33, 0.04, 0.18, 1) var(--oc-fq-delay, 0.28s) forwards;
+}
+
+.oc-float-quote__box.is-sweeping .oc-float-quote__inner {
+  clip-path: inset(0 100% 0 0);
+  opacity: 0;
+  animation: ocFqReveal 0.72s cubic-bezier(0.33, 0.04, 0.18, 1) var(--oc-fq-delay, 0.28s) forwards;
+}
+
+.oc-float-quote__box.is-sweeping .oc-float-quote__mark {
+  opacity: 0;
+  animation: ocFqMarkIn 0.55s ease calc(var(--oc-fq-delay, 0.2s) + 0.05s) forwards;
+}
+
+.oc-float-quote__shine {
+  position: absolute;
+  inset: -8% -12%;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 36%,
+    rgba(255, 255, 255, 0.28) 48%,
+    transparent 60%
+  );
+  mix-blend-mode: soft-light;
+  opacity: 0;
+  animation: ocFqShine 0.72s cubic-bezier(0.33, 0.04, 0.18, 1) var(--oc-fq-delay, 0.28s) forwards;
+}
+
+/* ambient 고정 — 등장 후 아주 약한 숨결 */
+.oc-float-quotes.is-ambient .oc-float-quote__box.is-ambient-live {
+  animation: ocFqAmbientBreath 5.6s ease-in-out 0.6s infinite;
+}
+
+@keyframes ocFqAmbientBreath {
+  0%,
+  100% {
+    opacity: 1;
+    filter: none;
+  }
+  50% {
+    opacity: 0.88;
+    filter: drop-shadow(0 0 10px rgba(255, 248, 236, 0.12));
+  }
+}
+
+.oc-float-quote__box.is-revealed .oc-float-quote__blur {
+  opacity: 0.65;
+  clip-path: none;
+}
+
+.oc-float-quote__box.is-revealed .oc-float-quote__inner {
+  opacity: 1;
+  clip-path: none;
+}
+
+.oc-float-quote__box.is-revealed .oc-float-quote__mark {
+  opacity: 1;
+}
+
+.oc-float-quote__box.is-exiting {
+  animation: ocFqOut 0.38s ease both;
+}
+
+.oc-float-quote__hint {
+  display: block;
+  margin-top: 0.55rem;
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  font-size: 11px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  color: rgba(240, 207, 173, 0.72);
+  text-shadow: none;
+  -webkit-text-stroke: 0;
+}
+
+@keyframes ocFqReveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+@keyframes ocFqRevealClip {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes ocFqBlurIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.65;
+  }
+}
+
+@keyframes ocFqMarkIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes ocFqShine {
+  0% {
+    opacity: 0;
+    transform: translateX(-28%);
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(28%);
+  }
+}
+
+@keyframes ocFqOut {
+  to {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(6px);
+  }
+}
+
+.oc-float-quote__box.is-exiting {
+  /* exit anim on box — keep transform on parent for position/scale */
+}
+
+.oc-fq-tools__chip {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 8px !important;
+  overflow: hidden;
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(240, 207, 173, 0.9);
+  background: rgba(8, 10, 9, 0.72) !important;
+}
+
+.oc-fq-tools__chip img {
+  display: none;
+}
+
+.oc-fq-tools__chip span {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-float-quote__box.is-sweeping .oc-float-quote__blur,
+  .oc-float-quote__box.is-sweeping .oc-float-quote__inner,
+  .oc-float-quote__box.is-sweeping .oc-float-quote__mark,
+  .oc-float-quote__shine,
+  .oc-float-quote__box.is-exiting {
+    animation: none !important;
+    opacity: 1 !important;
+    clip-path: none !important;
+    filter: none !important;
+  }
+}
+

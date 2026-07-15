@@ -17,6 +17,21 @@
   text-align: center;
 }
 
+.trpg-card-grid > .lh-secret-lock {
+  aspect-ratio: 16 / 10;
+  min-height: 140px;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.lh-review__card-secret {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  pointer-events: none;
+}
+
 .lh-secret-lock__hint {
   line-height: 1.45;
   opacity: 0.88;

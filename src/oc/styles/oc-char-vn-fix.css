@@ -1,4 +1,63 @@
-#detail-screen #game-char-img{height:100%!important;max-width:min(54vw,780px)!important;max-height:calc(100% - 4px)!important;object-fit:contain!important;object-position:center bottom!important;z-index:6!important;cursor:pointer!important;pointer-events:auto!important}
-#detail-screen .game-char-gradient{z-index:5!important;pointer-events:none!important}
+/* 메인 일러 + VN/터치 표정 더블버퍼 — 크기·위치 동일 */
+#detail-screen #game-char-img,
+#detail-screen .oc-char-portrait-layer {
+  height: 100% !important;
+  max-width: min(54vw, 780px) !important;
+  max-height: calc(100% - 4px) !important;
+  width: auto !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  z-index: 6 !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+#detail-screen .oc-char-portrait-stack .oc-char-portrait-layer {
+  filter: none !important;
+  box-shadow: none !important;
+}
+#detail-screen .oc-char-portrait-stack:not(.is-soft-revert) #game-char-img,
+#detail-screen .oc-char-portrait-stack:not(.is-soft-revert) .oc-char-portrait-layer {
+  transition: none !important;
+}
+#detail-screen .oc-char-portrait-stack .oc-char-portrait-layer.is-back {
+  z-index: 5 !important;
+  opacity: 0 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+}
+#detail-screen .oc-char-portrait-stack .oc-char-portrait-layer.is-front {
+  z-index: 6 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+#detail-screen .oc-char-portrait-stack.is-soft-revert #game-char-img,
+#detail-screen .oc-char-portrait-stack.is-soft-revert .oc-char-portrait-layer {
+  visibility: visible !important;
+}
+#detail-screen .oc-char-portrait-stack.is-soft-revert #game-char-img.is-back,
+#detail-screen .oc-char-portrait-stack.is-soft-revert .oc-char-portrait-layer.is-back {
+  transition: none !important;
+  opacity: 1 !important;
+  z-index: 5 !important;
+  pointer-events: none !important;
+}
+#detail-screen .oc-char-portrait-stack.is-soft-revert #game-char-img.is-front,
+#detail-screen .oc-char-portrait-stack.is-soft-revert .oc-char-portrait-layer.is-front {
+  transition: opacity 0.28s ease-out !important;
+  opacity: 0 !important;
+  z-index: 7 !important;
+  pointer-events: none !important;
+}
+#detail-screen .game-char-gradient{z-index:2!important;pointer-events:none!important}
+#detail-screen .oc-char-billboards{z-index:5!important;pointer-events:none!important}
 #detail-screen .lh-vn-overlay{z-index:30!important}
-@media(max-width:760px){#detail-screen #game-char-img{max-width:96vw!important;height:98%!important}}
+@media(max-width:760px){
+  #detail-screen #game-char-img,
+  #detail-screen .oc-char-portrait-layer{
+    max-width:96vw!important;
+    height:98%!important;
+  }
+}

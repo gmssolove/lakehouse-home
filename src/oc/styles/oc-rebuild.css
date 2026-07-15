@@ -10,10 +10,12 @@ body::before{background:linear-gradient(90deg,rgba(7,8,8,.82),rgba(10,12,11,.64)
 .char-card{aspect-ratio:3/4.55!important;border-radius:2px!important;background:linear-gradient(145deg,rgba(34,38,36,.92),rgba(12,14,14,.96))!important;border:1px solid rgba(215,169,130,.2)!important;box-shadow:0 16px 36px rgba(0,0,0,.34),inset 0 0 0 1px rgba(255,255,255,.025)!important;transform-origin:center bottom;animation:lhCardRise .58s cubic-bezier(.16,1,.3,1) both;}
 .char-card::before{content:'';position:absolute;inset:7px;border:1px solid rgba(215,169,130,.07);pointer-events:none;z-index:3;}
 .char-card::after{content:'✦';position:absolute;top:8px;left:9px;color:rgba(240,207,173,.82);font-size:13px;z-index:4;text-shadow:0 0 12px rgba(215,169,130,.3);}
-.char-card:hover{transform:translateY(-8px) scale(1.025)!important;border-color:rgba(240,207,173,.72)!important;box-shadow:0 24px 52px rgba(0,0,0,.46),0 0 22px rgba(215,169,130,.1)!important;}
+/* hover scale은 이미지를 래스터 업스케일해 뭉개지게 함 → 이동만 */
+.char-card:hover{transform:translateY(-8px)!important;border-color:rgba(240,207,173,.72)!important;box-shadow:0 24px 52px rgba(0,0,0,.46),0 0 22px rgba(215,169,130,.1)!important;}
 .char-card-img-wrap{position:absolute;inset:0;overflow:hidden;border-radius:inherit;}
 .char-card-img-wrap .char-card-img{position:absolute;inset:0;width:100%;height:100%;}
-.char-card-img{filter:saturate(.92) contrast(1.02);}
+/* filter+scale 겹치면 Chromium이 저해상도 래스터 → 카드 화질 뭉개짐. 필터 금지 */
+.char-card-img{filter:none!important;}
 .char-card-bottom{padding:32px 10px 10px!important;background:linear-gradient(to top,rgba(8,10,10,.98),rgba(8,10,10,.5) 62%,transparent)!important;}
 .char-card-stars{color:#e3bd72!important;font-size:13px!important;letter-spacing:1.2px!important;margin-bottom:3px!important;}
 .char-card-name{font-family:var(--font-noto-serif-kr),'Noto Serif KR',serif!important;font-size:17px!important;letter-spacing:.03em!important;}
@@ -22,10 +24,12 @@ body::before{background:linear-gradient(90deg,rgba(7,8,8,.82),rgba(10,12,11,.64)
 .hover-tag{padding:0!important;border:0!important;font-size:10px!important;color:rgba(216,213,203,.72)!important;font-style:normal!important;font-family:var(--font-noto-serif-kr),'Noto Serif KR',serif!important;}
 .char-card-role{font-size:9px!important;color:rgba(216,213,203,.52)!important;font-family:var(--font-jost),'Jost',sans-serif!important;}
 .char-card-hover{background:rgba(8,10,10,.72)!important;backdrop-filter:blur(3px);}
-@keyframes lhCardRise{from{opacity:0;transform:translateY(22px) scale(.96);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+/* 등장 애니에서 blur 제거 — fill-mode가 레이어를 뭉개는 경우 방지 */
+@keyframes lhCardRise{from{opacity:0;transform:translateY(22px) scale(.96)}to{opacity:1;transform:none}}
 #detail-screen{background:radial-gradient(circle at 50% 15%,rgba(215,169,130,.12),transparent 34%),linear-gradient(135deg,#0b0d0c,#171916 54%,#0b0d0c)!important;}
-#detail-screen.active{animation:lhDetailOpen .7s cubic-bezier(.16,1,.3,1) both!important;}
-@keyframes lhDetailOpen{from{opacity:0;filter:blur(10px);transform:scale(1.015)}to{opacity:1;filter:blur(0);transform:none}}
+#detail-screen.active {
+  animation: none !important;
+}
 .game-topbar{height:54px!important;background:rgba(8,10,10,.74)!important;border-bottom-color:rgba(215,169,130,.28)!important;}
 .game-body{position:relative!important;display:block!important;overflow:hidden!important;background:transparent!important;}
 .game-left{position:absolute!important;inset:0!important;background:radial-gradient(circle at 50% 30%,rgba(215,169,130,.14),transparent 38%),repeating-radial-gradient(circle at 50% 28%,rgba(215,169,130,.07) 0 1px,transparent 1px 9px)!important;}
@@ -53,7 +57,7 @@ body::before{background:linear-gradient(90deg,rgba(7,8,8,.82),rgba(10,12,11,.64)
 .au-btn{min-width:74px!important;text-align:center!important;background:rgba(8,10,10,.76)!important;border-color:rgba(215,169,130,.28)!important;}
 .lh-vn-overlay{position:absolute;left:50%;bottom:32px;transform:translateX(-50%);width:min(760px,calc(100vw - 80px));z-index:20;display:none;}
 .lh-vn-overlay.active{display:block;animation:lhVNIn .36s cubic-bezier(.16,1,.3,1) both;}
-@keyframes lhVNIn{from{opacity:0;transform:translateX(-50%) translateY(20px);filter:blur(8px)}to{opacity:1;transform:translateX(-50%);filter:blur(0)}}
+@keyframes lhVNIn{from{opacity:0;transform:translateX(-50%) translateY(28px);filter:blur(10px)}to{opacity:1;transform:translateX(-50%);filter:blur(0)}}
 .lh-vn-box{background:linear-gradient(180deg,rgba(12,14,13,.92),rgba(8,10,10,.86));border:1px solid rgba(215,169,130,.38);box-shadow:0 22px 60px rgba(0,0,0,.5);padding:18px 20px;position:relative;}
 .lh-vn-speaker{color:#f0cfad;font:500 18px/1 var(--font-noto-serif-kr),'Noto Serif KR',serif;margin-bottom:8px;}
 .lh-vn-text{color:rgba(244,238,229,.9);font-size:14px;line-height:1.85;min-height:48px;}

@@ -26,13 +26,24 @@ function isEditableTarget(target: EventTarget | null) {
   return !!el.isContentEditable;
 }
 
+function normalizePath(path: string) {
+  return path.replace(/\/$/, '') || '/';
+}
+
+function isStillOnGuardPath() {
+  const current = normalizePath(window.location.pathname);
+  const guarded = normalizePath(guardPath || '/');
+  return current === guarded;
+}
+
 function syncHistoryAfterPop() {
   if (stack.length > 0) {
     stayOnGuardPage(true);
     return;
   }
   trapPushed = false;
-  const path = guardPath || window.location.pathname;
+  if (!isStillOnGuardPath()) return;
+  const path = guardPath || '/';
   if (guardRouter) guardRouter.replace(path, { scroll: false });
   window.history.replaceState(null, '', path);
 }
@@ -85,7 +96,8 @@ function ensurePopListener() {
 }
 
 function stayOnGuardPage(repushTrap: boolean) {
-  const path = guardPath || window.location.pathname;
+  if (!isStillOnGuardPath()) return;
+  const path = guardPath || '/';
   if (guardRouter) guardRouter.replace(path, { scroll: false });
   if (repushTrap && stack.length > 0) {
     window.history.pushState({ lhLakeBack: true }, '', path);
@@ -122,7 +134,10 @@ export function lakeBackRemove(id: string) {
   stack.splice(idx, 1);
   if (stack.length === 0) {
     trapPushed = false;
-    const path = guardPath || window.location.pathname;
+    // Unmount / route leave must not rewrite URL back to the guard path
+    // (e.g. leaving /?p=trpg → /oc used to force replace('/') and blank the page).
+    if (!isStillOnGuardPath()) return;
+    const path = guardPath || '/';
     if (guardRouter) guardRouter.replace(path, { scroll: false });
     window.history.replaceState(null, '', path);
   }

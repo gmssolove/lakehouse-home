@@ -17,6 +17,10 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  filter: none;
+  /* 축소·확대 시에도 가능한 한 선명하게 */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .game-left .image-frame-viewport,
@@ -34,10 +38,62 @@
   pointer-events: none;
 }
 
+.image-frame-viewport__frame {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* 하단 경계: 어두운 오버레이가 아니라 이미지 알파가 투명으로 페이드 */
+.image-frame-viewport.has-bottom-blur {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(100% - var(--img-bottom-blur, 22%)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 calc(100% - var(--img-bottom-blur, 22%)),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
 .image-frame-editor {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* OC/Pair 카드 썸네일 조정 — 목록 카드와 같은 비율, 조정하기 쉬운 크기 */
+.oc-card-frame-editor,
+.pair-thumb-editor {
+  width: 100%;
+  max-width: 148px;
+}
+
+.oc-card-frame-editor .image-frame-editor__viewport,
+.pair-thumb-editor .image-frame-editor__viewport {
+  width: 100%;
+  aspect-ratio: 3 / 4.55;
+  max-height: none;
+  border-radius: 2px;
+}
+
+.oc-card-frame-editor .image-frame-editor__controls,
+.pair-thumb-editor .image-frame-editor__controls {
+  max-width: 280px;
+}
+
+.oc-card-frame-editor .image-frame-editor__slider,
+.pair-thumb-editor .image-frame-editor__slider {
+  min-width: 0;
+  flex: 1 1 160px;
 }
 
 .image-frame-editor--empty {
@@ -54,13 +110,19 @@
   overflow: hidden;
   border: 1px solid rgba(215, 169, 130, 0.28);
   background: rgba(10, 12, 11, 0.92);
-  touch-action: none;
-  cursor: grab;
+  cursor: pointer;
 }
 
 .image-frame-editor__viewport .image-frame-viewport {
   position: absolute;
   inset: 0;
+}
+
+.image-frame-editor__viewport.is-selected {
+  border-color: rgba(240, 207, 173, 0.72);
+  box-shadow: 0 0 0 1px rgba(240, 207, 173, 0.22), 0 0 22px rgba(215, 169, 130, 0.16);
+  cursor: grab;
+  touch-action: none;
 }
 
 .image-frame-editor__viewport.is-dragging {
@@ -107,6 +169,67 @@
   margin: 0;
   font-size: 10px;
   color: rgba(216, 213, 203, 0.42);
+}
+
+/* 클리커 버튼용 — 뷰포트만 작게, 컨트롤은 넓게 */
+.lh-clicker-frame-edit {
+  max-width: 280px;
+}
+
+.image-frame-editor--clicker {
+  max-width: none;
+}
+
+.image-frame-editor--clicker .image-frame-editor__viewport {
+  max-width: 120px;
+  width: 120px;
+  height: 120px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.image-frame-editor--clicker.is-cutout .image-frame-editor__viewport {
+  overflow: visible;
+  background: transparent;
+  border-color: rgba(205, 179, 126, 0.25);
+  box-shadow: none;
+}
+
+.image-frame-editor--clicker.is-cutout .image-frame-viewport {
+  overflow: visible;
+  filter:
+    drop-shadow(0 0 0.45px rgba(205, 179, 126, 0.9))
+    drop-shadow(0.55px 0 0 rgba(205, 179, 126, 0.8))
+    drop-shadow(-0.55px 0 0 rgba(205, 179, 126, 0.8))
+    drop-shadow(0 0.55px 0 rgba(205, 179, 126, 0.8))
+    drop-shadow(0 -0.55px 0 rgba(205, 179, 126, 0.8))
+    drop-shadow(0 2px 0 rgba(0, 0, 0, 0.45));
+}
+
+.image-frame-editor--clicker .image-frame-viewport,
+.image-frame-editor--clicker .image-frame-viewport__frame {
+  overflow: visible;
+}
+
+.image-frame-editor--clicker .image-frame-editor__controls {
+  gap: 0.35rem;
+  max-width: 280px;
+}
+
+.image-frame-editor--clicker .image-frame-editor__slider {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+
+.image-frame-editor--clicker .image-frame-editor__hint {
+  font-size: 9px;
+}
+
+/* 전역 CSS가 transform을 덮어도 프레임 유지 — 변환 있을 때만 적용(불필요 레이어 방지) */
+.image-frame-editor .image-frame-viewport__frame.has-frame-transform,
+.char-card-img-wrap .image-frame-viewport__frame.has-frame-transform {
+  transform: var(--iff-t) !important;
+  transform-origin: var(--iff-o, center top) !important;
 }
 
 .image-frame-editor--stage {

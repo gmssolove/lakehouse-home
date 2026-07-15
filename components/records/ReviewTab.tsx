@@ -7,8 +7,11 @@ import { RecordsWriteShell, useRecordsComposer } from '@/components/records/Reco
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { ImageFileField } from '@/components/ui/ImageFileField';
+import { SecretPostFields } from '@/components/ui/SecretPostFields';
+import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { newId, type ReviewItem } from '@/lib/types/site-content';
+import type { WithSecret } from '@/lib/types/secret-content';
 
 type Props = {
   user: User | null;
@@ -140,6 +143,8 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
   const [author, setAuthor] = useState('');
   const [highlight, setHighlight] = useState('');
   const [body, setBody] = useState('');
+  const [secret, setSecret] = useState(false);
+  const [secretPassword, setSecretPassword] = useState('');
   const [uploading, setUploading] = useState(false);
 
   const cats = reviewCategories.length
@@ -151,12 +156,11 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
   const visible = useMemo(() => {
     return reviews
       .filter((r) => {
-        if (r.secret && !isAdmin) return false;
         if (filter !== 'all' && r.categoryId !== filter) return false;
         return true;
       })
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [reviews, isAdmin, filter]);
+  }, [reviews, filter]);
 
   const detail = detailId ? reviews.find((r) => r.id === detailId) || null : null;
 
@@ -191,6 +195,8 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
     setAuthor('');
     setHighlight('');
     setBody('');
+    setSecret(false);
+    setSecretPassword('');
     setCategoryId(cats[0]?.id || 'movie');
   }
 
@@ -217,6 +223,8 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
     setAuthor(item.author || '');
     setHighlight(item.highlight || '');
     setBody(item.body || '');
+    setSecret(!!item.secret);
+    setSecretPassword(item.secretPassword || '');
   }
 
   function startEdit(item: ReviewItem) {
@@ -263,6 +271,8 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
       author: author.trim() || undefined,
       highlight: highlight.trim() || undefined,
       body: body.trim() || undefined,
+      secret: secret || undefined,
+      secretPassword: secret ? secretPassword.trim() || undefined : undefined,
       date: editingId
         ? reviews.find((r) => r.id === editingId)?.date || new Date().toISOString().slice(0, 10)
         : new Date().toISOString().slice(0, 10),
@@ -424,6 +434,12 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
               setBody={setBody}
               coverUrl={coverUrl}
               setCoverUrl={setCoverUrl}
+              secret={secret}
+              secretPassword={secretPassword}
+              onSecretChange={(patch) => {
+                if (patch.secret !== undefined) setSecret(!!patch.secret);
+                if ('secretPassword' in patch) setSecretPassword(patch.secretPassword || '');
+              }}
               uploading={uploading}
               setUploading={setUploading}
             />
@@ -487,6 +503,12 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
           setBody={setBody}
           coverUrl={coverUrl}
           setCoverUrl={setCoverUrl}
+          secret={secret}
+          secretPassword={secretPassword}
+          onSecretChange={(patch) => {
+            if (patch.secret !== undefined) setSecret(!!patch.secret);
+            if ('secretPassword' in patch) setSecretPassword(patch.secretPassword || '');
+          }}
           uploading={uploading}
           setUploading={setUploading}
         />
@@ -536,6 +558,11 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
                   ) : (
                     <div className="lh-review__cover-empty">{item.title[0] || '?'}</div>
                   )}
+                  {item.secret ? (
+                    <span className="lh-review__card-secret" aria-hidden>
+                      <SecretLockBadge compact />
+                    </span>
+                  ) : null}
                   <div className="lh-review__card-hover" aria-hidden="true">
                     <strong className="lh-review__card-hover-title">
                       {item.title}
@@ -588,6 +615,9 @@ function ComposerFields({
   setBody,
   coverUrl,
   setCoverUrl,
+  secret,
+  secretPassword,
+  onSecretChange,
   uploading,
   setUploading,
 }: {
@@ -614,6 +644,9 @@ function ComposerFields({
   setBody: (v: string) => void;
   coverUrl: string;
   setCoverUrl: (v: string) => void;
+  secret: boolean;
+  secretPassword: string;
+  onSecretChange: (patch: Partial<WithSecret>) => void;
   uploading: boolean;
   setUploading: (v: boolean) => void;
 }) {
@@ -685,6 +718,10 @@ function ComposerFields({
         onUploadStart={() => setUploading(true)}
         onUploadEnd={() => setUploading(false)}
         onChange={setCoverUrl}
+      />
+      <SecretPostFields
+        value={{ secret, secretPassword }}
+        onChange={onSecretChange}
       />
     </>
   );

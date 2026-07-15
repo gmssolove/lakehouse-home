@@ -1,0 +1,77 @@
+/* OC / Pair — mobile (≤768). Universe/verse excluded. */
+
+@media (max-width: 768px) {
+  .layout.oc-archive-layout .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 70;
+    width: min(86vw, 300px) !important;
+    max-width: 300px;
+    height: 100dvh !important;
+    transform: translate3d(-105%, 0, 0);
+    transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+    box-shadow: 18px 0 48px rgba(0, 0, 0, 0.45);
+    padding-top: 3rem !important;
+  }
+
+  .layout.oc-archive-layout.is-sidebar-open .sidebar {
+    transform: translate3d(0, 0, 0);
+  }
+
+  .oc-mobile-burger {
+    display: flex !important;
+    position: fixed;
+    top: calc(var(--archive-topbar-h, 52px) + 8px);
+    left: max(10px, env(safe-area-inset-left));
+    z-index: 65;
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(215, 169, 130, 0.35);
+    border-radius: 10px;
+    background: rgba(10, 12, 11, 0.92);
+    color: rgba(240, 207, 173, 0.88);
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  .oc-mobile-backdrop {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    z-index: 68;
+    border: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+  }
+
+  .layout.oc-archive-layout.is-sidebar-open .oc-mobile-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .layout.oc-archive-layout .main-content {
+    width: 100% !important;
+  }
+
+  .archive-topbar {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .pair-layout .main-content.pair-main {
+    width: calc(100vw - 16px) !important;
+    margin: 8px auto 16px !important;
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+.oc-mobile-burger,
+.oc-mobile-backdrop {
+  display: none;
+}
