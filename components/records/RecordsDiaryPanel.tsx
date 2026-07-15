@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { User } from 'firebase/auth';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
-import { SecretLockBadge, SecretLockIcon } from '@/components/ui/SecretLockBadge';
+import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { LakeToggle } from '@/components/ui/LakeToggle';
+import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { uploadImageFile } from '@/lib/r2/client';
@@ -415,6 +416,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
   const [body, setBody] = useState('');
   const [date, setDate] = useState(() => toDateTimeLocal(new Date().toISOString()));
   const [secret, setSecret] = useState(false);
+  const [secretPassword, setSecretPassword] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imageSpoiler, setImageSpoiler] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -492,6 +494,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
     setEditingId(null);
     setBody('');
     setSecret(false);
+    setSecretPassword('');
     setImageUrl('');
     setImageSpoiler(false);
     setDate(toDateTimeLocal(new Date().toISOString()));
@@ -530,6 +533,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                 body: b,
                 date: stamped,
                 secret,
+                secretPassword: secret ? secretPassword.trim() || undefined : undefined,
                 title: p.title || '',
                 imageUrl: imageUrl.trim() || undefined,
                 imageSpoiler: imageUrl.trim() ? imageSpoiler : undefined,
@@ -544,6 +548,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
         body: b,
         date: stamped,
         secret: secret || undefined,
+        secretPassword: secret ? secretPassword.trim() || undefined : undefined,
         imageUrl: imageUrl.trim() || undefined,
         imageSpoiler: imageUrl.trim() ? imageSpoiler : undefined,
         likedBy: [],
@@ -560,6 +565,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
     setBody(item.body);
     setDate(toDateTimeLocal(item.date));
     setSecret(!!item.secret);
+    setSecretPassword(item.secretPassword || '');
     setImageUrl(item.imageUrl || '');
     setImageSpoiler(!!item.imageSpoiler);
     setMenuId(null);
@@ -754,18 +760,17 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                   hideTrigger
                 />
               )}
+              <div style={{ padding: '0 0 8px' }}>
+                <SecretPostFields
+                  value={{ secret, secretPassword }}
+                  onChange={(patch) => {
+                    if ('secret' in patch) setSecret(!!patch.secret);
+                    if ('secretPassword' in patch) setSecretPassword(patch.secretPassword || '');
+                  }}
+                />
+              </div>
               <div className="lh-diary__composer-bar">
                 <div className="lh-diary__composer-tools">
-                  <button
-                    type="button"
-                    className={`lh-diary__icon-btn${secret ? ' is-on' : ''}`}
-                    aria-pressed={secret}
-                    aria-label="비밀글"
-                    title="비밀글"
-                    onClick={() => setSecret((v) => !v)}
-                  >
-                    <SecretLockIcon />
-                  </button>
                   <ImageAttachButton
                     url={imageUrl}
                     spoiler={imageSpoiler}

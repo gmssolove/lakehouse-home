@@ -7,6 +7,7 @@ import { RecordsWriteShell, useRecordsComposer } from '@/components/records/Reco
 import { TwitterOEmbed, TwitterWidgetsScript } from '@/components/records/TwitterOEmbed';
 import { YoutubeEmbedCard } from '@/components/records/YoutubeEmbedCard';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
+import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { detectScrapKind, hostLabel } from '@/lib/scrap/detect';
@@ -250,6 +251,8 @@ export function ScrapTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
   const [categoryId, setCategoryId] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [body, setBody] = useState('');
+  const [secret, setSecret] = useState(false);
+  const [secretPassword, setSecretPassword] = useState('');
   const [resolving, setResolving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -267,7 +270,6 @@ export function ScrapTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
   const visible = useMemo(() => {
     const list = [...scrap].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     return list.filter((item) => {
-      if (item.secret && !isAdmin) return false;
       if (filter !== 'all' && (item.categoryId || '') !== filter) return false;
       const itemTags = resolveTags(item);
       if (activeTag && !itemTags.includes(activeTag)) return false;
@@ -278,7 +280,7 @@ export function ScrapTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
         .toLowerCase()
         .includes(q);
     });
-  }, [scrap, isAdmin, filter, query, activeTag]);
+  }, [scrap, filter, query, activeTag]);
 
   function resetComposer() {
     setEditingId(null);
@@ -287,6 +289,8 @@ export function ScrapTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
     setCategoryId(categoryChoices[0]?.id || '');
     setSourceUrl('');
     setBody('');
+    setSecret(false);
+    setSecretPassword('');
   }
 
   function handleOpen() {
@@ -318,6 +322,8 @@ export function ScrapTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
         body: memo,
         sourceUrl: url || undefined,
         categoryId: categoryId || undefined,
+        secret: secret || undefined,
+        secretPassword: secret ? secretPassword.trim() || undefined : undefined,
         date: editingId
           ? scrap.find((s) => s.id === editingId)?.date || new Date().toISOString()
           : new Date().toISOString(),
@@ -387,6 +393,8 @@ export function ScrapTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
     setCategoryId(item.categoryId || categoryChoices[0]?.id || '');
     setSourceUrl(item.sourceUrl || '');
     setBody(item.body || '');
+    setSecret(!!item.secret);
+    setSecretPassword(item.secretPassword || '');
     openComposer();
   }
 
@@ -446,6 +454,13 @@ export function ScrapTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
           placeholder="메모 (URL 없으면 메모 카드)"
           value={body}
           onChange={(e) => setBody(e.target.value)}
+        />
+        <SecretPostFields
+          value={{ secret, secretPassword }}
+          onChange={(patch) => {
+            if ('secret' in patch) setSecret(!!patch.secret);
+            if ('secretPassword' in patch) setSecretPassword(patch.secretPassword || '');
+          }}
         />
       </RecordsWriteShell>
 

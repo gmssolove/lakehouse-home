@@ -1,4 +1,5 @@
 import type { DialogueFx, DialogueMotion } from '@/lib/vn/motions';
+import type { WithSecret } from '@/lib/types/secret-content';
 
 export type { DialogueFx, DialogueMotion };
 
@@ -180,7 +181,7 @@ export type AuVersion = {
   touchZones?: TouchZone[];
 };
 
-export type OcCharacter = {
+export type OcCharacter = WithSecret & {
   id: number | string;
   name: string;
   nameSub?: string;
@@ -415,7 +416,7 @@ export type PairPanelView = {
 
 export type PairPanelViews = Partial<Record<PairPanelSectionKey, PairPanelView>>;
 
-export type PairItem = {
+export type PairItem = WithSecret & {
   id: string;
   chars: [string, string];
   img?: string;

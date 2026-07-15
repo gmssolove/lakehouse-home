@@ -393,7 +393,7 @@ export const DEFAULT_SITE_GUEST_SETTINGS: SiteGuestSettings = {
   ],
 };
 
-export type GuestEntry = {
+export type GuestEntry = WithSecret & {
   id: string;
   name: string;
   message: string;
@@ -401,8 +401,6 @@ export type GuestEntry = {
   authorUid?: string;
   imageUrl?: string;
   videoUrl?: string;
-  /** 관리자만 열람 (비밀번호 없음) */
-  secret?: boolean;
   replies?: GuestReply[];
   /** @deprecated replies 사용 */
   reply?: string;

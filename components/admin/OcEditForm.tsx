@@ -8,6 +8,7 @@ import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { LakeEditTabs } from '@/components/ui/LakeEditTabs';
 import { LakeToggle } from '@/components/ui/LakeToggle';
 import { LinkPickList } from '@/components/ui/LinkPickList';
+import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import {
   applyCharacterTheme,
@@ -568,6 +569,16 @@ export function OcEditForm({ character, categories, onSave, onDelete, compact }:
           />
         </div>
       </div>
+      ) : null}
+
+      {tab === 'basic' ? (
+        <div style={{ margin: '12px 0 4px' }}>
+          <SectionTitle>비밀글</SectionTitle>
+          <SecretPostFields
+            value={form}
+            onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+          />
+        </div>
       ) : null}
 
       {tab === 'color' ? (

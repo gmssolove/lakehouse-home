@@ -7,9 +7,11 @@ import { newId } from '@/lib/types/site-content';
 import { normalizeGuestEntry } from '@/lib/guest/normalize';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
+import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import {
   LakeCancelIcon,
   LakeDeleteIcon,
@@ -175,6 +177,7 @@ function GuestCard({
   isAdmin,
   ownerReplyLabel,
   onSaveGuests,
+  onOpenAuth,
 }: {
   guest: GuestEntry;
   guests: GuestEntry[];
@@ -182,12 +185,12 @@ function GuestCard({
   isAdmin: boolean;
   ownerReplyLabel: string;
   onSaveGuests: (next: GuestEntry[]) => Promise<void>;
+  onOpenAuth: () => void;
 }) {
   const { confirm } = useLakeDialog();
   const { showSaveToast, showDeleteToast } = useSaveToast();
   const entry = useMemo(() => normalizeGuestEntry(guest), [guest]);
   const replies = entry.replies ?? [];
-  const hidden = !!entry.secret && !isAdmin;
   const { num, nick } = parseGuestName(entry.name);
 
   const [repliesOpen, setRepliesOpen] = useState(replies.length > 0);
@@ -267,17 +270,20 @@ function GuestCard({
         <time className="guest-card__date">{formatGuestDate(entry.date)}</time>
       </header>
 
-      {hidden ? (
-        <p className="guest-card__secret">비밀글입니다.</p>
-      ) : (
-        <>
-          <LinkifiedBody text={entry.message} className="guest-card__body" />
-          {entry.imageUrl ? <img src={entry.imageUrl} alt="" className="guest-card__media" /> : null}
-          {entry.videoUrl ? (
-            <video src={entry.videoUrl} controls className="guest-card__media guest-card__media--video" />
-          ) : null}
-        </>
-      )}
+      <SecretItemGate
+        scope="guest"
+        item={entry}
+        isAdmin={isAdmin}
+        loggedIn={!!user}
+        onRequestLogin={onOpenAuth}
+        lockedLabel="비밀글 — 탭하여 열람"
+      >
+        <LinkifiedBody text={entry.message} className="guest-card__body" />
+        {entry.imageUrl ? <img src={entry.imageUrl} alt="" className="guest-card__media" /> : null}
+        {entry.videoUrl ? (
+          <video src={entry.videoUrl} controls className="guest-card__media guest-card__media--video" />
+        ) : null}
+      </SecretItemGate>
 
       {replies.length > 0 ? (
         <button
@@ -399,6 +405,7 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
   const [nickname, setNickname] = useState('');
   const [message, setMessage] = useState('');
   const [secret, setSecret] = useState(false);
+  const [secretPassword, setSecretPassword] = useState('');
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [replyNickDraft, setReplyNickDraft] = useState('');
@@ -419,12 +426,11 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter((g) => {
-      if (g.secret && !isAdmin) return false;
       const { nick } = parseGuestName(g.name);
       const replyText = (g.replies ?? []).map((r) => r.message).join(' ');
       return [nick, g.message, replyText].join(' ').toLowerCase().includes(q);
     });
-  }, [guests, search, isAdmin]);
+  }, [guests, search]);
 
   async function saveGuestReplyName() {
     if (!isAdmin || replyNickSaving) return;
@@ -461,12 +467,14 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
         date: todayStamp(),
         authorUid: user.uid,
         secret: secret || undefined,
+        secretPassword: secret ? secretPassword.trim() || undefined : undefined,
         replies: [],
       };
       await onSaveGuests([...guests, entry]);
       setNickname('');
       setMessage('');
       setSecret(false);
+      setSecretPassword('');
       showSaveToast('방명록이 등록되었습니다');
     } finally {
       setSubmitting(false);
@@ -551,17 +559,14 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
             disabled={submitting}
           />
         </div>
+        <SecretPostFields
+          value={{ secret, secretPassword }}
+          onChange={(patch) => {
+            if ('secret' in patch) setSecret(!!patch.secret);
+            if ('secretPassword' in patch) setSecretPassword(patch.secretPassword || '');
+          }}
+        />
         <div className="guest-composer__row">
-          <label className="guest-composer__secret">
-            <span className={`guest-composer__box${secret ? ' is-on' : ''}`} aria-hidden />
-            <input
-              type="checkbox"
-              checked={secret}
-              onChange={(e) => setSecret(e.target.checked)}
-              disabled={submitting}
-            />
-            비밀글
-          </label>
           <button
             type="button"
             className="guest-composer__submit"
@@ -588,6 +593,7 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
               isAdmin={isAdmin}
               ownerReplyLabel={ownerReplyLabel}
               onSaveGuests={onSaveGuests}
+              onOpenAuth={onOpenAuth}
             />
           ))
         )}

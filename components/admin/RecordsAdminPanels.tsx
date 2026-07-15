@@ -33,6 +33,7 @@ type AccessProps = { data: SiteAccessSettings; onSave: (next: SiteAccessSettings
 
 const SCOPE_LABELS: Record<LakeAccessScope, string> = {
   oc: 'OC 프로필',
+  pair: 'Pair 아카이브',
   trpg: 'TRPG 아카이브',
   diary: 'Records · Diary',
   scrap: 'Records · Scrap',
@@ -42,6 +43,7 @@ const SCOPE_LABELS: Record<LakeAccessScope, string> = {
   notice: 'Notice',
   gallery: 'Records · Gallery',
   quote: 'Records · Quote',
+  guest: 'Guest 방명록',
 };
 
 export function AccessAdminPanel({ data, onSave }: AccessProps) {

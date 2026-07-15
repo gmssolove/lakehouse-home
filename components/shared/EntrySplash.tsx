@@ -133,37 +133,26 @@ export function EntrySplash({
         </div>
       ) : null}
 
+      {/* TIP/TMI는 레이아웃과 관계없이 화면 중앙 */}
+      {tipItem ? (
+        <div className="lh-entry-splash__tip">
+          <span className="lh-entry-splash__tip-rule" aria-hidden />
+          <p className="lh-entry-splash__tip-line">
+            <span className="lh-entry-splash__tip-lbl">{labelText}</span>
+            <span ref={tipTextRef} className="lh-entry-splash__tip-text">
+              {balancedTipText}
+            </span>
+          </p>
+        </div>
+      ) : null}
+
       {splash.layout === 'corner' ? (
         <div className="lh-entry-splash__corner">
-          {tipItem ? (
-            <div className="lh-entry-splash__tip lh-entry-splash__tip--corner">
-              <p className="lh-entry-splash__tip-line">
-                <span className="lh-entry-splash__tip-lbl">{labelText}</span>
-                <span ref={tipTextRef} className="lh-entry-splash__tip-text">
-                  {balancedTipText}
-                </span>
-              </p>
-            </div>
-          ) : null}
           <div className="lh-entry-splash__spinner" aria-hidden>
             <span className="lh-entry-splash__ring" />
           </div>
         </div>
-      ) : (
-        <>
-          {tipItem ? (
-            <div className="lh-entry-splash__tip">
-              <span className="lh-entry-splash__tip-rule" aria-hidden />
-              <p className="lh-entry-splash__tip-line">
-                <span className="lh-entry-splash__tip-lbl">{labelText}</span>
-                <span ref={tipTextRef} className="lh-entry-splash__tip-text">
-                  {balancedTipText}
-                </span>
-              </p>
-            </div>
-          ) : null}
-        </>
-      )}
+      ) : null}
     </div>
   );
 }

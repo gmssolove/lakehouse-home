@@ -17,7 +17,11 @@ import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
 import { displayCategory, isTrpgCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
 import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
-import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
+import {
+  isLakeItemUnlocked,
+  unlockLakeItem,
+  verifyLakeAccessPassword,
+} from '@/lib/lake/accessGate';
 import {
   clearLakeRouteClasses,
   isLakeRouteEnterLocked,
@@ -302,7 +306,8 @@ export function OcPageClient() {
   }, [ocSettings.pvIntroEnabled]);
 
   function requestOpenDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
-    if (isAdmin || isLakeAccessUnlocked('oc')) {
+    const id = String(c.id);
+    if (isAdmin || !c.secret || isLakeItemUnlocked('oc', id)) {
       openDetail(c, au, opts);
       return;
     }
@@ -510,6 +515,7 @@ export function OcPageClient() {
       <LakeAccessGateModal
         open={!!passwordGate}
         scope="oc"
+        item={passwordGate?.character}
         accessSettings={accessSettings}
         title="Profile Access"
         description={
@@ -527,6 +533,13 @@ export function OcPageClient() {
           const pending = passwordGate;
           setPasswordGate(null);
           if (pending) openDetail(pending.character, pending.au, { skipIntro: pending.skipIntro });
+        }}
+        verifyOverride={(input) => {
+          const c = passwordGate?.character;
+          if (!c) return false;
+          if (!verifyLakeAccessPassword('oc', input, accessSettings, c)) return false;
+          unlockLakeItem('oc', String(c.id));
+          return true;
         }}
       />
       <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />

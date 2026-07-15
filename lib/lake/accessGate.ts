@@ -108,7 +108,9 @@ export function resolveScopePassword(
   const merged = { ...DEFAULT_SITE_ACCESS_SETTINGS, ...settings };
   const pw = merged[scope]?.trim();
   if (pw) return pw;
-  if (scope === 'oc' || scope === 'trpg') return DEFAULT_SITE_ACCESS_SETTINGS.oc;
+  if (scope === 'oc' || scope === 'pair' || scope === 'trpg') {
+    return DEFAULT_SITE_ACCESS_SETTINGS[scope] || DEFAULT_SITE_ACCESS_SETTINGS.oc;
+  }
   return '';
 }
 

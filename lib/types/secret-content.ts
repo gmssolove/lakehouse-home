@@ -7,6 +7,7 @@ export type WithSecret = {
 
 export type LakeAccessScope =
   | 'oc'
+  | 'pair'
   | 'trpg'
   | 'diary'
   | 'scrap'
@@ -15,12 +16,14 @@ export type LakeAccessScope =
   | 'charArchive'
   | 'notice'
   | 'gallery'
-  | 'quote';
+  | 'quote'
+  | 'guest';
 
 export type SiteAccessSettings = Record<LakeAccessScope, string>;
 
 export const DEFAULT_SITE_ACCESS_SETTINGS: SiteAccessSettings = {
   oc: '1145',
+  pair: '1145',
   trpg: '1145',
   diary: '',
   scrap: '',
@@ -30,4 +33,5 @@ export const DEFAULT_SITE_ACCESS_SETTINGS: SiteAccessSettings = {
   notice: '',
   gallery: '',
   quote: '',
+  guest: '',
 };

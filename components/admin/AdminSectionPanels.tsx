@@ -2157,7 +2157,7 @@ function GuestEditForm({
       </div>
       <input className="form-input" placeholder="이미지 URL" value={form.imageUrl || ''} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} style={{ marginTop: 6 }} />
       <input className="form-input" placeholder="영상 URL" value={form.videoUrl || ''} onChange={(e) => setForm({ ...form, videoUrl: e.target.value })} style={{ marginTop: 6 }} />
-      <LakeToggle checked={!!form.secret} onChange={(secret) => setForm({ ...form, secret })} label="비밀글 (관리자만)" />
+      <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
       <div className="form-group" style={{ marginTop: 8 }}>
         <label className="form-label">관리자 답변</label>
         <textarea

@@ -7,6 +7,7 @@ import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { EntrySplashFormFields } from '@/components/shared/EntrySplash';
 import { LakeEditTabs } from '@/components/ui/LakeEditTabs';
+import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import {
   hydratePairDialogueBySide,
@@ -473,6 +474,11 @@ export function PairEditForm({ pair, characters = [], onSave, onDelete, order, o
                     onChange={(e) => setForm({ ...form, color: e.target.value })}
                   />
                 </div>
+                <div className="lake-edit-section-title" style={{ marginTop: 16 }}>비밀글</div>
+                <SecretPostFields
+                  value={form}
+                  onChange={(patch) => setForm({ ...form, ...patch })}
+                />
                 <div className="lake-edit-section-title" style={{ marginTop: 16 }}>정보판 호버 TMI</div>
                 <p className="pair-edit-hint">타이틀·관계·호칭에 마우스를 올리면 커서 옆에 작게 표시됩니다.</p>
                 <div className="form-group">

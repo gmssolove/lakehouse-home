@@ -20,8 +20,15 @@ import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBa
 import { useOcData } from '@/lib/hooks/useOcData';
 import { usePairData } from '@/lib/hooks/usePairData';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
 import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
+import {
+  isLakeItemUnlocked,
+  unlockLakeItem,
+  verifyLakeAccessPassword,
+} from '@/lib/lake/accessGate';
 import { clearLakeRouteClasses, isLakeRouteEnterLocked } from '@/lib/lake/routeTransition';
 import type { PairItem } from '@/lib/types/character';
 
@@ -31,9 +38,9 @@ export function PairPageClient() {
   const router = useRouter();
   const { pairs, savePairs } = usePairData();
   const { characters } = useOcData();
-  const { ocSettings } = useSiteContent();
+  const { ocSettings, accessSettings } = useSiteContent();
   const { resumePageBgmIfNeeded } = useBgm();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { confirm } = useLakeDialog();
   const [detail, setDetail] = useState<PairItem | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -41,6 +48,8 @@ export function PairPageClient() {
   const [quoteMode, setQuoteMode] = useState(false);
   const [entrySplash, setEntrySplash] = useState<PairItem | null>(null);
   const splashPendingRef = useRef<PairItem | null>(null);
+  const [passwordGate, setPasswordGate] = useState<PairItem | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('order');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -311,7 +320,7 @@ export function PairPageClient() {
     await persistPairs(next);
   }
 
-  function openPair(p: PairItem) {
+  function proceedOpenPair(p: PairItem) {
     setSidebarOpen(false);
     setLayoutMode(false);
     setQuoteMode(false);
@@ -324,6 +333,14 @@ export function PairPageClient() {
     splashPendingRef.current = null;
     setEntrySplash(null);
     setDetail(p);
+  }
+
+  function openPair(p: PairItem) {
+    if (isAdmin || !p.secret || isLakeItemUnlocked('pair', p.id)) {
+      proceedOpenPair(p);
+      return;
+    }
+    setPasswordGate(p);
   }
 
   const finishEntrySplash = useCallback(() => {
@@ -530,6 +547,38 @@ export function PairPageClient() {
           />
         </LakeEditModal>
       ) : null}
+
+      <LakeAccessGateModal
+        open={!!passwordGate}
+        scope="pair"
+        item={passwordGate ?? undefined}
+        accessSettings={accessSettings}
+        title="Pair Access"
+        description={
+          passwordGate
+            ? `${pairCardTitle(passwordGate)} — 로그인 후 비밀번호를 입력하세요.`
+            : '페어 — 로그인 후 비밀번호를 입력하세요.'
+        }
+        loggedIn={!!user}
+        onClose={() => setPasswordGate(null)}
+        onRequestLogin={() => {
+          setPasswordGate(null);
+          setAuthOpen(true);
+        }}
+        onSuccess={() => {
+          const pending = passwordGate;
+          setPasswordGate(null);
+          if (pending) proceedOpenPair(pending);
+        }}
+        verifyOverride={(input) => {
+          const p = passwordGate;
+          if (!p) return false;
+          if (!verifyLakeAccessPassword('pair', input, accessSettings, p)) return false;
+          unlockLakeItem('pair', p.id);
+          return true;
+        }}
+      />
+      <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
 }
