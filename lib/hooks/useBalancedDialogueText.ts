@@ -26,7 +26,7 @@ export function useBalancedDialogueText(
   enabled = true,
   options?: BalancedTextOptions,
 ) {
-  const ref = useRef<HTMLElement | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
   const [text, setText] = useState(sourceText);
   const boxSelector = options?.boxSelector;
   const subtractSelector = options?.subtractSelector;

@@ -237,7 +237,7 @@ function OcAdminPanel({
   categories: string[];
   editId: string | number | null;
   onSelect: (id: string | number | null) => void;
-  onSave: (next: OcCharacter[]) => Promise<void>;
+  onSave: (next: OcCharacter[]) => Promise<void | OcCharacter[]>;
 }) {
   const { confirm } = useLakeDialog();
   const { showSaveToast, showDeleteToast } = useSaveToast();
@@ -334,7 +334,9 @@ function PairAdminPanel({
   characters: import('@/lib/types/character').OcCharacter[];
   editId: string | null;
   onSelect: (id: string | null) => void;
-  onSave: (next: import('@/lib/types/character').PairItem[]) => Promise<void>;
+  onSave: (
+    next: import('@/lib/types/character').PairItem[],
+  ) => Promise<void | import('@/lib/types/character').PairItem[]>;
 }) {
   const { confirm } = useLakeDialog();
   const { showSaveToast, showDeleteToast } = useSaveToast();
