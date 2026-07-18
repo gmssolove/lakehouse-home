@@ -14,12 +14,15 @@ export function SiteEffects() {
   const settingsRef = useRef(uiSettings);
   settingsRef.current = uiSettings;
 
-  /* 파비콘 — Admin main.favicon 우선. Next metadata(/favicon.svg)가 다시 끼어들면 제거 */
+  /* 파비콘 — Admin main.favicon 우선. Next metadata 아이콘과 한 번만 정리 (observer 금지: head 무한 싸움) */
   useEffect(() => {
     const raw = main?.favicon?.trim();
-    const href = raw || '/favicon.svg';
+    // 과거 asDataUrl로 저장된 초대형 data URL은 head 조작·브라우저 탭을 굳힘
+    let href = raw || '/favicon.svg';
+    if (href.startsWith('data:') && href.length > 24_000) {
+      href = '/favicon.svg';
+    }
     const head = document.head;
-    let applying = false;
 
     const withCacheBust = (url: string) => {
       if (url.startsWith('data:')) return url;
@@ -42,41 +45,39 @@ export function SiteEffects() {
     };
 
     const apply = () => {
-      if (applying) return;
-      applying = true;
-      try {
-        const finalHref = withCacheBust(href);
-        head
-          .querySelectorAll<HTMLLinkElement>(
-            'link[rel="icon"], link[rel="shortcut icon"], link[rel~="icon"]',
-          )
-          .forEach((el) => {
-            if (el.dataset.lakeFavicon === '1') return;
-            el.remove();
-          });
+      const finalHref = withCacheBust(href);
+      head
+        .querySelectorAll<HTMLLinkElement>(
+          'link[rel="icon"], link[rel="shortcut icon"], link[rel~="icon"]',
+        )
+        .forEach((el) => {
+          if (el.dataset.lakeFavicon === '1') return;
+          el.remove();
+        });
 
-        let link = head.querySelector<HTMLLinkElement>('link[data-lake-favicon="1"]');
-        if (!link) {
-          link = document.createElement('link');
-          link.rel = 'icon';
-          link.dataset.lakeFavicon = '1';
-          head.appendChild(link);
-        }
-        const type = iconType(href);
-        if (type) link.type = type;
-        else link.removeAttribute('type');
-        if (link.getAttribute('href') !== finalHref) {
-          link.setAttribute('href', finalHref);
-        }
-      } finally {
-        applying = false;
+      let link = head.querySelector<HTMLLinkElement>('link[data-lake-favicon="1"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        link.dataset.lakeFavicon = '1';
+        head.appendChild(link);
+      }
+      const type = iconType(href);
+      if (type) link.type = type;
+      else link.removeAttribute('type');
+      if (link.getAttribute('href') !== finalHref) {
+        link.setAttribute('href', finalHref);
       }
     };
 
     apply();
-    const mo = new MutationObserver(apply);
-    mo.observe(head, { childList: true, subtree: true });
-    return () => mo.disconnect();
+    // Next metadata가 아이콘을 늦게 넣는 경우만 짧게 재정리 (지속 observer 없음)
+    const t1 = window.setTimeout(apply, 0);
+    const t2 = window.setTimeout(apply, 250);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [main?.favicon]);
 
   useEffect(() => {
