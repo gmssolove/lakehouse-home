@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
             { source: '/vn-test/', destination: '/vn/test_scene', permanent: false },
           ];
         },
+        async rewrites() {
+          /* 브라우저 기본 /favicon.ico → Admin 파비콘 프록시 (OC/Pair 하드로드 포함) */
+          return [{ source: '/favicon.ico', destination: '/api/site-favicon' }];
+        },
         async headers() {
           if (process.env.NODE_ENV !== 'production') {
             return [];

@@ -809,6 +809,25 @@ body.lh-route-leaving .lh-fx-tear,
   filter: none !important;
 }
 
+/* 수정 모달 열림: 아래 상세 GPU(blur·dust·haze) 중지 → 모달 스크롤 렉 완화 */
+.pair-detail-screen.is-pair-edit-open .pair-detail-layout {
+  visibility: hidden;
+  pointer-events: none;
+  content-visibility: hidden;
+}
+
+.pair-detail-screen.is-pair-edit-open .lh-dust-atmosphere,
+.pair-detail-screen.is-pair-edit-open .pair-bg__haze,
+.pair-detail-screen.is-pair-edit-open .pair-bg__haze-orb,
+.pair-detail-screen.is-pair-edit-open .pair-bg__haze-shimmer {
+  display: none !important;
+  animation: none !important;
+}
+
+.pair-detail-screen.is-pair-edit-open .chara-ghost-soft {
+  filter: none !important;
+}
+
 /* 큰 이미지 레이어 페인트 격리 */
 .pair-detail-screen .chara-body-wrapper,
 .pair-detail-screen .chara-ghost-wrapper,

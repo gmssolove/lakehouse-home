@@ -465,7 +465,7 @@ export function PairPageClient() {
         id="detail-screen"
         className={`pair-detail-screen${detail || entrySplash || detailLeaving ? ' active' : ''}${
           detailLeaving ? ' is-ui-leaving' : ''
-        }`}
+        }${editOpen ? ' is-pair-edit-open' : ''}`}
       >
         {liveDetail ? (
           <>

@@ -111,7 +111,11 @@ const quicksand = Quicksand({
 export const metadata: Metadata = {
   title: 'lakehouse',
   description: 'archive & stories',
-  // icons는 SiteEffects + head bootstrap이 담당 (정적 /favicon.svg가 OC·Pair 하드로드에 고착되던 문제)
+  /* 동일 출처 프록시 — Admin RTDB favicon. OC/Pair 하드로드에서도 브라우저가 이 링크를 씀 */
+  icons: {
+    icon: [{ url: '/favicon.ico', type: 'image/png' }],
+    shortcut: '/favicon.ico',
+  },
 };
 
 export const viewport: Viewport = {
@@ -141,12 +145,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       {/* className 대신 CSS --lh-body-font('ChosunNm' 우선) — next/font Fallback이 Times로 가로채지 않게 */}
       <head>
-        {/* Admin 파비콘 — head 최상단 (브라우저가 /favicon.ico를 선요청하기 전) */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var h=localStorage.getItem('lake_favicon_href');if(!h){var d=JSON.parse(localStorage.getItem('lhdata_site_main')||'null');h=d&&d.favicon}if(!h||typeof h!=='string')return;h=h.trim();if(!h)return;if(h.indexOf('data:')===0&&h.length>24000)return;var u=h;if(h.indexOf('data:')!==0){try{var x=new URL(h,location.origin);x.searchParams.set('v',String(h.length)+'-'+location.pathname.replace(/[^\\w/-]/g,'').slice(0,24));u=/^https?:/i.test(h)?x.toString():(x.pathname+x.search)}catch(e){}}document.querySelectorAll('link[rel*=\"icon\"]').forEach(function(el){el.remove()});var l=document.createElement('link');l.rel='icon';l.setAttribute('data-lake-favicon','1');l.href=u;document.head.insertBefore(l,document.head.firstChild);try{localStorage.setItem('lake_favicon_href',h)}catch(e){}}catch(e){}})();`,
-          }}
-        />
+        {/* Admin 파비콘 — 동일 출처 /favicon.ico (api/site-favicon 프록시). localStorage 불필요 */}
+        <link rel="icon" href="/favicon.ico" type="image/png" data-lake-favicon="1" />
         {/* Tabler Icons webfont — 서식 에디터 단색 아이콘 */}
         <link
           rel="stylesheet"

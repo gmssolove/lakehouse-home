@@ -70,7 +70,7 @@
   position: absolute;
   inset: 0;
   border: none;
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(0, 0, 0, 0.92);
   cursor: pointer;
 }
 
@@ -85,6 +85,8 @@
   border: 0.5px solid rgba(215, 169, 130, 0.18);
   overflow: hidden;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  contain: layout paint style;
+  isolation: isolate;
 }
 
 /* OC/Pair: keep dialog height stable across tabs (≈ color tab natural size) */

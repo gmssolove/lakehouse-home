@@ -17,17 +17,15 @@ export function SiteEffects() {
   const settingsRef = useRef(uiSettings);
   settingsRef.current = uiSettings;
 
-  /* 파비콘 — Admin main.favicon. 하드 네비(/oc·/pair)마다 링크 노드를 갈아끼움 */
+  /* 파비콘 — 동일 출처 /favicon.ico 유지, Admin URL 바뀌면 ?v= 갱신 */
   useEffect(() => {
-    const apply = () => applyLakeFavicon(main?.favicon || readCachedLakeFavicon(), pathname);
+    const apply = () => applyLakeFavicon(main?.favicon || readCachedLakeFavicon());
     apply();
     const t1 = window.setTimeout(apply, 0);
-    const t2 = window.setTimeout(apply, 300);
-    const t3 = window.setTimeout(apply, 1200);
+    const t2 = window.setTimeout(apply, 400);
     return () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
-      window.clearTimeout(t3);
     };
   }, [main?.favicon, pathname]);
 
