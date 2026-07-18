@@ -1,6 +1,5 @@
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
-const ARCHIVE_PATHS = new Set(['/', '/oc', '/pair']);
 const TRPG_SCENARIO = /^\/trpg\/[^/]+$/;
 const VERSE_PATH = /^\/verse(\/|$)/;
 

@@ -1,25 +1,22 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useLayoutEffect } from 'react';
 import {
   beginLakeRouteEnter,
   clearLakeRouteClasses,
   consumePendingLakeRouteDir,
-  lakeNavigate,
   normalizeLakePath,
   shouldLakeRouteAnimate,
 } from '@/lib/lake/routeTransition';
 
 export function LakeRouteTransition() {
-  const router = useRouter();
   const pathname = usePathname();
 
   /* paint 전에 enter 클래스를 붙여 새 페이지가 한 프레임 확 뜨는 "뚝" 끊김 방지 */
   useLayoutEffect(() => {
     const dir = consumePendingLakeRouteDir();
     if (dir === 'neutral') {
-      // lock 중이어도 leaving을 남기면 opacity/pointer-events가 영구 고정됨
       clearLakeRouteClasses();
       return;
     }
@@ -41,7 +38,6 @@ export function LakeRouteTransition() {
         const nextPath = normalizeLakePath(url.pathname);
         const currentPath = normalizeLakePath(pathname);
         if (nextPath === currentPath) return;
-        // 즉시 이동 경로에서도 잔여 전환 클래스 제거
         if (!shouldLakeRouteAnimate(currentPath, nextPath, `${url.pathname}${url.search}`)) {
           clearLakeRouteClasses();
         }
