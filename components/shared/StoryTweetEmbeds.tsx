@@ -7,14 +7,6 @@ type Props = {
   className?: string;
 };
 
-declare global {
-  interface Window {
-    twttr?: {
-      widgets: { load: (el?: Element) => void };
-    };
-  }
-}
-
 let widgetsLoading: Promise<void> | null = null;
 
 function loadTwitterWidgets(): Promise<void> {
@@ -47,7 +39,7 @@ export function StoryTweetEmbeds({ urls, className = '' }: Props) {
     let cancelled = false;
     void loadTwitterWidgets().then(() => {
       if (cancelled || !wrapRef.current) return;
-      window.twttr?.widgets.load(wrapRef.current);
+      window.twttr?.widgets?.load(wrapRef.current);
     });
     return () => {
       cancelled = true;

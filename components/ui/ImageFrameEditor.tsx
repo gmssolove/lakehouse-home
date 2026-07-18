@@ -150,8 +150,8 @@ export function ImageFrameEditor({
       active: true,
       sx: e.clientX,
       sy: e.clientY,
-      ox: frameRef.current.x,
-      oy: frameRef.current.y,
+      ox: frameRef.current.x ?? 0,
+      oy: frameRef.current.y ?? 0,
     };
     setDragging(true);
   };
@@ -163,7 +163,7 @@ export function ImageFrameEditor({
     if (r.width <= 0 || r.height <= 0) return;
     const dx = ((e.clientX - dragRef.current.sx) / r.width) * 100;
     const dy = ((e.clientY - dragRef.current.sy) / r.height) * 100;
-    const scale = frameRef.current.scale;
+    const scale = frameRef.current.scale ?? 1;
     patch({
       x: clampFrameOffset(dragRef.current.ox + dx, scale),
       y: clampFrameOffset(dragRef.current.oy + dy, scale),
@@ -189,8 +189,8 @@ export function ImageFrameEditor({
       e.stopPropagation();
       const delta = wheelScaleStep(e.deltaY, 0.005);
       if (!delta) return;
-      const next = clampFrameScale(frameRef.current.scale + delta);
-      if (next === frameRef.current.scale) return;
+      const next = clampFrameScale((frameRef.current.scale ?? 1) + delta);
+      if (next === (frameRef.current.scale ?? 1)) return;
       interactingRef.current = true;
       patch({ scale: next });
       if (wheelIdleRef.current != null) window.clearTimeout(wheelIdleRef.current);
@@ -226,8 +226,8 @@ export function ImageFrameEditor({
       else return;
       e.preventDefault();
       patch({
-        x: frameRef.current.x + dx,
-        y: frameRef.current.y + dy,
+        x: (frameRef.current.x ?? 0) + dx,
+        y: (frameRef.current.y ?? 0) + dy,
       });
     };
     window.addEventListener('keydown', onKey);
@@ -282,8 +282,8 @@ export function ImageFrameEditor({
               min={70}
               max={300}
               step={1}
-              value={Math.round(frame.scale * 100)}
-              displayValue={`${Math.round(frame.scale * 100)}%`}
+              value={Math.round((frame.scale ?? 1) * 100)}
+              displayValue={`${Math.round((frame.scale ?? 1) * 100)}%`}
               onChange={(n) => patch({ scale: clampFrameScale(n / 100) })}
               aria-label="확대"
             />
@@ -294,8 +294,8 @@ export function ImageFrameEditor({
                 min={0}
                 max={55}
                 step={1}
-                value={Math.round(frame.bottomBlur)}
-                displayValue={`${Math.round(frame.bottomBlur)}%`}
+                value={Math.round(frame.bottomBlur ?? 0)}
+                displayValue={`${Math.round(frame.bottomBlur ?? 0)}%`}
                 onChange={(n) => patch({ bottomBlur: Math.max(0, Math.min(100, n)) })}
                 aria-label="하단페이드"
               />

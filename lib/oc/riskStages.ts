@@ -162,13 +162,13 @@ export function visibleRiskStages(source: {
   riskStages?: RiskStage[];
   riskLevel?: string;
 }): RiskStage[] {
-  return resolveRiskStages(source).filter((s) => s.label.trim() || s.notice.trim());
+  return resolveRiskStages(source).filter((s) => s.label.trim() || (s.notice ?? "").trim());
 }
 
 /** 배지 본문 텍스트 */
 export function riskBadgeText(stage: RiskStage): string {
   const label = stage.label.trim();
-  const notice = stage.notice.trim();
+  const notice = (stage.notice ?? "").trim();
   if (label && notice) return `${label} · ${notice}`;
   return label || notice;
 }
@@ -180,7 +180,7 @@ export function finalizeRiskStages(stages: RiskStage[] | undefined): {
 } {
   const cleaned = (stages ?? [])
     .map(normalizeStage)
-    .filter((s) => s.label.trim() || s.notice.trim());
+    .filter((s) => s.label.trim() || (s.notice ?? "").trim());
   if (!cleaned.length) {
     return { riskStages: undefined, riskLevel: undefined };
   }

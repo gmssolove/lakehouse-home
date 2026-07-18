@@ -141,7 +141,9 @@ export function useCreepyGlyphScramble(
     }
 
     function tick() {
-      const els = Array.from(root.querySelectorAll<HTMLElement>(SELECTOR)).filter(
+      const scope = rootRef.current;
+      if (!scope) return;
+      const els = Array.from(scope.querySelectorAll<HTMLElement>(SELECTOR)).filter(
         (el) => el.offsetParent !== null && (el.textContent ?? '').trim(),
       );
       if (els.length) {
@@ -164,7 +166,7 @@ export function useCreepyGlyphScramble(
     return () => {
       window.clearTimeout(tickTimer);
       timers.forEach((t) => window.clearTimeout(t));
-      root.querySelectorAll('.lh-fx-tear').forEach((el) => el.classList.remove('lh-fx-tear'));
+      rootRef.current?.querySelectorAll('.lh-fx-tear').forEach((el) => el.classList.remove('lh-fx-tear'));
     };
   }, [glyph, glitch, intensity, rootRef]);
 }
