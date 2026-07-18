@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   ENTRY_SPLASH_FADE_MS,
   ENTRY_SPLASH_MIN_MS,
@@ -9,8 +9,9 @@ import {
   normalizeEntrySplash,
   pickEntrySplashTipItem,
 } from '@/lib/shared/entrySplash';
-import { useBalancedDialogueText } from '@/lib/hooks/useBalancedDialogueText';
 import type { EntrySplashConfig, EntrySplashLabel, EntrySplashTipItem } from '@/lib/types/character';
+import { RepeatableList } from '@/components/ui/form/RepeatableList';
+import { FieldLabel } from '@/components/ui/form/FieldLabel';
 
 type Props = {
   config?: EntrySplashConfig | null;
@@ -82,20 +83,17 @@ export function EntrySplash({
   }, [imgReady, onDone]);
 
   const labelText = tipItem ? entrySplashLabelText(tipItem.kind) : '';
-  const { ref: tipTextRef, text: balancedTipText } = useBalancedDialogueText(
-    tipItem?.text?.trim() || '',
-    Boolean(tipItem?.text?.trim()),
-    {
-      boxSelector: '.lh-entry-splash__tip',
-      subtractSelector: '.lh-entry-splash__tip-lbl',
-    },
-  );
+  const rawTipText = tipItem?.text?.trim() || '';
+  const hasManualBreak = rawTipText.includes('\n');
+  // 밸런싱·자동 줄바꿈 끔 — 엔터만 반영
+  const tipText = rawTipText;
 
   return (
     <div
       className={`lh-entry-splash lh-entry-splash--${splash.layout}${hasPhoto ? '' : ' lh-entry-splash--no-photo'}${
-        exiting ? ' is-exiting' : ''
-      }`}
+        splash.tint ? ' lh-entry-splash--tinted' : ''
+      }${exiting ? ' is-exiting' : ''}`}
+      style={splash.tint ? ({ '--lh-splash-tint': splash.tint } as CSSProperties) : undefined}
       role="status"
       aria-live="polite"
       aria-label="로딩"
@@ -117,6 +115,7 @@ export function EntrySplash({
         <div className="lh-entry-splash__bg lh-entry-splash__bg--fallback" aria-hidden />
       )}
       <div className="lh-entry-splash__scrim" aria-hidden />
+      {splash.tint ? <div className="lh-entry-splash__tint" aria-hidden /> : null}
       <div className="lh-entry-splash__atmosphere" aria-hidden>
         <span className="lh-entry-splash__fog lh-entry-splash__fog--a" />
         <span className="lh-entry-splash__fog lh-entry-splash__fog--b" />
@@ -139,8 +138,10 @@ export function EntrySplash({
           <span className="lh-entry-splash__tip-rule" aria-hidden />
           <p className="lh-entry-splash__tip-line">
             <span className="lh-entry-splash__tip-lbl">{labelText}</span>
-            <span ref={tipTextRef} className="lh-entry-splash__tip-text">
-              {balancedTipText}
+            <span
+              className={`lh-entry-splash__tip-text${hasManualBreak ? ' is-manual-break' : ''}`}
+            >
+              {tipText}
             </span>
           </p>
         </div>
@@ -160,12 +161,14 @@ export function EntrySplash({
 /** 레거시 tips/label 제거한 깨끗한 config */
 function commitSplash(
   splash: ReturnType<typeof normalizeEntrySplash>,
-  patch: Partial<Pick<EntrySplashConfig, 'enabled' | 'layout' | 'items'>>,
+  patch: Partial<Pick<EntrySplashConfig, 'enabled' | 'layout' | 'items' | 'tint'>>,
 ): EntrySplashConfig {
+  const tint = patch.tint !== undefined ? patch.tint : splash.tint;
   return {
     enabled: patch.enabled ?? splash.enabled,
     layout: patch.layout ?? splash.layout,
     items: patch.items ?? splash.items,
+    ...(tint ? { tint } : {}),
   };
 }
 
@@ -238,6 +241,39 @@ export function EntrySplashFormFields({
         </label>
       </fieldset>
 
+      <div className="lh-entry-splash-form__tint" style={{ opacity: splash.enabled ? 1 : 0.45 }}>
+        <span className="form-label" style={{ display: 'block', marginBottom: 6 }}>
+          컬러감 (틴트)
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="color"
+            className="lh-color-picker"
+            style={{ width: 46, height: 32, flex: '0 0 auto' }}
+            disabled={!splash.enabled}
+            value={splash.tint || '#d7a982'}
+            onChange={(e) => onChange(commitSplash(splash, { tint: e.target.value }))}
+            aria-label="로딩 화면 컬러감"
+          />
+          {splash.tint ? (
+            <button
+              type="button"
+              className="btn-edit"
+              style={{ padding: '4px 10px' }}
+              disabled={!splash.enabled}
+              onClick={() => onChange(commitSplash(splash, { tint: '' }))}
+            >
+              틴트 없음
+            </button>
+          ) : (
+            <span style={{ fontSize: 11, opacity: 0.55 }}>없음 (원본 색)</span>
+          )}
+        </div>
+        <p style={{ fontSize: 10, opacity: 0.55, margin: '6px 0 0' }}>
+          단색으로 덮지 않고 로딩 화면 전체에 은은하게 색을 입힙니다.
+        </p>
+      </div>
+
       <div className="lh-tip-item-editor" style={{ opacity: splash.enabled ? 1 : 0.45 }}>
         <span className="form-label" style={{ display: 'block', marginBottom: 8 }}>
           Tip / TMI 항목
@@ -257,7 +293,7 @@ export function EntrySplashFormFields({
             className="form-input"
             style={{ flex: 1 }}
             disabled={!splash.enabled}
-            placeholder="문구 입력 후 추가"
+            placeholder="문구 입력 후 「+ Tip/TMI 추가」"
             value={draftText}
             onChange={(e) => setDraftText(e.target.value)}
             onKeyDown={(e) => {
@@ -267,19 +303,14 @@ export function EntrySplashFormFields({
               }
             }}
           />
-          <button
-            type="button"
-            className="btn-save"
-            style={{ padding: '6px 12px' }}
-            disabled={!splash.enabled || !draftText.trim()}
-            onClick={addItem}
-          >
-            추가
-          </button>
         </div>
-        <ul className="lh-tip-item-editor__list">
+        <RepeatableList
+          addLabel="+ Tip/TMI 추가"
+          addDisabled={!splash.enabled || !draftText.trim()}
+          onAdd={addItem}
+        >
           {splash.items.map((it) => (
-            <li key={it.id} className="lh-tip-item-editor__row">
+            <div key={it.id} className="lh-tip-item-editor__row">
               <select
                 className="form-input lh-tip-item-editor__kind-select"
                 disabled={!splash.enabled}
@@ -292,12 +323,14 @@ export function EntrySplashFormFields({
                 <option value="tmi">TMI</option>
                 <option value="tip">TIP</option>
               </select>
-              <input
+              <textarea
                 className="form-input lh-tip-item-editor__text-input"
                 disabled={!splash.enabled}
                 value={it.text}
                 onChange={(e) => patchItem(it.id, { text: e.target.value })}
                 aria-label="문구"
+                rows={2}
+                style={{ resize: 'vertical', minHeight: 34 }}
               />
               <button
                 type="button"
@@ -308,12 +341,12 @@ export function EntrySplashFormFields({
               >
                 ✕
               </button>
-            </li>
+            </div>
           ))}
           {!splash.items.length ? (
-            <li className="lh-tip-item-editor__empty">아직 항목이 없습니다</li>
+            <FieldLabel>아직 항목이 없습니다</FieldLabel>
           ) : null}
-        </ul>
+        </RepeatableList>
       </div>
     </div>
   );

@@ -1,0 +1,128 @@
+/* 상세 스테이지 — 공중 먼지 (spark + mote, GPU 가볍게)
+ * .oc-detail-body > * { pe:auto } 보다 강하게 — 클릭 가로채기 금지 */
+.lh-dust-atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none !important;
+  overflow: hidden;
+  mix-blend-mode: screen;
+  contain: strict;
+}
+
+.lh-dust-atmosphere__mote {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  animation-iteration-count: infinite;
+}
+
+.lh-dust-atmosphere__mote.is-spark {
+  background: radial-gradient(
+    circle,
+    rgba(255, 250, 240, 0.95) 0%,
+    rgba(240, 207, 173, 0.55) 45%,
+    transparent 72%
+  );
+  box-shadow: none;
+}
+
+.lh-dust-atmosphere__mote.is-mote {
+  background: radial-gradient(
+    circle,
+    rgba(240, 220, 190, 0.75) 0%,
+    rgba(210, 185, 150, 0.35) 55%,
+    transparent 78%
+  );
+  box-shadow: 0 0 3px rgba(240, 207, 173, 0.15);
+}
+
+@keyframes lhDustSpark {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.45);
+    opacity: 0;
+  }
+  18% {
+    opacity: calc(var(--dust-i, 0.45) * 1.05);
+    transform: translate3d(
+        calc(var(--dust-dx, 8px) * 0.2),
+        calc(var(--dust-dy, -30px) * 0.15),
+        0
+      )
+      scale(1.1);
+  }
+  48% {
+    opacity: calc(var(--dust-i, 0.45) * 0.4);
+    transform: translate3d(
+        calc(var(--dust-dx, 8px) * 0.55),
+        calc(var(--dust-dy, -30px) * 0.5),
+        0
+      )
+      scale(0.75);
+  }
+  72% {
+    opacity: calc(var(--dust-i, 0.45) * 0.85);
+    transform: translate3d(
+        calc(var(--dust-dx, 8px) * 0.85),
+        calc(var(--dust-dy, -30px) * 0.8),
+        0
+      )
+      scale(1);
+  }
+}
+
+@keyframes lhDustMote {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: calc(var(--dust-i, 0.45) * 0.9);
+    transform: translate3d(
+        calc(var(--dust-dx, 8px) * 0.15),
+        calc(var(--dust-dy, -24px) * 0.12),
+        0
+      )
+      scale(1);
+  }
+  55% {
+    opacity: calc(var(--dust-i, 0.45) * 0.55);
+    transform: translate3d(
+        calc(var(--dust-dx, 8px) * 0.5),
+        calc(var(--dust-dy, -24px) * 0.45),
+        0
+      )
+      scale(0.85);
+  }
+  80% {
+    opacity: calc(var(--dust-i, 0.45) * 0.75);
+    transform: translate3d(
+        calc(var(--dust-dx, 8px) * 0.8),
+        calc(var(--dust-dy, -24px) * 0.72),
+        0
+      )
+      scale(0.95);
+  }
+}
+
+.pair-detail-screen .lh-dust-atmosphere {
+  z-index: 3;
+}
+
+.trpg-inv-detail__stage .lh-dust-atmosphere {
+  z-index: 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lh-dust-atmosphere__mote {
+    animation: none !important;
+    opacity: calc(var(--dust-i, 0.45) * 0.22) !important;
+  }
+
+  .lh-dust-atmosphere__mote.is-mote {
+    opacity: calc(var(--dust-i, 0.45) * 0.16) !important;
+  }
+}

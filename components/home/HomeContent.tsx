@@ -14,6 +14,7 @@ import { ReviewTab } from '@/components/records/ReviewTab';
 import { GalleryTab } from '@/components/records/GalleryTab';
 import { QuoteTab } from '@/components/records/QuoteTab';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
+import { LakeScopeGate } from '@/components/lake/LakeScopeGate';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { UniverseAccordionCards, type SkewAccordionCard } from '@/components/home/UniverseAccordionCards';
 import type { SitePost, TrpgScenario } from '@/lib/types/site-content';
@@ -22,6 +23,7 @@ import type { User } from 'firebase/auth';
 
 type Props = {
   page: HomePageId;
+  leavingPage?: HomePageId | null;
   user: User | null;
   isAdmin: boolean;
   onOpenAuth: () => void;
@@ -84,70 +86,87 @@ function PostList({
   );
 }
 
-export function HomeContent({ page, user, isAdmin, onOpenAuth, onTicketClick }: Props) {
+export function HomeContent({ page, leavingPage, user, isAdmin, onOpenAuth, onTicketClick }: Props) {
   const site = useSiteContent();
+
+  const blockClass = (id: HomePageId) =>
+    `content-block${page === id ? ' active' : ''}${leavingPage === id && page !== id ? ' is-leaving' : ''}`;
 
   return (
     <div className="content-area">
-      <div className={`content-block${page === 'main' ? ' active' : ''}`} id="page-main">
+      <div className={blockClass('main')} id="page-main">
         <MainGameStage />
       </div>
 
-      <div className={`content-block${page === 'notice' ? ' active' : ''}`} id="page-notice">
+      <div className={blockClass('notice')} id="page-notice">
         <div className="page-heading">Notice</div>
         <div className="page-sub">공지사항</div>
-        <div id="notice-list">
-          <PostList
-            items={site.notices}
-            empty="— 공지사항이 없습니다 —"
-            scope="notice"
+        <LakeScopeGate scope="notice" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'notice'}>
+          <div id="notice-list">
+            <PostList
+              items={site.notices}
+              empty="— 공지사항이 없습니다 —"
+              scope="notice"
+              user={user}
+              isAdmin={isAdmin}
+              onOpenAuth={onOpenAuth}
+            />
+          </div>
+        </LakeScopeGate>
+      </div>
+
+      <div className={blockClass('charArchive')} id="page-char-archive">
+        <div className="page-heading">Character Archive</div>
+        <div className="page-sub">캐릭터 글 아카이브</div>
+        <LakeScopeGate scope="charArchive" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'charArchive'}>
+          <CharArchivePanel user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} />
+        </LakeScopeGate>
+      </div>
+
+      <div className={blockClass('diary')} id="page-diary">
+        <LakeScopeGate scope="diary" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'diary'}>
+          <RecordsDiaryPanel
+            items={site.diary}
             user={user}
             isAdmin={isAdmin}
             onOpenAuth={onOpenAuth}
+            onSave={site.saveDiary}
+            active={page === 'diary'}
           />
-        </div>
+        </LakeScopeGate>
       </div>
 
-      <div className={`content-block${page === 'charArchive' ? ' active' : ''}`} id="page-char-archive">
-        <div className="page-heading">Character Archive</div>
-        <div className="page-sub">캐릭터 글 아카이브</div>
-        <CharArchivePanel user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} />
+      <div className={blockClass('scrap')} id="page-scrap">
+        <LakeScopeGate scope="scrap" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'scrap'}>
+          <ScrapTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'scrap'} />
+        </LakeScopeGate>
       </div>
 
-      <div className={`content-block${page === 'diary' ? ' active' : ''}`} id="page-diary">
-        <RecordsDiaryPanel
-          items={site.diary}
-          user={user}
-          isAdmin={isAdmin}
-          onOpenAuth={onOpenAuth}
-          onSave={site.saveDiary}
-          active={page === 'diary'}
-        />
+      <div className={blockClass('review')} id="page-review">
+        <LakeScopeGate scope="review" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'review'}>
+          <ReviewTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'review'} />
+        </LakeScopeGate>
       </div>
 
-      <div className={`content-block${page === 'scrap' ? ' active' : ''}`} id="page-scrap">
-        <ScrapTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'scrap'} />
+      <div className={blockClass('gallery')} id="page-gallery">
+        <LakeScopeGate scope="gallery" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'gallery'}>
+          <GalleryTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'gallery'} />
+        </LakeScopeGate>
       </div>
 
-      <div className={`content-block${page === 'review' ? ' active' : ''}`} id="page-review">
-        <ReviewTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'review'} />
+      <div className={blockClass('quote')} id="page-quote">
+        <LakeScopeGate scope="quote" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'quote'}>
+          <QuoteTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'quote'} />
+        </LakeScopeGate>
       </div>
 
-      <div className={`content-block${page === 'gallery' ? ' active' : ''}`} id="page-gallery">
-        <GalleryTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'gallery'} />
-      </div>
-
-      <div className={`content-block${page === 'quote' ? ' active' : ''}`} id="page-quote">
-        <QuoteTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'quote'} />
-      </div>
-
-      <div className={`content-block${page === 'universe' ? ' active' : ''}`} id="page-universe">
+      <div className={blockClass('universe')} id="page-universe">
         <div className="page-heading">Universe</div>
         <div className="page-sub">자작 세계관</div>
         <UniverseAccordionCards cards={site.universe} resolveHref={resolveUniverseHref} />
       </div>
 
-      <div className={`content-block${page === 'trpg' ? ' active' : ''}`} id="page-trpg">
+      <div className={blockClass('trpg')} id="page-trpg">
         <div className="page-heading">TRPG</div>
         <div className="page-sub">시나리오</div>
         <TrpgScenarioList
@@ -160,17 +179,19 @@ export function HomeContent({ page, user, isAdmin, onOpenAuth, onTicketClick }: 
         />
       </div>
 
-      <div className={`content-block${page === 'guest' ? ' active' : ''}`} id="page-guest">
-        <GuestBookPanel
-          guests={site.guests}
-          user={user}
-          isAdmin={isAdmin}
-          onSaveGuests={site.saveGuests}
-          onOpenAuth={onOpenAuth}
-        />
+      <div className={blockClass('guest')} id="page-guest">
+        <LakeScopeGate scope="guest" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'guest'}>
+          <GuestBookPanel
+            guests={site.guests}
+            user={user}
+            isAdmin={isAdmin}
+            onSaveGuests={site.saveGuests}
+            onOpenAuth={onOpenAuth}
+          />
+        </LakeScopeGate>
       </div>
 
-      <div className={`content-block${page === 'banner' ? ' active' : ''}`} id="page-banner">
+      <div className={blockClass('banner')} id="page-banner">
         <div className="page-heading">Banner</div>
         <div className="page-sub">배너</div>
         <div id="public-banner-list">

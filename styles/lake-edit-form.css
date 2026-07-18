@@ -1,0 +1,322 @@
+/* Shared lake edit form primitives (Accordion / Slider / Repeatable / Upload) */
+
+.lh-form-accord {
+  border: 1px solid rgba(201, 185, 138, 0.16);
+  border-radius: 8px;
+  background: rgba(12, 11, 9, 0.72);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.lh-form-accord__head {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  background: rgba(20, 19, 16, 0.9);
+  color: rgba(232, 226, 214, 0.92);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lh-form-accord__head:hover {
+  color: #c9b98a;
+}
+
+.lh-form-accord__chev {
+  color: rgba(201, 185, 138, 0.75);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.lh-form-accord__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-top: 1px solid rgba(201, 185, 138, 0.1);
+  background: #0a0a0a;
+}
+
+.lh-field-label {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #7d7668;
+  font-weight: 400;
+}
+
+.lh-field-label--inline {
+  display: inline;
+  margin-left: 6px;
+}
+
+.lh-textarea-field {
+  margin-bottom: 0;
+}
+
+.lh-slider-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.lh-slider-field__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lh-slider-field__label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: rgba(216, 213, 203, 0.72);
+}
+
+.lh-slider-field__value {
+  font-size: 11px;
+  color: rgba(216, 213, 203, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.lh-slider-field__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lh-slider-field__input {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lh-slider-field__input:focus {
+  outline: none;
+}
+
+.lh-slider-field__input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(215, 169, 130, 0.85) 0%,
+    rgba(215, 169, 130, 0.85) var(--lh-slider-pct, 50%),
+    rgba(215, 169, 130, 0.18) var(--lh-slider-pct, 50%),
+    rgba(215, 169, 130, 0.18) 100%
+  );
+}
+
+.lh-slider-field__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 207, 173, 0.85);
+  background: #d7a982;
+  box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.45);
+  cursor: pointer;
+}
+
+.lh-slider-field__input::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(215, 169, 130, 0.18);
+}
+
+.lh-slider-field__input::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(215, 169, 130, 0.85);
+}
+
+.lh-slider-field__input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 207, 173, 0.85);
+  background: #d7a982;
+  cursor: pointer;
+}
+
+/* Fallback for browsers without progress fill */
+.lh-slider-field__input {
+  accent-color: #d7a982;
+}
+
+.lh-repeatable {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lh-repeatable__items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lh-repeatable__add {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px dashed rgba(201, 185, 138, 0.45);
+  border-radius: 6px;
+  background: transparent;
+  color: #c9b98a;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.lh-repeatable__add:hover {
+  border-color: rgba(201, 185, 138, 0.75);
+  background: rgba(201, 185, 138, 0.06);
+}
+
+.lh-repeatable__add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lh-char-count {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(168, 164, 156, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.lh-char-count.is-over {
+  color: rgba(232, 160, 140, 0.92);
+}
+
+.lh-upload-crop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lh-upload-crop__label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: rgba(216, 213, 203, 0.72);
+}
+
+.lh-upload-crop__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lh-upload-crop__file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lh-upload-crop__url {
+  flex: 1;
+  min-width: 140px;
+}
+
+.lh-upload-crop__hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #7d7668;
+}
+
+.lh-upload-crop__clear {
+  align-self: flex-start;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: rgba(215, 169, 130, 0.08);
+  color: rgba(240, 207, 173, 0.78);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.lh-upload-crop__preview {
+  max-width: 160px;
+  max-height: 100px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid rgba(201, 185, 138, 0.2);
+}
+
+.lh-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 8px;
+  cursor: pointer;
+}
+
+.lh-toggle-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: rgba(232, 226, 214, 0.9);
+}
+
+.lh-toggle-row__text strong {
+  font-weight: 600;
+}
+
+.lh-creepy-kind-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+}
+
+@media (max-width: 640px) {
+  .lh-creepy-kind-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Pair intro layout helpers kept under shared form namespace aliases */
+.pair-intro-edit .lh-form-accord {
+  margin-bottom: 0;
+}
+
+.pair-intro-edit__2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  .pair-intro-edit__2col {
+    grid-template-columns: 1fr;
+  }
+}

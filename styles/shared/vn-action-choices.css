@@ -110,7 +110,8 @@
 
 .lh-vn-action-choice.is-picked {
   z-index: 2;
-  animation: lhVnActionPicked 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+  will-change: transform, opacity, filter;
+  animation: lhVnActionPicked 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
   animation-delay: 0s !important;
   border-color: color-mix(in srgb, var(--vn-action-accent) 88%, white);
   color: #fff8ee;
@@ -127,8 +128,9 @@
 }
 
 .lh-vn-action-choice.is-dismissed {
-  animation: lhVnActionDismiss 0.5s ease forwards !important;
-  animation-delay: 0.08s !important;
+  will-change: transform, opacity, filter;
+  animation: lhVnActionDismiss 0.72s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+  animation-delay: 0.06s !important;
 }
 
 @keyframes lhVnActionPicked {
@@ -148,14 +150,14 @@
     filter: brightness(1.1);
   }
   72% {
-    opacity: 0.85;
-    transform: scale(1.035) translateY(-4px);
-    filter: brightness(1.15) blur(1px);
+    opacity: 0.82;
+    transform: scale(1.03) translateY(-6px);
+    filter: brightness(1.12) blur(0.5px);
   }
   100% {
     opacity: 0;
-    transform: scale(1.05) translateY(-10px);
-    filter: brightness(1.2) blur(5px);
+    transform: scale(1.045) translateY(-16px);
+    filter: brightness(1.16) blur(3px);
   }
 }
 
@@ -176,12 +178,13 @@
 @keyframes lhVnActionDismiss {
   from {
     opacity: 1;
+    transform: none;
     filter: none;
   }
   to {
     opacity: 0;
-    transform: scale(0.94) translateY(8px);
-    filter: blur(7px) brightness(0.7);
+    transform: scale(0.96) translateY(10px);
+    filter: blur(4px) brightness(0.72);
   }
 }
 

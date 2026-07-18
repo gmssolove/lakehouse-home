@@ -150,6 +150,18 @@
   color: rgba(216, 213, 203, 0.58);
 }
 
+.image-frame-editor__controls .lh-slider-field {
+  flex: 1;
+  min-width: 180px;
+}
+
+.image-frame-editor__controls .lh-slider-field__label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(216, 213, 203, 0.58);
+}
+
 .image-frame-editor__slider input {
   flex: 1;
   accent-color: #d7a982;

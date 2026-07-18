@@ -56,6 +56,18 @@ export function ClickerWidget({
   volumeRef.current = volume;
   settingsRef.current = { soundPreset, soundCustom, buttons };
 
+  // 버튼 이미지를 미리 받아 캐시에 올려둠 — 표시 시 즉시 렌더 (로딩 지연 방지)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    for (const btn of buttons) {
+      const src = btn.img?.trim();
+      if (!src) continue;
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = src;
+    }
+  }, [buttons]);
+
   const keyMap = useMemo(() => {
     const map = new Map<string, { btn: ClickerButton; index: number }>();
     buttons.forEach((btn, index) => {

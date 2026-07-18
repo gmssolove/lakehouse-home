@@ -156,16 +156,23 @@ body.lh-route-enter.lh-route-back .lh-archive-topbar {
   }
 }
 
+@keyframes lhDetailScreenLeave {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes lhArchiveListEnter {
   from {
     opacity: 0;
-    transform: translateY(14px);
-    filter: blur(8px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 
@@ -173,17 +180,6 @@ body.lh-route-enter.lh-route-back .lh-archive-topbar {
 .pair-detail-screen.active.is-ui-leaving {
   animation: lhDetailScreenLeave 0.72s cubic-bezier(0.4, 0, 0.2, 1) both !important;
   pointer-events: none !important;
-}
-
-@keyframes lhDetailScreenLeave {
-  from {
-    opacity: 1;
-    filter: none;
-  }
-  to {
-    opacity: 0;
-    filter: blur(10px);
-  }
 }
 
 body.lh-route-leaving.lh-route-forward .trpg-scenario-shell.lh-route-panel-leaving {
@@ -628,4 +624,199 @@ body.lh-route-leaving.lh-route-back .lh-archive-topbar.lh-route-panel-leaving {
     animation: none !important;
     filter: none !important;
   }
+}
+
+/* —— OC / Pair 카드·상세 프레임 드랍 완화 —— */
+.char-card:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.38) !important;
+}
+
+.char-card {
+  will-change: auto !important;
+  contain: layout paint;
+}
+
+.pair-detail-screen .pair-page.is-leaving {
+  filter: none !important;
+}
+
+.pair-detail-screen .pair-menu__item {
+  animation: none !important;
+  opacity: 0.92 !important;
+  transform: none !important;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    opacity 0.2s ease !important;
+}
+
+.pair-detail-screen .pair-menu__item:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.pair-detail-screen .pair-intro-v2__art {
+  animation: none !important;
+}
+
+.pair-detail-screen .pair-intro-v2__beat.is-in .pair-intro-v2__art {
+  animation: none !important;
+}
+
+/* 상세 호버 비용 추가 완화 */
+.pair-detail-screen .chara-ghost-soft {
+  filter: none !important;
+}
+
+.pair-detail-screen .chara-billboard,
+.pair-detail-screen .pair-extra__gal-item img {
+  transition: opacity 0.2s ease !important;
+}
+
+.pair-detail-screen .pair-extra__gal-btn:hover img {
+  transform: none !important;
+  filter: brightness(1.04) !important;
+}
+
+.pair-detail-screen .pair-panel-stage,
+.pair-detail-screen .pair-page {
+  contain: layout style;
+}
+
+.lh-dust-atmosphere {
+  contain: strict;
+  transform: translateZ(0);
+}
+
+/* ── 2026-07-19: 전환·진입 렉 추가 완화 (기능 동일, 합성 비용만 축소) ── */
+
+/* 페어 캐릭터 등장: blur 제거 → opacity/transform만 */
+@keyframes pairBodyInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+    filter: none;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes pairBodyInRight {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+    filter: none;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+/* 목록/상세 leave: blur 제거 */
+@keyframes lhArchiveListEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: none;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes lhDetailScreenLeave {
+  from {
+    opacity: 1;
+    filter: none;
+  }
+  to {
+    opacity: 0;
+    filter: none;
+  }
+}
+
+/* 페어 패널 전환·메뉴 등장 blur 키프레임 무력화 */
+.pair-detail-screen .pair-page.is-entering,
+.pair-detail-screen .pair-page.is-leaving,
+.pair-detail-screen .pair-reveal,
+.pair-detail-screen .pair-panel__body {
+  filter: none !important;
+}
+
+/* dive/land 중 무거운 이펙트 일시 정지 */
+.pair-detail-screen .pair-cherry-root.is-diving .pair-glide,
+.pair-detail-screen .pair-cherry-root.is-diving .pair-bg__haze,
+.pair-detail-screen .pair-cherry-root.is-returning .pair-bg__haze {
+  animation-play-state: paused !important;
+}
+
+.pair-detail-screen .pair-cherry-root.is-diving .chara-note-btn__icon,
+.pair-detail-screen .pair-cherry-root.is-diving .pair-menu__item::after,
+.pair-detail-screen .pair-cherry-root.is-landed .pair-ascend,
+.pair-detail-screen .pair-cherry-root.is-diving .pair-ascend {
+  animation-play-state: paused !important;
+}
+
+/* 상시 무한 float/bob — 보일 때만 (offscreen은 브라우저가 알아서 pause하지 않으므로 명시) */
+.pair-detail-screen .chara-note-btn__icon,
+.lh-handnote-btn__icon,
+.oc-stat-hover__trigger-bar {
+  will-change: auto !important;
+}
+
+/* 페어 sticky nav backdrop — 전환 중 합성 비용 */
+.pair-detail-screen > .detail-nav {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* OC/페어 라우트 전환: filter brightness 잔여 제거 */
+body.lh-route-leaving .layout.lh-route-panel-leaving,
+body.lh-route-leaving #detail-screen.lh-route-panel-leaving,
+body.lh-route-leaving .lh-archive-topbar.lh-route-panel-leaving,
+body.lh-route-leaving .main-content.pair-main.lh-route-panel-leaving {
+  filter: none !important;
+  transition:
+    opacity 0.3s cubic-bezier(0.33, 1, 0.32, 1),
+    transform 0.3s cubic-bezier(0.33, 1, 0.32, 1) !important;
+}
+
+/* OC 상세 UI enter — blur 기반 키프레임이 있으면 opacity만 */
+#detail-screen.active.is-ui-enter .oc-detail-left,
+#detail-screen.active.is-ui-enter .oc-detail-right,
+#detail-screen.active.is-ui-enter .oc-char-slide {
+  filter: none !important;
+}
+
+/* 기괴 글리프/글리치 — 전환 중엔 잠시 끔 (기능 자체는 유지, CSS만) */
+body.lh-route-leaving .lh-fx-tear,
+.pair-detail-screen .pair-cherry-root.is-diving .lh-fx-tear {
+  animation: none !important;
+}
+
+/* 스탯 패널 글래스: blur 강도만 완화 (반투명 배경 동작은 유지) */
+.oc-stat-hover__panel {
+  -webkit-backdrop-filter: blur(16px) saturate(1.05) !important;
+  backdrop-filter: blur(16px) saturate(1.05) !important;
+}
+
+/* 페어 히어로 마스킹 blur 밴드 완화 */
+.pair-detail-screen .pair-hero::after {
+  filter: none !important;
+}
+
+/* 큰 이미지 레이어 페인트 격리 */
+.pair-detail-screen .chara-body-wrapper,
+.pair-detail-screen .chara-ghost-wrapper,
+#detail-screen .oc-char-detail-layout,
+#detail-screen .oc-char-portrait-stack {
+  contain: layout style;
 }

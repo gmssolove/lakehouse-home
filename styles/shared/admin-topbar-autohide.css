@@ -1,0 +1,68 @@
+/* #9 상세 상단바 hover 슬라이드다운
+   OC(.game-topbar) · Pair(.detail-nav)의 「목록으로 · 타이틀 · 수정」 상단 박스를
+   평소엔 위로 접고(손잡이만 남김), 커서를 위로 올리면 내려온다.
+   접히면 아래 일러스트/메뉴/정보가 함께 위로 올라온다(수정 중에도 동작).
+   터치(hover 없음)·모바일에서는 항상 보이게 둔다(뒤로가기 접근성). */
+
+@media (hover: hover) and (min-width: 901px) {
+  .game-topbar,
+  #detail-screen.pair-detail-screen > .detail-nav {
+    z-index: 210;
+    transition:
+      transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+      margin-bottom 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  /* OC·Pair 통일: 상단바(슬라이드)만 접혔다 펼쳐지고 화면(콘텐츠)은 움직이지
+     않는다. OC 상단바는 오버레이(absolute)라 본문이 화면 전체(100%)를 채워
+     접힘/펼침 어느 상태에서도 상·하단 빈 띠가 없다. */
+  #detail-screen:not(.pair-detail-screen) .game-topbar {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    /* 펼쳤을 때 골드 경계선이 슬라이드 하단처럼 보이지 않게 */
+    border-bottom-color: rgba(215, 169, 130, 0.12) !important;
+  }
+  .game-topbar:not(:hover) {
+    transform: translateY(-41px);
+  }
+
+  /* Pair: OC와 통일 — 슬라이드바(.detail-nav)만 접히고 화면(콘텐츠)은 움직이지
+     않는다. sticky 라 접혀도 콘텐츠 흐름 위치는 그대로 유지된다. */
+  #detail-screen.pair-detail-screen > .detail-nav:not(:hover) {
+    transform: translateY(-39px);
+  }
+
+  /* 접힘 상태에선 내부 컨트롤을 페이드아웃 — 손잡이만 깔끔하게 남는다. */
+  .game-topbar > *,
+  #detail-screen.pair-detail-screen > .detail-nav > * {
+    transition: opacity 0.22s ease;
+  }
+  .game-topbar:not(:hover) > *,
+  #detail-screen.pair-detail-screen > .detail-nav:not(:hover) > * {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* 손잡이(그립) — 접힘일 때 박스 하단(=화면에 남는 부분)에 보인다. */
+  .game-topbar::after,
+  #detail-screen.pair-detail-screen > .detail-nav::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    width: 46px;
+    height: 3px;
+    transform: translateX(-50%);
+    border-radius: 3px;
+    background: rgba(215, 169, 130, 0.5);
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .game-topbar:hover::after,
+  #detail-screen.pair-detail-screen > .detail-nav:hover::after {
+    opacity: 0;
+  }
+}

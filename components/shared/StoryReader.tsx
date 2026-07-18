@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { OcRichText } from '@/lib/oc/richText';
+import { StoryPostBody, resolveStoryViewMode } from '@/components/shared/StoryPostBody';
+import { storyCategoryTagStyle } from '@/lib/oc/storyEntries';
 import type { StoryEntry } from '@/lib/types/character';
 
 type Props = {
@@ -10,15 +11,21 @@ type Props = {
   onClose: () => void;
   /** 캐릭터/페어 퍼스널 컬러 — character 모드 accent */
   accentColor?: string;
+  /** 분류별 태그 색 */
+  categoryColors?: Record<string, string>;
+  /** 서사 글 단위 이전/다음 이동 (#3) */
+  onPrevEntry?: () => void;
+  onNextEntry?: () => void;
+  hasPrevEntry?: boolean;
+  hasNextEntry?: boolean;
+  /** 포스트 열릴 때 BGM 로드 (없으면 호출 안 함) */
+  onEntryTheme?: (entry: StoryEntry) => void;
 };
 
 const LEAVE_MS = 900;
 const BASE_BG = '#0a0908';
 const FALLBACK_ACCENT = '#d7a982';
-
-function looksLikeHtml(s: string) {
-  return /<\/?[a-z][\s\S]*>/i.test(s);
-}
+const ENTRY_SLIDE_MS = 480;
 
 function formatAuthor(raw?: string) {
   const t = (raw || '').trim();
@@ -33,7 +40,18 @@ function resolveAccent(view: StoryEntry, accentColor?: string) {
   return char || FALLBACK_ACCENT;
 }
 
-export function StoryReader({ entry, open, onClose, accentColor }: Props) {
+export function StoryReader({
+  entry,
+  open,
+  onClose,
+  accentColor,
+  categoryColors,
+  onPrevEntry,
+  onNextEntry,
+  hasPrevEntry,
+  hasNextEntry,
+  onEntryTheme,
+}: Props) {
   const [leaving, setLeaving] = useState(false);
   const [chapterIndex, setChapterIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -41,15 +59,23 @@ export function StoryReader({ entry, open, onClose, accentColor }: Props) {
   const [canScrollMore, setCanScrollMore] = useState(false);
   const [cached, setCached] = useState<StoryEntry | null>(null);
   const [chapPhase, setChapPhase] = useState<'idle' | 'out' | 'in'>('idle');
+  const [slidePhase, setSlidePhase] = useState<'idle' | 'slide'>('idle');
+  const [slideDir, setSlideDir] = useState<'prev' | 'next'>('next');
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const leaveTimer = useRef(0);
   const chapTimer = useRef(0);
   const revealTimer = useRef(0);
+  const entryTimer = useRef(0);
   const closingRef = useRef(false);
+  const entryAnimLock = useRef(false);
 
   useEffect(() => {
     if (entry) setCached(entry);
   }, [entry]);
+
+  useEffect(() => {
+    if (open && entry) onEntryTheme?.(entry);
+  }, [open, entry, onEntryTheme]);
 
   const finishClose = useCallback(() => {
     setLeaving(false);
@@ -71,15 +97,17 @@ export function StoryReader({ entry, open, onClose, accentColor }: Props) {
   useEffect(() => {
     if (open && entry) {
       window.clearTimeout(leaveTimer.current);
-      window.clearTimeout(revealTimer.current);
       closingRef.current = false;
-      setMounted(true);
       setLeaving(false);
-      setRevealed(false);
-      setChapterIndex(0);
-      setChapPhase('idle');
-      /* 마운트 직후 is-open이면 transition이 스킵됨 → 한 프레임 뒤 reveal */
-      revealTimer.current = window.setTimeout(() => setRevealed(true), 32);
+      /* 이미 열려 있으면 글만 교체 — 전체 닫힘/열림 리셋 금지 */
+      if (!mounted) {
+        setMounted(true);
+        setRevealed(false);
+        setChapterIndex(0);
+        setChapPhase('idle');
+        window.clearTimeout(revealTimer.current);
+        revealTimer.current = window.setTimeout(() => setRevealed(true), 32);
+      }
       return;
     }
     if (!open && mounted && !closingRef.current) {
@@ -101,6 +129,7 @@ export function StoryReader({ entry, open, onClose, accentColor }: Props) {
       window.clearTimeout(leaveTimer.current);
       window.clearTimeout(chapTimer.current);
       window.clearTimeout(revealTimer.current);
+      window.clearTimeout(entryTimer.current);
     };
   }, []);
 
@@ -119,7 +148,7 @@ export function StoryReader({ entry, open, onClose, accentColor }: Props) {
 
   const goChapter = useCallback(
     (next: number) => {
-      if (chapPhase === 'out') return;
+      if (chapPhase === 'out' || entryAnimLock.current) return;
       setChapPhase('out');
       window.clearTimeout(chapTimer.current);
       chapTimer.current = window.setTimeout(() => {
@@ -129,6 +158,28 @@ export function StoryReader({ entry, open, onClose, accentColor }: Props) {
       }, 280);
     },
     [chapPhase],
+  );
+
+  const goEntry = useCallback(
+    (dir: 'prev' | 'next') => {
+      if (entryAnimLock.current || slidePhase !== 'idle') return;
+      const fn = dir === 'prev' ? onPrevEntry : onNextEntry;
+      if (!fn) return;
+      entryAnimLock.current = true;
+      setSlideDir(dir);
+      /* 닫힘→열림 없이 즉시 교체 + 한 번만 슬라이드 */
+      fn();
+      setChapterIndex(0);
+      setChapPhase('idle');
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+      setSlidePhase('slide');
+      window.clearTimeout(entryTimer.current);
+      entryTimer.current = window.setTimeout(() => {
+        setSlidePhase('idle');
+        entryAnimLock.current = false;
+      }, ENTRY_SLIDE_MS);
+    },
+    [onNextEntry, onPrevEntry, slidePhase],
   );
 
   const updateScrollCue = useCallback(() => {
@@ -176,16 +227,18 @@ export function StoryReader({ entry, open, onClose, accentColor }: Props) {
 
   const chapters = view.chapters?.length ? view.chapters : [];
   const chapter = chapters[chapterIndex];
-  const body = chapter?.body || '';
   const author = formatAuthor(view.author);
+  const viewMode = resolveStoryViewMode(view);
   const effect = view.bgEffect === 'vignette' ? 'vignette' : 'bottom-gradient';
   const openClass = revealed && !leaving ? ' is-open' : '';
+  const slideClass = slidePhase === 'slide' ? ` is-slide is-slide-${slideDir}` : '';
+  const novelClass = viewMode === 'text' ? ' is-novel' : '';
 
   return (
     <div
       className={`lh-story-reader${openClass}${leaving ? ' is-leaving' : ''} effect-${effect}${
         canScrollMore ? ' has-more' : ''
-      }`}
+      }${novelClass} is-mode-${viewMode}`}
       style={style}
       role="dialog"
       aria-modal="true"
@@ -193,32 +246,50 @@ export function StoryReader({ entry, open, onClose, accentColor }: Props) {
     >
       <div className="lh-story-reader__atmosphere" aria-hidden />
       <div className="lh-story-reader__scroll" ref={scrollRef}>
-        <div className={`lh-story-reader__inner is-chap-${chapPhase}`}>
-          <span className="lh-story-tag lh-story-reader__tag" data-cat={view.category}>
+        <div className={`lh-story-reader__inner is-chap-${chapPhase}${slideClass}`}>
+          {onPrevEntry || onNextEntry ? (
+            <div className="lh-story-reader__entry-nav">
+              <button
+                type="button"
+                className="lh-story-reader__entry-btn"
+                onClick={() => goEntry('prev')}
+                disabled={!hasPrevEntry || slidePhase !== 'idle'}
+                aria-label="이전 서사"
+              >
+                ‹ 이전 글
+              </button>
+              <button
+                type="button"
+                className="lh-story-reader__entry-btn"
+                onClick={() => goEntry('next')}
+                disabled={!hasNextEntry || slidePhase !== 'idle'}
+                aria-label="다음 서사"
+              >
+                다음 글 ›
+              </button>
+            </div>
+          ) : null}
+          <span
+            className="lh-story-tag lh-story-reader__tag"
+            data-cat={view.category}
+            style={storyCategoryTagStyle(view.category, categoryColors)}
+          >
             {view.category || '기타'}
           </span>
+          {view.adult ? <span className="lh-story-badge lh-story-badge--adult">19</span> : null}
           <h2 className="lh-story-reader__title">
             {view.title.trim() || '(제목 없음)'}
           </h2>
           {author ? <p className="lh-story-reader__author">{author}</p> : null}
-          {chapter?.title?.trim() || chapters.length > 1 ? (
+          {viewMode === 'text' && (chapter?.title?.trim() || chapters.length > 1) ? (
             <p className="lh-story-reader__chapter">
               {chapter?.title?.trim() || `${chapterIndex + 1} / ${chapters.length}장`}
             </p>
           ) : null}
 
-          {body ? (
-            looksLikeHtml(body) ? (
-              <div
-                className="lh-story-reader__body"
-                dangerouslySetInnerHTML={{ __html: body }}
-              />
-            ) : (
-              <OcRichText text={body} className="lh-story-reader__body" />
-            )
-          ) : null}
+          <StoryPostBody entry={view} chapterIndex={chapterIndex} />
 
-          {chapters.length > 1 ? (
+          {viewMode === 'text' && chapters.length > 1 ? (
             <div className="lh-story-reader__nav">
               <button
                 type="button"

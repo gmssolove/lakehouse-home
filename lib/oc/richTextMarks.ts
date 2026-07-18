@@ -4,8 +4,17 @@
  * - {#RRGGBB}색{#}
  * - {@fontId}폰트{/@}  (레거시 닫기 {@} 도 읽기)
  * - {=18}크기(px){/=}  (레거시 닫기 {=} 도 읽기)
+ * - {!icon-name} Tabler 단색 아이콘 (void)
  * 서로 다른 종류는 순서 무관하게 중첩 가능
  */
+
+import {
+  matchRichIconAt,
+  normalizeRichIconId,
+  RICH_ICON_PLAIN,
+  richIconMarker,
+  richIconToHtml,
+} from '@/lib/oc/richIcons';
 
 export type RichMarkKind =
   | 'bold'
@@ -23,6 +32,8 @@ export type WrapOpts = {
   sizePx?: number;
   /** true면 같은 값이 이미 있어도 해제(토글)하지 않고 유지 */
   keepIfSame?: boolean;
+  /** true면 해당 서식을 무조건 제거 (색 초기화 등) */
+  clear?: boolean;
 }
 
 export const STORY_RICH_FONTS = [
@@ -37,9 +48,12 @@ export const STORY_RICH_FONTS = [
 
 export type StoryRichFontId = (typeof STORY_RICH_FONTS)[number]['id'];
 
-/** 로그/서사 본문 글자 크기 (px) — 1px 단위 */
+/** 로그/서사 본문 글자 크기 (px) — 0.5px 단위 */
 export const STORY_RICH_SIZE_MIN = 10;
 export const STORY_RICH_SIZE_MAX = 48;
+/** 서식 없는 본문 기본 크기(px) — 에디터/렌더 CSS(.lh-story-rich__editor)와 동일 */
+export const STORY_RICH_SIZE_BASE = 14.5;
+export const STORY_RICH_SIZE_STEP = 0.5;
 export const STORY_RICH_SIZES = Array.from(
   { length: STORY_RICH_SIZE_MAX - STORY_RICH_SIZE_MIN + 1 },
   (_, i) => STORY_RICH_SIZE_MIN + i,
@@ -67,7 +81,7 @@ const WRAP: Record<DelimKind, [string, string]> = {
 
 const COLOR_OPEN_RE = /^\{#([0-9a-fA-F]{3,8})\}/;
 const FONT_OPEN_RE = /^\{@([a-z0-9-]+)\}/;
-const SIZE_OPEN_RE = /^\{=([1-9]\d?)\}/;
+const SIZE_OPEN_RE = /^\{=([1-9]\d?(?:\.\d)?)\}/;
 
 export function normalizeHex(raw: string): string | null {
   const h = raw.replace(/^#/, '');
@@ -91,7 +105,8 @@ export function normalizeFontId(raw: string): StoryRichFontId | null {
 export function normalizeSizePx(raw: number | string): number | null {
   const n = typeof raw === 'number' ? raw : Number(raw);
   if (!Number.isFinite(n)) return null;
-  const px = Math.round(n);
+  /* 0.5px 단위로 스냅 */
+  const px = Math.round(n * 2) / 2;
   if (px < STORY_RICH_SIZE_MIN || px > STORY_RICH_SIZE_MAX) return null;
   return px;
 }
@@ -199,7 +214,7 @@ function findSizeClose(text: string, from: number): { at: number; len: number } 
     }
     if (text.startsWith('{=', i)) {
       const after = text.slice(i + 2);
-      const open = after.match(/^([1-9]\d?)\}/);
+      const open = after.match(/^([1-9]\d?(?:\.\d)?)\}/);
       if (open) {
         depth += 1;
         i += 2 + open[1].length + 1;
@@ -309,12 +324,47 @@ export function projectPlainOffsets(marks: string): { plain: string; toMark: num
   const walk = (str: string, base: number) => {
     let i = 0;
     while (i < str.length) {
+      const icon = matchRichIconAt(str, i);
+      if (icon) {
+        toMark[plain.length] = base + i;
+        plain += RICH_ICON_PLAIN;
+        i += icon.len;
+        continue;
+      }
+
       const open = findEarliestOpen(str, i);
       if (!open) {
-        feedLiteral(str.slice(i), base + i);
+        /* 남은 구간의 아이콘만 분리 */
+        let j = i;
+        while (j < str.length) {
+          const restIcon = matchRichIconAt(str, j);
+          if (restIcon) {
+            toMark[plain.length] = base + j;
+            plain += RICH_ICON_PLAIN;
+            j += restIcon.len;
+            continue;
+          }
+          const bang = str.indexOf('{!', j);
+          if (bang < 0) {
+            feedLiteral(str.slice(j), base + j);
+            break;
+          }
+          if (bang > j) feedLiteral(str.slice(j, bang), base + j);
+          j = bang;
+        }
         break;
       }
-      if (open.index > i) feedLiteral(str.slice(i, open.index), base + i);
+      if (open.index > i) {
+        const bang = str.indexOf('{!', i);
+        if (bang >= 0 && bang < open.index) {
+          if (bang > i) feedLiteral(str.slice(i, bang), base + i);
+          i = bang;
+          continue;
+        }
+        feedLiteral(str.slice(i, open.index), base + i);
+        i = open.index;
+        continue;
+      }
 
       const contentStart = open.index + open.openLen;
       const closed = findMarkClose(str, contentStart, open);
@@ -355,6 +405,323 @@ export function plainOffsetsToMarkOffsets(
     start: toMark[lo] ?? 0,
     end,
   };
+}
+
+/* ==========================================================================
+   문자 단위 속성 모델
+   - 마커 문자열 ↔ "평문 글자마다 활성 서식" 배열로 변환
+   - 서식 적용을 인덱스 문자열 수술 대신 속성 토글로 처리
+     → 선택 구간의 공백도 항상 포함되고, 기존 서식과 겹쳐도 마커가 깨지지 않음
+   ========================================================================== */
+
+export type RichAttr = {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  soft?: boolean;
+  color?: string;
+  font?: string;
+  size?: number;
+};
+
+export type RichCharAttr = RichAttr & { ch: string; icon?: string };
+
+const BOOL_KINDS = ['bold', 'italic', 'underline', 'strike', 'soft'] as const;
+type BoolKind = (typeof BOOL_KINDS)[number];
+
+/** 마커 문자열 → 평문 글자마다 활성 서식 (문단 사이 \n 포함, projectPlainOffsets와 같은 순회) */
+export function marksToCharAttrs(marks: string): RichCharAttr[] {
+  const normalized = String(marks ?? '').replace(/\r\n/g, '\n');
+  const chars: RichCharAttr[] = [];
+
+  const feed = (chunk: string, active: RichAttr) => {
+    for (const ch of chunk) chars.push({ ...active, ch });
+  };
+
+  const walk = (str: string, active: RichAttr) => {
+    let i = 0;
+    while (i < str.length) {
+      const icon = matchRichIconAt(str, i);
+      if (icon) {
+        chars.push({ ...active, ch: RICH_ICON_PLAIN, icon: icon.id });
+        i += icon.len;
+        continue;
+      }
+
+      const open = findEarliestOpen(str, i);
+      if (!open) {
+        let j = i;
+        while (j < str.length) {
+          const restIcon = matchRichIconAt(str, j);
+          if (restIcon) {
+            chars.push({ ...active, ch: RICH_ICON_PLAIN, icon: restIcon.id });
+            j += restIcon.len;
+            continue;
+          }
+          const bang = str.indexOf('{!', j);
+          if (bang < 0) {
+            feed(str.slice(j), active);
+            break;
+          }
+          if (bang > j) feed(str.slice(j, bang), active);
+          j = bang;
+        }
+        break;
+      }
+      if (open.index > i) {
+        const bang = str.indexOf('{!', i);
+        if (bang >= 0 && bang < open.index) {
+          if (bang > i) feed(str.slice(i, bang), active);
+          i = bang;
+          continue;
+        }
+        feed(str.slice(i, open.index), active);
+        i = open.index;
+        continue;
+      }
+
+      const contentStart = open.index + open.openLen;
+      const closed = findMarkClose(str, contentStart, open);
+      if (!closed) {
+        feed(str[open.index], active);
+        i = open.index + 1;
+        continue;
+      }
+
+      const nextActive: RichAttr = { ...active };
+      switch (open.kind) {
+        case 'bold':
+        case 'italic':
+        case 'underline':
+        case 'strike':
+        case 'soft':
+          nextActive[open.kind] = true;
+          break;
+        case 'color':
+          nextActive.color = open.hex;
+          break;
+        case 'font':
+          nextActive.font = open.fontId;
+          break;
+        case 'size':
+          nextActive.size = open.sizePx;
+          break;
+      }
+      walk(str.slice(contentStart, closed.closeAt), nextActive);
+      i = closed.closeAt + closed.closeLen;
+    }
+  };
+
+  walk(normalized, {});
+  return chars;
+}
+
+/** 한 글자의 활성 서식을 바깥→안 순서 마커 목록으로 (span 오래 유지되는 값 마커가 바깥) */
+type MarkDesc = { kind: RichMarkKind; val?: string | number };
+
+function orderedMarks(a: RichAttr): MarkDesc[] {
+  const list: MarkDesc[] = [];
+  if (a.size) list.push({ kind: 'size', val: a.size });
+  if (a.font) list.push({ kind: 'font', val: a.font });
+  if (a.color) list.push({ kind: 'color', val: a.color });
+  if (a.bold) list.push({ kind: 'bold' });
+  if (a.italic) list.push({ kind: 'italic' });
+  if (a.underline) list.push({ kind: 'underline' });
+  if (a.strike) list.push({ kind: 'strike' });
+  if (a.soft) list.push({ kind: 'soft' });
+  return list;
+}
+
+function markOpen(m: MarkDesc): string {
+  switch (m.kind) {
+    case 'bold':
+      return '**';
+    case 'italic':
+      return '//';
+    case 'underline':
+      return '__';
+    case 'strike':
+      return '~~';
+    case 'soft':
+      return '%%';
+    case 'color': {
+      const hex = normalizeHex(String(m.val ?? '')) || String(m.val ?? '#d7a982');
+      return `{#${hex.replace(/^#/, '')}}`;
+    }
+    case 'font':
+      return `{@${m.val}}`;
+    case 'size':
+      return `{=${m.val}}`;
+  }
+}
+
+function markClose(m: MarkDesc): string {
+  switch (m.kind) {
+    case 'bold':
+      return '**';
+    case 'italic':
+      return '//';
+    case 'underline':
+      return '__';
+    case 'strike':
+      return '~~';
+    case 'soft':
+      return '%%';
+    case 'color':
+      return '{#}';
+    case 'font':
+      return '{/@}';
+    case 'size':
+      return '{/=}';
+  }
+}
+
+function markEq(a: MarkDesc, b: MarkDesc): boolean {
+  return a.kind === b.kind && (a.val ?? '') === (b.val ?? '');
+}
+
+/**
+ * 문자 속성 배열 → 마커 문자열 (스택 기반 중첩 직렬화).
+ * 같은 서식은 여러 글자에 걸쳐 한 번만 열고 닫아 마커 중복·빈 마커 없이 정규화.
+ * 줄바꿈에서는 열린 마커를 모두 닫는다 (마커가 줄을 넘지 않게).
+ */
+export function charAttrsToMarks(chars: RichCharAttr[]): string {
+  let out = '';
+  let stack: MarkDesc[] = [];
+
+  const closeFrom = (n: number) => {
+    for (let k = stack.length - 1; k >= n; k -= 1) out += markClose(stack[k]);
+    stack = stack.slice(0, n);
+  };
+
+  for (const c of chars) {
+    if (c.ch === '\n') {
+      closeFrom(0);
+      out += '\n';
+      continue;
+    }
+    const desired = orderedMarks(c);
+    let common = 0;
+    while (common < stack.length && common < desired.length && markEq(stack[common], desired[common])) {
+      common += 1;
+    }
+    closeFrom(common);
+    for (let k = common; k < desired.length; k += 1) {
+      out += markOpen(desired[k]);
+      stack.push(desired[k]);
+    }
+    if (c.icon) {
+      out += richIconMarker(c.icon);
+      continue;
+    }
+    if (c.ch === RICH_ICON_PLAIN) continue;
+    out += c.ch;
+  }
+  closeFrom(0);
+  return out;
+}
+
+/**
+ * 선택 평문 구간 [plainStart, plainEnd)에 서식 적용/토글.
+ * - 공백 포함 모든 글자에 동일 적용 (줄바꿈만 건너뜀)
+ * - 구간 전체가 이미 해당 서식이면 해제(토글), 아니면 전체 적용
+ * - keepIfSame: 이미 같아도 해제하지 않고 유지
+ */
+export function applyRichRange(
+  marks: string,
+  plainStart: number,
+  plainEnd: number,
+  kind: RichMarkKind,
+  opts: WrapOpts = {},
+): { next: string; changed: boolean } {
+  const chars = marksToCharAttrs(marks);
+  const len = chars.length;
+  const lo = Math.max(0, Math.min(plainStart, plainEnd, len));
+  const hi = Math.max(0, Math.min(Math.max(plainStart, plainEnd), len));
+  if (lo >= hi) return { next: marks, changed: false };
+
+  const idxs: number[] = [];
+  for (let i = lo; i < hi; i += 1) if (chars[i].ch !== '\n') idxs.push(i);
+  if (!idxs.length) return { next: marks, changed: false };
+
+  const keepIfSame = !!opts.keepIfSame;
+  let changed = false;
+
+  if ((BOOL_KINDS as readonly string[]).includes(kind)) {
+    const k = kind as BoolKind;
+    const allOn = idxs.every((i) => !!chars[i][k]);
+    const target = keepIfSame ? true : !allOn;
+    for (const i of idxs) {
+      if (!!chars[i][k] !== target) {
+        chars[i] = { ...chars[i], [k]: target || undefined };
+        changed = true;
+      }
+    }
+  } else if (kind === 'color') {
+    if (opts.clear) {
+      for (const i of idxs) {
+        if (chars[i].color) {
+          chars[i] = { ...chars[i], color: undefined };
+          changed = true;
+        }
+      }
+    } else {
+      const val = normalizeHex(opts.colorHex || '#d7a982') || '#d7a982';
+      const allSame = idxs.every((i) => (chars[i].color ?? '') === val);
+      const remove = allSame && !keepIfSame;
+      for (const i of idxs) {
+        const nv = remove ? undefined : val;
+        if (chars[i].color !== nv) {
+          chars[i] = { ...chars[i], color: nv };
+          changed = true;
+        }
+      }
+    }
+  } else if (kind === 'font') {
+    if (opts.clear) {
+      for (const i of idxs) {
+        if (chars[i].font) {
+          chars[i] = { ...chars[i], font: undefined };
+          changed = true;
+        }
+      }
+    } else {
+      const val = normalizeFontId(opts.fontId || 'chosun') || 'chosun';
+      const allSame = idxs.every((i) => (chars[i].font ?? '') === val);
+      const remove = allSame && !keepIfSame;
+      for (const i of idxs) {
+        const nv = remove ? undefined : val;
+        if (chars[i].font !== nv) {
+          chars[i] = { ...chars[i], font: nv };
+          changed = true;
+        }
+      }
+    }
+  } else if (kind === 'size') {
+    if (opts.clear) {
+      for (const i of idxs) {
+        if (chars[i].size != null) {
+          chars[i] = { ...chars[i], size: undefined };
+          changed = true;
+        }
+      }
+    } else {
+      const val = normalizeSizePx(opts.sizePx ?? STORY_RICH_SIZE_BASE) ?? STORY_RICH_SIZE_BASE;
+      const allSame = idxs.every((i) => (chars[i].size ?? 0) === val);
+      const remove = allSame && !keepIfSame;
+      for (const i of idxs) {
+        const nv = remove ? undefined : val;
+        if (chars[i].size !== nv) {
+          chars[i] = { ...chars[i], size: nv };
+          changed = true;
+        }
+      }
+    }
+  }
+
+  if (!changed) return { next: marks, changed: false };
+  return { next: charAttrsToMarks(chars), changed: true };
 }
 
 function expandIfWrapped(
@@ -417,7 +784,7 @@ function expandIfSizeWrapped(value: string, start: number, end: number) {
     else if (value.slice(b, b + 3) === '{=}') closeLen = 3;
     else break;
     const before = value.slice(0, a);
-    const m = before.match(/\{=([1-9]\d?)\}$/);
+    const m = before.match(/\{=([1-9]\d?(?:\.\d)?)\}$/);
     if (!m) break;
     a -= m[0].length;
     b += closeLen;
@@ -622,7 +989,7 @@ export function wrapRichSelection(
   }
 
   if (kind === 'size') {
-    const sizePx = normalizeSizePx(options.sizePx ?? 16) || 16;
+    const sizePx = normalizeSizePx(options.sizePx ?? STORY_RICH_SIZE_BASE) || STORY_RICH_SIZE_BASE;
     const openMark = `{=${sizePx}}`;
     const closeMark = '{/=}';
     const lifted = expandThroughOtherWrappers(normalized, a, b, 'size');
@@ -635,7 +1002,7 @@ export function wrapRichSelection(
       closeMark,
       expanded,
       (sel) => {
-        const m = sel.match(/^\{=([1-9]\d?)\}([\s\S]*)(\{\/=\}|\{=\})$/);
+        const m = sel.match(/^\{=([1-9]\d?(?:\.\d)?)\}([\s\S]*)(\{\/=\}|\{=\})$/);
         if (!m) return null;
         return { inner: m[2], same: Number(m[1]) === sizePx };
       },
@@ -743,12 +1110,44 @@ export function marksToParagraphHtmlParts(text: string): string[] {
   const walk = (str: string) => {
     let i = 0;
     while (i < str.length) {
+      const icon = matchRichIconAt(str, i);
+      if (icon) {
+        buf += richIconToHtml(icon.id);
+        i += icon.len;
+        continue;
+      }
+
       const open = findEarliestOpen(str, i);
       if (!open) {
-        emitLiteral(str.slice(i));
+        let j = i;
+        while (j < str.length) {
+          const restIcon = matchRichIconAt(str, j);
+          if (restIcon) {
+            buf += richIconToHtml(restIcon.id);
+            j += restIcon.len;
+            continue;
+          }
+          const bang = str.indexOf('{!', j);
+          if (bang < 0) {
+            emitLiteral(str.slice(j));
+            break;
+          }
+          if (bang > j) emitLiteral(str.slice(j, bang));
+          j = bang;
+        }
         break;
       }
-      if (open.index > i) emitLiteral(str.slice(i, open.index));
+      if (open.index > i) {
+        const bang = str.indexOf('{!', i);
+        if (bang >= 0 && bang < open.index) {
+          if (bang > i) emitLiteral(str.slice(i, bang));
+          i = bang;
+          continue;
+        }
+        emitLiteral(str.slice(i, open.index));
+        i = open.index;
+        continue;
+      }
 
       const contentStart = open.index + open.openLen;
       const closed = findMarkClose(str, contentStart, open);
@@ -788,10 +1187,82 @@ export function marksToEditorHtml(text: string): string {
   const normalized = String(text ?? '').replace(/\r\n/g, '\n');
   if (!normalized) return '<p class="oc-rich-p oc-rich-p--blank"><br></p>';
   return marksToParagraphHtmlParts(normalized)
-    .map((html) =>
-      html
+    .map((html) => {
+      const plain = html.replace(/<[^>]*>/g, '').replace(/\u00a0/g, ' ').trim();
+      if (plain === '---') return '<hr class="oc-rich-hr" data-rich="hr">';
+      return html
         ? `<p class="oc-rich-p">${html}</p>`
-        : '<p class="oc-rich-p oc-rich-p--blank"><br></p>',
-    )
+        : '<p class="oc-rich-p oc-rich-p--blank"><br></p>';
+    })
     .join('');
+}
+
+/** 커서/선택 위치에 평문 삽입 (붙여넣기용) */
+export function insertPlainAt(
+  marks: string,
+  plainStart: number,
+  plainEnd: number,
+  insertText: string,
+): { next: string; caretPlain: number } {
+  const { plain, toMark } = projectPlainOffsets(marks);
+  const lo = Math.max(0, Math.min(plainStart, plainEnd, plain.length));
+  const hi = Math.max(0, Math.min(Math.max(plainStart, plainEnd), plain.length));
+  const markLo = lo >= plain.length ? marks.length : (toMark[lo] ?? marks.length);
+  const markHi = hi >= plain.length ? marks.length : (toMark[hi] ?? marks.length);
+  const text = String(insertText ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const next = `${marks.slice(0, markLo)}${text}${marks.slice(markHi)}`;
+  return { next, caretPlain: lo + text.length };
+}
+
+/** 커서/선택 위치에 구분선 삽입 (선택 구간은 지우지 않음 — 끝점으로 삽입) */
+export function insertRichDivider(
+  marks: string,
+  plainStart: number,
+  plainEnd: number,
+): { next: string; caretPlain: number } {
+  const { plain, toMark } = projectPlainOffsets(marks);
+  /* 치환 금지: 선택 구간이 있어도 끝점 뒤에 삽입 */
+  let pos = Math.max(0, Math.min(Math.max(plainStart, plainEnd), plain.length));
+
+  /* 문단 중간이면 해당 문단 끝(다음 \\n 앞)으로 밀어 아랫줄/윗줄 내용을 보존 */
+  if (pos < plain.length && plain[pos] !== '\n') {
+    const nextNl = plain.indexOf('\n', pos);
+    pos = nextNl >= 0 ? nextNl : plain.length;
+  }
+
+  const markPos = pos >= plain.length ? marks.length : (toMark[pos] ?? marks.length);
+  const before = marks.slice(0, markPos);
+  const after = marks.slice(markPos);
+  const beforePlain = plain.slice(0, pos);
+  const leadNl = beforePlain.length > 0 && !beforePlain.endsWith('\n');
+  const mid = `${leadNl ? '\n' : ''}---\n`;
+  const next = `${before}${mid}${after}`;
+
+  const caretPlain = pos + (leadNl ? 1 : 0) + 3 + 1;
+  const nextPlainLen = projectPlainOffsets(next).plain.length;
+  return { next, caretPlain: Math.min(caretPlain, nextPlainLen) };
+}
+
+/** 커서/선택 위치에 Tabler 아이콘 마커 삽입 */
+export function insertRichIcon(
+  marks: string,
+  plainStart: number,
+  plainEnd: number,
+  iconId: string,
+): { next: string; caretPlain: number } | null {
+  const id = normalizeRichIconId(iconId);
+  if (!id) return null;
+  const token = richIconMarker(id);
+  const { plain, toMark } = projectPlainOffsets(marks);
+  const lo = Math.max(0, Math.min(plainStart, plainEnd, plain.length));
+  const hi = Math.max(0, Math.min(Math.max(plainStart, plainEnd), plain.length));
+  const markLo = lo >= plain.length ? marks.length : (toMark[lo] ?? marks.length);
+  const markHi = hi >= plain.length ? marks.length : (toMark[hi] ?? marks.length);
+  const next = `${marks.slice(0, markLo)}${token}${marks.slice(markHi)}`;
+  return { next, caretPlain: lo + 1 };
+}
+
+/** 문단이 구분선인지 (마커 제거 후 ---) */
+export function isRichDividerParagraph(htmlOrNodesPlain: string): boolean {
+  return htmlOrNodesPlain.replace(/<[^>]*>/g, '').replace(/\u00a0/g, ' ').trim() === '---';
 }

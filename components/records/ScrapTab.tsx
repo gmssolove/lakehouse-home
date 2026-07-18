@@ -37,10 +37,10 @@ function normalizeTag(raw: string) {
   return `#${t}`;
 }
 
-/** 직접 입력한 태그만 — 영상 제목/작성자 자동 태그 제외 */
+/** 직접 입력한 태그만 — 영상 제목/채널 자동 태그 제외 (author/handle은 태그로 재사용될 수 있어 제외하지 않음) */
 function resolveTags(item: ScrapItem): string[] {
   const blocked = new Set(
-    [item.youtubeTitle, item.youtubeChannel, item.author, item.handle]
+    [item.youtubeTitle, item.youtubeChannel]
       .map((v) => normalizeTag(v || ''))
       .filter(Boolean),
   );
@@ -211,7 +211,10 @@ function ScrapCard({
       ) : null}
 
       {kind === 'youtube' ? (
-        <YoutubeEmbedCard key={item.id} item={item} active={pageActive} />
+        <>
+          {item.body?.trim() ? <p className="lh-scrap__note-extra">{item.body}</p> : null}
+          <YoutubeEmbedCard key={item.id} item={item} active={pageActive} />
+        </>
       ) : null}
 
       {kind === 'link' && item.sourceUrl ? (

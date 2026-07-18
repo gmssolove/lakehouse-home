@@ -101,7 +101,7 @@ export function ProfileTextEdit({
         onChange={(e) => onChange(e.target.value)}
       />
       <div className="trpg-inv-profile-edit__meta">
-        <span className={`trpg-inv-profile-edit__count${over ? ' is-over' : ''}`}>
+        <span className={`lh-char-count${over ? ' is-over' : ''}`}>
           {len} / {PROFILE_TEXT_LIMIT}
         </span>
         {over ? (

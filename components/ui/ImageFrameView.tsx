@@ -186,6 +186,7 @@ export function ImageFrameView({
           draggable={false}
           referrerPolicy="no-referrer"
           decoding="async"
+          loading="lazy"
           onLoad={onImgLoad}
           style={imgStyle}
         />

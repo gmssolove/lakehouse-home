@@ -5,6 +5,7 @@ import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import {
   isLakeItemUnlocked,
+  resolveItemPassword,
   unlockLakeItem,
   verifyLakeAccessPassword,
   type LakeAccessScope,
@@ -32,13 +33,16 @@ export function SecretItemGate({
   lockedLabel = '비밀글 — 탭하여 열람',
 }: Props) {
   const { accessSettings } = useSiteContent();
+  const expectedPw = resolveItemPassword(scope, item, accessSettings);
   const [open, setOpen] = useState(false);
-  const [unlocked, setUnlocked] = useState(() => isLakeItemUnlocked(scope, item.id));
+  const [unlocked, setUnlocked] = useState(() =>
+    isLakeItemUnlocked(scope, item.id, expectedPw),
+  );
 
-  /* 로그인 직후(uid 확보) 저장된 unlock 다시 읽기 */
+  /* 저장된 unlock 재확인 (비번 변경 시 재잠금) */
   useEffect(() => {
-    if (isLakeItemUnlocked(scope, item.id)) setUnlocked(true);
-  }, [scope, item.id, loggedIn]);
+    setUnlocked(isLakeItemUnlocked(scope, item.id, expectedPw));
+  }, [scope, item.id, loggedIn, expectedPw]);
 
   if (isAdmin || !item.secret || unlocked) return <>{children}</>;
 
@@ -66,7 +70,7 @@ export function SecretItemGate({
         }}
         verifyOverride={(input) => {
           if (!verifyLakeAccessPassword(scope, input, accessSettings, item)) return false;
-          unlockLakeItem(scope, item.id);
+          unlockLakeItem(scope, item.id, expectedPw);
           return true;
         }}
       />

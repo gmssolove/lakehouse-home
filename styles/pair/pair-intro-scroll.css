@@ -1,0 +1,896 @@
+/* Pair 소개 v2 — 타임라인만 유지, 박스·하드크롭 없는 플로팅 연출 */
+
+.pair-detail-screen {
+  --font-voice: 'ChosunNm', var(--font-chosun-nm), '조선명조', serif;
+  --intro-bg: #070706;
+  --intro-fg: #ebe6dc;
+  --intro-muted: #7a7368;
+  --intro-gold: #c9b98a;
+  --intro-rail: #1c1b17;
+  --intro-rail-edge: #3a3730;
+}
+
+/* —— 바깥 컨테이너 해체 (소개만 full-bleed, stage 박스 제거) —— */
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) {
+  max-width: none;
+  width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+  overflow: hidden;
+}
+
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel__body {
+  overflow: hidden;
+}
+
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel-stage,
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel-stage__body,
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel-stage__content {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
+  margin-inline: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel__head {
+  position: relative;
+  z-index: 6;
+  align-items: center;
+  text-align: center;
+  padding: 0.85rem 1rem 0.85rem;
+  margin: 0;
+  opacity: 1;
+  flex-shrink: 0;
+  /* 배경·그라데이션 없음 — 본문과 이음새 생기지 않게 */
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel__titles {
+  align-items: center;
+}
+
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel__en {
+  letter-spacing: 0.36em;
+  font-size: 12px;
+  opacity: 1;
+  color: rgba(205, 179, 126, 0.88);
+}
+
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel__title {
+  font-size: clamp(28px, 3.6vw, 40px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(244, 238, 229, 0.96);
+  line-height: 1.15;
+}
+
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel__div {
+  display: flex;
+  margin-top: 0.25rem;
+}
+
+/* 히어로↔페이지 상단 페이드가 소개 타이틀을 덮지 않게 */
+.pair-detail-screen .pair-page:has(.pair-intro--v2)::before {
+  display: none;
+}
+
+/* 히어로 하단 페이드도 소개 화면에서는 끄기 (가로 경계선 원인) */
+.pair-detail-screen .pair-cherry-root:has(.pair-intro--v2) .pair-hero::after {
+  display: none;
+}
+
+/* 소개 패널: 페이지 상단 여유 + 타이틀 잘림 방지 */
+.pair-detail-screen .pair-page:has(.pair-intro--v2) {
+  padding-top: 0.85rem;
+}
+
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel__body > .pair-panel-stage.no-media > .pair-panel-stage__body,
+.pair-detail-screen .pair-panel:has(.pair-intro--v2) .pair-panel__body > .pair-panel-stage.no-media .pair-panel-stage__content {
+  max-width: none !important;
+  width: 100% !important;
+  margin-inline: 0 !important;
+  min-height: 0;
+}
+
+.pair-detail-screen .pair-panel__relation.pair-intro.pair-intro--v2 {
+  --font-voice: 'ChosunNm', var(--font-chosun-nm), '조선명조', serif;
+  position: relative;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent !important;
+  color: var(--intro-fg);
+  font-family: var(--pair-sans), system-ui, sans-serif;
+  box-sizing: border-box;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.pair-intro-v2 {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 0;
+  scroll-padding-top: 0;
+  scroll-padding-bottom: 0;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: auto;
+  background: transparent;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+.pair-intro-v2__empty {
+  margin: 3rem auto;
+  text-align: center;
+  color: var(--intro-muted);
+  font-size: 14px;
+}
+
+/* 모바일 진행바 */
+.pair-intro-v2__mobile-bar {
+  display: none;
+  flex: 0 0 auto;
+  height: 1px;
+  background: var(--intro-rail);
+  z-index: 5;
+}
+
+.pair-intro-v2__mobile-fill {
+  height: 100%;
+  background: var(--intro-gold);
+  transition: width 0.35s ease;
+}
+
+/* 실 레일 — 콘텐츠 옆, 너무 안쪽은 피함 */
+.pair-intro-v2__rail {
+  position: absolute;
+  left: max(1.75rem, calc(50% - min(48vw, 460px) - 5.5rem));
+  top: 4.25rem;
+  bottom: 3.5rem;
+  width: 14px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.pair-intro-v2__rail .pair-intro-v2__dot {
+  pointer-events: auto;
+}
+
+.pair-intro-v2__rail-track {
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--intro-rail) 8%,
+    var(--intro-rail) 92%,
+    transparent
+  );
+}
+
+.pair-intro-v2__rail-fill {
+  width: 1px;
+  height: 0%;
+  background: linear-gradient(to bottom, rgba(201, 185, 138, 0.2), var(--intro-gold));
+  transition: height 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 10px rgba(201, 185, 138, 0.25);
+}
+
+.pair-intro-v2__dot {
+  position: absolute;
+  left: 2px;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--intro-rail-edge);
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    transform 0.25s ease;
+}
+
+.pair-intro-v2__dot:hover {
+  transform: scale(1.25);
+  border-color: var(--intro-gold);
+}
+
+.pair-intro-v2__dot.is-lit {
+  background: var(--intro-gold);
+  border-color: var(--intro-gold);
+  box-shadow: 0 0 8px rgba(201, 185, 138, 0.45);
+}
+
+.pair-intro-v2::-webkit-scrollbar {
+  display: none;
+}
+
+/* —— 비트(섹션) — 뷰포트 1칸 = 1챕터 스냅 —— */
+.pair-intro-v2__beat {
+  position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.25rem, 3.5vh, 2.5rem) clamp(1.25rem, 3vw, 2.5rem)
+    clamp(1.5rem, 4vh, 2.75rem) clamp(3.25rem, 6vw, 5rem);
+  opacity: 0;
+  transform: translateY(24px) scale(0.97);
+  transition:
+    opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
+  contain: layout paint style;
+}
+
+.pair-intro-v2__beat:first-child {
+  padding-top: clamp(1.25rem, 3.5vh, 2.5rem);
+}
+
+.pair-intro-v2__beat:last-child {
+  padding-bottom: clamp(1.5rem, 4vh, 2.75rem);
+}
+
+.pair-intro-v2__beat.is-in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.pair-intro-v2__stage {
+  position: relative;
+  display: grid;
+  align-items: center;
+  gap: clamp(1.25rem, 2.5vw, 2rem);
+  width: 100%;
+  max-width: 920px;
+  margin-inline: auto;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.pair-intro-v2__beat--left .pair-intro-v2__stage {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__stage {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__art {
+  order: 2;
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__copy {
+  order: 1;
+  text-align: right;
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__label {
+  margin-left: auto;
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__who,
+.pair-intro-v2__beat--right .pair-intro-v2__quote-tag {
+  margin-left: auto;
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__quote.is-offset {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* —— 일러스트 · 사각 가장자리만 마스크 페더 · 비율/크기는 인라인 style + --intro-art-size —— */
+.pair-intro-v2__art.intro-illustration,
+.pair-intro-v2__art {
+  --intro-art-visual-scale: 1;
+  position: relative;
+  width: calc(min(100%, 680px) * var(--intro-art-size, 1));
+  max-width: 100%;
+  max-height: min(72vh, 640px);
+  aspect-ratio: 1 / 1;
+  height: auto;
+  margin: 0;
+  justify-self: center;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none;
+  opacity: 0;
+  transform: translateY(16px) scale(calc(var(--intro-art-visual-scale) * 0.97));
+  transform-origin: center center;
+  transition:
+    opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s,
+    transform 1s cubic-bezier(0.16, 1, 0.3, 1) 0.1s;
+}
+
+/* 4:3 — 레이아웃(열·텍스트 위치)은 그대로, 시각만 확대 */
+.pair-intro-v2__art.is-ratio-43 {
+  --intro-art-visual-scale: 1.32;
+  z-index: 0;
+}
+
+.pair-intro-v2__stage:has(.is-ratio-43) {
+  overflow: visible;
+}
+
+.pair-intro-v2__beat:has(.is-ratio-43) {
+  overflow: visible;
+}
+
+.pair-intro-v2__beat.is-in .pair-intro-v2__art {
+  opacity: 1;
+  transform: translateY(0) scale(var(--intro-art-visual-scale)) rotate(var(--art-tilt, -1.2deg));
+}
+
+.pair-intro-v2__art--warm {
+  --art-tilt: -1.2deg;
+}
+
+.pair-intro-v2__art--cool {
+  --art-tilt: 1deg;
+}
+
+.pair-intro-v2__art--soft {
+  --art-tilt: -0.6deg;
+}
+
+.pair-intro-v2__art--deep {
+  --art-tilt: 0.8deg;
+}
+
+.pair-intro-v2__art img,
+.pair-intro-v2__art-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  /* 가장자리만 얇게 — 안쪽 침범 줄임 */
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 8%,
+      #000 92%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 8%,
+      #000 92%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 8%,
+      #000 92%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 8%,
+      #000 92%,
+      transparent 100%
+    );
+  mask-composite: intersect;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.pair-intro-v2__art-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.pair-intro-v2__art-void {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(160deg, #1a1814 0%, #0c0b09 100%);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.pair-intro-v2__beat.is-active .pair-intro-v2__art {
+  animation: pair-intro-float 7s ease-in-out 1.2s infinite;
+}
+
+@keyframes pair-intro-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--intro-art-visual-scale, 1)) rotate(var(--art-tilt, -1.2deg));
+  }
+  50% {
+    transform: translateY(-6px) scale(calc(var(--intro-art-visual-scale, 1) * 1.01))
+      rotate(var(--art-tilt, -1.2deg));
+  }
+}
+
+/* —— 카피 —— */
+.pair-intro-v2__copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  max-width: 28rem;
+  max-height: 100%;
+  overflow: auto;
+  scrollbar-width: none;
+  justify-self: center;
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.08s,
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.08s;
+}
+
+.pair-intro-v2__beat.is-in .pair-intro-v2__copy {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.pair-intro-v2__label {
+  display: inline-block;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid transparent;
+  font-family: 'ChosunNm', var(--font-chosun-nm), var(--pair-read), serif;
+  font-size: clamp(16px, 1.55vw, 19px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: rgba(232, 214, 178, 0.94);
+  background-image: linear-gradient(var(--intro-gold), var(--intro-gold));
+  background-size: 0 1px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
+  transition: background-size 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s;
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__label {
+  background-position: right bottom;
+}
+
+.pair-intro-v2__beat.is-in .pair-intro-v2__label {
+  background-size: 72px 1px;
+}
+
+.pair-intro-v2__voice,
+.pair-intro-v2__voice.oc-rich,
+.pair-intro-v2__voice p {
+  font-family: var(--font-voice) !important;
+  margin: 0;
+  font-size: clamp(13px, 1.35vw, 15px);
+  line-height: 1.9;
+  color: #f0ebe0;
+  font-weight: 400;
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* OcRichText 문단 줄바꿈이 보이도록 — voice p { margin:0 } 덮어씀 */
+.pair-intro-v2__voice.oc-rich-text .oc-rich-p {
+  margin: 0 0 0.65em;
+}
+
+.pair-intro-v2__voice.oc-rich-text .oc-rich-p:last-child {
+  margin-bottom: 0;
+}
+
+.pair-intro-v2__voice.oc-rich-text .oc-rich-p--blank {
+  margin: 0 0 0.35em;
+  min-height: 0.85em;
+}
+
+.pair-intro-v2__voice--lead,
+.pair-intro-v2__voice--lead.oc-rich,
+.pair-intro-v2__voice--lead p {
+  font-size: clamp(15px, 1.7vw, 18px);
+  line-height: 1.95;
+  color: #f7f3ea;
+  letter-spacing: 0.01em;
+}
+
+/* 첫인상 · 현인상 */
+.pair-intro-v2__duo {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+/* 시점 토글 — 중앙/스토리 서브메뉴와 동일 레이아웃 (화살표 없음) */
+.pair-detail-screen .pair-menu--intro-pov {
+  margin: 0 0 0.35rem;
+  justify-content: flex-start;
+}
+
+.pair-detail-screen .pair-intro-v2__beat--right .pair-menu--intro-pov {
+  justify-content: flex-end;
+}
+
+/* 자간 축소 + 호버 시 레이아웃(자간·translate) 고정 — 밑줄·색만 반응 */
+.pair-detail-screen .pair-menu--intro-pov .pair-menu__ko {
+  letter-spacing: 0.06em !important;
+  transition:
+    color 0.3s ease,
+    text-shadow 0.3s ease !important;
+}
+
+.pair-detail-screen .pair-menu--intro-pov .pair-menu__item:hover,
+.pair-detail-screen .pair-menu--intro-pov .pair-menu__item.is-active,
+.pair-detail-screen .pair-menu--intro-pov .pair-menu__item:active {
+  transform: none !important;
+}
+
+.pair-detail-screen .pair-menu--intro-pov .pair-menu__item:hover .pair-menu__ko,
+.pair-detail-screen .pair-menu--intro-pov .pair-menu__item.is-active .pair-menu__ko,
+.pair-detail-screen .pair-menu--intro-pov .pair-menu__item:active .pair-menu__ko {
+  letter-spacing: 0.06em !important;
+}
+
+.pair-intro-v2__quote {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pair-intro-v2__quote-tag,
+.pair-intro-v2__who {
+  display: block;
+  width: fit-content;
+  margin-bottom: 0.45rem;
+  font-family: var(--pair-sans), system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--intro-gold);
+  font-style: normal;
+}
+
+.pair-intro-v2__quote.is-past .pair-intro-v2__voice {
+  font-size: clamp(13px, 1.35vw, 15px);
+  font-style: italic;
+  color: rgba(196, 188, 172, 0.82);
+  filter: none;
+  opacity: 1;
+}
+
+.pair-intro-v2__quote.is-now .pair-intro-v2__voice {
+  font-size: clamp(14px, 1.5vw, 16px);
+  font-style: italic;
+  color: #f7f2e8;
+}
+
+.pair-intro-v2__quote.is-gaze .pair-intro-v2__voice {
+  font-size: clamp(13px, 1.35vw, 15px);
+  line-height: 1.9;
+  color: #ebe4d6;
+}
+
+.pair-intro-v2__quote.is-now {
+  padding-left: 1.25rem;
+  border-left: 1px solid rgba(201, 185, 138, 0.35);
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__quote.is-now {
+  padding-left: 0;
+  padding-right: 1.25rem;
+  border-left: 0;
+  border-right: 1px solid rgba(201, 185, 138, 0.35);
+}
+
+/* 인터뷰 답 — A/B 동일 (왼쪽 보더) */
+.pair-intro-v2__gaze,
+.pair-intro-v2__answers {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.pair-intro-v2__answers .pair-intro-v2__quote.is-answer {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 1.25rem;
+  border-left: 1px solid rgba(201, 185, 138, 0.35);
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__answers .pair-intro-v2__quote.is-answer {
+  padding-left: 0;
+  padding-right: 1.25rem;
+  border-left: 0;
+  border-right: 1px solid rgba(201, 185, 138, 0.35);
+}
+
+.pair-intro-v2__quote.is-offset {
+  margin-left: clamp(1.5rem, 6vw, 3.5rem);
+  margin-top: 0.25rem;
+}
+
+.pair-intro-v2__q {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  margin: 0 0 1.25rem;
+  font-family: var(--pair-sans), system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--intro-gold);
+  letter-spacing: 0.02em;
+}
+
+.pair-intro-v2__beat--right .pair-intro-v2__q {
+  justify-content: flex-end;
+}
+
+.pair-intro-v2__q > span {
+  flex: 0 0 auto;
+  font-family: var(--pair-serif-en, 'Cormorant Garamond', serif);
+  font-style: italic;
+  font-size: 22px;
+  opacity: 0.85;
+}
+
+/* define / interview: 텍스트 비중↑ */
+.pair-intro-v2__beat--define .pair-intro-v2__stage {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.25fr);
+}
+
+.pair-intro-v2__beat--interview .pair-intro-v2__stage {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.3fr);
+}
+
+@media (max-width: 820px) {
+  .pair-intro-v2__rail {
+    display: none;
+  }
+
+  .pair-intro-v2__mobile-bar {
+    display: block;
+  }
+
+  .pair-intro-v2__beat {
+    height: 100%;
+    min-height: 100%;
+    max-height: 100%;
+    padding: 1.75rem 1.15rem 2rem;
+  }
+
+  .pair-intro-v2__beat--left .pair-intro-v2__stage,
+  .pair-intro-v2__beat--right .pair-intro-v2__stage,
+  .pair-intro-v2__beat--define .pair-intro-v2__stage,
+  .pair-intro-v2__beat--interview .pair-intro-v2__stage {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .pair-intro-v2__beat--right .pair-intro-v2__art,
+  .pair-intro-v2__beat--right .pair-intro-v2__copy {
+    order: unset;
+  }
+
+  .pair-intro-v2__art {
+    width: calc(min(92vw, 640px) * var(--intro-art-size, 1));
+    height: auto;
+  }
+
+  .pair-intro-v2__beat--right .pair-intro-v2__copy,
+  .pair-intro-v2__beat--right .pair-intro-v2__label,
+  .pair-intro-v2__beat--right .pair-intro-v2__who,
+  .pair-intro-v2__beat--right .pair-intro-v2__quote-tag,
+  .pair-intro-v2__beat--right .pair-intro-v2__q {
+    text-align: left;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .pair-detail-screen .pair-intro-v2__beat--right .pair-menu--intro-pov {
+    justify-content: flex-start;
+  }
+
+  .pair-intro-v2__beat--right .pair-intro-v2__label {
+    background-position: left bottom;
+  }
+
+  .pair-intro-v2__beat--right .pair-intro-v2__quote.is-now {
+    padding-right: 0;
+    padding-left: 1rem;
+    border-right: 0;
+    border-left: 1px solid rgba(201, 185, 138, 0.35);
+  }
+
+  .pair-intro-v2__quote.is-offset,
+  .pair-intro-v2__beat--right .pair-intro-v2__quote.is-offset {
+    margin-left: 1rem;
+    margin-right: 0;
+  }
+}
+
+.pair-intro-v2__stage--chem {
+  grid-template-columns: 1fr !important;
+  max-width: min(560px, 100%);
+  justify-items: stretch;
+}
+
+/* 축 라벨·호버가 잘리지 않게 */
+.pair-intro-v2__beat--chem {
+  overflow: visible;
+  contain: none;
+}
+
+.pair-intro-v2__beat--chem .pair-intro-v2__copy {
+  max-width: 100%;
+  width: 100%;
+  overflow: visible;
+}
+
+.pair-intro-v2__chem-radar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: min(480px, 100%);
+  margin: 0.25rem auto 0;
+  overflow: visible;
+  padding: 0.35rem 0.5rem 0.65rem;
+}
+
+.pair-intro-v2__chem-radar .pair-intro-v2__radar,
+.pair-intro-v2__chem-radar .stat-radar {
+  width: 100%;
+  overflow: visible;
+}
+
+/* 시점 전환 인아웃 */
+.pair-intro-v2__pov-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  animation: pairIntroPovIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pair-intro-v2__pov-pane--b {
+  animation-name: pairIntroPovInAlt;
+}
+
+@keyframes pairIntroPovIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes pairIntroPovInAlt {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.985);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.pair-intro-v2__beat.is-in .pair-intro-v2__art.is-pov-swap {
+  animation: pairIntroArtIn 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pairIntroArtIn {
+  from {
+    opacity: 0;
+    transform: scale(calc(var(--intro-art-visual-scale, 1) * 0.96)) translateY(8px)
+      rotate(var(--art-tilt, -1.2deg));
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(var(--intro-art-visual-scale, 1)) rotate(var(--art-tilt, -1.2deg));
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-intro-v2__pov-pane,
+  .pair-intro-v2__art.is-pov-swap {
+    animation: none !important;
+  }
+}
+
+.pair-intro-v2__chem-panel.pair-chem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 0.35rem;
+  width: 100%;
+}
+
+.pair-detail-screen .pair-intro-v2__chem-panel .pair-chem__row {
+  grid-template-columns: minmax(80px, 30%) 1fr auto;
+  gap: 12px;
+}
+
+.pair-detail-screen .pair-intro-v2__chem-panel .pair-chem__lb {
+  font-size: 15px;
+}
+
+.pair-detail-screen .pair-intro-v2__chem-panel .pair-chem__bar {
+  height: 5px;
+}
+
+.pair-detail-screen .pair-intro-v2__chem-panel .pair-chem__val {
+  font-size: 15px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-intro-v2__beat,
+  .pair-intro-v2__art,
+  .pair-intro-v2__copy,
+  .pair-intro-v2__label,
+  .pair-intro-v2__rail-fill,
+  .pair-intro-v2__dot {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .pair-intro-v2__beat,
+  .pair-intro-v2__art,
+  .pair-intro-v2__copy {
+    opacity: 1;
+    transform: none;
+  }
+
+  .pair-intro-v2__label {
+    background-size: 48px 1px;
+  }
+}

@@ -1,44 +1,108 @@
-/* 대사창 내부 장소 — 화자 이름 바로 위 */
+/* 대사창 내부 장소 — 화자 이름 바로 위. 비주얼 노벨풍 화려한 인/아웃 연출 */
 
 .lh-vn-location {
   position: relative;
   z-index: 2;
-  display: flex;
-  align-items: baseline;
-  gap: 0.5em;
-  max-width: min(78%, calc(100% - 72px));
-  margin: 0 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  max-width: min(82%, calc(100% - 60px));
+  margin: 0 0 10px;
+  padding: 5px 16px 5px 14px;
   pointer-events: none;
   overflow: hidden;
+  border-radius: 3px;
+  background: linear-gradient(
+    100deg,
+    rgba(28, 20, 14, 0.72),
+    rgba(40, 28, 18, 0.42) 60%,
+    rgba(40, 28, 18, 0)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(215, 169, 130, 0.16),
+    0 6px 22px rgba(0, 0, 0, 0.4);
+  /* 초기 상태 (인 전) */
   opacity: 0;
-  transform: translateY(5px);
-  filter: blur(4px);
+  transform: translateX(-14px) skewX(-6deg);
   clip-path: inset(0 100% 0 0);
+}
+
+/* 좌측 골드 액센트 바 */
+.lh-vn-location::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    rgba(240, 207, 173, 0.2),
+    rgba(240, 207, 173, 0.95) 50%,
+    rgba(240, 207, 173, 0.2)
+  );
+  box-shadow: 0 0 12px rgba(240, 207, 173, 0.6);
+}
+
+/* 등장 시 빛이 훑고 지나가는 샤인 */
+.lh-vn-location::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 244, 224, 0.35) 48%,
+    rgba(255, 244, 224, 0.5) 50%,
+    transparent 78%
+  );
+  transform: translateX(-120%);
+  opacity: 0;
 }
 
 .lh-vn-location.is-revealed {
   opacity: 1;
-  transform: translateY(0);
-  filter: blur(0);
+  transform: translateX(0) skewX(0deg);
   clip-path: inset(0 0 0 0);
   transition:
-    opacity 0.75s ease,
-    transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
-    filter 0.7s ease,
-    clip-path 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.6s ease,
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    clip-path 0.85s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.lh-vn-location.is-revealed::after {
+  animation: lhVnLocShine 1.05s cubic-bezier(0.16, 1, 0.3, 1) 0.15s 1 both;
+}
+
+@keyframes lhVnLocShine {
+  0% { transform: translateX(-120%); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateX(120%); opacity: 0; }
+}
+
+/* 아웃(잦아듦) — 살짝 위로 밀리며 흐려짐 */
 .lh-vn-location.is-revealed.is-dimmed {
-  opacity: 0.42;
-  transition: opacity 0.6s ease;
+  opacity: 0.32;
+  transform: translateX(0) translateY(-3px) skewX(0deg);
+  transition:
+    opacity 0.9s ease,
+    transform 0.9s ease;
+}
+.lh-vn-location.is-revealed.is-dimmed::before {
+  box-shadow: none;
 }
 
 .lh-vn-location__label {
   flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: rgba(215, 169, 130, 0.85);
+  padding: 1px 7px;
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: rgba(30, 20, 12, 0.92);
+  background: linear-gradient(180deg, rgba(245, 214, 182, 0.95), rgba(215, 169, 130, 0.9));
+  border-radius: 2px;
 }
 
 .lh-vn-location__text {
@@ -46,10 +110,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: rgba(244, 232, 210, 0.95);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  color: rgba(248, 238, 222, 0.98);
+  text-shadow:
+    0 0 14px rgba(240, 207, 173, 0.35),
+    0 1px 8px rgba(0, 0, 0, 0.55);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -57,16 +124,10 @@
   .lh-vn-location.is-revealed,
   .lh-vn-location.is-revealed.is-dimmed {
     transition: none;
-    filter: none;
     clip-path: none;
     transform: none;
   }
-
-  .lh-vn-location.is-revealed {
-    opacity: 1;
-  }
-
-  .lh-vn-location.is-revealed.is-dimmed {
-    opacity: 0.42;
-  }
+  .lh-vn-location::after { display: none; }
+  .lh-vn-location.is-revealed { opacity: 1; }
+  .lh-vn-location.is-revealed.is-dimmed { opacity: 0.42; }
 }

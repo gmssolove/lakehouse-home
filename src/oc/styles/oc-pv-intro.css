@@ -45,7 +45,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(18px, 3vh, 32px);
+  gap: clamp(4px, 1vh, 12px);
   width: min(92vw, 820px);
   padding: 0 1.5rem;
   transition:

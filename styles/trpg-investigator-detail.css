@@ -877,6 +877,26 @@ body.trpg-inv-detail-open {
   animation: trpgInvAttrIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
 }
 
+.trpg-inv-detail__identity .ph-name-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.trpg-inv-detail__identity .ph-name-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.trpg-inv-detail__identity .lh-handnote-btn {
+  margin: 0.35rem 0.05rem 0.05rem 0;
+  transform: translate(0.12rem, 0.1rem);
+}
+
 .trpg-inv-detail__oc-link {
   display: inline-flex;
   margin-top: 6px;

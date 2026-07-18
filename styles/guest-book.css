@@ -8,7 +8,7 @@
   --guest-gold: #c9a15c;
   --guest-gold-dim: #8a7448;
   --guest-text: #ece6da;
-  --guest-text-dim: #a19d92;
+  --guest-text-dim: #c9c4b8;
   --guest-text-faint: #635f56;
 }
 
@@ -482,6 +482,12 @@
   font-size: 12.5px;
   line-height: 1.8;
   color: var(--guest-text-dim, #a19d92);
+}
+.guest-guide__pin {
+  margin-right: 0.45em;
+  vertical-align: -1px;
+  color: var(--lake-copper, #c8a86a);
+  opacity: 0.85;
 }
 
 /* —— search: underline only —— */

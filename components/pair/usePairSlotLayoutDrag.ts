@@ -69,11 +69,25 @@ export function usePairSlotLayoutDrag(
   onChangeRef.current = onChange;
   const dragRef = useRef<DragState | null>(null);
   const elRef = useRef<HTMLDivElement | null>(null);
+  /* 드래그 중 DOM 직접 갱신용 — baseTransform(정렬)과 합성 */
+  const baseTransformRef = useRef<string | undefined>(undefined);
   const [dragging, setDragging] = useState(false);
   const [selected, setSelected] = useState(false);
   const [snap, setSnap] = useState({ x: false, y: false });
 
   const canManipulate = enabled && (!requireSelect || selected);
+
+  /* 드래그 중에는 React 상태를 건드리지 않고 elRef의 transform만 직접 갱신 →
+     매 프레임 부모 리렌더 제거(뚝뚝 끊김 해결). 놓을 때 한 번만 커밋한다. */
+  const writeLiveTransform = useCallback((next: ImageFrame) => {
+    const el = elRef.current;
+    if (!el) return;
+    const { x, y, scale } = next;
+    const layout =
+      x !== 0 || y !== 0 || scale !== 1 ? `translate(${x}%, ${y}%) scale(${scale})` : '';
+    const transform = [baseTransformRef.current, layout].filter(Boolean).join(' ');
+    el.style.transform = transform || '';
+  }, []);
 
   const patch = useCallback(
     (partial: Partial<ImageFrame>, opts?: { applySnap?: boolean }) => {
@@ -209,11 +223,14 @@ export function usePairSlotLayoutDrag(
     const dy = ((e.clientY - dragRef.current.sy) / r.height) * 100;
     if (Math.abs(dx) + Math.abs(dy) > 0.25) dragRef.current.moved = true;
     const scale = frameRef.current.scale;
-    /* 드래그 중에는 스냅하지 않음 — 미세 조정 가능 */
-    patch({
+    /* 드래그 중에는 스냅/상태 갱신 없이 DOM transform만 직접 갱신 → 리렌더 제거 */
+    const next = normalizeImageFrame({
+      ...frameRef.current,
       x: clampLayoutOffset(dragRef.current.ox + dx, scale, 'x'),
       y: clampLayoutOffset(dragRef.current.oy + dy, scale, 'y'),
     });
+    frameRef.current = next;
+    writeLiveTransform(next);
   };
 
   const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
@@ -223,20 +240,21 @@ export function usePairSlotLayoutDrag(
     } catch {
       /* ignore */
     }
-    if (snapOnRelease && snapThreshold != null && snapThreshold > 0) {
-      patch(
-        {
-          x: frameRef.current.x,
-          y: frameRef.current.y,
-        },
-        { applySnap: true },
-      );
-    }
+    /* 놓을 때 한 번만 부모로 커밋(+스냅) → 드래그 내내 리렌더 0회 */
+    const applySnap = snapOnRelease && snapThreshold != null && snapThreshold > 0;
+    patch(
+      {
+        x: frameRef.current.x,
+        y: frameRef.current.y,
+      },
+      { applySnap },
+    );
     dragRef.current = null;
     setDragging(false);
   };
 
   const layoutStyle = (baseTransform?: string): CSSProperties => {
+    baseTransformRef.current = baseTransform;
     const { x, y, scale } = frame;
     const layout =
       x !== 0 || y !== 0 || scale !== 1 ? `translate(${x}%, ${y}%) scale(${scale})` : '';

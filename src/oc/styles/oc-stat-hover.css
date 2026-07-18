@@ -1,0 +1,299 @@
+/* 전체 화면 왼쪽 벽 — 스탯 호버 슬라이드
+ * 닫힘: 트리거 박스(~40×136, 작대기 포함)만 hit
+ * 열림: 패널 박스만 hit (레이어 전체는 절대 클릭 가로채지 않음)
+ */
+
+.oc-stat-hover__trigger {
+  --oc-stat-color: #d7a982;
+  --oc-stat-glow: 40;
+  --oc-stat-trigger: 40px;
+  --oc-stat-trigger-h: 136px;
+  appearance: none;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 56;
+  width: var(--oc-stat-trigger);
+  height: var(--oc-stat-trigger-h);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* 왼쪽 메뉴(#detail-screen .oc-detail-left z-index:50 !important)보다 위 —
+ * 작대기·네모칸에 올려도 메뉴에 이벤트가 가로채이지 않게 */
+#detail-screen .oc-stat-hover__trigger {
+  z-index: 57 !important;
+  pointer-events: auto !important;
+}
+
+.oc-stat-hover__trigger-bar {
+  display: block;
+  width: 3.5px;
+  height: 112px;
+  border-radius: 99px;
+  /* hit는 부모 버튼 전체 — 얇은 작대기만 맞출 필요 없음 */
+  pointer-events: none;
+  background: color-mix(in srgb, var(--oc-stat-color) 48%, rgba(240, 207, 173, 0.4));
+  box-shadow: 0 0 3px color-mix(in srgb, var(--oc-stat-color) calc(var(--oc-stat-glow) * 0.22%), transparent);
+  opacity: 0.72;
+  transition:
+    width 0.22s ease,
+    height 0.22s ease,
+    background 0.22s ease,
+    box-shadow 0.22s ease,
+    opacity 0.22s ease;
+  animation: oc-stat-handle-float 3.2s ease-in-out infinite;
+  will-change: transform;
+}
+
+.oc-stat-hover__trigger:hover .oc-stat-hover__trigger-bar,
+.oc-stat-hover__trigger.is-open .oc-stat-hover__trigger-bar {
+  width: 4px;
+  height: 124px;
+  background: color-mix(in srgb, var(--oc-stat-color) 82%, #f0cfad);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--oc-stat-color) calc(var(--oc-stat-glow) * 0.35%), transparent);
+  opacity: 0.95;
+}
+
+@keyframes oc-stat-handle-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* 레이어는 배치용 — 절대 클릭을 받지 않음. hit는 .oc-stat-hover__panel만
+ * visibility는 슬라이드 애니와 타이밍을 맞춤 (열림: 즉시 / 닫힘: 애니 후) */
+.oc-stat-hover__layer {
+  --oc-stat-color: #d7a982;
+  --oc-stat-glow: 40;
+  --oc-stat-w: min(320px, 36vw);
+  --oc-stat-trigger: 40px;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--oc-stat-w);
+  height: min(82vh, 760px);
+  max-height: min(82vh, 760px);
+  z-index: 55;
+  pointer-events: none !important;
+  visibility: hidden;
+  transition: visibility 0s linear 0.56s;
+}
+
+.oc-stat-hover__layer.is-open {
+  visibility: visible;
+  transition: visibility 0s linear 0s;
+}
+
+#detail-screen .oc-stat-hover__layer.is-open {
+  z-index: 55 !important;
+}
+
+.oc-stat-hover__panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  /* 타이틀 포함 전체 살짝 아래로 — 위 여백 */
+  padding: 2.15rem calc(var(--oc-stat-trigger) + 0.45rem) 1.2rem calc(var(--oc-stat-trigger) + 0.45rem);
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 0 18px 18px 0;
+  /* 불투명 패널 대신 글래스 — 뒤는 filter 블러 + backdrop-filter */
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--oc-stat-bg, rgba(8, 10, 9, 0.42)) 78%, transparent),
+      color-mix(in srgb, var(--oc-stat-bg, rgba(8, 10, 9, 0.42)) 62%, transparent)
+    ),
+    color-mix(in srgb, var(--oc-stat-color) 10%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(1.12) !important;
+  backdrop-filter: blur(28px) saturate(1.12) !important;
+  border: 1px solid color-mix(in srgb, var(--oc-stat-color) 34%, rgba(215, 169, 130, 0.18));
+  border-left: none;
+  box-shadow:
+    10px 0 44px rgba(0, 0, 0, 0.4),
+    0 0 calc(18px + var(--oc-stat-glow) * 0.35px)
+      color-mix(in srgb, var(--oc-stat-color) calc(var(--oc-stat-glow) * 0.55%), transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  transform: translateX(-105%);
+  opacity: 0;
+  pointer-events: none !important;
+  will-change: transform, opacity;
+  transition:
+    transform 0.56s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.4s ease-out;
+}
+
+.oc-stat-hover__layer.is-open .oc-stat-hover__panel {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto !important;
+}
+
+/* 열리면 왼쪽 메뉴·내용 패널 가림 — lake-perf #detail-screen 규칙보다 특이도 높게 */
+.oc-detail-body .oc-detail-left,
+.oc-detail-body .oc-left-panel-shell {
+  transition:
+    filter 0.22s ease,
+    opacity 0.22s ease;
+}
+
+#detail-screen .oc-detail-body.has-stat-panel-open .oc-detail-left,
+#detail-screen .oc-detail-body.has-stat-panel-open .oc-left-panel-shell {
+  filter: blur(16px) saturate(0.5);
+  opacity: 0.12;
+  pointer-events: none !important;
+}
+
+.oc-stat-hover__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  padding: 0 0.1rem 0.45rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--oc-stat-color) 28%, rgba(215, 169, 130, 0.12));
+}
+
+.oc-stat-hover__en {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--oc-stat-color) 78%, rgba(205, 179, 126, 0.7));
+  text-shadow: 0 0 calc(6px + var(--oc-stat-glow) * 0.12px)
+    color-mix(in srgb, var(--oc-stat-color) calc(var(--oc-stat-glow) * 1%), transparent);
+}
+
+.oc-stat-hover__ko {
+  font-family: 'ChosunNm', var(--font-chosun-nm), serif;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: rgba(244, 238, 229, 0.94);
+}
+
+.oc-stat-hover__radar {
+  width: 100%;
+  height: auto;
+  max-height: 300px;
+  display: block;
+  margin: 0.2rem auto 0;
+  filter: drop-shadow(
+    0 0 calc(4px + var(--oc-stat-glow) * 0.1px)
+      color-mix(in srgb, var(--oc-stat-color) calc(var(--oc-stat-glow) * 0.7%), transparent)
+  );
+}
+
+.oc-stat-hover__radar-label {
+  fill: color-mix(in srgb, var(--oc-stat-color) 55%, rgba(240, 207, 173, 0.92));
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.oc-stat-hover__empty {
+  margin: 0.4rem 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(200, 190, 178, 0.55);
+  text-align: center;
+}
+
+.oc-stat-hover__bars {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.oc-stat-hover__bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.26rem;
+}
+
+.oc-stat-hover__bar-label {
+  font-family: 'ChosunNm', var(--font-chosun-nm), serif;
+  font-size: 13px;
+  color: color-mix(in srgb, var(--oc-stat-color) 35%, rgba(240, 207, 173, 0.92));
+}
+
+.oc-stat-hover__bar-value {
+  font-family: 'ChosunNm', var(--font-chosun-nm), serif;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--oc-stat-color) 45%, rgba(200, 190, 178, 0.72));
+  white-space: nowrap;
+}
+
+.oc-stat-hover__bar-track {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.oc-stat-hover__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  min-width: 0;
+  box-shadow: 0 0 calc(4px + var(--oc-stat-glow) * 0.08px)
+    color-mix(in srgb, var(--oc-stat-color) calc(var(--oc-stat-glow) * 0.65%), transparent);
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-stat-hover__layer {
+    transition: none !important;
+  }
+
+  .oc-stat-hover__panel,
+  .oc-stat-hover__trigger-bar,
+  .oc-stat-hover__bar-fill {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .oc-stat-hover__layer {
+    --oc-stat-w: min(280px, 72vw);
+    --oc-stat-trigger: 34px;
+    height: min(70vh, 560px);
+  }
+
+  .oc-stat-hover__trigger {
+    --oc-stat-trigger-h: 120px;
+  }
+
+  .oc-stat-hover__trigger-bar {
+    height: 96px;
+  }
+
+  .oc-stat-hover__radar {
+    max-height: 240px;
+  }
+}

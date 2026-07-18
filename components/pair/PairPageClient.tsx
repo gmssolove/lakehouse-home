@@ -26,11 +26,12 @@ import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
 import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
 import {
   isLakeItemUnlocked,
+  resolveItemPassword,
   unlockLakeItem,
   verifyLakeAccessPassword,
 } from '@/lib/lake/accessGate';
 import { clearLakeRouteClasses, isLakeRouteEnterLocked } from '@/lib/lake/routeTransition';
-import type { PairItem } from '@/lib/types/character';
+import type { OcCharacter, PairItem } from '@/lib/types/character';
 
 type SortMode = 'order' | 'name';
 
@@ -44,6 +45,7 @@ export function PairPageClient() {
   const { confirm } = useLakeDialog();
   const [detail, setDetail] = useState<PairItem | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [storyEditFocusId, setStoryEditFocusId] = useState<string | null>(null);
   const [layoutMode, setLayoutMode] = useState(false);
   const [quoteMode, setQuoteMode] = useState(false);
   const [entrySplash, setEntrySplash] = useState<PairItem | null>(null);
@@ -336,7 +338,7 @@ export function PairPageClient() {
   }
 
   function openPair(p: PairItem) {
-    if (isAdmin || !p.secret || isLakeItemUnlocked('pair', p.id)) {
+    if (isAdmin || !p.secret || isLakeItemUnlocked('pair', p.id, resolveItemPassword('pair', p, accessSettings))) {
       proceedOpenPair(p);
       return;
     }
@@ -357,6 +359,22 @@ export function PairPageClient() {
 
   const detailTitle = liveDetail ? pairCardTitle(liveDetail) : '';
   const detailOrder = liveDetail ? pairOrderMeta(pairs, liveDetail.id) : null;
+
+  /** 페어 캐릭터 이름이 내 OC와 일치하면 해당 OC 프로필로 이동하는 링크를 만든다 (#16) */
+  const ocProfileLinks = useMemo<[string | undefined, string | undefined]>(() => {
+    const linkFor = (oc?: OcCharacter): string | undefined =>
+      oc ? `/oc?c=${encodeURIComponent(String(oc.id))}&view=detail` : undefined;
+    // 편집에서 명시 지정한 OC만 — 미선택이면 버튼도 표시하지 않는다.
+    const resolve = (explicitId?: string): string | undefined => {
+      if (explicitId == null || explicitId === '') return undefined;
+      const picked = characters.find((c) => String(c.id) === explicitId);
+      return picked ? linkFor(picked) : undefined;
+    };
+    return [
+      resolve(liveDetail?.charNotes?.[0]?.ocProfileId),
+      resolve(liveDetail?.charNotes?.[1]?.ocProfileId),
+    ];
+  }, [characters, liveDetail]);
   const tipToastPair = useMemo(
     () => normalizeTipToastSettings(ocSettings.tipToastPair),
     [ocSettings.tipToastPair],
@@ -494,10 +512,34 @@ export function PairPageClient() {
             <div className="pair-detail-layout pair-detail-layout--archive">
               <PairArchiveDetail
                 pair={liveDetail}
+                ocProfileLinks={ocProfileLinks}
                 layoutEditable={layoutMode}
                 quoteEditable={quoteMode}
                 standEditable={isAdmin}
                 onLayoutChange={persistLayoutLive}
+                isAdmin={isAdmin}
+                accessSettings={accessSettings}
+                onRequestEdit={(opts) => {
+                  setLayoutMode(false);
+                  setQuoteMode(false);
+                  flushLayoutSave();
+                  setStoryEditFocusId(opts?.storyFocusId ?? null);
+                  if (opts?.storyFocusId) {
+                    try {
+                      sessionStorage.setItem('lh_pair_story_focus', opts.storyFocusId);
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                  if (opts?.openStoryTab || opts?.storyFocusId) {
+                    try {
+                      sessionStorage.setItem('lh_pair_open_story_tab', '1');
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                  setEditOpen(true);
+                }}
               />
             </div>
           </>
@@ -523,11 +565,16 @@ export function PairPageClient() {
           className="lake-edit-modal--pair"
           eyebrow="ADMIN · PAIR"
           title="페어 수정"
-          onClose={() => setEditOpen(false)}
+          onClose={() => {
+            setEditOpen(false);
+            setStoryEditFocusId(null);
+          }}
         >
           <PairEditForm
+            key={editOpen ? liveDetail.id : 'closed'}
             pair={liveDetail}
             characters={characters}
+            initialStoryFocusId={storyEditFocusId}
             onSave={persistPair}
             order={
               detailOrder && detailOrder.index >= 0
@@ -574,7 +621,7 @@ export function PairPageClient() {
           const p = passwordGate;
           if (!p) return false;
           if (!verifyLakeAccessPassword('pair', input, accessSettings, p)) return false;
-          unlockLakeItem('pair', p.id);
+          unlockLakeItem('pair', p.id, resolveItemPassword('pair', p, accessSettings));
           return true;
         }}
       />

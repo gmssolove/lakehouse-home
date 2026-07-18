@@ -10,6 +10,7 @@ import {
   type ImageFrame,
 } from '@/lib/shared/imageFrame';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
+import { SliderField } from '@/components/ui/form/SliderField';
 
 type Props = {
   src: string;
@@ -45,17 +46,53 @@ export function ImageFrameEditor({
   stageMode = false,
   showBottomBlur = true,
 }: Props) {
-  const frame = normalizeImageFrame(value);
-  const frameRef = useRef(frame);
-  frameRef.current = frame;
-
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  /* 로컬 렌더 상태 — 휠/드래그 중에는 이걸로 즉시 그려 부모 재렌더 지연과 무관하게 부드럽게. */
+  const [renderFrame, setRenderFrame] = useState<ImageFrame>(() => normalizeImageFrame(value));
+  const frame = renderFrame;
+  const frameRef = useRef(renderFrame);
+  const interactingRef = useRef(false);
+  const commitRafRef = useRef<number | null>(null);
+  const pendingRef = useRef<ImageFrame | null>(null);
+  const wheelIdleRef = useRef<number | null>(null);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0 });
   const [dragging, setDragging] = useState(false);
   const [selected, setSelected] = useState(false);
+
+  const flushCommit = useCallback(() => {
+    if (pendingRef.current) {
+      onChangeRef.current(pendingRef.current);
+      pendingRef.current = null;
+    }
+  }, []);
+
+  /* 외부(value) 변경 동기화 — 제스처 중엔 로컬 값을 덮지 않는다. */
+  const valueKey = `${value?.x ?? 0}|${value?.y ?? 0}|${value?.scale ?? 1}|${value?.bottomBlur ?? 0}`;
+  useEffect(() => {
+    if (interactingRef.current) return;
+    const nf = normalizeImageFrame(value);
+    frameRef.current = nf;
+    setRenderFrame(nf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valueKey, showBottomBlur]);
+
+  useEffect(
+    () => () => {
+      if (commitRafRef.current != null) cancelAnimationFrame(commitRafRef.current);
+      if (wheelIdleRef.current != null) window.clearTimeout(wheelIdleRef.current);
+      /* 언마운트(모달 닫힘 등) 시 아직 부모에 반영되지 않은 마지막 조정을
+         반드시 커밋한다 — 안 그러면 위치 조정이 저장 전에 사라진다. */
+      if (pendingRef.current) {
+        onChangeRef.current(pendingRef.current);
+        pendingRef.current = null;
+      }
+    },
+    [],
+  );
 
   const patch = useCallback((partial: Partial<ImageFrame>) => {
     const merged = { ...frameRef.current, ...partial };
@@ -69,8 +106,20 @@ export function ImageFrameEditor({
       y: clampFrameOffset(merged.y ?? 0, scale),
     });
     frameRef.current = next;
-    onChangeRef.current(next);
-  }, [showBottomBlur]);
+    setRenderFrame(next);
+    pendingRef.current = next;
+    /* 드래그/휠 등 제스처 중에는 부모 커밋을 아예 미룬다 — 매 프레임 무거운
+       상세 재렌더가 끼어들면 끊김·튐이 생긴다. 제스처가 끝날 때(endDrag /
+       휠 idle) flushCommit() 으로 한 번만 반영한다. */
+    if (interactingRef.current) return;
+    /* 제스처가 아닌 변경(슬라이더·방향키)은 프레임당 1회로 합쳐 커밋. */
+    if (commitRafRef.current == null) {
+      commitRafRef.current = requestAnimationFrame(() => {
+        commitRafRef.current = null;
+        flushCommit();
+      });
+    }
+  }, [flushCommit, showBottomBlur]);
 
   useEffect(() => {
     if (!src) setSelected(false);
@@ -96,6 +145,7 @@ export function ImageFrameEditor({
       return;
     }
     e.currentTarget.setPointerCapture(e.pointerId);
+    interactingRef.current = true;
     dragRef.current = {
       active: true,
       sx: e.clientX,
@@ -124,6 +174,8 @@ export function ImageFrameEditor({
     if (!dragRef.current.active) return;
     dragRef.current.active = false;
     setDragging(false);
+    interactingRef.current = false;
+    flushCommit();
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -139,11 +191,17 @@ export function ImageFrameEditor({
       if (!delta) return;
       const next = clampFrameScale(frameRef.current.scale + delta);
       if (next === frameRef.current.scale) return;
+      interactingRef.current = true;
       patch({ scale: next });
+      if (wheelIdleRef.current != null) window.clearTimeout(wheelIdleRef.current);
+      wheelIdleRef.current = window.setTimeout(() => {
+        interactingRef.current = false;
+        flushCommit();
+      }, 220);
     };
     el.addEventListener('wheel', onWheelNative, { passive: false });
     return () => el.removeEventListener('wheel', onWheelNative);
-  }, [allowWheelZoom, patch, selected, src]);
+  }, [allowWheelZoom, flushCommit, patch, selected, src]);
 
   useEffect(() => {
     if (!selected || !src) return;
@@ -218,39 +276,39 @@ export function ImageFrameEditor({
       {!stageMode ? (
         <>
           <div className="image-frame-editor__controls">
-            <label className="image-frame-editor__slider">
-              <span>확대</span>
-              <input
-                type="range"
-                min={70}
-                max={300}
-                step={1}
-                value={Math.round(frame.scale * 100)}
-                onChange={(e) => patch({ scale: clampFrameScale(Number(e.target.value) / 100) })}
-              />
-              <span>{Math.round(frame.scale * 100)}%</span>
-            </label>
+            <SliderField
+              className="image-frame-editor__slider"
+              label="확대"
+              min={70}
+              max={300}
+              step={1}
+              value={Math.round(frame.scale * 100)}
+              displayValue={`${Math.round(frame.scale * 100)}%`}
+              onChange={(n) => patch({ scale: clampFrameScale(n / 100) })}
+              aria-label="확대"
+            />
             {showBottomBlur ? (
-              <label className="image-frame-editor__slider">
-                <span>하단페이드</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={55}
-                  step={1}
-                  value={Math.round(frame.bottomBlur)}
-                  onChange={(e) => patch({ bottomBlur: Math.max(0, Math.min(100, Number(e.target.value))) })}
-                />
-                <span>{Math.round(frame.bottomBlur)}%</span>
-              </label>
+              <SliderField
+                className="image-frame-editor__slider"
+                label="하단페이드"
+                min={0}
+                max={55}
+                step={1}
+                value={Math.round(frame.bottomBlur)}
+                displayValue={`${Math.round(frame.bottomBlur)}%`}
+                onChange={(n) => patch({ bottomBlur: Math.max(0, Math.min(100, n)) })}
+                aria-label="하단페이드"
+              />
             ) : null}
             <button
               type="button"
               className="image-frame-editor__reset"
               onClick={() => {
-                const next = { ...DEFAULT_IMAGE_FRAME, bottomBlur: 0 };
-                frameRef.current = normalizeImageFrame(next);
-                onChangeRef.current(frameRef.current);
+                const next = normalizeImageFrame({ ...DEFAULT_IMAGE_FRAME, bottomBlur: 0 });
+                frameRef.current = next;
+                setRenderFrame(next);
+                pendingRef.current = null;
+                onChangeRef.current(next);
               }}
             >
               위치 초기화

@@ -16,10 +16,12 @@
 @import './oc-side-info-restore.css';
 @import './oc-char-vn-form.css';
 @import './oc-detail-v2.css';
+@import './oc-ability.css';
 @import './oc-filter-bar.css';
 @import './oc-pv-intro.css';
 @import './oc-floating-quotes.css';
 @import './oc-archive-topbar.css';
+@import './oc-stat-hover.css';
 @import '../../../styles/shared/line-voice-volume.css';
 @import '../../../styles/lake-perf.css';
 @import '../../../styles/vn-char-motions.css';

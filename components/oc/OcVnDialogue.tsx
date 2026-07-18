@@ -242,7 +242,7 @@ export function OcVnDialogue({
       const t = e.target as HTMLElement;
       if (
         t.closest(
-          '.lh-vn-choice, .lh-vn-action-choice, .lh-vn-close, .lh-vn-auto, .lh-vn-box, .oc-left-acc, .oc-detail-right, .game-back, .oc-au-picker, .btn-edit, .oc-edit-panel',
+          '.lh-vn-choice, .lh-vn-action-choice, .lh-vn-close, .lh-vn-auto, .lh-vn-box, .oc-left-acc, .oc-detail-right, .game-back, .oc-au-picker, .oc-tease-fab, .oc-stat-hover__trigger, .oc-stat-hover__panel, .btn-edit, .oc-edit-panel',
         )
       ) {
         return;

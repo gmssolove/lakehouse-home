@@ -36,6 +36,7 @@ import { PairEditForm } from '@/components/pair/PairEditForm';
 import { createEmptyPair } from '@/lib/oc/pairDefaults';
 import { movePairInList, pairOrderMeta } from '@/lib/oc/pairOrder';
 import { AdminNavIcon } from '@/components/admin/AdminNavIcon';
+import { AdminListItem } from '@/components/ui/AdminListItem';
 
 type Props = {
   phase: 'open' | 'closing';
@@ -289,16 +290,13 @@ function OcAdminPanel({
       <div className="lh-admin-grid">
         <div id="oc-char-list-panel">
           {characters.map((c) => (
-            <div
+            <AdminListItem
               key={c.id}
-              className={`char-list-item${String(editId) === String(c.id) ? ' selected' : ''}`}
+              title={c.name}
+              subtitle={c.nameSub || undefined}
+              selected={String(editId) === String(c.id)}
               onClick={() => onSelect(c.id)}
-            >
-              <div>{c.name}</div>
-              {c.nameSub && (
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>{c.nameSub}</div>
-              )}
-            </div>
+            />
           ))}
         </div>
         <div id="oc-char-edit-panel" className="lh-oc-admin-block">
@@ -378,20 +376,17 @@ function PairAdminPanel({
             const order = pairOrderMeta(pairs, p.id);
             const title = p.pairTitle?.trim() || `${p.chars[0]} & ${p.chars[1]}`;
             return (
-              <div
-                key={p.id}
-                className={`char-list-item${editId === p.id ? ' selected' : ''}`}
-                style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}
-                onClick={() => onSelect(p.id)}
-              >
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  {title}
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {p.chars[0]} & {p.chars[1]}
-                  </div>
-                </span>
-                {pairs.length > 1 && (
-                  <span className="pair-order-controls__btns" onClick={(e) => e.stopPropagation()}>
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <AdminListItem
+                    title={title}
+                    subtitle={`${p.chars[0]} & ${p.chars[1]}`}
+                    selected={editId === p.id}
+                    onClick={() => onSelect(p.id)}
+                  />
+                </div>
+                {pairs.length > 1 ? (
+                  <span className="pair-order-controls__btns">
                     <button
                       type="button"
                       className="pair-order-btn pair-order-btn--mini"
@@ -411,7 +406,7 @@ function PairAdminPanel({
                       ↓
                     </button>
                   </span>
-                )}
+                ) : null}
               </div>
             );
           })}

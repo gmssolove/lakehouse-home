@@ -24,6 +24,21 @@
   box-sizing: border-box;
 }
 
+/* 스코프(메뉴) 단위 잠금 — 메뉴 내용을 가리고 가운데에 자물쇠를 크게 */
+.lh-scope-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46vh;
+  padding: 24px;
+}
+.lh-scope-gate__lock {
+  max-width: 340px;
+  min-height: 180px;
+  border-radius: 16px;
+  font-size: 13px;
+}
+
 .lh-review__card-secret {
   position: absolute;
   top: 8px;
@@ -2097,8 +2112,8 @@
 }
 .lh-review__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 18px 14px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 20px 16px;
 }
 .lh-review__card {
   min-width: 0;
@@ -2345,29 +2360,31 @@
   padding-right: 4px;
 }
 .lh-review--detail.is-in {
-  animation: lhReviewDetailIn 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: lhReviewDetailIn 0.44s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .lh-review--detail.is-out {
-  animation: lhReviewDetailOut 0.28s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation: lhReviewDetailOut 0.28s cubic-bezier(0.4, 0, 1, 1) both;
 }
 @keyframes lhReviewDetailIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(26px) scale(0.985);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+    filter: blur(0);
   }
 }
 @keyframes lhReviewDetailOut {
   from {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(18px) scale(0.985);
   }
 }
 .lh-review__detail-top {
@@ -2759,6 +2776,29 @@
   padding-bottom: 16px;
   margin-bottom: 28px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lh-gallery__detail-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lh-gallery__nav-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(205, 179, 126, 0.72);
+  font: 500 12px/1 'Pretendard', sans-serif;
+  letter-spacing: 0.06em;
+  padding: 0.4rem 0.2rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.22s ease, opacity 0.22s ease;
+}
+.lh-gallery__nav-btn:hover:not(:disabled) {
+  color: rgba(238, 205, 152, 0.98);
+}
+.lh-gallery__nav-btn:disabled {
+  opacity: 0.28;
+  cursor: default;
 }
 .lh-gallery__back {
   border: 0;

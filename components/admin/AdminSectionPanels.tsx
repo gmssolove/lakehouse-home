@@ -7,6 +7,7 @@ import type {
   ClickerSoundPreset,
   GalleryItem,
   GuestEntry,
+  GuestReply,
   SiteBgm,
   SiteMain,
   SiteOcSettings,
@@ -23,6 +24,7 @@ import type {
   UniverseCard,
 } from '@/lib/types/site-content';
 import { DEFAULT_TRPG_LIST_SETTINGS, newId } from '@/lib/types/site-content';
+import { normalizeGuestEntry } from '@/lib/guest/normalize';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { BANNER_DIVIDER_PRESETS, BannerDividerIcon } from '@/lib/banner/dividerIcons';
@@ -36,8 +38,16 @@ import { ImageFileField } from '@/components/ui/ImageFileField';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { AudioFileField } from '@/components/ui/AudioFileField';
+import { AdminListItem } from '@/components/ui/AdminListItem';
+import {
+  AccordionSection,
+  FieldLabel,
+  FileUploadField,
+  RepeatableList,
+  SliderField,
+  TextAreaField,
+} from '@/components/ui/form';
 import { TrpgInvestigatorInlineTab } from '@/components/trpg/TrpgInvestigatorInlineTab';
-import { TrpgLogTypographyControls } from '@/components/trpg/TrpgLogTypographyControls';
 import { TrpgThumbnailEditor } from '@/components/trpg/TrpgThumbnailEditor';
 import { useOcData } from '@/lib/hooks/useOcData';
 import { uploadMediaFile } from '@/lib/r2/client';
@@ -64,8 +74,74 @@ export function MainAdminPanel({ data, onSave }: MainProps) {
   const set = <K extends keyof SiteMain>(k: K, v: SiteMain[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  const applyFavicon = (url: string) => {
+    const next = url.trim();
+    if (!next) return;
+    setForm((f) => {
+      const prev = (f.favicon || '').trim();
+      const hist = Array.isArray(f.faviconHistory) ? [...f.faviconHistory] : [];
+      // 직전 파비콘을 히스토리에 보관(되돌리기용), 중복 제거
+      if (prev && prev !== next && !hist.includes(prev)) hist.unshift(prev);
+      const cleaned = hist.filter((h) => h && h !== next).slice(0, 12);
+      return { ...f, favicon: next, faviconHistory: cleaned };
+    });
+  };
+  const clearFavicon = () =>
+    setForm((f) => {
+      const prev = (f.favicon || '').trim();
+      const hist = Array.isArray(f.faviconHistory) ? [...f.faviconHistory] : [];
+      if (prev && !hist.includes(prev)) hist.unshift(prev);
+      return { ...f, favicon: '', faviconHistory: hist.slice(0, 12) };
+    });
+
+  const faviconHistory = (form.faviconHistory ?? []).filter(
+    (h) => h && h !== (form.favicon || '').trim(),
+  );
+
   return (
     <AdminPanelShell title="Main — 홈 메인 문구" onSave={() => onSave(form)}>
+      <div className="form-group">
+        <FileUploadField
+          label="파비콘"
+          value={form.favicon || ''}
+          onChange={(url) => {
+            if (!url.trim()) clearFavicon();
+            else applyFavicon(url);
+          }}
+          accept="image"
+          acceptAttr="image/*,.ico"
+          asDataUrl
+          emptyLabel="📁 파비콘 업로드"
+          changeLabel="파일 변경"
+        />
+        {faviconHistory.length ? (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 10, opacity: 0.55, marginBottom: 4 }}>이전 파비콘 (클릭해서 되돌리기)</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {faviconHistory.map((h, i) => (
+                <button
+                  key={`fav-hist-${i}`}
+                  type="button"
+                  title="이 파비콘으로 되돌리기"
+                  onClick={() => applyFavicon(h)}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 6,
+                    border: '1px solid rgba(215,169,130,0.35)',
+                    background: 'rgba(0,0,0,0.25)',
+                    padding: 2,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={h} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
       <div className="form-group">
         <label className="form-label">상단 라벨</label>
         <input className="form-input" value={form.eyebrow} onChange={(e) => set('eyebrow', e.target.value)} />
@@ -142,14 +218,13 @@ export function PostListAdminPanel({ title, items, onSave, emptyLabel }: PostPro
             </div>
           )}
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              title={item.title}
+              subtitle={item.date}
+              selected={editId === item.id}
               onClick={() => setEditId(item.id)}
-            >
-              <div>{item.title}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>{item.date}</div>
-            </div>
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -391,16 +466,13 @@ export function TrpgAdminPanel({
             </div>
           )}
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              title={item.title}
+              subtitle={item.system || undefined}
+              selected={editId === item.id}
               onClick={() => setEditId(item.id)}
-            >
-              <div>{item.title}</div>
-              {item.system ? (
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>{item.system}</div>
-              ) : null}
-            </div>
+            />
           ))}
         </div>
         <div ref={editBodyRef} className="lh-oc-admin-block trpg-admin-edit lh-scroll">
@@ -486,7 +558,6 @@ export function TrpgEditForm({
   const [form, setForm] = useState(item);
   const [tab, setTab] = useState<TrpgEditTab>(initialTab);
   const [htmlPaste, setHtmlPaste] = useState('');
-  const [galleryImgsOpen, setGalleryImgsOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setForm(item);
@@ -495,10 +566,6 @@ export function TrpgEditForm({
   useEffect(() => {
     setTab(initialTab);
   }, [initialTab, item.id]);
-
-  useEffect(() => {
-    setGalleryImgsOpen({});
-  }, [item.id]);
 
   useEffect(() => {
     onBindActions?.({ save: () => onSave(form), delete: onDelete });
@@ -696,8 +763,7 @@ export function TrpgEditForm({
       <div className="trpg-edit-shell__body lh-scroll">
         {tab === 'basic' ? (
           <>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">시나리오 정보</div>
+            <AccordionSection title="시나리오 정보" defaultOpen>
               <div className="trpg-edit-field">
                 <label className="form-label">제목</label>
                 <input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -741,41 +807,34 @@ export function TrpgEditForm({
                   </select>
                 </div>
               </div>
-            </div>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">썸네일 · 호버 카드</div>
+            </AccordionSection>
+
+            <AccordionSection title="썸네일 · 호버 카드" defaultOpen>
               <div className="trpg-edit-thumb-block">
-                <ImageFileField
+                <FileUploadField
                   label="썸네일 이미지"
+                  accept="image"
                   value={form.thumbnail || ''}
                   folder="site/trpg"
-                  uploading={uploading}
-                  onUploadStart={onUploadStart}
-                  onUploadEnd={onUploadEnd}
                   onChange={(thumbnail) => setForm((prev) => ({ ...prev, thumbnail }))}
                 />
-                <ImageFileField
+                <FileUploadField
                   label="호버 초상 (오른쪽 · 비우면 연결 OC·탐사자)"
+                  accept="image"
                   value={form.cardHoverImg || ''}
                   folder="site/trpg/hover"
-                  uploading={uploading}
-                  onUploadStart={onUploadStart}
-                  onUploadEnd={onUploadEnd}
                   onChange={(cardHoverImg) => setForm((prev) => ({ ...prev, cardHoverImg }))}
                 />
                 <div className="trpg-edit-row col2" style={{ marginTop: 10 }}>
+                  <TextAreaField
+                    label="호버 제목 (Enter 줄바꿈 · 비우면 시나리오 제목)"
+                    rows={2}
+                    value={form.cardHoverTitle || ''}
+                    placeholder={form.title || '호버에 표시할 제목'}
+                    onChange={(cardHoverTitle) => setForm({ ...form, cardHoverTitle })}
+                  />
                   <div className="trpg-edit-field">
-                    <label>호버 제목 (Enter 줄바꿈 · 비우면 시나리오 제목)</label>
-                    <textarea
-                      className="form-input"
-                      rows={2}
-                      value={form.cardHoverTitle || ''}
-                      placeholder={form.title || '호버에 표시할 제목'}
-                      onChange={(e) => setForm({ ...form, cardHoverTitle: e.target.value })}
-                    />
-                  </div>
-                  <div className="trpg-edit-field">
-                    <label>호버 PC 이름</label>
+                    <label className="form-label">호버 PC 이름</label>
                     <input
                       className="form-input"
                       value={form.cardHoverPcName || ''}
@@ -824,23 +883,18 @@ export function TrpgEditForm({
                   </div>
                 ) : null}
               </div>
-            </div>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">플레이 후기</div>
+            </AccordionSection>
+
+            <AccordionSection title="카드 편집" defaultOpen>
+              <TextAreaField
+                label="플레이 후기"
+                rows={5}
+                value={form.review || ''}
+                placeholder="티켓 Overview에 표시될 후기"
+                onChange={(review) => setForm({ ...form, review })}
+              />
               <div className="trpg-edit-field">
-                <textarea
-                  className="form-input"
-                  rows={5}
-                  value={form.review || ''}
-                  placeholder="티켓 Overview에 표시될 후기"
-                  onChange={(e) => setForm({ ...form, review: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">세션 · 페이지 설정</div>
-              <div className="trpg-edit-field">
-                <label>세션 바로가기 URL</label>
+                <label className="form-label">세션 바로가기 URL</label>
                 <input
                   className="form-input"
                   placeholder="코코포리아·배포 원본 링크"
@@ -848,17 +902,19 @@ export function TrpgEditForm({
                   onChange={(e) => setForm({ ...form, sessionUrl: e.target.value })}
                 />
               </div>
+              <FileUploadField
+                label="페이지 배경 이미지"
+                accept="image"
+                value={
+                  form.pageBackground?.startsWith('http') || form.pageBackground?.startsWith('/')
+                    ? form.pageBackground
+                    : ''
+                }
+                folder="site/trpg/bg"
+                onChange={(pageBackground) => setForm({ ...form, pageBackground })}
+              />
               <div className="trpg-edit-field">
-                <ImageFileField
-                  label="페이지 배경 이미지"
-                  value={form.pageBackground?.startsWith('http') || form.pageBackground?.startsWith('/') ? form.pageBackground : ''}
-                  folder="site/trpg/bg"
-                  uploading={uploading}
-                  onUploadStart={onUploadStart}
-                  onUploadEnd={onUploadEnd}
-                  onChange={(pageBackground) => setForm({ ...form, pageBackground })}
-                />
-                <label style={{ marginTop: 8, display: 'block' }}>배경 (CSS 색·그라데이션·URL)</label>
+                <label className="form-label">배경 (CSS 색·그라데이션·URL)</label>
                 <input
                   className="form-input"
                   placeholder="#0a0a0a 또는 linear-gradient(...) 또는 이미지 URL"
@@ -868,7 +924,7 @@ export function TrpgEditForm({
               </div>
               <div className="trpg-edit-row col2">
                 <div className="trpg-edit-field">
-                  <label>시나리오 BGM 제목</label>
+                  <label className="form-label">시나리오 BGM 제목</label>
                   <input
                     className="form-input"
                     value={form.pageBgm?.title || ''}
@@ -876,7 +932,7 @@ export function TrpgEditForm({
                   />
                 </div>
                 <div className="trpg-edit-field">
-                  <label>아티스트</label>
+                  <label className="form-label">아티스트</label>
                   <input
                     className="form-input"
                     value={form.pageBgm?.artist || ''}
@@ -884,30 +940,25 @@ export function TrpgEditForm({
                   />
                 </div>
               </div>
-              <div className="trpg-edit-field">
-                <AudioFileField
-                  label="BGM 파일"
-                  value={form.pageBgm?.fileUrl || form.pageBgm?.url || ''}
-                  folder="site/trpg/bgm"
-                  uploading={uploading}
-                  onUploadStart={onUploadStart}
-                  onUploadEnd={onUploadEnd}
-                  onChange={(fileUrl) => {
-                    const pageBgm = { ...form.pageBgm, fileUrl, url: fileUrl };
-                    const next = { ...form, pageBgm };
-                    setForm(next);
-                    onPersist?.(next);
-                  }}
-                />
-              </div>
-            </div>
+              <FileUploadField
+                label="BGM 파일"
+                accept="audio"
+                value={form.pageBgm?.fileUrl || form.pageBgm?.url || ''}
+                folder="site/trpg/bgm"
+                onChange={(fileUrl) => {
+                  const pageBgm = { ...form.pageBgm, fileUrl, url: fileUrl };
+                  const next = { ...form, pageBgm };
+                  setForm(next);
+                  onPersist?.(next);
+                }}
+              />
+            </AccordionSection>
           </>
         ) : null}
 
         {tab === 'session' ? (
           <>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">참여 정보</div>
+            <AccordionSection title="참여 정보" defaultOpen>
               <div className="trpg-edit-row col2">
                 <div className="trpg-edit-field">
                   <label className="form-label">멤버 (W.)</label>
@@ -980,24 +1031,17 @@ export function TrpgEditForm({
                   />
                 </div>
               </div>
-            </div>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">플레이어 / HO 요약</div>
-              <div className="trpg-edit-field">
-                <textarea
-                  className="form-input"
-                  rows={2}
-                  value={form.players || ''}
-                  placeholder="PL 카논"
-                  onChange={(e) => setForm({ ...form, players: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">TRPG 연관 바로가기 · 연결 캐릭터 (OC)</div>
-              <p className="trpg-edit-hint">
-                OC를 선택해 추가하면 해당 캐릭터 상세에 이 시나리오가 연관 바로가기로 표시됩니다.
-              </p>
+              <TextAreaField
+                label="플레이어 / HO 요약"
+                rows={2}
+                value={form.players || ''}
+                placeholder="PL 카논"
+                onChange={(players) => setForm({ ...form, players })}
+              />
+            </AccordionSection>
+
+            <AccordionSection title="TRPG 연관 바로가기" defaultOpen>
+              <FieldLabel>OC를 선택해 추가하면 해당 캐릭터 상세에 이 시나리오가 연관 바로가기로 표시됩니다.</FieldLabel>
               <LinkPickList
                 options={characters.map((c) => ({ id: String(c.id), label: c.name }))}
                 selectedIds={[...(form.characterIds ?? [])].map(String)}
@@ -1005,19 +1049,13 @@ export function TrpgEditForm({
                 emptyLabel="연결된 OC가 없습니다."
                 selectPlaceholder="OC 선택해서 추가…"
               />
-            </div>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">완료 여부</div>
               <LakeToggle
                 checked={!!form.cleared}
                 onChange={(cleared) => setForm({ ...form, cleared })}
                 label="CLEARED 스탬프 표시"
               />
-            </div>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">비밀글</div>
               <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
-            </div>
+            </AccordionSection>
           </>
         ) : null}
 
@@ -1037,164 +1075,161 @@ export function TrpgEditForm({
 
         {tab === 'logs' ? (
           <>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">세션 로그</div>
-              <div className="trpg-edit-card-list">
-                {(form.logs ?? []).map((log, index) => (
-                  <div key={log.id} className="trpg-edit-card-item">
-                    <div className="trpg-edit-card-item__head">
-                      <span className="trpg-edit-card-item__label">
-                        {log.title || `로그 ${index + 1}`}
-                        {log.html ? <em className="trpg-edit-log-html-badge">HTML</em> : null}
-                      </span>
-                      <button type="button" className="trpg-edit-mini-del" onClick={() => void removeLog(log.id)}>
-                        ✕
-                      </button>
-                    </div>
-                    <div className="trpg-edit-row col2">
-                      <div className="trpg-edit-field">
-                        <label>제목</label>
-                        <input
-                          className="form-input"
-                          placeholder="제목"
-                          value={log.title}
-                          onChange={(e) => updateLog(log.id, { title: e.target.value })}
-                        />
-                      </div>
-                      <div className="trpg-edit-field">
-                        <label>부제 (●●●●)</label>
-                        <input
-                          className="form-input"
-                          placeholder="부제 (캠페인)"
-                          value={log.subtitle || ''}
-                          onChange={(e) => updateLog(log.id, { subtitle: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div className="trpg-edit-row col2">
-                      <div className="trpg-edit-field">
-                        <label>날짜</label>
-                        <input
-                          className="form-input"
-                          type="date"
-                          value={log.date || ''}
-                          onChange={(e) => updateLog(log.id, { date: e.target.value })}
-                        />
-                      </div>
-                      <div className="trpg-edit-field">
-                        <label>태그</label>
-                        <input
-                          className="form-input"
-                          placeholder="태그 (쉼표 구분)"
-                          value={(log.tags ?? []).join(', ')}
-                          onChange={(e) =>
-                            updateLog(log.id, {
-                              tags: e.target.value
-                                .split(',')
-                                .map((t) => t.trim())
-                                .filter(Boolean),
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
+            <RepeatableList addLabel="+ 로그 추가" onAdd={addLog}>
+              {(form.logs ?? []).map((log, index) => (
+                <AccordionSection
+                  key={log.id}
+                  title={
+                    <>
+                      {log.title || '세션 로그'}
+                      {log.html ? <em className="trpg-edit-log-html-badge"> HTML</em> : null}
+                    </>
+                  }
+                  defaultOpen={index === 0}
+                >
+                  <div className="trpg-edit-card-item__head" style={{ marginBottom: 0, padding: 0, border: 0 }}>
+                    <span />
+                    <button type="button" className="trpg-edit-mini-del" onClick={() => void removeLog(log.id)}>
+                      ✕
+                    </button>
+                  </div>
+                  <div className="trpg-edit-row col2">
                     <div className="trpg-edit-field">
-                      <label>배너 이미지</label>
-                      <ImageFileField
-                        label=""
-                        value={log.thumbnail || ''}
-                        folder="site/trpg/logs"
-                        uploading={uploading}
-                        onUploadStart={onUploadStart}
-                        onUploadEnd={onUploadEnd}
-                        onChange={(thumbnail) => updateLog(log.id, { thumbnail })}
-                      />
-                    </div>
-                    <div className="trpg-edit-field">
-                      <label>본문 표시</label>
-                      <TrpgLogTypographyControls
-                        fontSize={log.logFontSize ?? 12}
-                        lineHeight={log.logLineHeight ?? 1.72}
-                        onChange={(patch) => updateLog(log.id, patch)}
-                      />
-                    </div>
-                    <div className="trpg-edit-field">
-                      <label>본문</label>
-                      <textarea
+                      <label className="form-label">제목</label>
+                      <input
                         className="form-input"
-                        rows={6}
-                        placeholder="세션 로그 본문..."
-                        value={log.body}
-                        onChange={(e) => updateLog(log.id, { body: e.target.value })}
+                        placeholder="제목"
+                        value={log.title}
+                        onChange={(e) => updateLog(log.id, { title: e.target.value })}
                       />
                     </div>
                     <div className="trpg-edit-field">
-                      <label>HTML 로그 파일</label>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <label className="btn-edit" style={{ cursor: 'pointer', margin: 0 }}>
-                          파일 선택
-                          <input
-                            type="file"
-                            accept=".html,.htm,text/html,application/xhtml+xml"
-                            hidden
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) void attachLogHtml(log.id, file);
-                              e.target.value = '';
-                            }}
-                          />
-                        </label>
-                        {log.html ? (
-                          <button type="button" className="btn-del" onClick={() => updateLog(log.id, { html: undefined })}>
-                            HTML 제거
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                    {(form.playerProfiles ?? []).length > 0 ? (
-                      <div className="trpg-edit-field">
-                        <label>참여 탐사자</label>
-                        <div className="lake-toggle-row">
-                          {(form.playerProfiles ?? []).map((p) => (
-                            <LakeToggle
-                              key={p.id}
-                              checked={(log.playerIds ?? []).includes(p.id)}
-                              onChange={(checked) => {
-                                const ids = new Set(log.playerIds ?? []);
-                                if (checked) ids.add(p.id);
-                                else ids.delete(p.id);
-                                updateLog(log.id, { playerIds: [...ids] });
-                              }}
-                              label={p.name}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                    <div className="trpg-edit-field">
-                      <label>비밀 여부</label>
-                      <SecretPostFields value={log} onChange={(patch) => updateLog(log.id, patch)} />
+                      <label className="form-label">부제 (●●●●)</label>
+                      <input
+                        className="form-input"
+                        placeholder="부제 (캠페인)"
+                        value={log.subtitle || ''}
+                        onChange={(e) => updateLog(log.id, { subtitle: e.target.value })}
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
-              <button type="button" className="trpg-edit-add-btn" onClick={addLog}>
-                + 로그 추가
-              </button>
-            </div>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">HTML 불러오기</div>
-              <p className="trpg-edit-hint">코코포리아 등에서 보낸 HTML을 새 로그로 추가합니다. 저장 버튼을 눌러야 반영됩니다.</p>
-              <div className="trpg-edit-field">
-                <textarea
-                  className="form-input"
-                  rows={4}
-                  style={{ fontFamily: 'monospace', fontSize: 11 }}
-                  placeholder="HTML 코드를 직접 붙여넣을 수 있습니다."
-                  value={htmlPaste}
-                  onChange={(e) => setHtmlPaste(e.target.value)}
-                />
-              </div>
+                  <div className="trpg-edit-row col2">
+                    <div className="trpg-edit-field">
+                      <label className="form-label">날짜</label>
+                      <input
+                        className="form-input"
+                        type="date"
+                        value={log.date || ''}
+                        onChange={(e) => updateLog(log.id, { date: e.target.value })}
+                      />
+                    </div>
+                    <div className="trpg-edit-field">
+                      <label className="form-label">태그</label>
+                      <input
+                        className="form-input"
+                        placeholder="태그 (쉼표 구분)"
+                        value={(log.tags ?? []).join(', ')}
+                        onChange={(e) =>
+                          updateLog(log.id, {
+                            tags: e.target.value
+                              .split(',')
+                              .map((t) => t.trim())
+                              .filter(Boolean),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <FileUploadField
+                    label="배너 이미지"
+                    accept="image"
+                    value={log.thumbnail || ''}
+                    folder="site/trpg/logs"
+                    onChange={(thumbnail) => updateLog(log.id, { thumbnail })}
+                  />
+                  <SliderField
+                    label="글자 크기 (px)"
+                    min={10}
+                    max={24}
+                    step={1}
+                    value={log.logFontSize ?? 12}
+                    displayValue={`${log.logFontSize ?? 12}px`}
+                    onChange={(logFontSize) => updateLog(log.id, { logFontSize })}
+                  />
+                  <SliderField
+                    label="줄간격"
+                    min={1}
+                    max={3}
+                    step={0.05}
+                    value={log.logLineHeight ?? 1.72}
+                    displayValue={String(log.logLineHeight ?? 1.72)}
+                    onChange={(logLineHeight) => updateLog(log.id, { logLineHeight })}
+                  />
+                  <TextAreaField
+                    label="본문"
+                    rows={6}
+                    placeholder="세션 로그 본문..."
+                    value={log.body}
+                    onChange={(body) => updateLog(log.id, { body })}
+                  />
+                  <div className="trpg-edit-field">
+                    <label className="form-label">HTML 로그 파일</label>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <label className="btn-edit" style={{ cursor: 'pointer', margin: 0 }}>
+                        파일 선택
+                        <input
+                          type="file"
+                          accept=".html,.htm,text/html,application/xhtml+xml"
+                          hidden
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void attachLogHtml(log.id, file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {log.html ? (
+                        <button type="button" className="btn-del" onClick={() => updateLog(log.id, { html: undefined })}>
+                          HTML 제거
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {(form.playerProfiles ?? []).length > 0 ? (
+                    <div className="trpg-edit-field">
+                      <label className="form-label">참여 탐사자</label>
+                      <div className="lake-toggle-row">
+                        {(form.playerProfiles ?? []).map((p) => (
+                          <LakeToggle
+                            key={p.id}
+                            checked={(log.playerIds ?? []).includes(p.id)}
+                            onChange={(checked) => {
+                              const ids = new Set(log.playerIds ?? []);
+                              if (checked) ids.add(p.id);
+                              else ids.delete(p.id);
+                              updateLog(log.id, { playerIds: [...ids] });
+                            }}
+                            label={p.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <SecretPostFields value={log} onChange={(patch) => updateLog(log.id, patch)} />
+                </AccordionSection>
+              ))}
+            </RepeatableList>
+
+            <AccordionSection title="HTML 불러오기" defaultOpen={false}>
+              <FieldLabel>코코포리아 등에서 보낸 HTML을 새 로그로 추가합니다. 저장 버튼을 눌러야 반영됩니다.</FieldLabel>
+              <TextAreaField
+                label="HTML 붙여넣기"
+                rows={4}
+                placeholder="HTML 코드를 직접 붙여넣을 수 있습니다."
+                value={htmlPaste}
+                onChange={setHtmlPaste}
+                className="trpg-edit-html-paste"
+              />
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                 <button
                   type="button"
@@ -1230,325 +1265,260 @@ export function TrpgEditForm({
                   />
                 </label>
               </div>
-            </div>
+            </AccordionSection>
           </>
         ) : null}
 
         {tab === 'gallery' ? (
-          <div className="trpg-edit-section">
-            <div className="trpg-edit-section__title">애프터 · 갤러리</div>
-            <div className="trpg-edit-card-list">
-              {(form.gallery ?? []).map((g, index) => {
-                const images = galleryImageList(g);
-                const galleryCount = form.gallery?.length ?? 0;
-                const filledCount = images.filter((u) => u.trim()).length;
-                const canCollapse = images.length > 1;
-                const imgsOpen = !canCollapse || galleryImgsOpen[g.id] === true;
-                return (
-                  <div key={g.id} className="trpg-edit-card-item">
-                    <div className="trpg-edit-card-item__head">
-                      <span className="trpg-edit-card-item__label">{g.title || `갤러리 ${index + 1}`}</span>
-                      <div className="trpg-edit-order">
-                        <button
-                          type="button"
-                          className="trpg-edit-order__btn"
-                          aria-label="박스 위로"
-                          disabled={index === 0}
-                          onClick={() => moveGalleryItem(g.id, -1)}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          className="trpg-edit-order__btn"
-                          aria-label="박스 아래로"
-                          disabled={index >= galleryCount - 1}
-                          onClick={() => moveGalleryItem(g.id, 1)}
-                        >
-                          ↓
-                        </button>
-                        <button type="button" className="trpg-edit-mini-del" onClick={() => removeGallery(g.id)}>
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                    <div className="trpg-edit-gallery-imgs">
-                      {canCollapse ? (
-                        <button
-                          type="button"
-                          className={`trpg-edit-gallery-toggle${imgsOpen ? ' is-open' : ''}`}
-                          aria-expanded={imgsOpen}
-                          onClick={() =>
-                            setGalleryImgsOpen((prev) => ({ ...prev, [g.id]: !imgsOpen }))
-                          }
-                        >
-                          <span>
-                            사진 {filledCount || images.length}장
-                            {!imgsOpen && images[0]?.trim() ? ' · 접힘' : ''}
-                          </span>
-                          <em>{imgsOpen ? '접기' : '펼치기'}</em>
-                        </button>
-                      ) : null}
-
-                      {!imgsOpen && canCollapse && images[0]?.trim() ? (
-                        <div className="trpg-edit-gallery-preview">
-                          <img src={images[0]} alt="" />
-                        </div>
-                      ) : null}
-
-                      {imgsOpen
-                        ? images.map((url, imgIndex) => (
-                            <div key={`${g.id}-${imgIndex}`} className="trpg-edit-gallery-imgs__row">
-                              <ImageFileField
-                                label={images.length > 1 ? `사진 ${imgIndex + 1}` : '사진'}
-                                value={url}
-                                folder="site/trpg/gallery"
-                                uploading={uploading}
-                                onUploadStart={onUploadStart}
-                                onUploadEnd={onUploadEnd}
-                                onChange={(img) => {
-                                  const next = [...images];
-                                  next[imgIndex] = img;
-                                  setGalleryImages(g.id, next);
-                                }}
-                              />
-                              <div className="trpg-edit-order">
-                                {images.length > 1 ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="trpg-edit-order__btn"
-                                      aria-label="사진 위로"
-                                      disabled={imgIndex === 0}
-                                      onClick={() => moveGalleryImage(g.id, imgIndex, -1)}
-                                    >
-                                      ↑
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="trpg-edit-order__btn"
-                                      aria-label="사진 아래로"
-                                      disabled={imgIndex >= images.length - 1}
-                                      onClick={() => moveGalleryImage(g.id, imgIndex, 1)}
-                                    >
-                                      ↓
-                                    </button>
-                                  </>
-                                ) : null}
-                                {images.length > 1 ? (
-                                  <button
-                                    type="button"
-                                    className="trpg-edit-mini-del"
-                                    aria-label="이 사진 삭제"
-                                    onClick={() => {
-                                      const next = images.filter((_, i) => i !== imgIndex);
-                                      setGalleryImages(g.id, next.length ? next : ['']);
-                                    }}
-                                  >
-                                    ✕
-                                  </button>
-                                ) : null}
-                              </div>
-                            </div>
-                          ))
-                        : null}
-
+          <RepeatableList addLabel="+ 갤러리 박스 추가" onAdd={addGalleryItem}>
+            {(form.gallery ?? []).map((g, index) => {
+              const images = galleryImageList(g);
+              const galleryCount = form.gallery?.length ?? 0;
+              const filledCount = images.filter((u) => u.trim()).length;
+              return (
+                <AccordionSection
+                  key={g.id}
+                  title={`${g.title || `갤러리 ${index + 1}`} · 사진 ${filledCount || images.length}장`}
+                  defaultOpen={images.length <= 1}
+                >
+                  <div className="trpg-edit-card-item__head" style={{ marginBottom: 0, padding: 0, border: 0 }}>
+                    <span />
+                    <div className="trpg-edit-order">
                       <button
                         type="button"
-                        className="trpg-edit-add-btn trpg-edit-add-btn--sub"
-                        onClick={() => {
-                          setGalleryImages(g.id, [...images, '']);
-                          if (canCollapse) {
-                            setGalleryImgsOpen((prev) => ({ ...prev, [g.id]: true }));
-                          }
-                        }}
+                        className="trpg-edit-order__btn"
+                        aria-label="박스 위로"
+                        disabled={index === 0}
+                        onClick={() => moveGalleryItem(g.id, -1)}
                       >
-                        + 사진 추가
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="trpg-edit-order__btn"
+                        aria-label="박스 아래로"
+                        disabled={index >= galleryCount - 1}
+                        onClick={() => moveGalleryItem(g.id, 1)}
+                      >
+                        ↓
+                      </button>
+                      <button type="button" className="trpg-edit-mini-del" onClick={() => removeGallery(g.id)}>
+                        ✕
                       </button>
                     </div>
-                    <div className="trpg-edit-row col2" style={{ marginTop: 8 }}>
-                      <div className="trpg-edit-field">
-                        <label>제목</label>
-                        <input
-                          className="form-input"
-                          placeholder="제목"
-                          value={g.title || ''}
-                          onChange={(e) => updateGallery(g.id, { title: e.target.value })}
+                  </div>
+                  <RepeatableList
+                    addLabel="+ 사진 추가"
+                    onAdd={() => setGalleryImages(g.id, [...images, ''])}
+                  >
+                    {images.map((url, imgIndex) => (
+                      <div key={`${g.id}-${imgIndex}`} className="trpg-edit-gallery-imgs__row">
+                        <FileUploadField
+                          label={images.length > 1 ? `사진 ${imgIndex + 1}` : '사진'}
+                          accept="image"
+                          value={url}
+                          folder="site/trpg/gallery"
+                          onChange={(img) => {
+                            const next = [...images];
+                            next[imgIndex] = img;
+                            setGalleryImages(g.id, next);
+                          }}
                         />
-                      </div>
-                      <div className="trpg-edit-field">
-                        <label>작가/출처</label>
-                        <GalleryCreditInput
-                          value={g.artist || ''}
-                          onChange={(artist) => updateGallery(g.id, { artist })}
-                        />
-                      </div>
-                    </div>
-                    <div className="trpg-edit-field">
-                      <label>캡션 (선택)</label>
-                      <input
-                        className="form-input"
-                        placeholder="이미지 설명"
-                        value={g.caption || ''}
-                        onChange={(e) => updateGallery(g.id, { caption: e.target.value })}
-                      />
-                    </div>
-                    {images.filter((u) => u.trim()).length > 1 || images.length > 1 ? (
-                      <div className="trpg-edit-field" style={{ marginTop: 8 }}>
-                        <label>복수 이미지 보기</label>
-                        <div className="trpg-edit-seg" role="group" aria-label="복수 이미지 보기 방식">
-                          <button
-                            type="button"
-                            className={g.viewMode !== 'scroll' ? 'is-on' : undefined}
-                            onClick={() => updateGallery(g.id, { viewMode: 'slider' })}
-                          >
-                            화살표로 넘기기
-                          </button>
-                          <button
-                            type="button"
-                            className={g.viewMode === 'scroll' ? 'is-on' : undefined}
-                            onClick={() => updateGallery(g.id, { viewMode: 'scroll' })}
-                          >
-                            스크롤로 보기
-                          </button>
+                        <div className="trpg-edit-order">
+                          {images.length > 1 ? (
+                            <>
+                              <button
+                                type="button"
+                                className="trpg-edit-order__btn"
+                                aria-label="사진 위로"
+                                disabled={imgIndex === 0}
+                                onClick={() => moveGalleryImage(g.id, imgIndex, -1)}
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                className="trpg-edit-order__btn"
+                                aria-label="사진 아래로"
+                                disabled={imgIndex >= images.length - 1}
+                                onClick={() => moveGalleryImage(g.id, imgIndex, 1)}
+                              >
+                                ↓
+                              </button>
+                              <button
+                                type="button"
+                                className="trpg-edit-mini-del"
+                                aria-label="이 사진 삭제"
+                                onClick={() => {
+                                  const next = images.filter((_, i) => i !== imgIndex);
+                                  setGalleryImages(g.id, next.length ? next : ['']);
+                                }}
+                              >
+                                ✕
+                              </button>
+                            </>
+                          ) : null}
                         </div>
                       </div>
-                    ) : null}
+                    ))}
+                  </RepeatableList>
+                  <div className="trpg-edit-row col2">
+                    <div className="trpg-edit-field">
+                      <label className="form-label">제목</label>
+                      <input
+                        className="form-input"
+                        placeholder="제목"
+                        value={g.title || ''}
+                        onChange={(e) => updateGallery(g.id, { title: e.target.value })}
+                      />
+                    </div>
+                    <div className="trpg-edit-field">
+                      <label className="form-label">작가/출처</label>
+                      <GalleryCreditInput
+                        value={g.artist || ''}
+                        onChange={(artist) => updateGallery(g.id, { artist })}
+                      />
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-            <button type="button" className="trpg-edit-add-btn" onClick={addGalleryItem}>
-              + 갤러리 박스 추가
-            </button>
-          </div>
+                  <div className="trpg-edit-field">
+                    <label className="form-label">캡션 (선택)</label>
+                    <input
+                      className="form-input"
+                      placeholder="이미지 설명"
+                      value={g.caption || ''}
+                      onChange={(e) => updateGallery(g.id, { caption: e.target.value })}
+                    />
+                  </div>
+                  {images.filter((u) => u.trim()).length > 1 || images.length > 1 ? (
+                    <div className="trpg-edit-field">
+                      <label className="form-label">복수 이미지 보기</label>
+                      <div className="trpg-edit-seg" role="group" aria-label="복수 이미지 보기 방식">
+                        <button
+                          type="button"
+                          className={g.viewMode !== 'scroll' ? 'is-on' : undefined}
+                          onClick={() => updateGallery(g.id, { viewMode: 'slider' })}
+                        >
+                          화살표로 넘기기
+                        </button>
+                        <button
+                          type="button"
+                          className={g.viewMode === 'scroll' ? 'is-on' : undefined}
+                          onClick={() => updateGallery(g.id, { viewMode: 'scroll' })}
+                        >
+                          스크롤로 보기
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </AccordionSection>
+              );
+            })}
+          </RepeatableList>
         ) : null}
 
         {tab === 'dice' ? (
-          <div className="trpg-edit-section">
-            <div className="trpg-edit-section__title">주요 판정 · 다이스</div>
-              <div className="trpg-edit-card-list">
-                {(form.diceHighlights ?? []).map((d, index) => (
-                  <div key={d.id} className="trpg-edit-card-item">
-                    <div className="trpg-edit-card-item__head">
-                      <span className="trpg-edit-card-item__label">{d.title || `판정 ${index + 1}`}</span>
-                      <button type="button" className="trpg-edit-mini-del" onClick={() => removeDiceHighlight(d.id)}>
-                        ✕
-                      </button>
-                    </div>
-                    <div className="trpg-edit-row col2">
-                      <div className="trpg-edit-field">
-                        <label>항목</label>
-                        <input
-                          className="form-input"
-                          placeholder="회피"
-                          value={d.title}
-                          onChange={(e) => updateDiceHighlight(d.id, { title: e.target.value })}
-                        />
-                      </div>
-                      <div className="trpg-edit-field">
-                        <label>결과</label>
-                        <input
-                          className="form-input"
-                          placeholder="성공 / 실패"
-                          value={d.result || ''}
-                          onChange={(e) => updateDiceHighlight(d.id, { result: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div className="trpg-edit-row col2">
-                      <div className="trpg-edit-field">
-                        <label>주사위</label>
-                        <input
-                          className="form-input"
-                          placeholder="1d100 ≤ 50"
-                          value={d.roll || ''}
-                          onChange={(e) => updateDiceHighlight(d.id, { roll: e.target.value })}
-                        />
-                      </div>
-                      <div className="trpg-edit-field">
-                        <label>세션</label>
-                        <input
-                          className="form-input"
-                          placeholder="2회차"
-                          value={d.session || ''}
-                          onChange={(e) => updateDiceHighlight(d.id, { session: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div className="trpg-edit-field">
-                      <label>메모</label>
-                      <textarea
-                        className="form-input"
-                        rows={2}
-                        placeholder="메모"
-                        value={d.note || ''}
-                        onChange={(e) => updateDiceHighlight(d.id, { note: e.target.value })}
-                      />
-                    </div>
+          <RepeatableList addLabel="+ 판정 추가" onAdd={addDiceHighlight}>
+            {(form.diceHighlights ?? []).map((d, index) => (
+              <div key={d.id} className="trpg-edit-card-item">
+                <div className="trpg-edit-card-item__head">
+                  <span className="trpg-edit-card-item__label">{d.title || `판정 ${index + 1}`}</span>
+                  <button type="button" className="trpg-edit-mini-del" onClick={() => removeDiceHighlight(d.id)}>
+                    ✕
+                  </button>
+                </div>
+                <div className="trpg-edit-row col2">
+                  <div className="trpg-edit-field">
+                    <label className="form-label">항목</label>
+                    <input
+                      className="form-input"
+                      placeholder="회피"
+                      value={d.title}
+                      onChange={(e) => updateDiceHighlight(d.id, { title: e.target.value })}
+                    />
                   </div>
-                ))}
+                  <div className="trpg-edit-field">
+                    <label className="form-label">결과</label>
+                    <input
+                      className="form-input"
+                      placeholder="성공 / 실패"
+                      value={d.result || ''}
+                      onChange={(e) => updateDiceHighlight(d.id, { result: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="trpg-edit-row col2">
+                  <div className="trpg-edit-field">
+                    <label className="form-label">주사위</label>
+                    <input
+                      className="form-input"
+                      placeholder="1d100 ≤ 50"
+                      value={d.roll || ''}
+                      onChange={(e) => updateDiceHighlight(d.id, { roll: e.target.value })}
+                    />
+                  </div>
+                  <div className="trpg-edit-field">
+                    <label className="form-label">세션</label>
+                    <input
+                      className="form-input"
+                      placeholder="2회차"
+                      value={d.session || ''}
+                      onChange={(e) => updateDiceHighlight(d.id, { session: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <TextAreaField
+                  label="메모"
+                  rows={2}
+                  placeholder="메모"
+                  value={d.note || ''}
+                  onChange={(note) => updateDiceHighlight(d.id, { note })}
+                />
               </div>
-              <button type="button" className="trpg-edit-add-btn" onClick={addDiceHighlight}>
-                + 판정 추가
-              </button>
-            </div>
+            ))}
+          </RepeatableList>
         ) : null}
 
         {tab === 'handouts' ? (
-          <>
-            <div className="trpg-edit-section">
-              <div className="trpg-edit-section__title">핸드아웃</div>
-              <div className="trpg-edit-card-list">
-                {(form.handouts ?? []).map((h, index) => (
-                  <div key={h.id} className="trpg-edit-card-item">
-                    <div className="trpg-edit-card-item__head">
-                      <span className="trpg-edit-card-item__label">{h.title || `핸드아웃 ${index + 1}`}</span>
-                      <button type="button" className="trpg-edit-mini-del" onClick={() => removeHandout(h.id)}>
-                        ✕
-                      </button>
-                    </div>
-                    <ImageFileField
-                      label=""
-                      value={h.img || ''}
-                      folder="site/trpg/handouts"
-                      uploading={uploading}
-                      onUploadStart={onUploadStart}
-                      onUploadEnd={onUploadEnd}
-                      onChange={(img) => updateHandout(h.id, { img })}
-                    />
-                    <div className="trpg-edit-field" style={{ marginTop: 8 }}>
-                      <label>제목</label>
-                      <input
-                        className="form-input"
-                        placeholder="핸드아웃 제목"
-                        value={h.title}
-                        onChange={(e) => updateHandout(h.id, { title: e.target.value })}
-                      />
-                    </div>
-                    <div className="trpg-edit-field">
-                      <label>본문</label>
-                      <textarea
-                        className="form-input"
-                        rows={3}
-                        placeholder="본문"
-                        value={h.body || ''}
-                        onChange={(e) => updateHandout(h.id, { body: e.target.value })}
-                      />
-                    </div>
-                    <LakeToggle
-                      checked={!!h.spoiler}
-                      onChange={(spoiler) => updateHandout(h.id, { spoiler })}
-                      label="스포일러 (탭하여 공개)"
-                    />
-                  </div>
-                ))}
+          <RepeatableList addLabel="+ 핸드아웃 추가" onAdd={addHandout}>
+            {(form.handouts ?? []).map((h, index) => (
+              <div key={h.id} className="trpg-edit-card-item">
+                <div className="trpg-edit-card-item__head">
+                  <span className="trpg-edit-card-item__label">{h.title || `핸드아웃 ${index + 1}`}</span>
+                  <button type="button" className="trpg-edit-mini-del" onClick={() => removeHandout(h.id)}>
+                    ✕
+                  </button>
+                </div>
+                <FileUploadField
+                  label="이미지 / 파일"
+                  accept="image"
+                  value={h.img || ''}
+                  folder="site/trpg/handouts"
+                  onChange={(img) => updateHandout(h.id, { img })}
+                />
+                <div className="trpg-edit-field">
+                  <label className="form-label">제목</label>
+                  <input
+                    className="form-input"
+                    placeholder="핸드아웃 제목"
+                    value={h.title}
+                    onChange={(e) => updateHandout(h.id, { title: e.target.value })}
+                  />
+                </div>
+                <TextAreaField
+                  label="본문"
+                  rows={3}
+                  placeholder="본문"
+                  value={h.body || ''}
+                  onChange={(body) => updateHandout(h.id, { body })}
+                />
+                <LakeToggle
+                  checked={!!h.spoiler}
+                  onChange={(spoiler) => updateHandout(h.id, { spoiler })}
+                  label="스포일러 (탭하여 공개)"
+                />
               </div>
-              <button type="button" className="trpg-edit-add-btn" onClick={addHandout}>
-                + 핸드아웃 추가
-              </button>
-            </div>
-          </>
+            ))}
+          </RepeatableList>
         ) : null}
       </div>
     </div>
@@ -1604,20 +1574,19 @@ export function UniverseAdminPanel({ items, onSave }: UniverseProps) {
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
-              onClick={() => setEditId(item.id)}
-            >
-              <div>{item.name}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
-                {item.comingSoon
+              title={item.name}
+              subtitle={
+                item.comingSoon
                   ? 'Coming Soon'
                   : item.href === '/verse/gate'
                     ? '게이트 · /verse/gate'
-                    : item.href || '링크 없음'}
-              </div>
-            </div>
+                    : item.href || '링크 없음'
+              }
+              selected={editId === item.id}
+              onClick={() => setEditId(item.id)}
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -1970,13 +1939,12 @@ export function BannerAdminPanel({ items, onSave }: BannerProps) {
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              title={item.divider ? `구분 ${item.dividerIcon || '◆'}` : item.title}
+              selected={editId === item.id}
               onClick={() => setEditId(item.id)}
-            >
-              <div>{item.divider ? `구분 ${item.dividerIcon || '◆'}` : item.title}</div>
-            </div>
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -2024,26 +1992,15 @@ export function BannerAdminPanel({ items, onSave }: BannerProps) {
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">이미지 URL</label>
-                    <input className="form-input" value={form.img} onChange={(e) => setForm({ ...form, img: e.target.value })} />
-                  </div>
-                  <label className="file-input-label" style={{ marginBottom: 8 }}>
-                    이미지 파일 업로드
-                    <input
-                      type="file"
-                      accept="image/*"
-                      hidden
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        readFileAsDataUrl(f, (url) => setForm({ ...form, img: url }));
-                        e.target.value = '';
-                      }}
+                    <FileUploadField
+                      label="배너 이미지"
+                      value={form.img || ''}
+                      onChange={(img) => setForm({ ...form, img })}
+                      accept="image"
+                      asDataUrl
+                      emptyLabel="📁 이미지 업로드"
                     />
-                  </label>
-                  {form.img ? (
-                    <img src={form.img} alt="" style={{ maxWidth: '100%', maxHeight: 140, objectFit: 'contain', marginBottom: 8 }} />
-                  ) : null}
+                  </div>
                   <div className="form-group">
                     <label className="form-label">링크</label>
                     <input className="form-input" value={form.href || ''} onChange={(e) => setForm({ ...form, href: e.target.value })} />
@@ -2099,14 +2056,13 @@ export function GuestAdminPanel({ items, onSave }: GuestProps) {
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              title={item.name}
+              subtitle={item.date}
+              selected={editId === item.id}
               onClick={() => setEditId(item.id)}
-            >
-              <div>{item.name}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>{item.date}</div>
-            </div>
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -2139,34 +2095,99 @@ function GuestEditForm({
   onSave: (g: GuestEntry) => void | Promise<void>;
   onDelete: () => void | Promise<void>;
 }) {
-  const [form, setForm] = useState(item);
+  const normalized = normalizeGuestEntry(item);
+  const [replies, setReplies] = useState<GuestReply[]>(normalized.replies ?? []);
+  const [draft, setDraft] = useState('');
+
+  const build = (nextReplies: GuestReply[]): GuestEntry => ({
+    ...normalized,
+    replies: nextReplies,
+    reply: undefined,
+    replyDate: undefined,
+  });
+
+  function addReply() {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    const reply: GuestReply = {
+      id: newId(),
+      authorName: 'lakehouse',
+      isAdmin: true,
+      message: trimmed,
+      date: new Date().toISOString().slice(0, 10),
+    };
+    const next = [...replies, reply];
+    setReplies(next);
+    setDraft('');
+    void onSave(build(next));
+  }
+
+  function deleteReply(replyId: string) {
+    const next = replies.filter((r) => r.id !== replyId);
+    setReplies(next);
+    void onSave(build(next));
+  }
 
   return (
-    <AdminPanelShell title="방명록" onSave={() => onSave(form)} onDelete={onDelete}>
+    <AdminPanelShell title="방명록 — 답변 · 삭제" onDelete={onDelete}>
+      {/* 방문자 글은 읽기 전용 — 관리자는 답변/삭제만 */}
       <div className="form-group">
-        <label className="form-label">이름</label>
-        <input className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <label className="form-label">작성자</label>
+        <div className="form-input" style={{ opacity: 0.8 }}>{normalized.name}</div>
       </div>
       <div className="form-group">
         <label className="form-label">날짜</label>
-        <input className="form-input" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+        <div className="form-input" style={{ opacity: 0.8 }}>{normalized.date}</div>
       </div>
       <div className="form-group">
         <label className="form-label">메시지</label>
-        <textarea className="form-input" rows={5} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+        <div className="form-input" style={{ whiteSpace: 'pre-wrap', opacity: 0.9, minHeight: 60 }}>
+          {normalized.message || '(내용 없음)'}
+        </div>
       </div>
-      <input className="form-input" placeholder="이미지 URL" value={form.imageUrl || ''} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} style={{ marginTop: 6 }} />
-      <input className="form-input" placeholder="영상 URL" value={form.videoUrl || ''} onChange={(e) => setForm({ ...form, videoUrl: e.target.value })} style={{ marginTop: 6 }} />
-      <SecretPostFields value={form} onChange={(patch) => setForm({ ...form, ...patch })} />
-      <div className="form-group" style={{ marginTop: 8 }}>
-        <label className="form-label">관리자 답변</label>
+      {normalized.imageUrl ? (
+        <img src={normalized.imageUrl} alt="" style={{ maxWidth: '100%', borderRadius: 6, marginTop: 6 }} />
+      ) : null}
+
+      <div className="form-group" style={{ marginTop: 12 }}>
+        <label className="form-label">답변 ({replies.length})</label>
+        {replies.length ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+            {replies.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '6px 8px',
+                  border: '1px solid var(--lake-line, rgba(255,255,255,0.1))',
+                  borderRadius: 6,
+                }}
+              >
+                <span style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{r.message}</span>
+                <button
+                  type="button"
+                  className="btn-del"
+                  style={{ flex: '0 0 auto' }}
+                  onClick={() => deleteReply(r.id)}
+                >
+                  삭제
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <textarea
           className="form-input"
-          rows={4}
-          value={form.reply || ''}
-          onChange={(e) => setForm({ ...form, reply: e.target.value })}
-          placeholder="방명록에 대한 답변을 입력하세요"
+          rows={3}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="답변을 입력하고 등록을 누르세요"
         />
+        <button type="button" className="btn-save" style={{ marginTop: 6 }} onClick={addReply} disabled={!draft.trim()}>
+          답변 등록
+        </button>
       </div>
     </AdminPanelShell>
   );
@@ -2177,93 +2198,57 @@ type BgmProps = {
   onSave: (next: SiteBgm) => Promise<void>;
 };
 
-function bgmFileLabel(fileUrl?: string, url?: string) {
-  const src = fileUrl?.trim() || url?.trim();
-  if (!src) return '등록된 파일 없음';
-  try {
-    const name = decodeURIComponent(src.split('/').pop() || src);
-    return name.length > 48 ? `…${name.slice(-44)}` : name;
-  } catch {
-    return src.length > 48 ? `…${src.slice(-44)}` : src;
-  }
-}
-
-function BgmAudioUploadRow({
-  label,
-  fileUrl,
-  url,
-  uploading,
-  onPick,
-  onClear,
-}: {
-  label: string;
-  fileUrl?: string;
-  url?: string;
-  uploading: boolean;
-  onPick: (file: File) => void;
-  onClear: () => void;
-}) {
-  const hasFile = !!(fileUrl?.trim() || url?.trim());
-  return (
-    <div className="form-group" style={{ marginBottom: 0 }}>
-      <label className="form-label">{label}</label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        <label className="file-input-label" style={{ margin: 0, opacity: uploading ? 0.6 : 1 }}>
-          {uploading ? '업로드 중…' : '📁 오디오 파일 선택'}
-          <input
-            type="file"
-            accept="audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/*,.mp3,.ogg,.wav,.m4a"
-            hidden
-            disabled={uploading}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onPick(f);
-              e.target.value = '';
-            }}
-          />
-        </label>
-        {hasFile && (
-          <button type="button" className="btn-edit" onClick={onClear} disabled={uploading}>
-            파일 제거
-          </button>
-        )}
-      </div>
-      <p className="form-hint" style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.72 }}>
-        {hasFile ? `등록됨: ${bgmFileLabel(fileUrl, url)}` : 'MP3 · OGG · WAV 등을 업로드하세요.'}
-      </p>
-    </div>
-  );
-}
+type BgmTrackRow = {
+  title: string;
+  artist: string;
+  fileUrl: string;
+  url: string;
+};
 
 export function BgmAdminPanel({ data, onSave }: BgmProps) {
   const [form, setForm] = useState(data);
-  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   useEffect(() => setForm(data), [data]);
 
-  const playlist = form.playlist ?? [];
+  const tracks: BgmTrackRow[] = [
+    {
+      title: form.title,
+      artist: form.artist,
+      fileUrl: form.fileUrl || '',
+      url: form.url || '',
+    },
+    ...(form.playlist || []).map((t) => ({
+      title: t.title,
+      artist: t.artist,
+      fileUrl: t.fileUrl || '',
+      url: t.url || '',
+    })),
+  ];
 
-  function updatePlaylistItem(index: number, patch: Partial<(typeof playlist)[number]>) {
-    const next = playlist.map((item, i) => (i === index ? { ...item, ...patch } : item));
-    setForm({ ...form, playlist: next });
+  function writeTracks(next: BgmTrackRow[]) {
+    const safe = next.length ? next : [{ title: '', artist: '', fileUrl: '', url: '' }];
+    const [main, ...rest] = safe;
+    setForm({
+      ...form,
+      title: main.title,
+      artist: main.artist,
+      fileUrl: main.fileUrl,
+      url: main.url,
+      playlist: rest,
+    });
   }
 
-  function movePlaylistItem(index: number, dir: -1 | 1) {
-    const j = index + dir;
-    if (j < 0 || j >= playlist.length) return;
-    const next = [...playlist];
-    [next[index], next[j]] = [next[j], next[index]];
-    setForm({ ...form, playlist: next });
+  function updateTrack(index: number, patch: Partial<BgmTrackRow>) {
+    writeTracks(tracks.map((t, i) => (i === index ? { ...t, ...patch } : t)));
   }
 
-  async function uploadBgmFile(key: string, file: File, onUrl: (url: string) => void) {
-    setUploadingKey(key);
+  function playPreview(track: BgmTrackRow) {
+    const src = (track.fileUrl || track.url || '').trim();
+    if (!src) return;
     try {
-      const url = await uploadMediaFile(file, 'site/bgm');
-      onUrl(url);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'BGM 업로드 실패');
-    } finally {
-      setUploadingKey(null);
+      const audio = new Audio(src);
+      void audio.play();
+    } catch {
+      /* ignore */
     }
   }
 
@@ -2273,120 +2258,84 @@ export function BgmAdminPanel({ data, onSave }: BgmProps) {
         오디오 파일을 업로드해 등록하세요. 2곡 이상이면 순서대로 재생되고, 끝나면 다음 곡으로 넘어갑니다.
       </p>
 
-      <div
-        style={{
-          marginBottom: 16,
-          paddingBottom: 16,
-          borderBottom: '1px solid rgba(215,169,130,0.12)',
-        }}
+      <RepeatableList
+        addLabel="+ 곡 추가"
+        onAdd={() => writeTracks([...tracks, { title: '', artist: '', fileUrl: '', url: '' }])}
       >
-        <span className="form-label" style={{ display: 'block', marginBottom: 8, opacity: 0.9 }}>
-          1번 곡 (메인)
-        </span>
-        <div className="form-group">
-          <label className="form-label">곡명</label>
-          <input className="form-input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">아티스트</label>
-          <input className="form-input" value={form.artist} onChange={(e) => setForm({ ...form, artist: e.target.value })} />
-        </div>
-        <BgmAudioUploadRow
-          label="오디오 파일"
-          fileUrl={form.fileUrl}
-          url={form.url}
-          uploading={uploadingKey === 'main'}
-          onPick={(f) =>
-            void uploadBgmFile('main', f, (url) => setForm({ ...form, fileUrl: url, url: '' }))
-          }
-          onClear={() => setForm({ ...form, fileUrl: '', url: '' })}
-        />
-      </div>
-
-      <div className="form-group">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <label className="form-label" style={{ margin: 0 }}>
-            2번째 곡부터 (플레이리스트)
-          </label>
-          <button
-            type="button"
-            className="btn-edit"
-            onClick={() =>
-              setForm({
-                ...form,
-                playlist: [...playlist, { title: '', artist: '', fileUrl: '', url: '' }],
-              })
-            }
-          >
-            + 곡 추가
-          </button>
-        </div>
-        {playlist.map((track, i) => (
-          <div key={i} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid rgba(215,169,130,0.12)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span className="form-label" style={{ margin: 0, opacity: 0.85 }}>
-                {i + 2}번 곡
-              </span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  type="button"
-                  className="btn-edit"
-                  disabled={i === 0}
-                  onClick={() => movePlaylistItem(i, -1)}
-                  title="위로"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="btn-edit"
-                  disabled={i === playlist.length - 1}
-                  onClick={() => movePlaylistItem(i, 1)}
-                  title="아래로"
-                >
-                  ↓
-                </button>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">곡명</label>
-              <input
-                className="form-input"
-                value={track.title}
-                onChange={(e) => updatePlaylistItem(i, { title: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">아티스트</label>
-              <input
-                className="form-input"
-                value={track.artist}
-                onChange={(e) => updatePlaylistItem(i, { artist: e.target.value })}
-              />
-            </div>
-            <BgmAudioUploadRow
-              label="오디오 파일"
-              fileUrl={track.fileUrl}
-              url={track.url}
-              uploading={uploadingKey === `pl-${i}`}
-              onPick={(f) =>
-                void uploadBgmFile(`pl-${i}`, f, (url) =>
-                  updatePlaylistItem(i, { fileUrl: url, url: '' }),
-                )
-              }
-              onClear={() => updatePlaylistItem(i, { fileUrl: '', url: '' })}
-            />
-            <button
-              type="button"
-              className="btn-edit"
-              style={{ marginTop: 8 }}
-              onClick={() => setForm({ ...form, playlist: playlist.filter((_, j) => j !== i) })}
+        {tracks.map((track, index) => {
+          const audioValue = track.fileUrl || track.url;
+          const isMain = index === 0;
+          return (
+            <div
+              key={index}
+              style={{
+                marginBottom: 12,
+                paddingBottom: 12,
+                borderBottom: '1px solid rgba(215,169,130,0.12)',
+              }}
             >
-              삭제
-            </button>
-          </div>
-        ))}
-      </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 8,
+                  gap: 8,
+                }}
+              >
+                <span className="form-label" style={{ margin: 0, opacity: 0.9 }}>
+                  {index + 1}번 곡
+                  {isMain ? <span className="lh-bgm-main-badge">메인</span> : null}
+                </span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    className="btn-save"
+                    style={{ padding: '4px 10px' }}
+                    disabled={!audioValue.trim()}
+                    onClick={() => playPreview(track)}
+                  >
+                    ▶ 미리듣기
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-edit"
+                    disabled={isMain || tracks.length <= 1}
+                    onClick={() => writeTracks(tracks.filter((_, i) => i !== index))}
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">곡명</label>
+                <input
+                  className="form-input"
+                  value={track.title}
+                  onChange={(e) => updateTrack(index, { title: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">아티스트</label>
+                <input
+                  className="form-input"
+                  value={track.artist}
+                  onChange={(e) => updateTrack(index, { artist: e.target.value })}
+                />
+              </div>
+              <FileUploadField
+                label="오디오 파일"
+                value={audioValue}
+                onChange={(next) => updateTrack(index, { fileUrl: next, url: '' })}
+                accept="audio"
+                folder="site/bgm"
+                emptyLabel="📁 오디오 파일 선택"
+                changeLabel="파일 변경"
+              />
+            </div>
+          );
+        })}
+      </RepeatableList>
     </AdminPanelShell>
   );
 }
@@ -2584,72 +2533,61 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
   const [form, setForm] = useState(data);
   useEffect(() => setForm(data), [data]);
 
+  function updateButton(id: string, patch: Partial<ClickerButton>) {
+    setForm((prev) => ({
+      ...prev,
+      clickerButtons: (prev.clickerButtons || []).map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    }));
+  }
+
   return (
     <AdminPanelShell title="UX · 클릭음 / 커서 / 이펙트" onSave={() => onSave(form)}>
-      <div className="form-group">
-        <LakeToggle
-          checked={form.clickSoundEnabled}
-          onChange={(clickSoundEnabled) => setForm({ ...form, clickSoundEnabled })}
-          label="클릭 효과음"
-        />
-      </div>
-      <div className="form-group">
-        <label className="form-label">클릭음 프리셋</label>
-        <select
-          className="form-input"
-          value={form.clickSoundPreset}
-          onChange={(e) =>
-            setForm({ ...form, clickSoundPreset: e.target.value as SiteUiSettings['clickSoundPreset'] })
-          }
-        >
-          {CLICK_SOUND_PRESETS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <button
-        type="button"
-        className="btn-save"
-        style={{ marginBottom: 10, padding: '5px 12px' }}
-        onClick={() => playClickSound(form)}
-      >
-        미리듣기
-      </button>
-      {form.clickSoundPreset === 'custom' && (
-        <>
-          <label className="file-input-label" style={{ marginBottom: 8 }}>
-            MP3 / WAV 파일 업로드
-            <input
-              type="file"
-              accept="audio/*"
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
-                const reader = new FileReader();
-                reader.onload = () => setForm({ ...form, clickSoundCustom: String(reader.result || '') });
-                reader.readAsDataURL(f);
-                e.target.value = '';
-              }}
-            />
-          </label>
-          <div className="form-group">
-            <label className="form-label">또는 URL / data URL</label>
-            <input
-              className="form-input"
-              value={form.clickSoundCustom}
-              onChange={(e) => setForm({ ...form, clickSoundCustom: e.target.value })}
-            />
-          </div>
-        </>
-      )}
-
-      <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(215,169,130,.18)' }}>
-        <div style={{ fontSize: 11, color: 'var(--lake-copper-soft)', marginBottom: '.65rem', letterSpacing: '.12em' }}>
-          커서
+      <AccordionSection title="클릭 효과음" defaultOpen>
+        <div className="form-group">
+          <LakeToggle
+            checked={form.clickSoundEnabled}
+            onChange={(clickSoundEnabled) => setForm({ ...form, clickSoundEnabled })}
+            label="클릭 효과음"
+          />
         </div>
+        <div className="form-group">
+          <label className="form-label">클릭음 프리셋</label>
+          <select
+            className="form-input"
+            value={form.clickSoundPreset}
+            onChange={(e) =>
+              setForm({ ...form, clickSoundPreset: e.target.value as SiteUiSettings['clickSoundPreset'] })
+            }
+          >
+            {CLICK_SOUND_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          className="btn-save"
+          style={{ marginBottom: 10, padding: '5px 12px' }}
+          onClick={() => playClickSound(form)}
+        >
+          미리듣기
+        </button>
+        {form.clickSoundPreset === 'custom' ? (
+          <FileUploadField
+            label="커스텀 클릭음"
+            value={form.clickSoundCustom}
+            onChange={(clickSoundCustom) => setForm({ ...form, clickSoundCustom })}
+            accept="audio"
+            asDataUrl
+            emptyLabel="📁 MP3 / WAV 업로드"
+            changeLabel="파일 변경"
+          />
+        ) : null}
+      </AccordionSection>
+
+      <AccordionSection title="커서" defaultOpen>
         <div className="form-group">
           <LakeToggle
             checked={form.customCursorEnabled}
@@ -2674,48 +2612,28 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
             <option value="custom">Custom — 직접 업로드</option>
           </select>
         </div>
-        {form.cursorPreset === 'custom' && (
-          <>
-            <label className="file-input-label" style={{ marginBottom: 8 }}>
-              PNG / SVG / CUR 파일 업로드
-              <input
-                type="file"
-                accept="image/png,image/svg+xml,image/x-icon,.cur"
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  const reader = new FileReader();
-                  reader.onload = () => setForm({ ...form, cursorCustom: String(reader.result || '') });
-                  reader.readAsDataURL(f);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-            <div className="form-group">
-              <label className="form-label">또는 URL / data URL</label>
-              <input
-                className="form-input"
-                value={form.cursorCustom}
-                onChange={(e) => setForm({ ...form, cursorCustom: e.target.value })}
-              />
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="form-group" style={{ marginTop: '1rem' }}>
-        <LakeToggle
-          checked={form.clickRippleEnabled}
-          onChange={(clickRippleEnabled) => setForm({ ...form, clickRippleEnabled })}
-          label="클릭 리플 이펙트"
-        />
-      </div>
-
-      <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(215,169,130,.18)' }}>
-        <div style={{ fontSize: 11, color: 'var(--lake-copper-soft)', marginBottom: '.65rem', letterSpacing: '.12em' }}>
-          클리커 위젯
+        {form.cursorPreset === 'custom' ? (
+          <FileUploadField
+            label="커스텀 커서"
+            value={form.cursorCustom}
+            onChange={(cursorCustom) => setForm({ ...form, cursorCustom })}
+            accept="image"
+            acceptAttr="image/png,image/svg+xml,image/x-icon,.cur,.png,.svg"
+            asDataUrl
+            emptyLabel="📁 PNG / SVG / CUR 업로드"
+            changeLabel="파일 변경"
+          />
+        ) : null}
+        <div className="form-group" style={{ marginTop: '0.75rem' }}>
+          <LakeToggle
+            checked={form.clickRippleEnabled}
+            onChange={(clickRippleEnabled) => setForm({ ...form, clickRippleEnabled })}
+            label="클릭 리플 이펙트"
+          />
         </div>
+      </AccordionSection>
+
+      <AccordionSection title="클리키 위젯" defaultOpen>
         <div className="form-group">
           <LakeToggle
             checked={form.clickerEnabled}
@@ -2740,23 +2658,15 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
             placeholder="z · x · c · v"
           />
         </div>
-        <div className="form-group">
-          <label className="form-label">기본 볼륨 (0–1)</label>
-          <input
-            className="form-input"
-            type="number"
-            min={0}
-            max={1}
-            step={0.05}
-            value={form.clickerDefaultVolume}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                clickerDefaultVolume: Math.min(1, Math.max(0, Number(e.target.value) || 0)),
-              })
-            }
-          />
-        </div>
+        <SliderField
+          label="기본 볼륨"
+          value={form.clickerDefaultVolume}
+          min={0}
+          max={1}
+          step={0.05}
+          displayValue={`${Math.round((form.clickerDefaultVolume || 0) * 100)}%`}
+          onChange={(clickerDefaultVolume) => setForm({ ...form, clickerDefaultVolume })}
+        />
         <div className="form-group">
           <label className="form-label">기본 사운드 프리셋</label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -2789,74 +2699,115 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
             </button>
           </div>
         </div>
-        <AudioFileField
+        <FileUploadField
           label="공통 커스텀 사운드 (버튼별 없으면 사용)"
           value={form.clickerSoundCustom}
-          folder="site/clicker"
           onChange={(clickerSoundCustom) => setForm({ ...form, clickerSoundCustom })}
+          accept="audio"
+          folder="site/clicker"
+          emptyLabel="📁 오디오 업로드"
+          changeLabel="파일 변경"
         />
-        {form.clickerSoundCustom ? (
-          <button
-            type="button"
-            className="btn-edit"
-            style={{ marginBottom: 10 }}
-            onClick={() => setForm({ ...form, clickerSoundCustom: '' })}
-          >
-            공통 사운드 지우기
-          </button>
-        ) : null}
+      </AccordionSection>
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            margin: '0.85rem 0 0.5rem',
+      <AccordionSection title={`버튼 관리 (${(form.clickerButtons || []).length})`} defaultOpen>
+        <RepeatableList
+          addLabel="+ 버튼 추가"
+          onAdd={() => {
+            const next: ClickerButton = {
+              id: newId(),
+              key: 'a',
+              label: '',
+            };
+            setForm({ ...form, clickerButtons: [...(form.clickerButtons || []), next] });
           }}
         >
-          <span style={{ fontSize: 11, color: 'var(--lake-copper-soft)', letterSpacing: '.1em' }}>
-            버튼 ({(form.clickerButtons || []).length})
-          </span>
-          <button
-            type="button"
-            className="btn-save"
-            style={{ padding: '4px 10px' }}
-            onClick={() => {
-              const next: ClickerButton = {
-                id: newId(),
-                key: 'a',
-                label: '',
-              };
-              setForm({ ...form, clickerButtons: [...(form.clickerButtons || []), next] });
-            }}
-          >
-            + 버튼 추가
-          </button>
-        </div>
-
-        {(form.clickerButtons || []).map((btn, index) => (
-          <div
-            key={btn.id}
-            style={{
-              marginBottom: 12,
-              padding: '10px 12px',
-              border: '1px solid rgba(215,169,130,.16)',
-              borderRadius: 10,
-              background: 'rgba(8,10,9,.28)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 8,
-              }}
-            >
-              <span style={{ fontSize: 12, color: 'rgba(240,207,173,.88)' }}>버튼 {index + 1}</span>
+          {(form.clickerButtons || []).map((btn, index) => (
+            <AccordionSection key={btn.id} title={`버튼 ${index + 1}`} defaultOpen={false}>
+              <div className="form-group">
+                <label className="form-label">키보드 키 (한 글자)</label>
+                <input
+                  className="form-input"
+                  value={btn.key}
+                  maxLength={1}
+                  onChange={(e) => {
+                    const key = e.target.value.slice(-1).toLowerCase() || '';
+                    updateButton(btn.id, { key });
+                  }}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">표시 라벨 (비우면 키)</label>
+                <input
+                  className="form-input"
+                  value={btn.label || ''}
+                  onChange={(e) => updateButton(btn.id, { label: e.target.value })}
+                />
+              </div>
+              <FileUploadField
+                label="이미지"
+                value={btn.img || ''}
+                onChange={(img) => updateButton(btn.id, { img, imgFrame: undefined })}
+                accept="image"
+                folder="site/clicker"
+                emptyLabel="📁 이미지 업로드"
+                changeLabel="파일 변경"
+              />
+              {btn.img ? (
+                <>
+                  <label
+                    className="form-group"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      cursor: 'pointer',
+                      marginBottom: 10,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(btn.cutout)}
+                      onChange={(e) => updateButton(btn.id, { cutout: e.target.checked })}
+                    />
+                    <span style={{ fontSize: 12, color: 'rgba(230,210,180,.88)' }}>
+                      투명 컷아웃 (배경 지운 PNG · 실루엣 테두리)
+                    </span>
+                  </label>
+                  <div className="form-group lh-clicker-frame-edit">
+                    <ImageFrameEditor
+                      src={btn.img}
+                      value={btn.imgFrame}
+                      onChange={(imgFrame) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          clickerButtons: (prev.clickerButtons || []).map((b) =>
+                            b.id === btn.id ? { ...b, imgFrame: { ...imgFrame, bottomBlur: 0 } } : b,
+                          ),
+                        }))
+                      }
+                      fit={btn.cutout ? 'contain' : 'cover'}
+                      pos={btn.cutout ? 'center center' : 'center top'}
+                      aspectRatio="1 / 1"
+                      className={`image-frame-editor--clicker${btn.cutout ? ' is-cutout' : ''}`}
+                      showBottomBlur={false}
+                    />
+                  </div>
+                </>
+              ) : null}
+              <FileUploadField
+                label="버튼 전용 사운드"
+                value={btn.sound || ''}
+                onChange={(sound) => updateButton(btn.id, { sound })}
+                accept="audio"
+                folder="site/clicker"
+                emptyLabel="📁 오디오 업로드"
+                changeLabel="파일 변경"
+              />
               <button
                 type="button"
                 className="btn-edit"
+                style={{ marginTop: 8 }}
                 disabled={(form.clickerButtons || []).length <= 1}
                 onClick={() =>
                   setForm({
@@ -2867,148 +2818,10 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
               >
                 삭제
               </button>
-            </div>
-            <div className="form-group">
-              <label className="form-label">키보드 키 (한 글자)</label>
-              <input
-                className="form-input"
-                value={btn.key}
-                maxLength={1}
-                onChange={(e) => {
-                  const key = e.target.value.slice(-1).toLowerCase() || '';
-                  setForm({
-                    ...form,
-                    clickerButtons: (form.clickerButtons || []).map((b) =>
-                      b.id === btn.id ? { ...b, key } : b,
-                    ),
-                  });
-                }}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">표시 라벨 (비우면 키)</label>
-              <input
-                className="form-input"
-                value={btn.label || ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    clickerButtons: (form.clickerButtons || []).map((b) =>
-                      b.id === btn.id ? { ...b, label: e.target.value } : b,
-                    ),
-                  })
-                }
-              />
-            </div>
-            <ImageFileField
-              label="이미지"
-              value={btn.img || ''}
-              folder="site/clicker"
-              onChange={(img) =>
-                setForm({
-                  ...form,
-                  clickerButtons: (form.clickerButtons || []).map((b) =>
-                    b.id === btn.id ? { ...b, img, imgFrame: undefined } : b,
-                  ),
-                })
-              }
-            />
-            {btn.img ? (
-              <>
-                <label
-                  className="form-group"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    cursor: 'pointer',
-                    marginBottom: 10,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={Boolean(btn.cutout)}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        clickerButtons: (form.clickerButtons || []).map((b) =>
-                          b.id === btn.id ? { ...b, cutout: e.target.checked } : b,
-                        ),
-                      })
-                    }
-                  />
-                  <span style={{ fontSize: 12, color: 'rgba(230,210,180,.88)' }}>
-                    투명 컷아웃 (배경 지운 PNG · 실루엣 테두리)
-                  </span>
-                </label>
-                <div className="form-group lh-clicker-frame-edit">
-                  <ImageFrameEditor
-                    src={btn.img}
-                    value={btn.imgFrame}
-                    onChange={(imgFrame) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        clickerButtons: (prev.clickerButtons || []).map((b) =>
-                          b.id === btn.id ? { ...b, imgFrame: { ...imgFrame, bottomBlur: 0 } } : b,
-                        ),
-                      }))
-                    }
-                    fit={btn.cutout ? 'contain' : 'cover'}
-                    pos={btn.cutout ? 'center center' : 'center top'}
-                    aspectRatio="1 / 1"
-                    className={`image-frame-editor--clicker${btn.cutout ? ' is-cutout' : ''}`}
-                    showBottomBlur={false}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="btn-edit"
-                  style={{ marginBottom: 8 }}
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      clickerButtons: (form.clickerButtons || []).map((b) =>
-                        b.id === btn.id ? { ...b, img: '', imgFrame: undefined } : b,
-                      ),
-                    })
-                  }
-                >
-                  이미지 지우기
-                </button>
-              </>
-            ) : null}
-            <AudioFileField
-              label="버튼 전용 사운드"
-              value={btn.sound || ''}
-              folder="site/clicker"
-              onChange={(sound) =>
-                setForm({
-                  ...form,
-                  clickerButtons: (form.clickerButtons || []).map((b) =>
-                    b.id === btn.id ? { ...b, sound } : b,
-                  ),
-                })
-              }
-            />
-            {btn.sound ? (
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() =>
-                  setForm({
-                    ...form,
-                    clickerButtons: (form.clickerButtons || []).map((b) =>
-                      b.id === btn.id ? { ...b, sound: '' } : b,
-                    ),
-                  })
-                }
-              >
-                버튼 사운드 지우기
-              </button>
-            ) : null}
-          </div>
-        ))}
-      </div>
+            </AccordionSection>
+          ))}
+        </RepeatableList>
+      </AccordionSection>
     </AdminPanelShell>
   );
 }
@@ -3062,16 +2875,15 @@ function MediaListAdminPanel<T extends { id: string; title: string }>({
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              title={item.title?.trim() ? item.title : '(제목 없음)'}
+              selected={editId === item.id}
               onClick={() => {
                 setEditId(item.id);
                 setForm(item);
               }}
-            >
-              <div>{item.title?.trim() ? item.title : '(제목 없음)'}</div>
-            </div>
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -3108,12 +2920,13 @@ export function AdminPanelShell({
 }: {
   title: string;
   children: ReactNode;
-  onSave: () => void | Promise<void>;
+  onSave?: () => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }) {
   const { showSaveToast } = useSaveToast();
 
   async function handleSave() {
+    if (!onSave) return;
     await onSave();
     showSaveToast();
   }
@@ -3123,9 +2936,11 @@ export function AdminPanelShell({
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <span style={{ fontSize: 12, color: 'var(--lake-copper-soft, var(--pink))' }}>{title}</span>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button type="button" className="btn-save" onClick={() => void handleSave()}>
-            저장
-          </button>
+          {onSave && (
+            <button type="button" className="btn-save" onClick={() => void handleSave()}>
+              저장
+            </button>
+          )}
           {onDelete && (
             <button type="button" className="btn-del" onClick={() => void onDelete()}>
               삭제

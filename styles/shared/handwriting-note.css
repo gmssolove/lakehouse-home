@@ -1,0 +1,125 @@
+/* 손글씨 쪽지 — 이름 앞(오른쪽 정렬 이름용) 공통 버튼 */
+
+.lh-handnote-name-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0;
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.lh-handnote-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0.35rem;
+  margin: 0.82rem 0.02rem -0.12rem 0;
+  color: rgba(250, 244, 232, 0.95);
+  cursor: pointer;
+  line-height: 0;
+  position: relative;
+  z-index: 50;
+  pointer-events: auto !important;
+  align-self: flex-end;
+  flex-shrink: 0;
+  transition:
+    filter 0.22s ease,
+    transform 0.22s ease;
+  transform: translate(0.2rem, 0.18rem);
+}
+
+.lh-handnote-btn:hover {
+  transform: translate(0.2rem, 0.06rem);
+}
+
+.lh-handnote-btn:hover .lh-handnote-btn__icon {
+  animation: none;
+  filter: brightness(3.15) contrast(1.28) saturate(1.15) drop-shadow(0 0 6px rgba(240, 207, 173, 0.55));
+  transform: translateY(-3px) scale(1.08);
+}
+
+.lh-handnote-btn:active .lh-handnote-btn__icon {
+  transform: translateY(-1px) scale(1.02);
+  filter: brightness(2.9) contrast(1.2) saturate(1.1);
+}
+
+.lh-handnote-btn__icon {
+  width: 1.7rem;
+  height: 2.15rem;
+  display: block;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  filter: brightness(2.55) contrast(1.18) saturate(1.05);
+  opacity: 1;
+  pointer-events: none;
+  transform-origin: center bottom;
+  animation: lh-handnote-float 3.4s ease-in-out infinite;
+  will-change: transform, filter;
+  transition:
+    filter 0.22s ease,
+    transform 0.22s ease;
+}
+
+@keyframes lh-handnote-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lh-handnote-btn__icon {
+    animation: none;
+  }
+}
+
+/* 편집: 펼침 효과음 블록 */
+.pair-note-sfx {
+  margin-top: 0.85rem;
+  padding: 0.7rem 0.75rem 0.75rem;
+  border-radius: 7px;
+  border: 1px solid rgba(215, 169, 130, 0.14);
+  background: linear-gradient(
+    165deg,
+    rgba(215, 169, 130, 0.05),
+    rgba(12, 14, 13, 0.35)
+  );
+}
+
+.pair-note-sfx__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.65rem;
+  margin-bottom: 0.45rem;
+}
+
+.pair-note-sfx__title {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: rgba(220, 206, 186, 0.78);
+}
+
+.pair-note-sfx__hint {
+  font-size: 10px;
+  color: rgba(168, 164, 156, 0.45);
+  line-height: 1.35;
+}
+
+.pair-note-sfx .lh-image-field {
+  margin: 0;
+}
+
+.pair-note-sfx .lh-image-field__label {
+  display: none;
+}
+
+.pair-note-sfx audio {
+  margin-top: 0.45rem;
+}

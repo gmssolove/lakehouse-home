@@ -1,9 +1,14 @@
 'use client';
 
-import { ImageFileField } from '@/components/ui/ImageFileField';
 import { LikeHateEdit } from '@/components/trpg/TrpgInvestigatorLikeHate';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
+import {
+  AccordionSection,
+  FileUploadField,
+  RepeatableList,
+  TextAreaField,
+} from '@/components/ui/form';
 import { movePlayerInList, playerOrderMeta } from '@/lib/trpg/playerOrder';
 import { newId } from '@/lib/types/site-content';
 import type { TrpgPlayerProfile, TrpgRelationship } from '@/lib/types/site-content';
@@ -24,9 +29,6 @@ export function TrpgInvestigatorInlineTab({
   players,
   relationships,
   relationshipNotes,
-  uploading,
-  onUploadStart,
-  onUploadEnd,
   onChangePlayers,
   onChangeRelationships,
   onChangeRelationshipNotes,
@@ -79,18 +81,19 @@ export function TrpgInvestigatorInlineTab({
 
   return (
     <>
-      <div className="trpg-edit-section">
-        <div className="trpg-edit-section__title">탐사자 프로필</div>
-        <div className="trpg-edit-card-list">
-          {players.map((player, index) => {
-            const order = playerOrderMeta(players, player.id);
-            return (
+      <RepeatableList addLabel="+ 탐사자 추가" onAdd={addPlayer}>
+        {players.map((player, index) => {
+          const order = playerOrderMeta(players, player.id);
+          return (
             <div key={player.id} className="trpg-edit-card-item">
               <div className="trpg-edit-card-item__head">
                 <span className="trpg-edit-card-item__label">
                   {player.name || `탐사자 ${index + 1}`}
                   {players.length > 1 ? (
-                    <span className="trpg-edit-card-item__order"> · {order.index + 1}/{order.total}</span>
+                    <span className="trpg-edit-card-item__order">
+                      {' '}
+                      · {order.index + 1}/{order.total}
+                    </span>
                   ) : null}
                 </span>
                 <div className="trpg-edit-card-item__actions">
@@ -116,48 +119,50 @@ export function TrpgInvestigatorInlineTab({
                       </button>
                     </span>
                   ) : null}
-                  <button type="button" className="trpg-edit-mini-del" onClick={() => void confirmRemovePlayer(player.id)}>
+                  <button
+                    type="button"
+                    className="trpg-edit-mini-del"
+                    onClick={() => void confirmRemovePlayer(player.id)}
+                  >
                     ✕
                   </button>
                 </div>
               </div>
-              <div className="trpg-edit-row col2">
-                <div className="trpg-edit-field">
-                  <label>이름 (한글)</label>
-                  <input
-                    className="form-input"
-                    value={player.name}
-                    onChange={(e) => updatePlayer(player.id, { name: e.target.value })}
-                  />
+
+              <AccordionSection title="기본" defaultOpen>
+                <div className="trpg-edit-row col2">
+                  <div className="trpg-edit-field">
+                    <label className="form-label">이름 (한글)</label>
+                    <input
+                      className="form-input"
+                      value={player.name}
+                      onChange={(e) => updatePlayer(player.id, { name: e.target.value })}
+                    />
+                  </div>
+                  <div className="trpg-edit-field">
+                    <label className="form-label">이름 (영문)</label>
+                    <input
+                      className="form-input"
+                      value={player.nameEn || ''}
+                      placeholder={player.name.toUpperCase()}
+                      onChange={(e) => updatePlayer(player.id, { nameEn: e.target.value })}
+                    />
+                  </div>
                 </div>
                 <div className="trpg-edit-field">
-                  <label>이름 (영문)</label>
+                  <label className="form-label">대표 한마디</label>
                   <input
                     className="form-input"
-                    value={player.nameEn || ''}
-                    placeholder={player.name.toUpperCase()}
-                    onChange={(e) => updatePlayer(player.id, { nameEn: e.target.value })}
+                    placeholder="캐릭터를 한 줄로…"
+                    value={player.quote || ''}
+                    onChange={(e) => updatePlayer(player.id, { quote: e.target.value })}
                   />
                 </div>
-              </div>
-              <div className="trpg-edit-field">
-                <label>대표 한마디</label>
-                <input
-                  className="form-input"
-                  placeholder="캐릭터를 한 줄로…"
-                  value={player.quote || ''}
-                  onChange={(e) => updatePlayer(player.id, { quote: e.target.value })}
-                />
-              </div>
-              <div className="trpg-edit-field">
-                <label>프로필 이미지</label>
-                <ImageFileField
-                  label=""
+                <FileUploadField
+                  label="프로필 이미지"
+                  accept="image"
                   value={player.img || ''}
                   folder="site/trpg/investigators"
-                  uploading={uploading}
-                  onUploadStart={onUploadStart}
-                  onUploadEnd={onUploadEnd}
                   onChange={(img) => updatePlayer(player.id, { img, imgFrame: undefined })}
                 />
                 {player.img ? (
@@ -173,118 +178,106 @@ export function TrpgInvestigatorInlineTab({
                     />
                   </div>
                 ) : null}
-              </div>
-              <div className="trpg-edit-field">
-                <label>표정 · 버전</label>
-                {(player.expressions ?? []).map((ex, i) => (
-                  <div key={ex.id} className="trpg-inv-expr-edit" style={{ marginTop: 8 }}>
-                    <div className="trpg-edit-row col2">
-                      <input
-                        className="form-input"
-                        placeholder="라벨"
-                        value={ex.label || ''}
-                        onChange={(e) => {
-                          const expressions = [...(player.expressions ?? [])];
-                          expressions[i] = { ...expressions[i], label: e.target.value };
-                          updatePlayer(player.id, { expressions });
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="trpg-edit-mini-del"
-                        onClick={() => {
-                          updatePlayer(player.id, {
-                            expressions: (player.expressions ?? []).filter((_, idx) => idx !== i),
-                          });
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <ImageFileField
-                      label=""
-                      value={ex.img || ''}
-                      folder="site/trpg/investigators"
-                      uploading={uploading}
-                      onUploadStart={onUploadStart}
-                      onUploadEnd={onUploadEnd}
-                      onChange={(img) => {
-                        const expressions = [...(player.expressions ?? [])];
-                        expressions[i] = { ...expressions[i], img, imgFrame: undefined };
-                        updatePlayer(player.id, { expressions });
-                      }}
-                    />
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  className="trpg-edit-add-btn"
-                  style={{ marginTop: 8 }}
-                  onClick={() =>
+              </AccordionSection>
+
+              <AccordionSection title="전신·표정" defaultOpen={false}>
+                <RepeatableList
+                  addLabel="+ 표정 추가"
+                  onAdd={() =>
                     updatePlayer(player.id, {
-                      expressions: [...(player.expressions ?? []), { id: newId(), label: '표정', img: '' }],
+                      expressions: [
+                        ...(player.expressions ?? []),
+                        { id: newId(), label: '표정', img: '' },
+                      ],
                     })
                   }
                 >
-                  + 표정 추가
-                </button>
-              </div>
-              <div className="trpg-edit-field">
-                <label>외관</label>
-                <textarea
-                  className="form-input"
+                  {(player.expressions ?? []).map((ex, i) => (
+                    <div key={ex.id} className="trpg-inv-expr-edit">
+                      <div className="trpg-edit-row col2">
+                        <input
+                          className="form-input"
+                          placeholder="라벨"
+                          value={ex.label || ''}
+                          onChange={(e) => {
+                            const expressions = [...(player.expressions ?? [])];
+                            expressions[i] = { ...expressions[i], label: e.target.value };
+                            updatePlayer(player.id, { expressions });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="trpg-edit-mini-del"
+                          onClick={() => {
+                            updatePlayer(player.id, {
+                              expressions: (player.expressions ?? []).filter((_, idx) => idx !== i),
+                            });
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <FileUploadField
+                        label="표정 이미지"
+                        accept="image"
+                        value={ex.img || ''}
+                        folder="site/trpg/investigators"
+                        onChange={(img) => {
+                          const expressions = [...(player.expressions ?? [])];
+                          expressions[i] = { ...expressions[i], img, imgFrame: undefined };
+                          updatePlayer(player.id, { expressions });
+                        }}
+                      />
+                    </div>
+                  ))}
+                </RepeatableList>
+              </AccordionSection>
+
+              <AccordionSection title="텍스트" defaultOpen={false}>
+                <TextAreaField
+                  label="외관"
                   rows={2}
                   value={player.appearance || ''}
-                  onChange={(e) => updatePlayer(player.id, { appearance: e.target.value })}
+                  onChange={(appearance) => updatePlayer(player.id, { appearance })}
                 />
-              </div>
-              <div className="trpg-edit-field">
-                <label>성격</label>
-                <textarea
-                  className="form-input"
+                <TextAreaField
+                  label="성격"
                   rows={2}
                   value={player.personality || ''}
-                  onChange={(e) => updatePlayer(player.id, { personality: e.target.value })}
+                  onChange={(personality) => updatePlayer(player.id, { personality })}
                 />
-              </div>
-              <div className="trpg-edit-field">
-                <label>특징</label>
-                <textarea
-                  className="form-input"
+                <TextAreaField
+                  label="특징"
                   rows={2}
                   value={player.traits || ''}
-                  onChange={(e) => updatePlayer(player.id, { traits: e.target.value })}
+                  onChange={(traits) => updatePlayer(player.id, { traits })}
                 />
-              </div>
-              <LikeHateEdit
-                variant="inline"
-                likes={player.likes || ''}
-                dislikes={player.dislikes || ''}
-                onChangeLikes={(likes) => updatePlayer(player.id, { likes })}
-                onChangeDislikes={(dislikes) => updatePlayer(player.id, { dislikes })}
-              />
-              <div className="trpg-edit-field">
-                <label>배경</label>
-                <textarea
-                  className="form-input"
+                <LikeHateEdit
+                  variant="inline"
+                  likes={player.likes || ''}
+                  dislikes={player.dislikes || ''}
+                  onChangeLikes={(likes) => updatePlayer(player.id, { likes })}
+                  onChangeDislikes={(dislikes) => updatePlayer(player.id, { dislikes })}
+                />
+                <TextAreaField
+                  label="배경"
                   rows={3}
                   placeholder="캐릭터 배경·설정"
                   value={player.bio || ''}
-                  onChange={(e) => updatePlayer(player.id, { bio: e.target.value })}
+                  onChange={(bio) => updatePlayer(player.id, { bio })}
                 />
-              </div>
+              </AccordionSection>
             </div>
-            );
-          })}
-        </div>
-        <button type="button" className="trpg-edit-add-btn" onClick={addPlayer}>
-          + 탐사자 추가
-        </button>
-      </div>
+          );
+        })}
+      </RepeatableList>
 
-      <div className="trpg-edit-section">
-        <div className="trpg-edit-section__title">탐사자 관계</div>
-        <div className="trpg-edit-card-list">
+      <AccordionSection title="탐사자 관계" defaultOpen>
+        <RepeatableList
+          addLabel="+ 관계 추가"
+          onAdd={addRelation}
+          addDisabled={players.length < 1}
+        >
           {relationships.map((rel, index) => (
             <div key={rel.id} className="trpg-edit-card-item">
               <div className="trpg-edit-card-item__head">
@@ -298,7 +291,7 @@ export function TrpgInvestigatorInlineTab({
               </div>
               <div className="trpg-edit-row col2">
                 <div className="trpg-edit-field">
-                  <label>출발</label>
+                  <label className="form-label">출발</label>
                   <select
                     className="form-input"
                     value={rel.fromId}
@@ -312,7 +305,7 @@ export function TrpgInvestigatorInlineTab({
                   </select>
                 </div>
                 <div className="trpg-edit-field">
-                  <label>대상</label>
+                  <label className="form-label">대상</label>
                   <select
                     className="form-input"
                     value={rel.toId}
@@ -327,7 +320,7 @@ export function TrpgInvestigatorInlineTab({
                 </div>
               </div>
               <div className="trpg-edit-field">
-                <label>관계 설명</label>
+                <label className="form-label">관계 설명</label>
                 <input
                   className="form-input"
                   value={rel.label || ''}
@@ -337,24 +330,18 @@ export function TrpgInvestigatorInlineTab({
               </div>
             </div>
           ))}
-        </div>
-        <button type="button" className="trpg-edit-add-btn" onClick={addRelation} disabled={players.length < 1}>
-          + 관계 추가
-        </button>
-      </div>
+        </RepeatableList>
+      </AccordionSection>
 
-      <div className="trpg-edit-section">
-        <div className="trpg-edit-section__title">관계도 메모</div>
-        <div className="trpg-edit-field">
-          <textarea
-            className="form-input"
-            rows={4}
-            placeholder="관계도 전체 메모"
-            value={relationshipNotes}
-            onChange={(e) => onChangeRelationshipNotes(e.target.value)}
-          />
-        </div>
-      </div>
+      <AccordionSection title="관계도 메모" defaultOpen={false}>
+        <TextAreaField
+          label="관계도 메모"
+          rows={4}
+          placeholder="관계도 전체 메모"
+          value={relationshipNotes}
+          onChange={onChangeRelationshipNotes}
+        />
+      </AccordionSection>
     </>
   );
 }

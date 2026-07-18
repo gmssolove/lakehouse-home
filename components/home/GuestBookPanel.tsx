@@ -46,12 +46,6 @@ function canEditReply(reply: GuestReply, user: User | null, isAdmin: boolean) {
   return !!reply.authorUid && reply.authorUid === user.uid;
 }
 
-function canDeleteEntry(entry: GuestEntry, user: User | null, isAdmin: boolean) {
-  if (!user) return false;
-  if (isAdmin) return true;
-  return !!entry.authorUid && entry.authorUid === user.uid;
-}
-
 function parseGuestName(name: string): { num: string; nick: string } {
   const m = name.trim().match(/^No\.\s*(\d+)\s*(.*)$/i);
   if (m) {
@@ -241,12 +235,6 @@ function GuestCard({
     showDeleteToast();
   }
 
-  async function deleteGuest() {
-    if (!(await confirm('이 방명록을 삭제할까요?'))) return;
-    await onSaveGuests(guests.filter((g) => g.id !== entry.id));
-    showDeleteToast();
-  }
-
   function openComposer() {
     setComposerText('');
     setComposerOpen(true);
@@ -352,11 +340,6 @@ function GuestCard({
           <LakeIconToolButton label="답변 작성" onClick={openComposer}>
             <LakeReplyBackIcon />
           </LakeIconToolButton>
-          {canDeleteEntry(entry, user, isAdmin) ? (
-            <LakeIconToolButton label="방명록 삭제" onClick={() => void deleteGuest()}>
-              <LakeDeleteIcon />
-            </LakeIconToolButton>
-          ) : null}
         </div>
       ) : null}
 
@@ -536,7 +519,24 @@ export function GuestBookPanel({ guests, user, isAdmin, onSaveGuests, onOpenAuth
 
       {guideText ? (
         <div className="guest-guide">
-          <div className="guest-guide__inner">{guideText}</div>
+          <div className="guest-guide__inner">
+            <svg
+              className="guest-guide__pin"
+              aria-hidden
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 3h6l-1 5 3 3v2H7v-2l3-3-1-5Z" />
+              <line x1="12" y1="13" x2="12" y2="21" />
+            </svg>
+            {guideText}
+          </div>
         </div>
       ) : null}
 

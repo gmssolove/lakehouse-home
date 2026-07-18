@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { buildPvIntroPlan, estimatePvIntroMs } from '@/lib/oc/pvIntroTiming';
+import { buildPvIntroPlan, countPvChars, holdMsForLine } from '@/lib/oc/pvIntroTiming';
 import type { OcCharacter } from '@/lib/types/character';
 import { pickQuoteLines } from '@/lib/oc/profileQuotes';
 
@@ -57,11 +57,20 @@ function SweepQuote({
   );
 }
 
+const NOOP = () => {};
+
 export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: Props) {
-  const lines = useMemo(() => pickQuoteLines(character).slice(0, 2), [character]);
+  const lines = useMemo(() => pickQuoteLines(character).slice(0, 3), [character]);
   const linesKey = lines.join('\n');
-  const plan = useMemo(() => buildPvIntroPlan(lines, durationMs), [durationMs, lines]);
-  const [lineIndex, setLineIndex] = useState(0);
+  /* 모든 줄을 한 번에 스윕한다 — 줄마다 순차로 늦게 뜨지 않도록. */
+  const sweepMs = useMemo(() => {
+    const plan = buildPvIntroPlan(lines, durationMs);
+    return plan.length ? Math.max(...plan.map((p) => p.sweepMs)) : 700;
+  }, [durationMs, lines]);
+  const holdMs = useMemo(
+    () => holdMsForLine(lines.reduce((sum, l) => sum + countPvChars(l), 0), true),
+    [lines],
+  );
   const [sweeping, setSweeping] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -91,55 +100,39 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
     onCancelRef.current();
   }, []);
 
-  const onLineSwept = useCallback(() => setSweeping(false), []);
-
-  const skipSweep = useCallback(() => {
-    if (sweeping) setSweeping(false);
-  }, [sweeping]);
-
   useEffect(() => {
-    setLineIndex(0);
     setSweeping(true);
     setFadeOut(false);
     setExiting(false);
     doneRef.current = false;
   }, [linesKey, durationMs]);
 
+  // 전 줄 동시 스윕 → 완료
   useEffect(() => {
     if (!lines.length) {
       onCompleteRef.current(false);
       return;
     }
+    const t = window.setTimeout(() => setSweeping(false), sweepMs);
+    return () => window.clearTimeout(t);
+  }, [lines.length, linesKey, sweepMs]);
 
-    const totalMs = estimatePvIntroMs(lines, durationMs) + EXIT_MS + 120;
-    const hardCap = window.setTimeout(() => finish(false), totalMs);
-    return () => window.clearTimeout(hardCap);
-  }, [durationMs, finish, lines.length, linesKey]);
-
+  // 스윕 후 읽기 대기 → 종료
   useEffect(() => {
     if (!lines.length || sweeping) return;
-
-    const step = plan[lineIndex];
-    if (!step) {
-      finish(false);
-      return;
-    }
-
-    const t = window.setTimeout(() => {
-      if (lineIndex < lines.length - 1) {
-        setLineIndex((i) => i + 1);
-        setSweeping(true);
-        return;
-      }
-      finish(false);
-    }, step.pauseAfterMs);
-
+    const t = window.setTimeout(() => finish(false), holdMs);
     return () => window.clearTimeout(t);
-  }, [finish, lineIndex, lines.length, plan, sweeping]);
+  }, [finish, holdMs, lines.length, sweeping]);
+
+  // 안전 상한 — 타이머가 어긋나도 확실히 종료
+  useEffect(() => {
+    if (!lines.length) return;
+    const cap = window.setTimeout(() => finish(false), sweepMs + holdMs + EXIT_MS + 200);
+    return () => window.clearTimeout(cap);
+  }, [finish, holdMs, lines.length, linesKey, sweepMs]);
 
   useEffect(() => {
     if (!lines.length) return;
-
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -148,61 +141,45 @@ export function OcProfileIntro({ character, durationMs, onComplete, onCancel }: 
       }
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        if (sweeping) {
-          skipSweep();
-          return;
-        }
-        if (lineIndex < lines.length - 1) {
-          setLineIndex((i) => i + 1);
-          setSweeping(true);
-        } else {
-          finish(false);
-        }
+        if (sweeping) setSweeping(false);
+        else finish(false);
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [cancel, finish, lineIndex, lines.length, skipSweep, sweeping]);
+  }, [cancel, finish, lines.length, sweeping]);
 
   if (!lines.length) return null;
-
-  const currentSweepMs = plan[lineIndex]?.sweepMs ?? 500;
 
   return (
     <div className={`oc-pv-intro oc-pv-intro--cinema${exiting ? ' is-exiting' : ''}`} role="presentation">
       <div className="oc-pv-intro-backdrop" aria-hidden="true" />
 
       <div className={`oc-pv-intro-stage${fadeOut ? ' is-fading' : ''}`}>
-        {lines.map((line, i) => {
-          if (i > lineIndex) return null;
-          const isCurrent = i === lineIndex;
-          return (
-            <div
-              key={i}
-              className={`oc-pv-intro-quote-wrap oc-pv-intro-quote-wrap-${i + 1} visible`}
-            >
-              {isCurrent && sweeping ? (
-                <SweepQuote text={line} sweepMs={currentSweepMs} active onDone={onLineSwept} />
-              ) : (
-                <p className="oc-pv-intro-quote is-revealed">
-                  <span className="oc-pv-intro-quote-inner">{line}</span>
-                </p>
-              )}
-              {isCurrent ? (
-                <button
-                  type="button"
-                  className="oc-pv-intro-skip"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    finish(true);
-                  }}
-                >
-                  SKIP
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            className={`oc-pv-intro-quote-wrap oc-pv-intro-quote-wrap-${i + 1} visible`}
+          >
+            {sweeping ? (
+              <SweepQuote text={line} sweepMs={sweepMs} active onDone={NOOP} />
+            ) : (
+              <p className="oc-pv-intro-quote is-revealed">
+                <span className="oc-pv-intro-quote-inner">{line}</span>
+              </p>
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          className="oc-pv-intro-skip"
+          onClick={(e) => {
+            e.stopPropagation();
+            finish(true);
+          }}
+        >
+          SKIP
+        </button>
       </div>
     </div>
   );

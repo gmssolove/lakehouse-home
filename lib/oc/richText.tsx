@@ -13,6 +13,8 @@ import {
   type OpenHit,
   type RichMarkKind,
 } from '@/lib/oc/richTextMarks';
+import { isSoftBreakBr } from '@/lib/oc/richEditorSelection';
+import { matchRichIconAt, normalizeRichIconId, richIconMarker } from '@/lib/oc/richIcons';
 
 export type { RichMarkKind };
 export {
@@ -134,12 +136,62 @@ function parseMarksToParagraphs(text: string, keyPrefix: string): ReactNode[][] 
   const walk = (str: string, prefix: string) => {
     let i = 0;
     while (i < str.length) {
+      const icon = matchRichIconAt(str, i);
+      if (icon) {
+        flushText();
+        buf.push(
+          <i
+            key={`${prefix}-ico${n++}`}
+            className={`ti ti-${icon.id} oc-rich-icon`}
+            data-rich="icon"
+            data-icon={icon.id}
+            aria-hidden
+          />,
+        );
+        i += icon.len;
+        continue;
+      }
+
       const open = findEarliestOpen(str, i);
       if (!open) {
-        emitLiteral(str.slice(i));
+        let j = i;
+        while (j < str.length) {
+          const restIcon = matchRichIconAt(str, j);
+          if (restIcon) {
+            flushText();
+            buf.push(
+              <i
+                key={`${prefix}-ico${n++}`}
+                className={`ti ti-${restIcon.id} oc-rich-icon`}
+                data-rich="icon"
+                data-icon={restIcon.id}
+                aria-hidden
+              />,
+            );
+            j += restIcon.len;
+            continue;
+          }
+          const bang = str.indexOf('{!', j);
+          if (bang < 0) {
+            emitLiteral(str.slice(j));
+            break;
+          }
+          if (bang > j) emitLiteral(str.slice(j, bang));
+          j = bang;
+        }
         break;
       }
-      if (open.index > i) emitLiteral(str.slice(i, open.index));
+      if (open.index > i) {
+        const bang = str.indexOf('{!', i);
+        if (bang >= 0 && bang < open.index) {
+          if (bang > i) emitLiteral(str.slice(i, bang));
+          i = bang;
+          continue;
+        }
+        emitLiteral(str.slice(i, open.index));
+        i = open.index;
+        continue;
+      }
 
       const contentStart = open.index + open.openLen;
       const closed = findMarkClose(str, contentStart, open);
@@ -191,12 +243,19 @@ function serializeInline(node: Node): string {
 
   const el = node as HTMLElement;
   const tag = el.tagName.toLowerCase();
-  if (tag === 'br') return '';
+  /* 문단 끝 placeholder <br>는 무시. 뒤에 콘텐츠가 있으면 소프트 줄바꿈. */
+  if (tag === 'br') return isSoftBreakBr(el) ? '\n' : '';
+
+  const richEarly = el.dataset.rich || '';
+  if (richEarly === 'icon' || el.classList.contains('oc-rich-icon')) {
+    const id = normalizeRichIconId(el.dataset.icon || '');
+    return id ? richIconMarker(id) : '';
+  }
 
   let out = Array.from(el.childNodes).map(serializeInline).join('');
   if (!out) return '';
 
-  const rich = el.dataset.rich || '';
+  const rich = richEarly;
   const fw = el.style?.fontWeight || '';
   const fs = el.style?.fontStyle || '';
   const td = `${el.style?.textDecorationLine || ''} ${el.style?.textDecoration || ''}`;
@@ -211,7 +270,7 @@ function serializeInline(node: Node): string {
     (!styledCarrier && !rich && (fw === 'bold' || fw === '700' || Number(fw) >= 600));
   const italic =
     tag === 'em' ||
-    tag === 'i' ||
+    (tag === 'i' && !el.classList.contains('ti')) ||
     el.classList.contains('oc-rich-italic') ||
     rich === 'italic' ||
     (!styledCarrier && !rich && (fs === 'italic' || fs === 'oblique'));
@@ -268,11 +327,16 @@ export function editorHtmlToMarks(root: HTMLElement): string {
     }
     const el = child as HTMLElement;
     const tag = el.tagName.toLowerCase();
+    if (tag === 'hr' || el.dataset.rich === 'hr' || el.classList.contains('oc-rich-hr')) {
+      blocks.push('---');
+      continue;
+    }
     if (tag === 'p' || tag === 'div' || tag === 'li') {
       const blank =
         el.classList.contains('oc-rich-p--blank') ||
         (!el.textContent?.replace(/\u00a0/g, '').trim() && !!el.querySelector('br'));
-      blocks.push(blank ? '' : serializeInline(el).replace(/\u00a0/g, ' '));
+      const inline = blank ? '' : serializeInline(el).replace(/\u00a0/g, ' ');
+      blocks.push(inline.trim() === '---' ? '---' : inline);
     }
   }
 
@@ -280,7 +344,8 @@ export function editorHtmlToMarks(root: HTMLElement): string {
     return Array.from(root.childNodes).map(serializeInline).join('').replace(/\u00a0/g, ' ');
   }
 
-  while (blocks.length > 1 && blocks[blocks.length - 1] === '') blocks.pop();
+  /* 맨 끝 빈 문단 1개는 유지 (다음 줄 캐럿·구분선 삽입용). 2개 이상만 축소 */
+  while (blocks.length > 2 && blocks[blocks.length - 1] === '') blocks.pop();
   return blocks.join('\n');
 }
 
@@ -297,6 +362,7 @@ export function OcRichText({
   if (!normalized) return null;
 
   const paragraphs = parseMarksToParagraphs(normalized, 'p');
+  const plains = projectPlainOffsets(normalized).plain.split('\n');
 
   if (Tag === 'span') {
     const flat = paragraphs.flatMap((nodes, i) =>
@@ -305,16 +371,22 @@ export function OcRichText({
     return <span className={className}>{flat}</span>;
   }
 
+  /* as="p"는 문단 <p>와 중첩되어 hydration 오류 → 블록 래퍼는 항상 div */
+  const Wrapper = 'div' as const;
+
   return (
-    <Tag className={['oc-rich-text', className].filter(Boolean).join(' ')}>
+    <Wrapper className={['oc-rich-text', className].filter(Boolean).join(' ')}>
       {paragraphs.map((nodes, i) => {
         const blank = !nodes.length;
+        if ((plains[i] ?? '').trim() === '---') {
+          return <hr key={i} className="oc-rich-hr" />;
+        }
         return (
           <p key={i} className={blank ? 'oc-rich-p oc-rich-p--blank' : 'oc-rich-p'}>
             {blank ? '\u00A0' : nodes}
           </p>
         );
       })}
-    </Tag>
+    </Wrapper>
   );
 }

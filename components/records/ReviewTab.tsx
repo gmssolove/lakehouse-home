@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState, type AnimationEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type AnimationEvent } from 'react';
 import type { User } from 'firebase/auth';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
+import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
+import {
+  isLakeItemUnlocked,
+  resolveItemPassword,
+  unlockLakeItem,
+  verifyLakeAccessPassword,
+} from '@/lib/lake/accessGate';
+import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { RecordsWriteShell, useRecordsComposer } from '@/components/records/RecordsWriteShell';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
@@ -122,14 +130,16 @@ function StarRatingInput({ value, onChange }: { value: number; onChange: (n: num
 }
 
 export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: Props) {
-  const { reviews, reviewCategories, saveReviews } = useSiteContent();
+  const { reviews, reviewCategories, saveReviews, accessSettings } = useSiteContent();
   const persist = onSave || saveReviews;
   const { showSaveToast } = useSaveToast();
   const { confirm } = useLakeDialog();
   const { open, leaving, openComposer, closeComposer, finishClose } = useRecordsComposer();
   const [filter, setFilter] = useState('all');
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [gateItem, setGateItem] = useState<ReviewItem | null>(null);
   const [detailLeaving, setDetailLeaving] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [quoteRevealed, setQuoteRevealed] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -163,6 +173,9 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
   }, [reviews, filter]);
 
   const detail = detailId ? reviews.find((r) => r.id === detailId) || null : null;
+
+  // 리뷰 상세가 열려 있으면 뒤로가기 시 메뉴 전체가 아니라 상세만 닫는다
+  useLakeBackNavigation(active && !!detailId && !detailLeaving, () => requestCloseDetail(), 'review-detail');
 
   useEffect(() => {
     if (active) return;
@@ -233,13 +246,36 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
   }
 
   function openDetail(id: string) {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
     setDetailLeaving(false);
     setDetailId(id);
+  }
+
+  // 비밀 리뷰는 상세를 열기 전에 카드 클릭 시점에서 바로 비밀번호를 묻는다.
+  function isReviewLocked(item: ReviewItem) {
+    if (isAdmin || !item.secret) return false;
+    const pw = resolveItemPassword('review', item, accessSettings);
+    return !isLakeItemUnlocked('review', item.id, pw);
+  }
+
+  function handleCardClick(item: ReviewItem) {
+    if (isReviewLocked(item)) setGateItem(item);
+    else openDetail(item.id);
   }
 
   function requestCloseDetail() {
     if (!detailId || detailLeaving) return;
     setDetailLeaving(true);
+    // 애니메이션 end 이벤트가 누락돼도 확실히 닫히도록 타이머 백업
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setDetailId(null);
+      setDetailLeaving(false);
+      setQuoteRevealed(false);
+    }, DETAIL_OUT_MS + 60);
   }
 
   function finishDetailClose() {
@@ -307,6 +343,7 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
 
     return (
       <div
+        key="review-detail-view"
         className={`lh-review lh-review--detail${detailLeaving ? ' is-out' : ' is-in'}`}
         onAnimationEnd={onDetailAnimEnd}
         style={detailLeaving ? { animationDuration: `${DETAIL_OUT_MS}ms` } : undefined}
@@ -335,6 +372,14 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
           ) : null}
         </div>
 
+        <SecretItemGate
+          scope="review"
+          item={detail}
+          isAdmin={isAdmin}
+          loggedIn={!!user}
+          onRequestLogin={onOpenAuth}
+          lockedLabel="비밀 리뷰 — 탭하여 열람"
+        >
         <article className="lh-review__detail">
           <div className="lh-review__detail-media">
             <div className="lh-review__detail-cover">
@@ -379,6 +424,7 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
             {detail.body ? <div className="lh-review__detail-body">{detail.body}</div> : null}
           </div>
         </article>
+        </SecretItemGate>
 
         {isAdmin && open ? (
           <RecordsWriteShell
@@ -450,7 +496,7 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
   }
 
   return (
-    <div className="lh-review">
+    <div key="review-list-view" className="lh-review">
       <RecordsWriteShell
         heading="Review"
         sub="리뷰"
@@ -543,50 +589,72 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
           const genreText =
             (item.genres && item.genres.length ? item.genres : item.tags)?.join(' · ') || '';
           return (
-            <SecretItemGate
+            <button
               key={item.id}
-              scope="review"
-              item={item}
-              isAdmin={isAdmin}
-              loggedIn={!!user}
-              onRequestLogin={onOpenAuth}
+              type="button"
+              className="lh-review__card"
+              onClick={() => handleCardClick(item)}
             >
-              <button type="button" className="lh-review__card" onClick={() => openDetail(item.id)}>
-                <div className="lh-review__cover">
-                  {item.coverUrl ? (
-                    <img src={item.coverUrl} alt="" />
-                  ) : (
-                    <div className="lh-review__cover-empty">{item.title[0] || '?'}</div>
-                  )}
-                  {item.secret ? (
-                    <span className="lh-review__card-secret" aria-hidden>
-                      <SecretLockBadge compact />
+              <div className="lh-review__cover">
+                {item.coverUrl ? (
+                  <img src={item.coverUrl} alt="" loading="lazy" decoding="async" />
+                ) : (
+                  <div className="lh-review__cover-empty">{item.title[0] || '?'}</div>
+                )}
+                {item.secret ? (
+                  <span className="lh-review__card-secret" aria-hidden>
+                    <SecretLockBadge compact />
+                  </span>
+                ) : null}
+                <div className="lh-review__card-hover" aria-hidden="true">
+                  <strong className="lh-review__card-hover-title">
+                    {item.title}
+                    {item.year ? ` (${item.year})` : ''}
+                  </strong>
+                  {genreText ? <span className="lh-review__card-hover-genre">{genreText}</span> : null}
+                  {statusLabel(item.status) ? (
+                    <span
+                      className={`lh-review__chip lh-review__chip--status is-${item.status || 'custom'}`}
+                    >
+                      {statusLabel(item.status)}
                     </span>
                   ) : null}
-                  <div className="lh-review__card-hover" aria-hidden="true">
-                    <strong className="lh-review__card-hover-title">
-                      {item.title}
-                      {item.year ? ` (${item.year})` : ''}
-                    </strong>
-                    {genreText ? <span className="lh-review__card-hover-genre">{genreText}</span> : null}
-                    {statusLabel(item.status) ? (
-                      <span
-                        className={`lh-review__chip lh-review__chip--status is-${item.status || 'custom'}`}
-                      >
-                        {statusLabel(item.status)}
-                      </span>
-                    ) : null}
-                  </div>
                 </div>
-                <div className="lh-review__card-meta">
-                  <Stars rating={item.rating} showValue={false} />
-                  {item.date ? <time className="lh-review__date">{formatCardDate(item.date)}</time> : null}
-                </div>
-              </button>
-            </SecretItemGate>
+              </div>
+              <div className="lh-review__card-meta">
+                <Stars rating={item.rating} showValue={false} />
+                {item.date ? <time className="lh-review__date">{formatCardDate(item.date)}</time> : null}
+              </div>
+            </button>
           );
         })}
       </div>
+
+      {gateItem ? (
+        <LakeAccessGateModal
+          open={!!gateItem}
+          scope="review"
+          title="Review Access"
+          item={gateItem}
+          accessSettings={accessSettings}
+          loggedIn={!!user}
+          onClose={() => setGateItem(null)}
+          onRequestLogin={() => {
+            setGateItem(null);
+            onOpenAuth();
+          }}
+          onSuccess={() => {
+            const id = gateItem.id;
+            setGateItem(null);
+            openDetail(id);
+          }}
+          verifyOverride={(input) => {
+            if (!verifyLakeAccessPassword('review', input, accessSettings, gateItem)) return false;
+            unlockLakeItem('review', gateItem.id, resolveItemPassword('review', gateItem, accessSettings));
+            return true;
+          }}
+        />
+      ) : null}
     </div>
   );
 }

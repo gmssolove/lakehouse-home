@@ -538,6 +538,42 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
   width: min(64rem, 100%);
 }
 
+/* ── 공지: 화면 세로 중앙 + 텍스트 가운데 + 헤더·본문 간격 확대 ──
+   (#page-notice + :not(#page-main) 로 id 2개 → 위 기본 규칙보다 우선)
+   ※ 배너는 다른 메뉴와 동일하게 두므로 여기서 제외 */
+.layout.layout--home #page-notice.content-block.active:not(#page-main) {
+  top: clamp(3rem, 6.5vh, 5rem) !important;
+  bottom: clamp(3rem, 6.5vh, 5rem) !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+.layout.layout--home #page-notice.content-block.active:not(#page-main) > * {
+  width: min(600px, 100%) !important;
+}
+
+.layout.layout--home #page-notice.content-block.active:not(#page-main) .page-heading {
+  margin-bottom: 1.6rem !important;
+}
+
+.layout.layout--home #page-notice.content-block.active:not(#page-main) .page-sub {
+  margin-bottom: 3rem !important;
+}
+
+.layout.layout--home #page-notice.content-block.active:not(#page-main) #notice-list {
+  margin-top: 0.5rem !important;
+}
+
+/* 경고 세로선·불릿 장식은 내용 너비에 맞춰(fit-content) 가운데 → 텍스트와 함께 중앙 */
+.layout.layout--home #page-notice.content-block.active:not(#page-main) .lh-notice-body__warn,
+.layout.layout--home #page-notice.content-block.active:not(#page-main) .lh-notice-body__list {
+  width: fit-content !important;
+  max-width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  text-align: left !important;
+}
+
 /* TRPG — 카드 그리드용 overflow만 완화 */
 .layout.layout--home {
   --lh-menu-safe: clamp(15rem, 14vw + 6rem, 18rem);

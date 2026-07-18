@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
-import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { useOcData } from '@/lib/hooks/useOcData';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
@@ -114,9 +113,6 @@ export function TrpgScenarioList({
   items,
   empty,
   onTicketClick,
-  isAdmin = false,
-  loggedIn = false,
-  onOpenAuth,
 }: Props) {
   const { trpgSettings } = useSiteContent();
   const { characters } = useOcData();
@@ -187,24 +183,17 @@ export function TrpgScenarioList({
         <div className="trpg-card-grid" id="trpg-cards">
           {filtered.map((raw) => {
             const item = normalizeTrpgScenario(raw);
+            /* 썸네일·호버 정보는 잠김과 무관하게 노출. 실제 열람은 클릭 → 시나리오
+               페이지에서 비밀번호 게이트가 처리한다. */
             return (
-              <SecretItemGate
+              <TrpgCard
                 key={item.id}
-                scope="trpg"
-                item={item}
-                isAdmin={isAdmin}
-                loggedIn={loggedIn}
-                onRequestLogin={onOpenAuth || (() => undefined)}
-                lockedLabel="비밀 시나리오 — 탭하여 열람"
-              >
-                <TrpgCard
-                  raw={item}
-                  aspect={aspect}
-                  ocNameById={ocNameById}
-                  ocImgById={ocImgById}
-                  onTicketClick={onTicketClick}
-                />
-              </SecretItemGate>
+                raw={item}
+                aspect={aspect}
+                ocNameById={ocNameById}
+                ocImgById={ocImgById}
+                onTicketClick={onTicketClick}
+              />
             );
           })}
         </div>

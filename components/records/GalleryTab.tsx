@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
+import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { RecordsWriteShell, useRecordsComposer } from '@/components/records/RecordsWriteShell';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
@@ -115,6 +116,9 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
   );
   const detail = detailId ? items.find((i) => i.id === detailId) || null : null;
 
+  // 갤러리 상세가 열려 있으면 뒤로가기 시 메뉴 전체가 아니라 상세만 닫는다
+  useLakeBackNavigation(active && !!detailId && !detailLeaving, () => closeDetail(), 'gallery-detail');
+
   useEffect(() => {
     if (active) return;
     setDetailId(null);
@@ -127,6 +131,27 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
     if (open) closeComposer();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- leave Gallery menu
   }, [active]);
+
+  useEffect(() => {
+    if (!detailId) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, [contenteditable="true"]')) return;
+      const idx = items.findIndex((i) => i.id === detailId);
+      if (idx < 0) return;
+      const next = items[idx + (e.key === 'ArrowLeft' ? -1 : 1)];
+      if (!next) return;
+      setCommentsOpen(false);
+      setCommentsLeaving(false);
+      setCommentDraft('');
+      setReplyToId(null);
+      setReplyDraft('');
+      setDetailId(next.id);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [detailId, items]);
 
   function resetComposer() {
     setEditingId(null);
@@ -165,6 +190,21 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
     setReplyToId(null);
     setReplyDraft('');
     setDetailId(id);
+  }
+
+  /** 상세에서 이전/다음 글로 이동 (#3) */
+  function goAdjacent(dir: -1 | 1) {
+    if (!detailId) return;
+    const idx = items.findIndex((i) => i.id === detailId);
+    if (idx < 0) return;
+    const next = items[idx + dir];
+    if (!next) return;
+    setCommentsOpen(false);
+    setCommentsLeaving(false);
+    setCommentDraft('');
+    setReplyToId(null);
+    setReplyDraft('');
+    setDetailId(next.id);
   }
 
   function closeDetail() {
@@ -412,13 +452,39 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
     const likedBy = detail.likedBy || [];
     const liked = !!user && likedBy.includes(user.uid);
     const comments = detail.comments ?? [];
+    const detailIndex = items.findIndex((i) => i.id === detail.id);
+    const hasPrev = detailIndex > 0;
+    const hasNext = detailIndex >= 0 && detailIndex < items.length - 1;
 
     return (
-      <div className={`lh-gallery lh-gallery--detail${detailLeaving ? ' is-out' : ' is-in'}`}>
+      <div
+        key="gallery-detail-view"
+        className={`lh-gallery lh-gallery--detail${detailLeaving ? ' is-out' : ' is-in'}`}
+      >
         <div className="lh-gallery__detail-top">
           <button type="button" className="lh-gallery__back" onClick={closeDetail}>
             ← 목록으로
           </button>
+          <div className="lh-gallery__detail-nav">
+            <button
+              type="button"
+              className="lh-gallery__nav-btn"
+              onClick={() => goAdjacent(-1)}
+              disabled={!hasPrev}
+              aria-label="이전 글"
+            >
+              ‹ 이전
+            </button>
+            <button
+              type="button"
+              className="lh-gallery__nav-btn"
+              onClick={() => goAdjacent(1)}
+              disabled={!hasNext}
+              aria-label="다음 글"
+            >
+              다음 ›
+            </button>
+          </div>
           {isAdmin ? (
             <div className="lh-gallery__detail-tools">
               <button type="button" className="lh-diary__pill lh-diary__pill--ghost" onClick={() => startEdit(detail)}>
@@ -634,7 +700,7 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
   }
 
   return (
-    <div className="lh-gallery">
+    <div key="gallery-list-view" className="lh-gallery">
       {composer}
 
       {!items.length ? <div className="page-coming">— 사진이 없습니다 —</div> : null}
@@ -656,7 +722,7 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
                 className={`lh-gallery__thumb${hasTitle ? '' : ' is-notitle'}`}
                 onClick={() => openDetail(item.id)}
               >
-                <img src={item.img} alt={item.title?.trim() || ''} />
+                <img src={item.img} alt={item.title?.trim() || ''} loading="lazy" decoding="async" />
                 <span className="lh-gallery__scrim">
                   {hasTitle ? <span className="lh-gallery__cap">{item.title!.trim()}</span> : null}
                 </span>

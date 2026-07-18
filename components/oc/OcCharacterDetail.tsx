@@ -6,7 +6,11 @@ import { useBgm } from '@/lib/contexts/BgmContext';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { OcEditForm } from '@/components/admin/OcEditForm';
+import { creepyFxClass, creepyFxStyle } from '@/lib/oc/creepyFx';
+import { DustAtmosphere } from '@/components/shared/DustAtmosphere';
+import { useCreepyGlyphScramble } from '@/lib/hooks/useCreepyGlyphScramble';
 import { LakeEditModal } from '@/components/ui/LakeEditModal';
+import { OcAbilityList } from '@/components/oc/OcAbilityList';
 import { OcAuPicker } from '@/components/oc/OcAuPicker';
 import { OcFloatingQuotes } from '@/components/oc/OcFloatingQuotes';
 import { OcVnDialogue, useVnDialogue } from '@/components/oc/OcVnDialogue';
@@ -26,10 +30,14 @@ import { VnCharBloom, VnCharFx } from '@/components/shared/VnCharFx';
 import type { GalleryItem, ImageFrame, OcCharacter, OcFloatingQuote, CharacterRelation, StoryEntry, StoryLog, TouchHoverStyle, TouchZone, TouchZoneLine } from '@/lib/types/character';
 import { TouchReactOverlay } from '@/components/pair/TouchReactOverlay';
 import { CursorFollowTipHost, CursorTipZone } from '@/components/shared/CursorFollowTip';
+import { RiskBadges } from '@/components/shared/RiskBadges';
 import { StoryEntryList } from '@/components/shared/StoryEntryList';
 import { StoryReader } from '@/components/shared/StoryReader';
 import { PreviewCarousel } from '@/components/shared/PreviewCarousel';
+import { OcStatHoverPanel } from '@/components/oc/OcStatHoverPanel';
+import { HandwritingNoteFlap } from '@/components/pair/HandwritingNoteFlap';
 import { hydrateOcStories } from '@/lib/oc/storyEntries';
+import { layoutTasteRows, resolveTasteItems } from '@/lib/oc/tasteItems';
 import { normalizeTouchHoverStyle, normalizeTouchZones } from '@/lib/pair/touchZones';
 import { useTouchPortraitStack, warmTouchPortrait } from '@/lib/oc/useTouchPortraitStack';
 import { newId, type TrpgScenario } from '@/lib/types/site-content';
@@ -84,6 +92,8 @@ type Props = {
   /** OC 탭 방문 중 TOUCH! 힌트를 이미 닫았는지 */
   touchHintDismissed?: boolean;
   onTouchHintDismiss?: () => void;
+  /** 관련 프로필(딥링크) 진입 — 입장 슬라이드 없이 즉시 표시 */
+  enterInstant?: boolean;
 };
 
 function isKeywordField(k: string) {
@@ -152,14 +162,17 @@ export function OcCharacterDetail({
   onSave,
   touchHintDismissed = false,
   onTouchHintDismiss,
+  enterInstant = false,
 }: Props) {
   const router = useRouter();
   const { trpg } = useSiteContent();
-  const { playCharacterTheme, playing } = useBgm();
-  const bgmApi = useRef({ playCharacterTheme, playing });
-  bgmApi.current = { playCharacterTheme, playing };
+  const { playCharacterTheme, playing, silenceMedia } = useBgm();
+  const bgmApi = useRef({ playCharacterTheme, playing, silenceMedia });
+  bgmApi.current = { playCharacterTheme, playing, silenceMedia };
 
   const [editOpen, setEditOpen] = useState(false);
+  const [editInitialTab, setEditInitialTab] = useState<'basic' | 'story'>('basic');
+  const [editFocusEntryId, setEditFocusEntryId] = useState<string | null>(null);
   const [ghostLayoutMode, setGhostLayoutMode] = useState(false);
   const [layoutTarget, setLayoutTarget] = useState<LayoutTarget>('char');
   const [detailLayout, setDetailLayout] = useState<ImageFrame>(() =>
@@ -202,6 +215,9 @@ export function OcCharacterDetail({
   const [panelTopPx, setPanelTopPx] = useState<number | null>(null);
   const detailBodyRef = useRef<HTMLDivElement | null>(null);
   const leftPanelShellRef = useRef<HTMLDivElement | null>(null);
+  const panelScrollRef = useRef<HTMLDivElement | null>(null);
+  /** 왼쪽 내용 박스에 더 스크롤할 내용이 남았는지 (하단 블러+화살표 표시) */
+  const [panelCanScrollMore, setPanelCanScrollMore] = useState(false);
   const [shownPortrait, setShownPortrait] = useState<ShownPortrait | null>(null);
   const [charBounce, setCharBounce] = useState(false);
   const [charMotion, setCharMotion] = useState<DialogueMotion | null>(null);
@@ -573,16 +589,23 @@ export function OcCharacterDetail({
     const screen = document.getElementById('detail-screen');
     if (!screen) return;
     screen.classList.remove('is-ui-leaving');
-    screen.classList.add('is-pv-done', 'active', 'is-ui-enter');
+    // 관련 프로필(딥링크) 진입은 입장 슬라이드 없이 즉시 표시
+    if (enterInstant) {
+      screen.classList.remove('is-ui-enter');
+      screen.classList.add('is-pv-done', 'active');
+    } else {
+      screen.classList.add('is-pv-done', 'active', 'is-ui-enter');
+    }
     screen.style.setProperty('opacity', '1');
     screen.style.setProperty('filter', 'none');
     screen.style.setProperty('transform', 'none');
     screen.style.setProperty('visibility', 'visible');
+    if (enterInstant) return;
     const clearEnter = window.setTimeout(() => {
       screen.classList.remove('is-ui-enter');
     }, 2400);
     return () => window.clearTimeout(clearEnter);
-  }, [character.id]);
+  }, [character.id, enterInstant]);
 
   const portraitTarget = useMemo(
     () => ({
@@ -889,6 +912,12 @@ export function OcCharacterDetail({
   const previewItems = hydrated.previewItems || [];
   const [readerEntry, setReaderEntry] = useState<StoryEntry | null>(null);
   const [readerOpen, setReaderOpen] = useState(false);
+  const [handNoteLb, setHandNoteLb] = useState<{
+    urls: string[];
+    title: string;
+    sfxUrl?: string;
+    closeSfxUrl?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!readerOpen || !readerEntry) return;
@@ -926,33 +955,39 @@ export function OcCharacterDetail({
       panel.classList.toggle('is-dense', ratio > 0.9);
     };
 
+    let roRaf = 0;
+    const scheduleSync = () => {
+      if (roRaf) return;
+      roRaf = window.requestAnimationFrame(() => {
+        roRaf = 0;
+        syncRightBalance();
+      });
+    };
+
     const id = window.requestAnimationFrame(syncRightBalance);
-    const ro = new ResizeObserver(syncRightBalance);
+    const ro = new ResizeObserver(scheduleSync);
     ro.observe(panel);
     ro.observe(scroll);
-    window.addEventListener('resize', syncRightBalance);
+    window.addEventListener('resize', scheduleSync);
     return () => {
       window.cancelAnimationFrame(id);
+      if (roRaf) window.cancelAnimationFrame(roRaf);
       ro.disconnect();
-      window.removeEventListener('resize', syncRightBalance);
+      window.removeEventListener('resize', scheduleSync);
     };
   }, [character.id, relatedTrpg.length, profileRows.length, keywordTags.length, showStats]);
 
   const syncLeftPanelTop = useCallback(() => {
     const body = detailBodyRef.current;
     if (!body) return;
-    const head = body.querySelector('.oc-left-acc.open .oc-left-acc-head') as HTMLElement | null;
-    if (!head) return;
     const bodyRect = body.getBoundingClientRect();
-    const headRect = head.getBoundingClientRect();
     const minTop = 16;
     const shell = leftPanelShellRef.current;
     const panelH = shell?.offsetHeight || Math.min(bodyRect.height * 0.55, 400);
-    /* 하단 메뉴에 완전 따라가면 박스가 시야 아래로 가라앉음 — 읽기 편한 상한 */
-    const comfortMaxTop = bodyRect.height * 0.36;
     const overflowMax = Math.max(minTop, bodyRect.height - panelH - 16);
-    const maxTop = Math.min(comfortMaxTop, overflowMax);
-    const next = Math.min(Math.max(headRect.top - bodyRect.top, minTop), maxTop);
+    /* 기본: 화면(detail-body) 세로 중앙 — 분량(panelH)에 따라 top 자동 조정 */
+    let next = (bodyRect.height - panelH) / 2;
+    next = Math.max(minTop, Math.min(next, overflowMax));
     setPanelTopPx((prev) => (prev != null && Math.abs(prev - next) < 0.5 ? prev : next));
   }, []);
 
@@ -962,16 +997,63 @@ export function OcCharacterDetail({
     const raf = window.requestAnimationFrame(() => syncLeftPanelTop());
     const shell = leftPanelShellRef.current;
     const body = detailBodyRef.current;
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => syncLeftPanelTop()) : null;
+    let roRaf = 0;
+    const schedule = () => {
+      if (roRaf) return;
+      roRaf = window.requestAnimationFrame(() => {
+        roRaf = 0;
+        syncLeftPanelTop();
+      });
+    };
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null;
     if (shell) ro?.observe(shell);
     if (body) ro?.observe(body);
-    window.addEventListener('resize', syncLeftPanelTop);
+    window.addEventListener('resize', schedule);
     return () => {
       window.cancelAnimationFrame(raf);
+      if (roRaf) window.cancelAnimationFrame(roRaf);
       ro?.disconnect();
-      window.removeEventListener('resize', syncLeftPanelTop);
+      window.removeEventListener('resize', schedule);
     };
   }, [panelMounted, openLeft, panelId, panelClosing, syncLeftPanelTop]);
+
+  useCreepyGlyphScramble(detailBodyRef, {
+    glyph: Boolean(character.creepyFx?.enabled && character.creepyFx.kinds?.includes('glyphScramble')),
+    glitch: Boolean(character.creepyFx?.enabled && character.creepyFx.kinds?.includes('textGlitch')),
+    intensity: (character.creepyFx?.intensity ?? 40) / 100,
+  });
+
+  const updatePanelScrollCue = useCallback(() => {
+    const el = panelScrollRef.current;
+    if (!el) {
+      setPanelCanScrollMore(false);
+      return;
+    }
+    const more =
+      el.scrollHeight > el.clientHeight + 8 &&
+      el.scrollTop + el.clientHeight < el.scrollHeight - 16;
+    setPanelCanScrollMore(more);
+  }, []);
+
+  useEffect(() => {
+    if (!panelMounted || panelClosing) {
+      setPanelCanScrollMore(false);
+      return;
+    }
+    const el = panelScrollRef.current;
+    if (!el) return;
+    updatePanelScrollCue();
+    const raf = window.requestAnimationFrame(() => updatePanelScrollCue());
+    el.addEventListener('scroll', updatePanelScrollCue, { passive: true });
+    const ro =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => updatePanelScrollCue()) : null;
+    ro?.observe(el);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      el.removeEventListener('scroll', updatePanelScrollCue);
+      ro?.disconnect();
+    };
+  }, [panelMounted, panelClosing, panelId, panelEpoch, updatePanelScrollCue]);
 
   const dismissLeftPanel = useCallback(() => {
     if (!openLeft && !panelMounted) return;
@@ -1140,40 +1222,77 @@ export function OcCharacterDetail({
       });
     }
 
-    if (character.hobby || character.likes?.length || character.hates?.length) {
-      sections.push({
-        id: 'taste',
-        label: '취향',
-        content: (
-          <div className="oc-acc-etc">
-            {character.hobby && (
-              <div className="oc-acc-etc-row">
-                <em>Hobby</em>
-                <OcRichText text={character.hobby} className="oc-acc-etc-value" />
-              </div>
-            )}
-            {character.likes?.length ? (
-              <div className="oc-acc-etc-row">
-                <em>Likes</em>
-                <OcRichText text={character.likes.join(', ')} className="oc-acc-etc-value" />
-              </div>
-            ) : null}
-            {character.hates?.length ? (
-              <div className="oc-acc-etc-row">
-                <em>Hates</em>
-                <OcRichText text={character.hates.join(', ')} className="oc-acc-etc-value" />
-              </div>
-            ) : null}
+    {
+      const allTaste = resolveTasteItems(character);
+      const layoutRows = layoutTasteRows(allTaste);
+      const hasTasteRows = layoutRows.length > 0;
+      if (character.special || hasTasteRows) {
+        const renderTasteCell = (it: (typeof allTaste)[number]) => (
+          <div className="oc-acc-etc-cell" key={it.id}>
+            {it.title?.trim() ? <em className="oc-acc-etc-label">{it.title.trim()}</em> : null}
+            {it.body?.trim() ? <OcRichText text={it.body} className="oc-acc-etc-value" /> : null}
           </div>
-        ),
-      });
+        );
+        sections.push({
+          id: 'taste',
+          label: '특이사항',
+          content: (
+            <div className="oc-acc-etc">
+              {character.special ? (
+                <div className="oc-acc-etc-lead">
+                  <OcRichText text={character.special} className="oc-acc-text" />
+                </div>
+              ) : null}
+              {layoutRows.map((row) => {
+                if (row.kind === 'divider') {
+                  return <hr key={row.id} className="oc-acc-etc-sep" />;
+                }
+                if (row.kind === 'pair') {
+                  return (
+                    <div className="oc-acc-etc-pair" key={`${row.left.id}-${row.right.id}`}>
+                      {renderTasteCell(row.left)}
+                      <span className="oc-acc-etc-pair__rule" aria-hidden />
+                      {renderTasteCell(row.right)}
+                    </div>
+                  );
+                }
+                if (row.kind === 'halfSolo') {
+                  return (
+                    <div className="oc-acc-etc-row oc-acc-etc-row--solo" key={row.item.id}>
+                      {renderTasteCell(row.item)}
+                    </div>
+                  );
+                }
+                return (
+                  <div className="oc-acc-etc-row" key={row.item.id}>
+                    {renderTasteCell(row.item)}
+                  </div>
+                );
+              })}
+            </div>
+          ),
+        });
+      }
     }
 
-    if (character.special) {
+    for (const sec of character.customSections ?? []) {
+      const title = sec.title?.trim();
+      const body = sec.body?.trim();
+      const abilities = (sec.abilities ?? []).filter((a) => a.name?.trim());
+      const mystic = !!sec.mystic;
+      const hasAbilities = mystic && abilities.length > 0;
+      if (!title || (!body && !hasAbilities)) continue;
       sections.push({
-        id: 'special',
-        label: '특이사항',
-        content: <OcRichText text={character.special} className="oc-acc-text" />,
+        id: `custom-${sec.id}`,
+        label: title,
+        content: hasAbilities ? (
+          <div className="oc-ability-wrap">
+            {body ? <OcRichText text={body} className="oc-acc-text" /> : null}
+            <OcAbilityList abilities={abilities} />
+          </div>
+        ) : (
+          <OcRichText text={body ?? ''} className="oc-acc-text" />
+        ),
       });
     }
 
@@ -1185,6 +1304,7 @@ export function OcCharacterDetail({
           <StoryEntryList
             entries={storyEntries}
             categories={hydrated.storyCategories}
+            categoryColors={hydrated.storyCategoryColors}
             mode="accordion"
             onOpen={(entry) => {
               setReaderEntry(entry);
@@ -1239,9 +1359,24 @@ export function OcCharacterDetail({
     const preview = byId('preview');
     if (preview) groups.push({ id: 'g-preview', solo: true, items: [preview] });
 
-    const profileItems = ['intro', 'appearance', 'relations', 'taste', 'special']
-      .map(byId)
-      .filter((s): s is LeftSection => Boolean(s));
+    const customItems = leftSections.filter((s) => s.id.startsWith('custom-'));
+    const baseProfileItems = [
+      ...['intro', 'appearance', 'relations', 'taste', 'special']
+        .map(byId)
+        .filter((s): s is LeftSection => Boolean(s)),
+      ...customItems,
+    ];
+    // 사용자 지정 순서 적용 — 지정 목록 우선, 나머지는 원래 순서로 뒤에
+    const order = character.sectionOrder ?? [];
+    const profileItems =
+      order.length > 0
+        ? [
+            ...order
+              .map((id) => baseProfileItems.find((s) => s.id === id))
+              .filter((s): s is LeftSection => Boolean(s)),
+            ...baseProfileItems.filter((s) => !order.includes(s.id)),
+          ]
+        : baseProfileItems;
     if (profileItems.length) {
       groups.push({ id: 'g-profile', en: 'PROFILE', items: profileItems });
     }
@@ -1253,7 +1388,7 @@ export function OcCharacterDetail({
     if (gallery) groups.push({ id: 'g-archive', en: 'ARCHIVE', items: [gallery] });
 
     return groups;
-  }, [leftSections]);
+  }, [leftSections, character.sectionOrder]);
 
   const panelSection = panelId ? leftSections.find((s) => s.id === panelId) : null;
 
@@ -1325,7 +1460,20 @@ export function OcCharacterDetail({
             >
               {touchEditMode ? `✓ 터치·${auVersionLabel(character, auIdx)}` : '터치'}
             </button>
-            <button type="button" className="btn-edit" onClick={() => setEditOpen(true)}>
+            <button
+              type="button"
+              className="btn-edit"
+              onClick={() => {
+                if (readerOpen && readerEntry) {
+                  setEditInitialTab('story');
+                  setEditFocusEntryId(readerEntry.id);
+                } else {
+                  setEditInitialTab('basic');
+                  setEditFocusEntryId(null);
+                }
+                setEditOpen(true);
+              }}
+            >
               ✎ 수정
             </button>
           </div>
@@ -1334,8 +1482,10 @@ export function OcCharacterDetail({
 
       <div
         ref={detailBodyRef}
-        className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.present ? ' vn-active' : ''}${layoutEdit ? ' is-ghost-layout-edit' : ''}${charEdit ? ' is-char-layout-target' : ''}${ghostEdit ? ' is-ghost-layout-target' : ''}`}
+        className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.present ? ' vn-active' : ''}${layoutEdit ? ' is-ghost-layout-edit' : ''}${charEdit ? ' is-char-layout-target' : ''}${ghostEdit ? ' is-ghost-layout-target' : ''}${creepyFxClass(character.creepyFx)}`}
+        style={creepyFxStyle(character.creepyFx)}
       >
+        <DustAtmosphere fx={character.dustFx} />
         {isAdmin && onSave && ghostLayoutMode ? (
           <div className="oc-ghost-tools" role="toolbar" aria-label="위치 조절">
             <div className="oc-ghost-tools__targets" role="tablist" aria-label="조절 대상">
@@ -1676,29 +1826,30 @@ export function OcCharacterDetail({
               </div>
             )}
           </div>
-          {showTeaseToggle ? (
-            <button
-              type="button"
-              className={`oc-tease-fab${touchEnabled ? ' is-on' : ''}`}
-              aria-pressed={touchEnabled}
-              title={
-                touchEnabled
-                  ? '켜짐 — 일러스트를 만져 보세요. 다시 누르면 대사창 모드'
-                  : '꺼짐 — 누르면 터치 반응 모드'
-              }
-              onClick={() => {
-                if (!touchEnabled) ensureDefaultAu();
-                setTouchEnabled((v) => !v);
-              }}
-            >
-              <span className="oc-tease-fab__kicker">Touch</span>
-              <span className="oc-tease-fab__label">{teaseName} 괴롭히기</span>
-              <span className="oc-tease-fab__state" aria-hidden="true">
-                {touchEnabled ? 'ON' : 'OFF'}
-              </span>
-            </button>
-          ) : null}
         </div>
+
+        {showTeaseToggle ? (
+          <button
+            type="button"
+            className={`oc-tease-fab${touchEnabled ? ' is-on' : ''}`}
+            aria-pressed={touchEnabled}
+            title={
+              touchEnabled
+                ? '켜짐 — 일러스트를 만져 보세요. 다시 누르면 대사창 모드'
+                : '꺼짐 — 누르면 터치 반응 모드'
+            }
+            onClick={() => {
+              if (!touchEnabled) ensureDefaultAu();
+              setTouchEnabled((v) => !v);
+            }}
+          >
+            <span className="oc-tease-fab__kicker">Touch</span>
+            <span className="oc-tease-fab__label">{teaseName} 괴롭히기</span>
+            <span className="oc-tease-fab__state" aria-hidden="true">
+              {touchEnabled ? 'ON' : 'OFF'}
+            </span>
+          </button>
+        ) : null}
 
         {!vn.present ? (
           <OcAuPicker
@@ -1742,6 +1893,11 @@ export function OcCharacterDetail({
           </nav>
         )}
 
+        <OcStatHoverPanel
+          panel={character.statPanel}
+          accent={personalTheme.personalColor}
+        />
+
         {panelMounted && panelSection && (
           <div
             ref={leftPanelShellRef}
@@ -1760,24 +1916,53 @@ export function OcCharacterDetail({
             aria-label={panelSection.label}
             aria-hidden={panelClosing}
           >
-            <div className="oc-left-content-panel">
-              <div className="oc-left-content-inner" key={`${panelId}-${panelEpoch}`}>
+            <div
+              className={`oc-left-content-panel${panelCanScrollMore ? ' has-more' : ''}`}
+            >
+              <div
+                className="oc-left-content-inner"
+                key={`${panelId}-${panelEpoch}`}
+                ref={panelScrollRef}
+              >
                 <h3 className="oc-left-content-title">{panelSection.label}</h3>
                 <div className="oc-left-content-body">{panelSection.content}</div>
+              </div>
+              <div
+                className="oc-left-scroll-cue"
+                aria-hidden="true"
+                onClick={() => {
+                  const el = panelScrollRef.current;
+                  if (el) el.scrollBy({ top: el.clientHeight * 0.7, behavior: 'smooth' });
+                }}
+              >
+                <span className="oc-left-scroll-cue-arrow" />
               </div>
             </div>
           </div>
         )}
 
-        <StoryReader
-          entry={readerEntry}
-          open={readerOpen}
-          accentColor={personalTheme.personalColor}
-          onClose={() => {
-            setReaderOpen(false);
-            setReaderEntry(null);
-          }}
-        />
+        {(() => {
+          const ordered = [...storyEntries].sort((a, b) => a.order - b.order);
+          const idx = readerEntry ? ordered.findIndex((e) => e.id === readerEntry.id) : -1;
+          const prev = idx > 0 ? ordered[idx - 1] : null;
+          const next = idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
+          return (
+            <StoryReader
+              entry={readerEntry}
+              open={readerOpen}
+              accentColor={personalTheme.personalColor}
+              categoryColors={hydrated.storyCategoryColors}
+              hasPrevEntry={!!prev}
+              hasNextEntry={!!next}
+              onPrevEntry={prev ? () => setReaderEntry(prev) : undefined}
+              onNextEntry={next ? () => setReaderEntry(next) : undefined}
+              onClose={() => {
+                setReaderOpen(false);
+                setReaderEntry(null);
+              }}
+            />
+          );
+        })()}
 
         <div className={`oc-detail-right${rightReady ? ' is-ready' : ''}`} ref={rightPanelRef}>
           <div className="oc-detail-right-scroll" ref={rightScrollRef}>
@@ -1788,9 +1973,47 @@ export function OcCharacterDetail({
             </div>
             {character.nameSub && <div className="oc-identity-sub">{character.nameSub}</div>}
             <div className="oc-identity-name-block">
-              <h1 className="oc-identity-name">{character.name}</h1>
+              <div className="lh-handnote-name-row">
+                {(character.handwritingNotes || []).some((u) => u.trim()) ? (
+                  <button
+                    type="button"
+                    className="lh-handnote-btn"
+                    aria-label={`${character.name} 손글씨 쪽지`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const urls = (character.handwritingNotes || [])
+                        .map((u) => u.trim())
+                        .filter(Boolean);
+                      if (!urls.length) return;
+                      setHandNoteLb({
+                        urls,
+                        title: character.name || '쪽지',
+                        sfxUrl: character.handwritingNoteSfx?.trim() || undefined,
+                        closeSfxUrl: character.handwritingNoteCloseSfx?.trim() || undefined,
+                      });
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className="lh-handnote-btn__icon"
+                      src="/icons/note-folded.png?v=3"
+                      alt=""
+                      draggable={false}
+                      width={48}
+                      height={72}
+                    />
+                  </button>
+                ) : null}
+                <h1 className="oc-identity-name">{character.name}</h1>
+              </div>
               <div className="oc-identity-accent-line" aria-hidden="true" />
             </div>
+            <RiskBadges
+              className="oc-identity-risk"
+              riskStages={character.riskStages}
+              riskLevel={character.riskLevel}
+            />
           </header>
 
           {relatedTrpg.length > 0 && (
@@ -1802,6 +2025,8 @@ export function OcCharacterDetail({
                     type="button"
                     className="oc-trpg-link-btn"
                     onClick={() => {
+                      /* OC 테마 끄고 시나리오로 — 브금이 안 꺼지던 문제 */
+                      bgmApi.current.silenceMedia();
                       setTrpgReturnPath(
                         `/oc?c=${encodeURIComponent(String(character.id))}&view=detail&from=trpg`,
                       );
@@ -1869,6 +2094,14 @@ export function OcCharacterDetail({
                   </div>
                 </div>
               )}
+              {character.flatLore?.trim() ? (
+                <div className="oc-attr-keywords-block oc-attr-flatlore-block">
+                  <div className="oc-attr-keywords-stack">
+                    <span className="oc-attr-label">납작 캐해</span>
+                    <OcRichText text={character.flatLore} className="oc-attr-flatlore-text" />
+                  </div>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -1926,6 +2159,17 @@ export function OcCharacterDetail({
         </div>
       )}
 
+      {handNoteLb ? (
+        <HandwritingNoteFlap
+          open={!!handNoteLb}
+          urls={handNoteLb.urls}
+          title={handNoteLb.title}
+          sfxUrl={handNoteLb.sfxUrl}
+          closeSfxUrl={handNoteLb.closeSfxUrl}
+          onClose={() => setHandNoteLb(null)}
+        />
+      ) : null}
+
       {isAdmin && onSave ? (
         <LakeEditModal
           open={editOpen}
@@ -1935,10 +2179,12 @@ export function OcCharacterDetail({
           onClose={() => setEditOpen(false)}
         >
           <OcEditForm
-            key={character.id}
+            key={`${character.id}-${editInitialTab}-${editFocusEntryId || 'none'}`}
             character={character}
             categories={categories}
             compact
+            initialTab={editInitialTab}
+            focusEntryId={editFocusEntryId}
             onSave={async (next) => {
               await onSave(next);
               setEditOpen(false);

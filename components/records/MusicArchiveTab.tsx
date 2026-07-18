@@ -235,7 +235,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
                 setPlaying(false);
               }}
             >
-              {pl.coverUrl ? <img src={pl.coverUrl} alt="" /> : <span className="lh-music-pl__ph">♪</span>}
+              {pl.coverUrl ? <img src={pl.coverUrl} alt="" loading="lazy" decoding="async" /> : <span className="lh-music-pl__ph">♪</span>}
               <span>
                 <strong>
                   {pl.title}

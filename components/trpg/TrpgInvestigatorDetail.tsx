@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { InvestigatorPortraitImage, portraitOptions } from '@/components/trpg/TrpgInvestigatorImage';
+import { DustAtmosphere } from '@/components/shared/DustAtmosphere';
 import {
   clampFrameOffset,
   clampFrameScale,
@@ -364,6 +365,7 @@ export function TrpgInvestigatorDetail({
         >
           {personalColor ? <div className="trpg-inv-detail__personal-glow" aria-hidden="true" /> : null}
           <div className="trpg-inv-detail__gradient" aria-hidden="true" />
+          <DustAtmosphere fx={player.dustFx} />
           {showGuides ? (
             <div className="trpg-inv-detail__guides" aria-hidden="true">
               <span className={`trpg-inv-detail__guide trpg-inv-detail__guide--v${guideSnap.v ? ' is-snap' : ''}`} />

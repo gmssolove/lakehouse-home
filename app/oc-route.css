@@ -12,6 +12,9 @@
 @import '../styles/shared/page-tip-toast.css';
 @import '../styles/shared/sectioned-nav.css';
 @import '../styles/shared/story-reader.css';
+@import '../styles/pair/pair-note-flap.css';
+@import '../styles/shared/handwriting-note.css';
+@import '../styles/lake-perf.css';
 
 /* archive-layout: 상단바 아래 그리드가 남은 높이 채움 */
 .archive-layout > .layout.oc-archive-layout {
@@ -21,6 +24,15 @@
   max-width: none !important;
   margin: 6px 12px 12px !important;
   height: auto !important;
+}
+
+/* #11 박스는 항상 화면 폭을 꽉 채운다 — 자식결합자/로드순서/캐시 잔재(.layout width:min(1220px) 등)에
+   상관없이 무조건 이기도록 최대 명시도 + 후손결합자로 못박음. */
+body .archive-layout .layout.oc-archive-layout {
+  width: calc(100vw - 24px) !important;
+  max-width: none !important;
+  margin-left: 12px !important;
+  margin-right: 12px !important;
 }
 
 /* OC/Pair — archive pages keep BGM controls interactive */

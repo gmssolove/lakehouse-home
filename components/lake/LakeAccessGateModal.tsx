@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
+  resolveScopePassword,
   unlockLakeAccess,
   verifyLakeAccessPassword,
   type LakeAccessScope,
@@ -65,6 +67,10 @@ export function LakeAccessGateModal({
 
   if (!open) return null;
 
+  const rawDesc = description ?? '로그인 후 비밀번호를 입력해야 열람할 수 있습니다.';
+  // 로그인 상태에서는 "로그인 후" 안내를 빼서 자연스럽게 보이도록 한다.
+  const shownDesc = loggedIn ? rawDesc.replace(/로그인\s*후\s*/g, '') : rawDesc;
+
   function submit() {
     if (!loggedIn) {
       onRequestLogin();
@@ -77,7 +83,7 @@ export function LakeAccessGateModal({
       setError('비밀번호가 올바르지 않습니다.');
       return;
     }
-    if (!verifyOverride) unlockLakeAccess(scope);
+    if (!verifyOverride) unlockLakeAccess(scope, resolveScopePassword(scope, accessSettings));
     setPassword('');
     setError('');
     onSuccess();
@@ -87,7 +93,7 @@ export function LakeAccessGateModal({
     onRequestLogin();
   }
 
-  return (
+  const modal = (
     <div
       className={`oc-profile-gate oc-profile-gate--${backdrop}`}
       role="dialog"
@@ -99,9 +105,7 @@ export function LakeAccessGateModal({
       ) : null}
       <div className="oc-profile-gate-box">
         <div className="oc-profile-gate-title">{title ?? 'Archive Access'}</div>
-        <p className="oc-profile-gate-desc">
-          {description ?? '로그인 후 비밀번호를 입력해야 열람할 수 있습니다.'}
-        </p>
+        <p className="oc-profile-gate-desc">{shownDesc}</p>
         {!loggedIn ? (
           <>
             <p className="oc-profile-gate-error" style={{ marginBottom: 12 }}>
@@ -147,4 +151,7 @@ export function LakeAccessGateModal({
       </div>
     </div>
   );
+
+  /* 리뷰 등 transform이 걸린 컨테이너 안에서도 항상 뷰포트(전체화면) 기준으로 뜨도록 body에 포털 */
+  return typeof document !== 'undefined' ? createPortal(modal, document.body) : modal;
 }

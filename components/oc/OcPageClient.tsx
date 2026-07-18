@@ -19,6 +19,7 @@ import { displayCategory, isTrpgCategory, isUniverseCategory, normalizeCategory 
 import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import {
   isLakeItemUnlocked,
+  resolveItemPassword,
   unlockLakeItem,
   verifyLakeAccessPassword,
 } from '@/lib/lake/accessGate';
@@ -67,7 +68,7 @@ export function OcPageClient() {
   const { characters, categories, saveCharacters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
   const { restorePageSnapshot, resumePageBgmIfNeeded, playCharacterTheme } = useBgm();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, ready: authReady } = useAuth();
   const wasInDetailRef = useRef(false);
   const detailUsedThemeRef = useRef(false);
   const [activeCat, setActiveCat] = useState('all');
@@ -75,6 +76,7 @@ export function OcPageClient() {
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('no');
   const [detail, setDetail] = useState<OcCharacter | null>(null);
+  const [detailInstant, setDetailInstant] = useState(false);
   const [intro, setIntro] = useState<IntroState | null>(null);
   const [entrySplash, setEntrySplash] = useState<SplashState | null>(null);
   const splashPendingRef = useRef<SplashState | null>(null);
@@ -259,7 +261,8 @@ export function OcPageClient() {
     setAuIdx(au);
   }
 
-  function openDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
+  function openDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean; instant?: boolean }) {
+    setDetailInstant(!!opts?.instant);
     const hasTheme = characterHasBgmTheme(c);
     detailUsedThemeRef.current = hasTheme;
     if (hasTheme) {
@@ -305,9 +308,9 @@ export function OcPageClient() {
     setAuIdx(pending.auIdx);
   }, [ocSettings.pvIntroEnabled]);
 
-  function requestOpenDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
+  function requestOpenDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean; instant?: boolean }) {
     const id = String(c.id);
-    if (isAdmin || !c.secret || isLakeItemUnlocked('oc', id)) {
+    if (isAdmin || !c.secret || isLakeItemUnlocked('oc', id, resolveItemPassword('oc', c, accessSettings))) {
       openDetail(c, au, opts);
       return;
     }
@@ -315,17 +318,18 @@ export function OcPageClient() {
   }
 
   useEffect(() => {
+    // 인증 상태가 확정되기 전엔 열지 않는다 — 관리자가 로딩 중 isAdmin=false로
+    // 오판돼 비밀번호 게이트가 뜨는 것을 방지.
+    if (!authReady) return;
     const charId = searchParams.get('c');
     if (!charId || !characters.length || detail || intro || entrySplash) return;
     const c = characters.find((ch) => String(ch.id) === String(charId));
     if (!c) return;
-    const skipIntro =
-      searchParams.get('view') === 'detail' ||
-      searchParams.get('direct') === '1' ||
-      searchParams.get('from') === 'trpg';
-    requestOpenDetail(c, -1, { skipIntro });
+    const skipIntro = searchParams.get('direct') === '1';
+    /* view=detail / from=trpg 여도 PV는 재생 — 관련 프로필 이동 시 대사 필요 */
+    requestOpenDetail(c, -1, { skipIntro, instant: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from URL
-  }, [characters, searchParams, detail, intro, entrySplash]);
+  }, [characters, searchParams, detail, intro, entrySplash, authReady]);
 
   const detailImg = liveDetail ? charImg(liveDetail, auIdx) : null;
   const tipToastOc = useMemo(
@@ -333,6 +337,8 @@ export function OcPageClient() {
     [ocSettings.tipToastOc],
   );
   const showArchiveTip = !detail && !intro && !entrySplash;
+  /* URL로 상세 진입 중 — 목록 깜빡임 방지 */
+  const urlCharPending = Boolean(searchParams.get('c')) && !detail && !intro && !entrySplash;
 
   return (
     <>
@@ -352,7 +358,7 @@ export function OcPageClient() {
         }
       />
 
-      <div className={`layout oc-archive-layout${sidebarOpen ? ' is-sidebar-open' : ''}`}>
+      <div className={`layout oc-archive-layout${sidebarOpen ? ' is-sidebar-open' : ''}${detail || intro || entrySplash || urlCharPending ? ' is-detail-cover' : ''}`}>
         <button
           type="button"
           className="oc-mobile-burger"
@@ -457,7 +463,21 @@ export function OcPageClient() {
         <div className="main-content">
           <h2 className="oc-archive-heading">Character Archive</h2>
           <div className="card-grid" id="card-grid">
-            {!filtered.length ? (
+            {urlCharPending ? (
+              <div
+                style={{
+                  gridColumn: '1/-1',
+                  textAlign: 'center',
+                  padding: '5rem',
+                  fontFamily: 'Playfair Display, serif',
+                  fontStyle: 'italic',
+                  fontSize: 18,
+                  color: 'var(--text-muted)',
+                  opacity: 0.55,
+                }}
+                aria-hidden
+              />
+            ) : !filtered.length ? (
               <div
                 style={{
                   gridColumn: '1/-1',
@@ -487,7 +507,7 @@ export function OcPageClient() {
                         imgClassName="char-card-img"
                       />
                     ) : (
-                      <div className="char-card-placeholder">{ROMANS[i] || ''}</div>
+                      <div className="char-card-placeholder">{ROMANS[i] ?? ''}</div>
                     )}
                     <div className="char-card-hover">
                       {c.nameSub && <div className="hover-sub">{c.nameSub}</div>}
@@ -538,13 +558,13 @@ export function OcPageClient() {
           const c = passwordGate?.character;
           if (!c) return false;
           if (!verifyLakeAccessPassword('oc', input, accessSettings, c)) return false;
-          unlockLakeItem('oc', String(c.id));
+          unlockLakeItem('oc', String(c.id), resolveItemPassword('oc', c, accessSettings));
           return true;
         }}
       />
       <AuthModal backdrop="popup" open={authOpen} onClose={() => setAuthOpen(false)} />
 
-      <div id="detail-screen" className={detail || intro || entrySplash ? 'active' : ''}>
+      <div id="detail-screen" className={detail || intro || entrySplash || urlCharPending ? 'active' : ''}>
         {intro && (
           <OcProfileIntro
             character={intro.character}
@@ -559,6 +579,7 @@ export function OcPageClient() {
             character={liveDetail}
             charNo={activeCharNo}
             auIdx={auIdx}
+            enterInstant={detailInstant}
             isAdmin={isAdmin}
             categories={categories}
             img={detailImg?.src ? detailImg : null}

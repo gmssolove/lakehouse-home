@@ -8,6 +8,24 @@
   box-sizing: border-box;
 }
 
+/* #11 아카이브 박스는 항상 화면 폭을 꽉 채운다.
+   공용 파일(모든 아카이브 페이지가 로드)에 두어, 라우트 CSS 로딩 타이밍/캐시/잔재와 무관하게
+   최대 명시도로 legacy .layout{width:min(1220px)} 캡을 항상 이김. OC↔Pair 클라이언트 이동에도 유지. */
+body .archive-layout > .layout.oc-archive-layout,
+body .archive-layout .layout.oc-archive-layout {
+  width: calc(100vw - 24px) !important;
+  max-width: none !important;
+  margin-left: 12px !important;
+  margin-right: 12px !important;
+}
+
+/* #11 진짜 범인: 안쪽 .main-content 가 legacy pair.css 의 max-width:1100px 로 캡이 걸려
+   바깥 박스가 넓어져도 카드 영역만 1100px 에서 멈추던 문제. 캡을 풀어 그리드 트랙을 꽉 채운다. */
+body .archive-layout .layout.oc-archive-layout .main-content {
+  max-width: none !important;
+  margin: 0 !important;
+}
+
 .archive-layout > .oc-topbar {
   flex-shrink: 0;
 }

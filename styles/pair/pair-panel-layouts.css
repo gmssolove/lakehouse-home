@@ -714,11 +714,23 @@
   display: none;
 }
 
-/* no media */
+/* no media — 소개/스토리/갤러리 등 텍스트·그리드 패널 폭
+   (이전 480px이 자식 max-width 확장을 무력화했음) */
 .pair-panel-stage.no-media .pair-panel-stage__body {
   grid-template-columns: 1fr;
-  max-width: 480px;
+  max-width: min(1200px, 85vw);
+  width: 100%;
   margin-inline: auto;
+}
+
+/* 이미지 없는 패널: 레이아웃별 78~86vh 예약 높이/우측 치우침 제거 →
+   빈 소개 패널에서 타이틀과 '돌아가기'가 위·아래 끝으로 벌어지지 않도록 중앙쪽으로 모음 */
+.pair-panel-stage.no-media .pair-panel-stage__content {
+  min-height: min(16vh, 170px);
+  max-width: min(1200px, 85vw);
+  width: 100%;
+  margin-inline: auto;
+  justify-content: flex-start;
 }
 
 @media (max-width: 900px) {

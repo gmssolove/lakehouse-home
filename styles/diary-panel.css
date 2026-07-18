@@ -153,14 +153,15 @@
   color: var(--lh-diary-accent);
 }
 
-/* Write modal */
+/* Write modal — body portal (메뉴 transform 영향 없음) */
 .lh-diary__modal {
   position: fixed;
   inset: 0;
   z-index: 1200;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* safe center: 패널이 뷰포트보다 커도 위쪽이 잘리지 않음 */
+  align-items: safe center;
+  justify-content: safe center;
   padding: max(20px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   overflow-x: hidden;
@@ -884,6 +885,15 @@
   margin-bottom: 2px;
   font-size: 11px;
   color: var(--lh-diary-muted);
+}
+.lh-diary__rail-author {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(232, 208, 170, 0.92);
+}
+.lh-diary__rail-author--owner {
+  color: rgba(205, 179, 126, 0.95);
 }
 .lh-diary__rail-del {
   border: 0;

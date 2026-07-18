@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -30,9 +30,23 @@ export function HomePageClient() {
   const { user, profile, isAdmin, refreshAuth } = useAuth();
   const { trpg, accessSettings, uiSettings, loaded: siteLoaded } = useSiteContent();
   const [page, setPage] = useState<HomePageId>('main');
+  const [leavingPage, setLeavingPage] = useState<HomePageId | null>(null);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [trpgGate, setTrpgGate] = useState<TrpgScenario | null>(null);
   const [adminPhase, setAdminPhase] = useState<AdminPhase>('idle');
+
+  // 메뉴 전환/뒤로가기 시 이전 콘텐츠를 잠깐 남겨 아웃 애니메이션을 재생
+  const startPageTransition = useCallback((from: HomePageId, to: HomePageId) => {
+    if (from === to || from === 'main') return;
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    setLeavingPage(from);
+    leaveTimer.current = setTimeout(() => setLeavingPage(null), 360);
+  }, []);
+
+  useEffect(() => () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+  }, []);
 
   const requestCloseAdmin = useCallback(() => {
     setAdminPhase((p) => (p === 'open' ? 'closing' : p));
@@ -44,9 +58,12 @@ export function HomePageClient() {
   }, [router]);
 
   const handlePageBack = useCallback(() => {
-    setPage('main');
+    setPage((prev) => {
+      startPageTransition(prev, 'main');
+      return 'main';
+    });
     router.replace('/', { scroll: false });
-  }, [router]);
+  }, [router, startPageTransition]);
 
   const routeGuard = { guardPath: '/', router };
 
@@ -80,7 +97,10 @@ export function HomePageClient() {
   );
 
   useLakeBackGesture(() => {
-    if (adminPhase === 'idle' && page !== 'main') setPage('main');
+    if (adminPhase === 'idle' && page !== 'main') {
+      startPageTransition(page, 'main');
+      setPage('main');
+    }
   }, adminPhase === 'idle' && page !== 'main');
 
   function changePage(next: HomePageId) {
@@ -94,7 +114,10 @@ export function HomePageClient() {
       setAdminPhase('open');
       return;
     }
-    setPage(next);
+    setPage((prev) => {
+      startPageTransition(prev, next);
+      return next;
+    });
     if (adminPhase !== 'idle') setAdminPhase('idle');
     if (
       next === 'trpg' ||
@@ -160,6 +183,7 @@ export function HomePageClient() {
         <div className="right-panel">
           <HomeContent
             page={page}
+            leavingPage={leavingPage}
             user={user}
             isAdmin={isAdmin}
             onOpenAuth={() => setAuthOpen(true)}

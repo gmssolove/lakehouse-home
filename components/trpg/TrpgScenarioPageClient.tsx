@@ -22,7 +22,7 @@ import { useBgm } from '@/lib/contexts/BgmContext';
 import { parseYoutubeId } from '@/lib/bgm/playlist';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
-import { isLakeAccessUnlocked, isLakeItemUnlocked, unlockLakeItem, verifyLakeAccessPassword } from '@/lib/lake/accessGate';
+import { isLakeAccessUnlocked, isLakeItemUnlocked, resolveItemPassword, resolveScopePassword, unlockLakeItem, verifyLakeAccessPassword } from '@/lib/lake/accessGate';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { lakeNavigate, peekPendingLakeRouteDir, beginLakeRouteEnter } from '@/lib/lake/routeTransition';
 import { consumeTrpgReturnPath, consumeTrpgSkipBgmRestore, markTrpgSkipBgmRestore } from '@/lib/lake/trpgReturn';
@@ -80,7 +80,7 @@ function logIdFromPanel(panel: TrpgPanel): string | null {
 
 export function TrpgScenarioPageClient({ id }: Props) {
   const router = useRouter();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, ready: authReady } = useAuth();
   const { confirm } = useLakeDialog();
   const { trpg, loaded, saveTrpg, accessSettings } = useSiteContent();
   const { playCharacterTheme, restorePageSnapshot, silenceMedia } = useBgm();
@@ -146,27 +146,38 @@ export function TrpgScenarioPageClient({ id }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!loaded) return;
-    const ok = isAdmin || isLakeAccessUnlocked('trpg');
+    // 인증 확정 전엔 판단 보류 — 관리자가 isAdmin=false로 오판돼 목록으로
+    // 튕기거나 게이트가 뜨는 것을 방지.
+    if (!loaded || !authReady) return;
+    const ok = isAdmin || isLakeAccessUnlocked('trpg', resolveScopePassword('trpg', accessSettings));
     setUnlocked(ok);
     if (!ok) {
       router.replace(`/?p=trpg&trpg=${encodeURIComponent(id)}`, { scroll: false });
     }
-  }, [id, isAdmin, loaded, router]);
+  }, [id, isAdmin, loaded, router, accessSettings, authReady]);
 
   const item = useMemo(() => (raw ? normalizeTrpgScenario(raw) : null), [raw]);
   const dates = item ? formatTrpgDateRange(item) : '';
 
   useEffect(() => {
+    if (!authReady) return;
     if (!item) {
       setItemUnlocked(false);
       setItemGateOpen(false);
       return;
     }
-    const ok = isAdmin || !item.secret || isLakeItemUnlocked('trpg', item.id);
+    const itemPw = resolveItemPassword('trpg', item, accessSettings);
+    const scopePw = resolveScopePassword('trpg', accessSettings);
+    // 스코프 잠금을 이미 푼 데다 항목 비번이 스코프 비번과 같으면 다시 묻지 않음 (비번 두 번 방지)
+    const sameAsScope = unlocked && itemPw === scopePw;
+    const ok =
+      isAdmin ||
+      !item.secret ||
+      sameAsScope ||
+      isLakeItemUnlocked('trpg', item.id, itemPw);
     setItemUnlocked(ok);
     setItemGateOpen(unlocked && !ok);
-  }, [item, isAdmin, unlocked]);
+  }, [item, isAdmin, unlocked, accessSettings, authReady]);
 
   const canView = unlocked && itemUnlocked;
 
@@ -220,7 +231,19 @@ export function TrpgScenarioPageClient({ id }: Props) {
     const fileUrl = bgm?.fileUrl?.trim();
     const extUrl = bgm?.url?.trim();
     const ytId = extUrl ? parseYoutubeId(extUrl) : null;
-    if (!fileUrl && !extUrl) return;
+
+    /* 이전(OC 테마 등) 끊고 시작 — 시나리오 BGM 유무와 무관 */
+    bgmActionsRef.current.silenceMedia();
+
+    if (!fileUrl && !extUrl) {
+      return () => {
+        if (consumeTrpgSkipBgmRestore()) {
+          bgmActionsRef.current.silenceMedia();
+          return;
+        }
+        bgmActionsRef.current.restorePageSnapshot(true);
+      };
+    }
 
     bgmActionsRef.current.playCharacterTheme(
       {
@@ -234,7 +257,6 @@ export function TrpgScenarioPageClient({ id }: Props) {
 
     return () => {
       if (consumeTrpgSkipBgmRestore()) {
-        // 고스트 재생 방지: 미디어는 끄고, 페이지 BGM은 OC가 테마/복원을 담당
         bgmActionsRef.current.silenceMedia();
         return;
       }
@@ -286,13 +308,13 @@ export function TrpgScenarioPageClient({ id }: Props) {
             setAuthOpen(true);
           }}
           onSuccess={() => {
-            unlockLakeItem('trpg', item.id);
+            unlockLakeItem('trpg', item.id, resolveItemPassword('trpg', item, accessSettings));
             setItemUnlocked(true);
             setItemGateOpen(false);
           }}
           verifyOverride={(input) => {
             if (!verifyLakeAccessPassword('trpg', input, accessSettings, item)) return false;
-            unlockLakeItem('trpg', item.id);
+            unlockLakeItem('trpg', item.id, resolveItemPassword('trpg', item, accessSettings));
             return true;
           }}
         />

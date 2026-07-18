@@ -1,15 +1,28 @@
 'use client';
 
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { ImageFileField } from '@/components/ui/ImageFileField';
+import { usePathname, useRouter } from 'next/navigation';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
+import { LakeToggle } from '@/components/ui/LakeToggle';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
+import { AudioFileField } from '@/components/ui/AudioFileField';
+import {
+  AccordionSection,
+  FieldLabel,
+  FileUploadField,
+  ImageUploadCrop,
+  RepeatableList,
+  SliderField,
+  TextAreaField,
+} from '@/components/ui/form';
+import { HandwritingNoteFlap } from '@/components/pair/HandwritingNoteFlap';
 import { InvestigatorCardImage, normalizePortraitKind } from '@/components/trpg/TrpgInvestigatorImage';
 import { TrpgInvestigatorDetail } from '@/components/trpg/TrpgInvestigatorDetail';
-import { LikeHateEdit, LikeHateView } from '@/components/trpg/TrpgInvestigatorLikeHate';
-import { ProfileTextBlock, ProfileTextEdit } from '@/components/trpg/TrpgProfileText';
+import { LikeHateView } from '@/components/trpg/TrpgInvestigatorLikeHate';
+import { PROFILE_TEXT_LIMIT, ProfileTextBlock } from '@/components/trpg/TrpgProfileText';
 import { useOcData } from '@/lib/hooks/useOcData';
+import { lakeNavigate } from '@/lib/lake/routeTransition';
+import { markTrpgSkipBgmRestore } from '@/lib/lake/trpgReturn';
 import { normalizeHex } from '@/lib/oc/characterTheme';
 import { mergePlayerInfoFields } from '@/lib/trpg/defaultPlayerInfo';
 import { normalizeImageFrame, type ImageFrame } from '@/lib/shared/imageFrame';
@@ -24,6 +37,19 @@ import type {
   TrpgPlayerStat,
 } from '@/lib/types/site-content';
 
+function ProfileCharCount({ value }: { value: string }) {
+  const over = value.length > PROFILE_TEXT_LIMIT;
+  return (
+    <div className="trpg-inv-profile-edit__meta">
+      <span className={`lh-char-count${over ? ' is-over' : ''}`}>
+        {value.length} / {PROFILE_TEXT_LIMIT}
+      </span>
+      {over ? (
+        <span className="trpg-inv-profile-edit__warn">200자를 넘었습니다. 문단을 줄여 주세요.</span>
+      ) : null}
+    </div>
+  );
+}
 type InvViewTab = 'profile' | 'background' | 'stats' | 'items' | 'relations';
 
 const DEFAULT_PORTRAIT_POS = 'center bottom';
@@ -88,12 +114,14 @@ type Props = {
 export function TrpgInvestigatorBoard({
   players,
   editable = false,
-  uploading = false,
-  onUploadStart,
-  onUploadEnd,
+  uploading: _uploading = false,
+  onUploadStart: _onUploadStart,
+  onUploadEnd: _onUploadEnd,
   onChange,
 }: Props) {
   const { confirm } = useLakeDialog();
+  const router = useRouter();
+  const pathname = usePathname();
   const { characters: ocCharacters } = useOcData();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [viewTab, setViewTab] = useState<InvViewTab>('profile');
@@ -101,6 +129,14 @@ export function TrpgInvestigatorBoard({
   const [draft, setDraft] = useState<TrpgPlayerProfile | null>(null);
   const [expressionId, setExpressionId] = useState<string>('default');
   const [expandedExprIds, setExpandedExprIds] = useState<string[]>([]);
+  const [handNoteDraft, setHandNoteDraft] = useState('');
+  const [noteUploading, setNoteUploading] = useState(false);
+  const [handNoteLb, setHandNoteLb] = useState<{
+    urls: string[];
+    title: string;
+    sfxUrl?: string;
+    closeSfxUrl?: string;
+  } | null>(null);
 
   const active = players.find((p) => p.id === activeId) ?? null;
   const view = editing && draft ? draft : active;
@@ -406,8 +442,41 @@ export function TrpgInvestigatorBoard({
             !editing ? (
               <header className="trpg-inv-detail__identity ph-meta">
                 <div className="ph-name-row">
-                  <div className="ph-name">{view.name}</div>
-                  <div className="ph-name-en">{investigatorCardSubtitle(view)}</div>
+                  {(view.handwritingNotes || []).some((u) => u.trim()) ? (
+                    <button
+                      type="button"
+                      className="lh-handnote-btn"
+                      aria-label={`${view.name} 손글씨 쪽지`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const urls = (view.handwritingNotes || [])
+                          .map((u) => u.trim())
+                          .filter(Boolean);
+                        if (!urls.length) return;
+                        setHandNoteLb({
+                          urls,
+                          title: view.name || '쪽지',
+                          sfxUrl: view.handwritingNoteSfx?.trim() || undefined,
+                          closeSfxUrl: view.handwritingNoteCloseSfx?.trim() || undefined,
+                        });
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        className="lh-handnote-btn__icon"
+                        src="/icons/note-folded.png?v=3"
+                        alt=""
+                        draggable={false}
+                        width={48}
+                        height={72}
+                      />
+                    </button>
+                  ) : null}
+                  <div className="ph-name-stack">
+                    <div className="ph-name">{view.name}</div>
+                    <div className="ph-name-en">{investigatorCardSubtitle(view)}</div>
+                  </div>
                 </div>
                 {view.playerName ? (
                   <div className="trpg-inv-player-label">플레이어 · {view.playerName}</div>
@@ -422,12 +491,21 @@ export function TrpgInvestigatorBoard({
                   </div>
                 ) : null}
                 {linkedOcId ? (
-                  <Link
+                  <a
                     href={`/oc?c=${encodeURIComponent(linkedOcId)}&view=detail&from=trpg`}
                     className="trpg-inv-detail__oc-link"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      markTrpgSkipBgmRestore();
+                      lakeNavigate(
+                        router,
+                        `/oc?c=${encodeURIComponent(linkedOcId)}&view=detail&from=trpg`,
+                        pathname || `/trpg`,
+                      );
+                    }}
                   >
                     OC 프로필 보기 →
-                  </Link>
+                  </a>
                 ) : null}
               </header>
             ) : null
@@ -435,226 +513,341 @@ export function TrpgInvestigatorBoard({
         >
           {editing && draft ? (
             <div className="trpg-inv-edit-body">
-              <div className="trpg-inv-edit-intro">
-                <div className="trpg-inv-edit-intro__media">
-                  <h4 className="trpg-inv-section__label">카드 이미지</h4>
-                  <ImageFileField
-                    label=""
-                    value={draft.img || ''}
-                    folder="site/trpg/players"
-                    uploading={uploading}
-                    onUploadStart={onUploadStart}
-                    onUploadEnd={onUploadEnd}
-                    onChange={(img) => updateDraft({ img, imgFrame: undefined, imgFit: 'cover' })}
-                  />
-                  {draft.img ? (
-                    <div className="trpg-inv-img-frame-editor">
-                      <ImageFrameEditor
-                        src={draft.img}
-                        value={draft.imgFrame}
-                        onChange={(imgFrame) => updateDraft({ imgFrame })}
-                        fit={draft.imgFit || 'cover'}
-                        pos={draft.imgPos || 'center top'}
-                        aspectRatio="3 / 4"
-                        allowWheelZoom
-                      />
-                    </div>
-                  ) : null}
-                  <p className="trpg-inv-edit-hint">목록 카드에만 쓰입니다.</p>
+              <AccordionSection title="카드 이미지" defaultOpen>
+                <FileUploadField
+                  label="카드 이미지"
+                  accept="image"
+                  value={draft.img || ''}
+                  folder="site/trpg/players"
+                  onChange={(img) => updateDraft({ img, imgFrame: undefined, imgFit: 'cover' })}
+                />
+                {draft.img ? (
+                  <div className="trpg-inv-img-frame-editor">
+                    <ImageFrameEditor
+                      src={draft.img}
+                      value={draft.imgFrame}
+                      onChange={(imgFrame) => updateDraft({ imgFrame })}
+                      fit={draft.imgFit || 'cover'}
+                      pos={draft.imgPos || 'center top'}
+                      aspectRatio="3 / 4"
+                      allowWheelZoom
+                    />
+                  </div>
+                ) : null}
+                <FieldLabel>목록 카드에만 쓰입니다.</FieldLabel>
 
-                  <h4 className="trpg-inv-section__label trpg-inv-section__label--spaced">스테이지 일러스트</h4>
-                  <ImageFileField
-                    label=""
-                    value={draft.stageImg || ''}
-                    folder="site/trpg/players"
-                    uploading={uploading}
-                    onUploadStart={onUploadStart}
-                    onUploadEnd={onUploadEnd}
-                    onChange={(stageImg) =>
+                <FileUploadField
+                  label="스테이지 일러스트"
+                  accept="image"
+                  value={draft.stageImg || ''}
+                  folder="site/trpg/players"
+                  onChange={(stageImg) =>
+                    updateDraft({
+                      stageImg: stageImg || undefined,
+                      stageImgFrame: undefined,
+                      stageImgFit: 'contain',
+                      stageImgPos: DEFAULT_PORTRAIT_POS,
+                    })
+                  }
+                />
+                <div className="trpg-inv-edit-row" style={{ marginTop: 6 }}>
+                  <button
+                    type="button"
+                    className="btn-edit"
+                    disabled={!draft.img}
+                    onClick={() =>
                       updateDraft({
-                        stageImg: stageImg || undefined,
+                        stageImg: draft.img,
                         stageImgFrame: undefined,
                         stageImgFit: 'contain',
                         stageImgPos: DEFAULT_PORTRAIT_POS,
                       })
                     }
-                  />
-                  <div className="trpg-inv-edit-row" style={{ marginTop: 6 }}>
+                  >
+                    카드 이미지에서 가져오기
+                  </button>
+                  {draft.stageImg ? (
                     <button
                       type="button"
                       className="btn-edit"
-                      disabled={!draft.img}
                       onClick={() =>
                         updateDraft({
-                          stageImg: draft.img,
+                          stageImg: undefined,
                           stageImgFrame: undefined,
-                          stageImgFit: 'contain',
-                          stageImgPos: DEFAULT_PORTRAIT_POS,
+                          stageImgFit: undefined,
+                          stageImgPos: undefined,
                         })
                       }
                     >
-                      카드 이미지에서 가져오기
+                      비우기 (카드 이미지 사용)
                     </button>
-                    {draft.stageImg ? (
-                      <button
-                        type="button"
-                        className="btn-edit"
-                        onClick={() =>
-                          updateDraft({
-                            stageImg: undefined,
-                            stageImgFrame: undefined,
-                            stageImgFit: undefined,
-                            stageImgPos: undefined,
-                          })
-                        }
-                      >
-                        비우기 (카드 이미지 사용)
-                      </button>
-                    ) : null}
-                  </div>
-                  <p className="trpg-inv-edit-hint">
-                    상세 스테이지용입니다. 비우면 카드 이미지를 쓰고, 위치·확대는 왼쪽 스테이지에서 조절하세요.
-                  </p>
-                  <h4 className="trpg-inv-section__label trpg-inv-section__label--spaced">퍼스널 컬러</h4>
-                  <div className="trpg-inv-personal-edit">
-                    <span
-                      className="trpg-inv-personal-edit__swatch"
-                      style={{
-                        backgroundColor: normalizeHex(draft.personalColor) || '#d7a982',
-                      }}
-                      aria-hidden="true"
-                    />
-                    <input
-                      type="color"
-                      className="trpg-inv-personal-edit__picker"
-                      value={normalizeHex(draft.personalColor) || '#d7a982'}
-                      onChange={(e) => updateDraft({ personalColor: e.target.value })}
-                      aria-label="퍼스널 컬러 선택"
-                    />
-                    <input
-                      className="trpg-inv-edit-field trpg-inv-personal-edit__hex"
-                      placeholder="#d7a982"
-                      value={draft.personalColor || ''}
-                      onChange={(e) => {
-                        const raw = e.target.value.trim();
-                        updateDraft({ personalColor: raw || undefined });
-                      }}
-                    />
-                    {draft.personalColor ? (
-                      <button
-                        type="button"
-                        className="btn-edit"
-                        onClick={() => updateDraft({ personalColor: undefined })}
-                      >
-                        지우기
-                      </button>
-                    ) : null}
-                  </div>
-                  <p className="trpg-inv-edit-hint">
-                    스테이지 배경에 약 16%로 스며드는 비네트 색입니다. 비우면 효과 없음.
-                  </p>
+                  ) : null}
                 </div>
-                <div className="trpg-inv-edit-intro__meta">
-                  <h4 className="trpg-inv-section__label">이름</h4>
-                  <div className="trpg-inv-edit-grid">
-                    <div className="trpg-inv-edit-row">
-                      <label>한글</label>
-                      <input
-                        className="trpg-inv-edit-field"
-                        value={draft.name}
-                        onChange={(e) => updateDraft({ name: e.target.value })}
-                      />
-                    </div>
-                    <div className="trpg-inv-edit-row">
-                      <label>영문</label>
-                      <input
-                        className="trpg-inv-edit-field"
-                        value={draft.nameEn || ''}
-                        onChange={(e) => updateDraft({ nameEn: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="trpg-inv-edit-row trpg-inv-edit-row--quote">
-                    <label>대표 한마디</label>
-                    <textarea
-                      className="trpg-inv-edit-field trpg-inv-edit-field--quote"
-                      placeholder={'한 줄 대사…\n엔터로 줄바꿈'}
-                      rows={3}
-                      value={draft.quote || ''}
-                      onChange={(e) => updateDraft({ quote: e.target.value })}
+                <FieldLabel>
+                  상세 스테이지용입니다. 비우면 카드 이미지를 쓰고, 위치·확대는 왼쪽 스테이지에서 조절하세요.
+                </FieldLabel>
+              </AccordionSection>
+
+              <AccordionSection title="기본 정보" defaultOpen>
+                <div className="trpg-inv-edit-grid">
+                  <div className="trpg-inv-edit-row">
+                    <label>한글</label>
+                    <input
+                      className="trpg-inv-edit-field"
+                      value={draft.name}
+                      onChange={(e) => updateDraft({ name: e.target.value })}
                     />
-                    <div className="trpg-inv-quote-align" role="group" aria-label="대사 정렬">
-                      {(
-                        [
-                          { id: 'left', label: '왼쪽' },
-                          { id: 'center', label: '중앙' },
-                          { id: 'right', label: '오른쪽' },
-                        ] as const
-                      ).map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          className={`trpg-inv-quote-align__btn${(draft.quoteAlign || 'center') === opt.id ? ' is-active' : ''}`}
-                          onClick={() => updateDraft({ quoteAlign: opt.id })}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    <span className="trpg-inv-edit-hint">
-                      줄바꿈은 Enter로만. 수정 모드에서 스테이지 대사를 드래그해 위치를 잡으세요.
-                    </span>
                   </div>
-                  <div className="trpg-inv-edit-grid">
-                    <div className="trpg-inv-edit-row">
-                      <label>플레이어</label>
-                      <input
-                        className="trpg-inv-edit-field"
-                        placeholder="연기한 플레이어"
-                        value={draft.playerName || ''}
-                        onChange={(e) => updateDraft({ playerName: e.target.value })}
-                      />
-                    </div>
-                    <div className="trpg-inv-edit-row">
-                      <label>연결 OC</label>
-                      <select
-                        className="trpg-inv-edit-field"
-                        value={draft.ocId || ''}
-                        onChange={(e) => updateDraft({ ocId: e.target.value || undefined })}
+                  <div className="trpg-inv-edit-row">
+                    <label>영문</label>
+                    <input
+                      className="trpg-inv-edit-field"
+                      value={draft.nameEn || ''}
+                      onChange={(e) => updateDraft({ nameEn: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="trpg-inv-edit-row trpg-inv-edit-row--quote">
+                  <label>대표 한마디</label>
+                  <textarea
+                    className="trpg-inv-edit-field trpg-inv-edit-field--quote"
+                    placeholder={'한 줄 대사…\n엔터로 줄바꿈'}
+                    rows={3}
+                    value={draft.quote || ''}
+                    onChange={(e) => updateDraft({ quote: e.target.value })}
+                  />
+                  <div className="trpg-inv-quote-align" role="group" aria-label="대사 정렬">
+                    {(
+                      [
+                        { id: 'left', label: '왼쪽' },
+                        { id: 'center', label: '중앙' },
+                        { id: 'right', label: '오른쪽' },
+                      ] as const
+                    ).map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`trpg-inv-quote-align__btn${(draft.quoteAlign || 'center') === opt.id ? ' is-active' : ''}`}
+                        onClick={() => updateDraft({ quoteAlign: opt.id })}
                       >
-                        <option value="">없음 (이름 자동 매칭)</option>
-                        {ocCharacters.map((c) => (
-                          <option key={String(c.id)} value={String(c.id)}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <h4 className="trpg-inv-section__label trpg-inv-section__label--spaced">태그</h4>
-                  <div className="trpg-inv-tag-row">
-                    {(draft.tags ?? []).map((tag, i) => (
-                      <span key={`${tag}-${i}`} className="trpg-inv-tag-editable">
-                        {tag}
-                        <button type="button" className="trpg-inv-tag-del" onClick={() => removeTag(i)}>
-                          ✕
-                        </button>
-                      </span>
+                        {opt.label}
+                      </button>
                     ))}
                   </div>
-                  <input
-                    className="trpg-inv-edit-field"
-                    placeholder="태그 입력 후 Enter"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTag((e.target as HTMLInputElement).value);
-                        (e.target as HTMLInputElement).value = '';
-                      }
+                  <FieldLabel>
+                    줄바꿈은 Enter로만. 수정 모드에서 스테이지 대사를 드래그해 위치를 잡으세요.
+                  </FieldLabel>
+                </div>
+                <div className="trpg-inv-edit-grid">
+                  <div className="trpg-inv-edit-row">
+                    <label>플레이어</label>
+                    <input
+                      className="trpg-inv-edit-field"
+                      placeholder="연기한 플레이어"
+                      value={draft.playerName || ''}
+                      onChange={(e) => updateDraft({ playerName: e.target.value })}
+                    />
+                  </div>
+                  <div className="trpg-inv-edit-row">
+                    <label>연결 OC</label>
+                    <select
+                      className="trpg-inv-edit-field"
+                      value={draft.ocId || ''}
+                      onChange={(e) => updateDraft({ ocId: e.target.value || undefined })}
+                    >
+                      <option value="">없음 (이름 자동 매칭)</option>
+                      {ocCharacters.map((c) => (
+                        <option key={String(c.id)} value={String(c.id)}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="trpg-inv-tag-row">
+                  {(draft.tags ?? []).map((tag, i) => (
+                    <span key={`${tag}-${i}`} className="trpg-inv-tag-editable">
+                      {tag}
+                      <button type="button" className="trpg-inv-tag-del" onClick={() => removeTag(i)}>
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  className="trpg-inv-edit-field"
+                  placeholder="태그 입력 후 Enter"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTag((e.target as HTMLInputElement).value);
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }}
+                />
+              </AccordionSection>
+
+              <AccordionSection title="손글씨 쪽지" defaultOpen={false}>
+                <FieldLabel>
+                  이미지(스캔·일러)를 올리면 상세 이름 앞에 쪽지 아이콘이 생기고, 누르면 펼쳐 봅니다.
+                </FieldLabel>
+                <div className="lh-gal-edit-imgs">
+                  {(draft.handwritingNotes || []).map((src, ni) => (
+                    <div key={`${src}-${ni}`} className="lh-gal-edit-imgs__row">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt="" referrerPolicy="no-referrer" />
+                      <button
+                        type="button"
+                        className="btn-del"
+                        onClick={() => {
+                          const next = (draft.handwritingNotes || []).filter((_, j) => j !== ni);
+                          updateDraft({
+                            handwritingNotes: next.length ? next : undefined,
+                          });
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <ImageUploadCrop
+                  label="쪽지 이미지 추가"
+                  value={handNoteDraft}
+                  folder="trpg/hand-notes"
+                  onChange={setHandNoteDraft}
+                  onUploaded={(url) => {
+                    const prev = draft.handwritingNotes || [];
+                    updateDraft({ handwritingNotes: [...prev, url] });
+                    setHandNoteDraft('');
+                  }}
+                  uploading={noteUploading}
+                  onUploadStart={() => setNoteUploading(true)}
+                  onUploadEnd={() => setNoteUploading(false)}
+                  urlPlaceholder="또는 URL"
+                />
+                {handNoteDraft.trim() ? (
+                  <button
+                    type="button"
+                    className="btn-save"
+                    style={{ padding: '5px 12px', marginTop: 8 }}
+                    onClick={() => {
+                      const src = handNoteDraft.trim();
+                      if (!src) return;
+                      const prev = draft.handwritingNotes || [];
+                      updateDraft({ handwritingNotes: [...prev, src] });
+                      setHandNoteDraft('');
                     }}
+                  >
+                    + URL로 쪽지 추가
+                  </button>
+                ) : null}
+                <div className="pair-note-sfx">
+                  <div className="pair-note-sfx__head">
+                    <span className="pair-note-sfx__title">펼침 효과음</span>
+                    <span className="pair-note-sfx__hint">쪽지를 열 때 한 번 재생됩니다 · 비우면 무음</span>
+                  </div>
+                  <AudioFileField
+                    label=""
+                    value={draft.handwritingNoteSfx || ''}
+                    folder="trpg/hand-notes-sfx"
+                    uploading={noteUploading}
+                    onUploadStart={() => setNoteUploading(true)}
+                    onUploadEnd={() => setNoteUploading(false)}
+                    onChange={(url) =>
+                      updateDraft({
+                        handwritingNoteSfx: url.trim() ? url.trim() : undefined,
+                      })
+                    }
                   />
                 </div>
-              </div>
+                <div className="pair-note-sfx">
+                  <div className="pair-note-sfx__head">
+                    <span className="pair-note-sfx__title">닫힘 효과음</span>
+                    <span className="pair-note-sfx__hint">쪽지를 닫을 때 한 번 재생됩니다 · 비우면 무음</span>
+                  </div>
+                  <AudioFileField
+                    label=""
+                    value={draft.handwritingNoteCloseSfx || ''}
+                    folder="trpg/hand-notes-sfx"
+                    uploading={noteUploading}
+                    onUploadStart={() => setNoteUploading(true)}
+                    onUploadEnd={() => setNoteUploading(false)}
+                    onChange={(url) =>
+                      updateDraft({
+                        handwritingNoteCloseSfx: url.trim() ? url.trim() : undefined,
+                      })
+                    }
+                  />
+                </div>
+              </AccordionSection>
+
+              <AccordionSection title="퍼스널 컬러" defaultOpen={false}>
+                <div className="trpg-inv-personal-edit">
+                  <span
+                    className="trpg-inv-personal-edit__swatch"
+                    style={{
+                      backgroundColor: normalizeHex(draft.personalColor) || '#d7a982',
+                    }}
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="color"
+                    className="trpg-inv-personal-edit__picker"
+                    value={normalizeHex(draft.personalColor) || '#d7a982'}
+                    onChange={(e) => updateDraft({ personalColor: e.target.value })}
+                    aria-label="퍼스널 컬러 선택"
+                  />
+                  <input
+                    className="trpg-inv-edit-field trpg-inv-personal-edit__hex"
+                    placeholder="#d7a982"
+                    value={draft.personalColor || ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      updateDraft({ personalColor: raw || undefined });
+                    }}
+                  />
+                  {draft.personalColor ? (
+                    <button
+                      type="button"
+                      className="btn-edit"
+                      onClick={() => updateDraft({ personalColor: undefined })}
+                    >
+                      지우기
+                    </button>
+                  ) : null}
+                </div>
+                <FieldLabel>스테이지 배경에 약 16%로 스며드는 비네트 색입니다. 비우면 효과 없음.</FieldLabel>
+                <LakeToggle
+                  checked={Boolean(draft.dustFx?.enabled)}
+                  onChange={(on) =>
+                    updateDraft({
+                      dustFx: { ...(draft.dustFx ?? {}), enabled: on },
+                    })
+                  }
+                  label="먼지 효과 사용"
+                />
+                {draft.dustFx?.enabled ? (
+                  <SliderField
+                    label="감도"
+                    min={1}
+                    max={100}
+                    step={1}
+                    value={typeof draft.dustFx.intensity === 'number' ? draft.dustFx.intensity : 45}
+                    displayValue={`${typeof draft.dustFx.intensity === 'number' ? draft.dustFx.intensity : 45}%`}
+                    onChange={(intensity) =>
+                      updateDraft({
+                        dustFx: {
+                          ...(draft.dustFx ?? {}),
+                          enabled: true,
+                          intensity,
+                        },
+                      })
+                    }
+                    hint="상세 스테이지에 먼지가 천천히 떠다닙니다. 감도가 높을수록 입자가 많아집니다."
+                  />
+                ) : null}
+              </AccordionSection>
 
               {(['expression', 'version'] as const).map((kind) => {
                 const kindItems = (draft.expressions ?? [])
@@ -663,250 +856,254 @@ export function TrpgInvestigatorBoard({
                 const kindLabel = kind === 'version' ? '버전' : '표정';
                 const kindEn = kind === 'version' ? 'VERSION' : 'EXPRESSION';
                 return (
-                  <section key={kind} className="trpg-inv-section">
-                    <div className="trpg-inv-section__head">
-                      <h4 className="trpg-inv-section__label">
-                        {kindLabel}
-                        <span className="trpg-inv-section__label-en">{kindEn}</span>
-                      </h4>
-                      <div className="trpg-inv-expr-edit__tools">
-                        {kindItems.length > 0 && (draft.stageImg || draft.img) ? (
-                          <button
-                            type="button"
-                            className="btn-edit"
-                            onClick={() => {
-                              const frame = portraitFrameFromDefault(draft);
-                              updateDraft({
-                                expressions: (draft.expressions ?? []).map((ex) =>
-                                  normalizePortraitKind(ex.kind) === kind
-                                    ? { ...ex, ...frame, imgFrame: { ...frame.imgFrame } }
-                                    : ex,
-                                ),
-                              });
-                            }}
-                          >
-                            기본 프레임 일괄 적용
-                          </button>
-                        ) : null}
-                        <button type="button" className="btn-edit" onClick={() => addExpression(kind)}>
-                          + {kindLabel}
+                  <AccordionSection
+                    key={kind}
+                    title={`${kindLabel} (${kindEn})`}
+                    defaultOpen={kindItems.length > 0}
+                  >
+                    <div className="trpg-inv-expr-edit__tools" style={{ marginBottom: 8 }}>
+                      {kindItems.length > 0 && (draft.stageImg || draft.img) ? (
+                        <button
+                          type="button"
+                          className="btn-edit"
+                          onClick={() => {
+                            const frame = portraitFrameFromDefault(draft);
+                            updateDraft({
+                              expressions: (draft.expressions ?? []).map((ex) =>
+                                normalizePortraitKind(ex.kind) === kind
+                                  ? { ...ex, ...frame, imgFrame: { ...frame.imgFrame } }
+                                  : ex,
+                              ),
+                            });
+                          }}
+                        >
+                          기본 프레임 일괄 적용
                         </button>
-                      </div>
+                      ) : null}
                     </div>
-                    <p className="trpg-inv-section__hint">
+                    <FieldLabel>
                       {kind === 'version'
                         ? '의상·연령 등 다른 버전 일러스트입니다. 스테이지 왼쪽에서 › 로 전환해 고릅니다.'
                         : '같은 버전의 표정 일러스트입니다. 「기본 프레임 맞추기」는 스테이지 위치·확대를 복사합니다.'}
-                    </p>
-                    {kindItems.map(({ ex, i }) => {
-                      const open = expandedExprIds.includes(ex.id);
-                      const label = ex.label?.trim() || `${kindLabel} ${i + 1}`;
-                      return (
-                        <div key={ex.id} className={`trpg-inv-expr-edit${open ? ' is-open' : ''}`}>
-                          <div className="trpg-inv-expr-edit__summary">
-                            <button
-                              type="button"
-                              className="trpg-inv-expr-edit__toggle"
-                              onClick={() => toggleExpressionExpanded(ex.id)}
-                              aria-expanded={open}
-                            >
-                              <span className="trpg-inv-expr-edit__chevron" aria-hidden="true">
-                                {open ? '▾' : '▸'}
-                              </span>
-                              {ex.img ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img className="trpg-inv-expr-edit__thumb" src={ex.img} alt="" />
-                              ) : (
-                                <span className="trpg-inv-expr-edit__thumb is-empty">?</span>
-                              )}
-                              <span className="trpg-inv-expr-edit__summary-text">
-                                <strong>{label}</strong>
-                                <em>{ex.img ? '이미지 설정됨' : '이미지 없음'}</em>
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-del"
-                              onClick={() => removeExpression(i)}
-                              aria-label={`${label} 삭제`}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          {open ? (
-                            <div className="trpg-inv-expr-edit__body">
-                              <div className="trpg-inv-expr-edit__row">
-                                <input
-                                  className="trpg-inv-edit-field"
-                                  placeholder={
-                                    kind === 'version' ? '라벨 (교복, 사복…)' : '라벨 (미소, 진지…)'
-                                  }
-                                  value={ex.label || ''}
-                                  onChange={(e) => updateExpression(i, { label: e.target.value })}
-                                />
-                              </div>
-                              <ImageFileField
-                                label=""
-                                value={ex.img || ''}
-                                folder="site/trpg/players"
-                                uploading={uploading}
-                                onUploadStart={onUploadStart}
-                                onUploadEnd={onUploadEnd}
-                                onChange={(img) =>
-                                  updateExpression(i, {
-                                    img,
-                                    kind,
-                                    ...portraitFrameFromDefault(draft),
-                                  })
-                                }
-                              />
-                              {ex.img ? (
-                                <>
-                                  <div className="trpg-inv-expr-edit__frame trpg-inv-img-frame-editor">
-                                    <ImageFrameEditor
-                                      key={`${ex.id}-${ex.imgFrame?.scale ?? 1}-${ex.imgFrame?.x ?? 0}-${ex.imgFrame?.y ?? 0}-${ex.imgPos || DEFAULT_PORTRAIT_POS}`}
-                                      src={ex.img}
-                                      value={ex.imgFrame}
-                                      onChange={(imgFrame) => updateExpression(i, { imgFrame })}
-                                      fit={ex.imgFit || draft.imgFit || DEFAULT_PORTRAIT_FIT}
-                                      pos={ex.imgPos || draft.imgPos || DEFAULT_PORTRAIT_POS}
-                                      aspectRatio="3 / 4"
-                                      allowWheelZoom
-                                    />
-                                  </div>
-                                  <div className="trpg-inv-expr-edit__tools">
-                                    <button
-                                      type="button"
-                                      className="btn-edit"
-                                      onClick={() => applyDefaultFrameToExpression(i)}
-                                      disabled={!(draft.stageImg || draft.img)}
-                                    >
-                                      기본 프레임 맞추기
-                                    </button>
-                                  </div>
-                                </>
-                              ) : null}
+                    </FieldLabel>
+                    <RepeatableList addLabel={`+ ${kindLabel}`} onAdd={() => addExpression(kind)}>
+                      {kindItems.map(({ ex, i }) => {
+                        const open = expandedExprIds.includes(ex.id);
+                        const label = ex.label?.trim() || `${kindLabel} ${i + 1}`;
+                        return (
+                          <div key={ex.id} className={`trpg-inv-expr-edit${open ? ' is-open' : ''}`}>
+                            <div className="trpg-inv-expr-edit__summary">
+                              <button
+                                type="button"
+                                className="trpg-inv-expr-edit__toggle"
+                                onClick={() => toggleExpressionExpanded(ex.id)}
+                                aria-expanded={open}
+                              >
+                                <span className="trpg-inv-expr-edit__chevron" aria-hidden="true">
+                                  {open ? '▾' : '▸'}
+                                </span>
+                                {ex.img ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img className="trpg-inv-expr-edit__thumb" src={ex.img} alt="" />
+                                ) : (
+                                  <span className="trpg-inv-expr-edit__thumb is-empty">?</span>
+                                )}
+                                <span className="trpg-inv-expr-edit__summary-text">
+                                  <strong>{label}</strong>
+                                  <em>{ex.img ? '이미지 설정됨' : '이미지 없음'}</em>
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-del"
+                                onClick={() => removeExpression(i)}
+                                aria-label={`${label} 삭제`}
+                              >
+                                ✕
+                              </button>
                             </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </section>
+                            {open ? (
+                              <div className="trpg-inv-expr-edit__body">
+                                <div className="trpg-inv-expr-edit__row">
+                                  <input
+                                    className="trpg-inv-edit-field"
+                                    placeholder={
+                                      kind === 'version' ? '라벨 (교복, 사복…)' : '라벨 (미소, 진지…)'
+                                    }
+                                    value={ex.label || ''}
+                                    onChange={(e) => updateExpression(i, { label: e.target.value })}
+                                  />
+                                </div>
+                                <FileUploadField
+                                  label=""
+                                  accept="image"
+                                  value={ex.img || ''}
+                                  folder="site/trpg/players"
+                                  onChange={(img) =>
+                                    updateExpression(i, {
+                                      img,
+                                      kind,
+                                      ...portraitFrameFromDefault(draft),
+                                    })
+                                  }
+                                />
+                                {ex.img ? (
+                                  <>
+                                    <div className="trpg-inv-expr-edit__frame trpg-inv-img-frame-editor">
+                                      <ImageFrameEditor
+                                        key={`${ex.id}-${ex.imgFrame?.scale ?? 1}-${ex.imgFrame?.x ?? 0}-${ex.imgFrame?.y ?? 0}-${ex.imgPos || DEFAULT_PORTRAIT_POS}`}
+                                        src={ex.img}
+                                        value={ex.imgFrame}
+                                        onChange={(imgFrame) => updateExpression(i, { imgFrame })}
+                                        fit={ex.imgFit || draft.imgFit || DEFAULT_PORTRAIT_FIT}
+                                        pos={ex.imgPos || draft.imgPos || DEFAULT_PORTRAIT_POS}
+                                        aspectRatio="3 / 4"
+                                        allowWheelZoom
+                                      />
+                                    </div>
+                                    <div className="trpg-inv-expr-edit__tools">
+                                      <button
+                                        type="button"
+                                        className="btn-edit"
+                                        onClick={() => applyDefaultFrameToExpression(i)}
+                                        disabled={!(draft.stageImg || draft.img)}
+                                      >
+                                        기본 프레임 맞추기
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </RepeatableList>
+                  </AccordionSection>
                 );
               })}
 
-              <section className="trpg-inv-section">
-                <div className="trpg-inv-section__head">
-                  <h4 className="trpg-inv-section__label">기본 정보</h4>
-                  <button type="button" className="btn-edit" onClick={addInfoField}>
-                    + 항목
-                  </button>
-                </div>
-                {(draft.infoFields ?? []).map((field, i) => (
-                  <div key={i} className="trpg-inv-info-field-row">
-                    <button type="button" className="btn-edit" onClick={() => moveInfoField(i, -1)} disabled={i === 0} aria-label="위로">
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-edit"
-                      onClick={() => moveInfoField(i, 1)}
-                      disabled={i === (draft.infoFields ?? []).length - 1}
-                      aria-label="아래로"
-                    >
-                      ↓
-                    </button>
-                    <input
-                      className="trpg-inv-edit-field trpg-inv-info-field-key"
-                      placeholder="항목명"
-                      value={field.key}
-                      onChange={(e) => updateInfoField(i, { key: e.target.value })}
-                    />
-                    <span className="trpg-inv-info-field-sep">·</span>
-                    <input
-                      className="trpg-inv-edit-field trpg-inv-info-field-val"
-                      placeholder="내용"
-                      value={field.value}
-                      onChange={(e) => updateInfoField(i, { value: e.target.value })}
-                    />
-                    <button type="button" className="btn-del" onClick={() => removeInfoField(i)}>
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </section>
-
-              <ProfileTextEdit
-                section="appearance"
-                value={draft.appearance || ''}
-                onChange={(appearance) => updateDraft({ appearance })}
-                placeholder="외모·복장 등"
-                rows={4}
-              />
-
-              <ProfileTextEdit
-                section="personality"
-                value={draft.personality || ''}
-                onChange={(personality) => updateDraft({ personality })}
-                placeholder="성격·말투 등"
-                rows={4}
-              />
-
-              <ProfileTextEdit
-                section="traits"
-                value={draft.traits || ''}
-                onChange={(traits) => updateDraft({ traits })}
-                placeholder="버릇·특기 등"
-                rows={3}
-              />
-
-              <LikeHateEdit
-                likes={draft.likes || ''}
-                dislikes={draft.dislikes || ''}
-                onChangeLikes={(likes) => updateDraft({ likes })}
-                onChangeDislikes={(dislikes) => updateDraft({ dislikes })}
-              />
-
-              <section className="trpg-inv-section">
-                <div className="trpg-inv-section__head">
-                  <h4 className="trpg-inv-section__label">능력치</h4>
-                  <button type="button" className="btn-edit" onClick={addStat}>
-                    + 능력치
-                  </button>
-                </div>
-                <div className="trpg-inv-stat-edit">
-                  {(draft.stats ?? []).map((stat, i) => (
-                    <div key={i} className="trpg-inv-stat-edit-box">
+              <AccordionSection title="기본 정보 항목" defaultOpen={false}>
+                <RepeatableList addLabel="+ 항목" onAdd={addInfoField}>
+                  {(draft.infoFields ?? []).map((field, i) => (
+                    <div key={i} className="trpg-inv-info-field-row">
+                      <button type="button" className="btn-edit" onClick={() => moveInfoField(i, -1)} disabled={i === 0} aria-label="위로">
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-edit"
+                        onClick={() => moveInfoField(i, 1)}
+                        disabled={i === (draft.infoFields ?? []).length - 1}
+                        aria-label="아래로"
+                      >
+                        ↓
+                      </button>
                       <input
-                        className="trpg-inv-edit-field trpg-inv-stat-edit-box__label"
-                        value={stat.label}
-                        onChange={(e) => updateStat(i, { label: e.target.value })}
+                        className="trpg-inv-edit-field trpg-inv-info-field-key"
+                        placeholder="항목명"
+                        value={field.key}
+                        onChange={(e) => updateInfoField(i, { key: e.target.value })}
                       />
+                      <span className="trpg-inv-info-field-sep">·</span>
                       <input
-                        className="trpg-inv-edit-field"
-                        type="number"
-                        min={0}
-                        value={stat.value}
-                        onChange={(e) => updateStat(i, { value: Number(e.target.value) || 0 })}
+                        className="trpg-inv-edit-field trpg-inv-info-field-val"
+                        placeholder="내용"
+                        value={field.value}
+                        onChange={(e) => updateInfoField(i, { value: e.target.value })}
                       />
-                      <button type="button" className="btn-del trpg-inv-stat-edit-box__del" onClick={() => removeStat(i)}>
+                      <button type="button" className="btn-del" onClick={() => removeInfoField(i)}>
                         ✕
                       </button>
                     </div>
                   ))}
-                </div>
-              </section>
+                </RepeatableList>
+              </AccordionSection>
 
-              <ProfileTextEdit
-                section="bio"
-                value={draft.bio || ''}
-                onChange={(bio) => updateDraft({ bio })}
-                placeholder="캐릭터 배경·설정"
-                rows={5}
-              />
+              <AccordionSection title="외관 / 성격 / 특징" defaultOpen={false}>
+                <TextAreaField
+                  label="외관"
+                  rows={4}
+                  placeholder="외모·복장 등"
+                  value={draft.appearance || ''}
+                  onChange={(appearance) => updateDraft({ appearance })}
+                />
+                <ProfileCharCount value={draft.appearance || ''} />
+                <TextAreaField
+                  label="성격"
+                  rows={4}
+                  placeholder="성격·말투 등"
+                  value={draft.personality || ''}
+                  onChange={(personality) => updateDraft({ personality })}
+                />
+                <ProfileCharCount value={draft.personality || ''} />
+                <TextAreaField
+                  label="특징"
+                  rows={3}
+                  placeholder="버릇·특기 등"
+                  value={draft.traits || ''}
+                  onChange={(traits) => updateDraft({ traits })}
+                />
+                <ProfileCharCount value={draft.traits || ''} />
+                <FieldLabel>빈 줄로 문단 구분 · 핵심 명사는 **이렇게** 감싸면 굵게 표시됩니다.</FieldLabel>
+              </AccordionSection>
 
-              <section className="trpg-inv-section">
-                <h4 className="trpg-inv-section__label">소지품</h4>
+              <AccordionSection title="LIKE / HATE" defaultOpen={false}>
+                <TextAreaField
+                  label="LIKE"
+                  rows={2}
+                  placeholder="LIKE"
+                  value={draft.likes || ''}
+                  onChange={(likes) => updateDraft({ likes })}
+                />
+                <TextAreaField
+                  label="HATE"
+                  rows={2}
+                  placeholder="HATE"
+                  value={draft.dislikes || ''}
+                  onChange={(dislikes) => updateDraft({ dislikes })}
+                />
+              </AccordionSection>
+
+              <AccordionSection title="능력치" defaultOpen={false}>
+                <RepeatableList addLabel="+ 능력치" onAdd={addStat}>
+                  <div className="trpg-inv-stat-edit">
+                    {(draft.stats ?? []).map((stat, i) => (
+                      <div key={i} className="trpg-inv-stat-edit-box">
+                        <input
+                          className="trpg-inv-edit-field trpg-inv-stat-edit-box__label"
+                          value={stat.label}
+                          onChange={(e) => updateStat(i, { label: e.target.value })}
+                        />
+                        <input
+                          className="trpg-inv-edit-field"
+                          type="number"
+                          min={0}
+                          value={stat.value}
+                          onChange={(e) => updateStat(i, { value: Number(e.target.value) || 0 })}
+                        />
+                        <button type="button" className="btn-del trpg-inv-stat-edit-box__del" onClick={() => removeStat(i)}>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </RepeatableList>
+              </AccordionSection>
+
+              <AccordionSection title="배경" defaultOpen={false}>
+                <TextAreaField
+                  label="배경"
+                  rows={5}
+                  placeholder="캐릭터 배경·설정"
+                  value={draft.bio || ''}
+                  onChange={(bio) => updateDraft({ bio })}
+                />
+                <ProfileCharCount value={draft.bio || ''} />
+                <FieldLabel>빈 줄로 문단 구분 · 핵심 명사는 **이렇게** 감싸면 굵게 표시됩니다.</FieldLabel>
+              </AccordionSection>
+
+              <AccordionSection title="소지품" defaultOpen={false}>
                 <div className="trpg-inv-edit-row">
                   <label>소지금</label>
                   <input
@@ -916,121 +1113,115 @@ export function TrpgInvestigatorBoard({
                     onChange={(e) => updateDraft({ money: e.target.value })}
                   />
                 </div>
-                {(draft.items ?? []).map((item, i) => (
-                  <div key={item.id} className="trpg-inv-item-edit">
-                    <div className="trpg-inv-item-edit__row">
-                      <input
-                        className="trpg-inv-edit-field trpg-inv-item-edit__icon"
-                        placeholder="🔦"
-                        value={item.icon || ''}
-                        onChange={(e) => updateItem(i, { icon: e.target.value })}
-                      />
-                      <input
-                        className="trpg-inv-edit-field"
-                        placeholder="이름"
-                        value={item.name}
-                        onChange={(e) => updateItem(i, { name: e.target.value })}
-                      />
-                      <input
-                        className="trpg-inv-edit-field trpg-inv-item-edit__count"
-                        placeholder="×1"
-                        value={item.count || ''}
-                        onChange={(e) => updateItem(i, { count: e.target.value })}
-                      />
-                      <label className="trpg-inv-item-edit__key">
+                <RepeatableList addLabel="+ 소지품 추가" onAdd={addItem}>
+                  {(draft.items ?? []).map((item, i) => (
+                    <div key={item.id} className="trpg-inv-item-edit">
+                      <div className="trpg-inv-item-edit__row">
                         <input
-                          type="checkbox"
-                          checked={!!item.key}
-                          onChange={(e) => updateItem(i, { key: e.target.checked })}
+                          className="trpg-inv-edit-field trpg-inv-item-edit__icon"
+                          placeholder="🔦"
+                          value={item.icon || ''}
+                          onChange={(e) => updateItem(i, { icon: e.target.value })}
                         />
-                        중요
-                      </label>
-                      <button type="button" className="btn-del" onClick={() => removeItem(i)}>
-                        ✕
-                      </button>
+                        <input
+                          className="trpg-inv-edit-field"
+                          placeholder="이름"
+                          value={item.name}
+                          onChange={(e) => updateItem(i, { name: e.target.value })}
+                        />
+                        <input
+                          className="trpg-inv-edit-field trpg-inv-item-edit__count"
+                          placeholder="×1"
+                          value={item.count || ''}
+                          onChange={(e) => updateItem(i, { count: e.target.value })}
+                        />
+                        <label className="trpg-inv-item-edit__key">
+                          <input
+                            type="checkbox"
+                            checked={!!item.key}
+                            onChange={(e) => updateItem(i, { key: e.target.checked })}
+                          />
+                          중요
+                        </label>
+                        <button type="button" className="btn-del" onClick={() => removeItem(i)}>
+                          ✕
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <button type="button" className="trpg-inv-add-btn" onClick={addItem}>
-                  + 소지품 추가
-                </button>
-                <div className="trpg-inv-edit-row" style={{ marginTop: 10 }}>
-                  <label>메모</label>
-                  <textarea
-                    className="trpg-inv-edit-field"
-                    rows={2}
-                    placeholder="소지품 관련 메모"
-                    value={draft.itemNote || ''}
-                    onChange={(e) => updateDraft({ itemNote: e.target.value })}
-                  />
-                </div>
-              </section>
+                  ))}
+                </RepeatableList>
+                <TextAreaField
+                  label="메모"
+                  rows={2}
+                  placeholder="소지품 관련 메모"
+                  value={draft.itemNote || ''}
+                  onChange={(itemNote) => updateDraft({ itemNote })}
+                />
+              </AccordionSection>
 
-              <section className="trpg-inv-section">
-                <h4 className="trpg-inv-section__label">관계</h4>
-                {(draft.relations ?? []).map((rel, i) => {
-                  const linked = resolveRelationPlayer(rel);
-                  return (
-                    <div key={rel.id} className="trpg-inv-rel-edit">
-                      <div className="trpg-inv-rel-edit-row">
-                        <label>탐사자</label>
-                        <select
-                          className="trpg-inv-edit-field"
-                          value={rel.playerId || ''}
-                          onChange={(e) => selectRelationPlayer(i, e.target.value)}
-                        >
-                          <option value="">선택…</option>
-                          {relationCandidates.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="trpg-inv-rel-edit-row">
-                        <label>설명</label>
-                        <input
-                          className="trpg-inv-edit-field"
-                          value={rel.desc || ''}
-                          onChange={(e) => updateRelation(i, { desc: e.target.value })}
-                          placeholder="관계 설명"
-                        />
-                      </div>
-                      {linked ? (
-                        <button
-                          type="button"
-                          className="trpg-inv-rel-preview"
-                          onClick={() => openInvestigatorProfile(linked.id)}
-                        >
-                          {linked.img ? (
-                            <span className="trpg-inv-rel-preview__av">
-                              <InvestigatorCardImage player={linked} />
+              <AccordionSection title="관계" defaultOpen={false}>
+                <RepeatableList addLabel="+ 관계 추가" onAdd={addRelation}>
+                  {(draft.relations ?? []).map((rel, i) => {
+                    const linked = resolveRelationPlayer(rel);
+                    return (
+                      <div key={rel.id} className="trpg-inv-rel-edit">
+                        <div className="trpg-inv-rel-edit-row">
+                          <label>탐사자</label>
+                          <select
+                            className="trpg-inv-edit-field"
+                            value={rel.playerId || ''}
+                            onChange={(e) => selectRelationPlayer(i, e.target.value)}
+                          >
+                            <option value="">선택…</option>
+                            {relationCandidates.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="trpg-inv-rel-edit-row">
+                          <label>설명</label>
+                          <input
+                            className="trpg-inv-edit-field"
+                            value={rel.desc || ''}
+                            onChange={(e) => updateRelation(i, { desc: e.target.value })}
+                            placeholder="관계 설명"
+                          />
+                        </div>
+                        {linked ? (
+                          <button
+                            type="button"
+                            className="trpg-inv-rel-preview"
+                            onClick={() => openInvestigatorProfile(linked.id)}
+                          >
+                            {linked.img ? (
+                              <span className="trpg-inv-rel-preview__av">
+                                <InvestigatorCardImage player={linked} />
+                              </span>
+                            ) : (
+                              <span className="trpg-inv-rel-preview__av trpg-inv-rel-preview__av--ph">
+                                {linked.name[0] || '?'}
+                              </span>
+                            )}
+                            <span className="trpg-inv-rel-preview__meta">
+                              <span className="trpg-inv-rel-preview__name">{linked.name}</span>
+                              {linked.nameEn ? (
+                                <span className="trpg-inv-rel-preview__sub">{linked.nameEn}</span>
+                              ) : null}
                             </span>
-                          ) : (
-                            <span className="trpg-inv-rel-preview__av trpg-inv-rel-preview__av--ph">
-                              {linked.name[0] || '?'}
-                            </span>
-                          )}
-                          <span className="trpg-inv-rel-preview__meta">
-                            <span className="trpg-inv-rel-preview__name">{linked.name}</span>
-                            {linked.nameEn ? (
-                              <span className="trpg-inv-rel-preview__sub">{linked.nameEn}</span>
-                            ) : null}
-                          </span>
-                        </button>
-                      ) : null}
-                      <div className="trpg-inv-rel-edit__actions">
-                        <button type="button" className="btn-del" onClick={() => removeRelation(i)}>
-                          삭제
-                        </button>
+                          </button>
+                        ) : null}
+                        <div className="trpg-inv-rel-edit__actions">
+                          <button type="button" className="btn-del" onClick={() => removeRelation(i)}>
+                            삭제
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-                <button type="button" className="trpg-inv-add-btn" onClick={addRelation}>
-                  + 관계 추가
-                </button>
-              </section>
+                    );
+                  })}
+                </RepeatableList>
+              </AccordionSection>
             </div>
           ) : (
             <>
@@ -1165,6 +1356,17 @@ export function TrpgInvestigatorBoard({
             </>
           )}
         </TrpgInvestigatorDetail>
+      ) : null}
+
+      {handNoteLb ? (
+        <HandwritingNoteFlap
+          open={!!handNoteLb}
+          urls={handNoteLb.urls}
+          title={handNoteLb.title}
+          sfxUrl={handNoteLb.sfxUrl}
+          closeSfxUrl={handNoteLb.closeSfxUrl}
+          onClose={() => setHandNoteLb(null)}
+        />
       ) : null}
     </div>
   );

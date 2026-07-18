@@ -65,6 +65,10 @@ export function buildPairSideDialogueList(pair: PairItem, side: PairVnSide): Dia
   const pack = pair.dialogueBySide?.[side];
   if (pack?.nodes?.length) return filterPlayable(pack.nodes);
 
+  /* 통합 대사: 이 사이드가 비어 있으면 반대쪽 스크립트를 양쪽 클릭에서 공유 */
+  const other = side === 'A' ? pair.dialogueBySide?.B : pair.dialogueBySide?.A;
+  if (other?.nodes?.length) return filterPlayable(other.nodes);
+
   /* 사이드 분리 전 데이터: 양쪽 클릭 모두 기존 단일 대사 */
   if (pair.dialogue?.length) return filterPlayable(pair.dialogue);
   return filterPlayable(fromLegacyLines(pair));
@@ -73,6 +77,9 @@ export function buildPairSideDialogueList(pair: PairItem, side: PairVnSide): Dia
 export function pairSideDialogueStart(pair: PairItem, side: PairVnSide): string | undefined {
   const pack = pair.dialogueBySide?.[side];
   if (pack?.nodes?.length) return pack.start;
+  /* 통합 대사: 비어 있으면 반대쪽 시작 지점 공유 */
+  const other = side === 'A' ? pair.dialogueBySide?.B : pair.dialogueBySide?.A;
+  if (other?.nodes?.length) return other.start;
   if (pair.dialogueBySide) return pack?.start;
   return pair.dialogueStart;
 }

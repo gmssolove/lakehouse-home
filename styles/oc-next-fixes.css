@@ -67,9 +67,28 @@
   contain: none !important;
 }
 
-/* 상세 본문·좌우 UI 강제 표시 (opacity/contain 잔여 방지) */
-#detail-screen.active .oc-detail-body,
-#detail-screen.active .game-body.oc-detail-body {
+/* 상세 본문·좌우 UI 강제 표시 (opacity/contain 잔여 방지)
+   OC 상단바는 absolute 오버레이라 본문이 100%를 채워야
+   접힘/펼침과 무관하게 상·하단 빈 띠가 없다. */
+#detail-screen.active:not(.pair-detail-screen) .oc-detail-body,
+#detail-screen.active:not(.pair-detail-screen) .game-body.oc-detail-body {
+  opacity: 1 !important;
+  visibility: visible !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+@media (hover: hover) and (min-width: 901px) {
+  #detail-screen.active:not(.pair-detail-screen) .oc-detail-body,
+  #detail-screen.active:not(.pair-detail-screen) .game-body.oc-detail-body {
+    min-height: 100% !important;
+    height: 100% !important;
+  }
+}
+
+/* pair는 sticky 네비(52px)가 흐름에 남음 — 기존 높이 유지 */
+#detail-screen.active.pair-detail-screen .oc-detail-body,
+#detail-screen.active.pair-detail-screen .game-body.oc-detail-body {
   opacity: 1 !important;
   visibility: visible !important;
   min-height: calc(100vh - 52px) !important;
@@ -565,6 +584,24 @@
   align-self: flex-end;
   width: fit-content;
   max-width: 100%;
+}
+
+.oc-identity-name-block .lh-handnote-name-row {
+  align-self: flex-end;
+}
+
+.oc-identity-name-block .lh-handnote-btn {
+  /* 이름 앞(왼쪽) · 우측 정렬 이름 기준 */
+  margin: 0.55rem 0.05rem -0.05rem 0;
+  transform: translate(0.15rem, 0.12rem);
+}
+
+.oc-identity-name-block .lh-handnote-btn:hover {
+  transform: translate(0.15rem, 0);
+}
+
+.oc-identity-name-block .oc-identity-name {
+  margin: 0;
 }
 
 /* ── OC 상세 UI enter: 좌·우 동일키프레임/타이밍 → 일러스트 ── */

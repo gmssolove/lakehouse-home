@@ -27,13 +27,25 @@ export function lakeRouteDirection(from: string, to: string): 'forward' | 'back'
   return 'neutral';
 }
 
-export function shouldLakeRouteAnimate(from: string, to: string) {
+/** 상세 딥링크(?c= / view=detail) — 목록 깜빡임 방지를 위해 전환 애니 생략 */
+export function isLakeDeepProfileHref(href: string) {
+  try {
+    const url = new URL(href, 'http://lake.local');
+    if (url.searchParams.get('c')) return true;
+    if (url.searchParams.get('view') === 'detail') return true;
+    return false;
+  } catch {
+    return /[?&]c=/.test(href) || /[?&]view=detail/.test(href);
+  }
+}
+
+export function shouldLakeRouteAnimate(from: string, to: string, href?: string) {
   // Verse gate/archive use their own page chrome — don't intercept
   if (VERSE_PATH.test(from) || VERSE_PATH.test(to)) return false;
-  if (from === '/' && TRPG_SCENARIO.test(to)) return true;
-  if (TRPG_SCENARIO.test(from) && to === '/') return true;
-  if (from === '/oc' && TRPG_SCENARIO.test(to)) return true;
-  if (TRPG_SCENARIO.test(from) && to === '/oc') return true;
+  // 관련 프로필 바로가기(OC/홈 ↔ TRPG 시나리오)는 전환 애니메이션·딜레이 없이 즉시 이동
+  if (TRPG_SCENARIO.test(from) || TRPG_SCENARIO.test(to)) return false;
+  // 페어↔OC 상세 딥링크도 즉시 — 목록이 한 프레임 보이던 문제
+  if (href && isLakeDeepProfileHref(href)) return false;
   return ARCHIVE_PATHS.has(from) || ARCHIVE_PATHS.has(to);
 }
 
@@ -126,10 +138,15 @@ export function lakeNavigate(
 
   const nextPath = normalizeLakePath(url.pathname);
   const from = normalizeLakePath(currentPath);
-  if (nextPath === from) return null;
+  const fullHref = `${url.pathname}${url.search}${url.hash}`;
+  if (nextPath === from && url.search === (typeof window !== 'undefined' ? window.location.search : '')) {
+    return null;
+  }
+  /* 같은 path라도 ?c= 딥링크면 push (목록→상세) */
+  if (nextPath === from && !url.search) return null;
 
-  if (!shouldLakeRouteAnimate(from, nextPath)) {
-    router.push(`${url.pathname}${url.search}${url.hash}`);
+  if (!shouldLakeRouteAnimate(from, nextPath, fullHref)) {
+    router.push(fullHref);
     return null;
   }
 

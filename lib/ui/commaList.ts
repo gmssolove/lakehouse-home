@@ -9,7 +9,8 @@ export function joinCommaList(items: string[] | undefined): string {
  * 완성된 칸(쉼표 앞)만 trim.
  */
 export function splitCommaListLive(raw: string): string[] {
-  const parts = raw.split(/[,，、]/);
+  // 쉼표(,，、) 또는 줄바꿈(엔터)으로 항목을 나눈다
+  const parts = raw.split(/[,，、\n]/);
   if (parts.length === 1) return [parts[0] ?? ''];
   return parts.map((p, i) => (i === parts.length - 1 ? p.replace(/^\s+/, '') : p.trim()));
 }

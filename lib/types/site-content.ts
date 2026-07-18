@@ -1,7 +1,8 @@
-import type { ImageFrame } from '@/lib/types/character';
+import type { DustFxConfig, ImageFrame } from '@/lib/types/character';
 import type { WithSecret } from '@/lib/types/secret-content';
 
 export type { LakeAccessScope, SiteAccessSettings, WithSecret } from '@/lib/types/secret-content';
+export type { DustFxConfig } from '@/lib/types/character';
 export { DEFAULT_SITE_ACCESS_SETTINGS } from '@/lib/types/secret-content';
 
 export type SiteMain = {
@@ -10,14 +11,22 @@ export type SiteMain = {
   heading: string;
   headingAccent: string;
   desc: string;
+  /** 홈페이지 파비콘 (dataURL 또는 URL). 비우면 기본값 사용 */
+  favicon?: string;
+  /** 이전에 사용한 파비콘 목록 — 되돌리기용 */
+  faviconHistory?: string[];
 };
 
-/** Diary 타래 (작성자만 추가) */
+/** Diary 댓글/타래 — 작성자(관리자) 또는 로그인 방문자 */
 export type DiaryThread = {
   id: string;
   body: string;
   date: string;
   authorName?: string;
+  /** 방문자 댓글 작성자 uid — 본인 삭제 판별 */
+  authorUid?: string;
+  /** 관리자(작성자)가 남긴 타래 여부 */
+  byOwner?: boolean;
   imageUrl?: string;
   /** 이미지 스포일러(블러) */
   imageSpoiler?: boolean;
@@ -128,6 +137,8 @@ export type TrpgPlayerProfile = {
   stageImgPos?: string;
   /** 스테이지 퍼스널 컬러 (HEX) — 배경 비네트에 약하게 스며듦 */
   personalColor?: string;
+  /** 상세 공중 먼지 (기본 꺼짐) */
+  dustFx?: DustFxConfig;
   /** 대표 한마디 */
   quote?: string;
   /** PV 자막 위치 (스테이지 기준 %, left/top) */
@@ -158,6 +169,12 @@ export type TrpgPlayerProfile = {
   playerName?: string;
   /** 연결된 OC 캐릭터 id (`/oc?c=`) */
   ocId?: string;
+  /** 손글씨 쪽지 — 이미지 URL 목록 (클릭 시 팝업) */
+  handwritingNotes?: string[];
+  /** 쪽지 펼침 효과음 (오디오 URL) */
+  handwritingNoteSfx?: string;
+  /** 쪽지 닫힘 효과음 (오디오 URL) */
+  handwritingNoteCloseSfx?: string;
 };
 
 export type TrpgRelationship = {

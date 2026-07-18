@@ -14,6 +14,35 @@ function itemUnlockKey(scope: LakeAccessScope, itemId: string) {
   return `lh_lake_item_${scope}_${itemId}`;
 }
 
+/**
+ * 검증에 성공한 비밀번호 값을 기기(localStorage)에 저장.
+ * uid에 의존하지 않으므로 새로고침 직후(인증 복원 전)에도 유지되고,
+ * 관리자가 비밀번호를 바꾸면 저장값과 달라져 다시 묻게 된다.
+ */
+function scopePwKey(scope: LakeAccessScope) {
+  return `lh_lake_pw_${scope}`;
+}
+
+function itemPwKey(scope: LakeAccessScope, itemId: string) {
+  return `lh_lake_pw_${scope}_${itemId}`;
+}
+
+function readStr(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStr(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
 function currentUid(): string | null {
   try {
     return auth.currentUser?.uid ?? null;
@@ -63,8 +92,13 @@ function writePersist(key: string) {
   }
 }
 
-export function isLakeAccessUnlocked(scope: LakeAccessScope): boolean {
+export function isLakeAccessUnlocked(scope: LakeAccessScope, expectedPassword?: string): boolean {
   if (typeof window === 'undefined') return false;
+  const stored = readStr(scopePwKey(scope));
+  if (stored != null) {
+    return expectedPassword === undefined ? true : stored === expectedPassword;
+  }
+  // 레거시(비번 값 저장 이전) 폴백
   if (readSession(unlockKey(scope))) return true;
   const uid = currentUid();
   if (uid && readPersist(persistScopeKey(uid, scope))) {
@@ -74,8 +108,17 @@ export function isLakeAccessUnlocked(scope: LakeAccessScope): boolean {
   return false;
 }
 
-export function isLakeItemUnlocked(scope: LakeAccessScope, itemId: string): boolean {
+export function isLakeItemUnlocked(
+  scope: LakeAccessScope,
+  itemId: string,
+  expectedPassword?: string,
+): boolean {
   if (typeof window === 'undefined') return false;
+  const stored = readStr(itemPwKey(scope, itemId));
+  if (stored != null) {
+    return expectedPassword === undefined ? true : stored === expectedPassword;
+  }
+  // 레거시(비번 값 저장 이전) 폴백
   if (readSession(itemUnlockKey(scope, itemId))) return true;
   const uid = currentUid();
   if (uid && readPersist(persistItemKey(uid, scope, itemId))) {
@@ -87,16 +130,23 @@ export function isLakeItemUnlocked(scope: LakeAccessScope, itemId: string): bool
 
 /**
  * 비밀번호 검증 성공 후에만 호출됨.
- * 로그인된 경우에만 localStorage에 기억(다시 안 치게).
+ * 검증한 비밀번호 값을 기기에 저장 → 새로고침·로그인 상태와 무관하게 유지,
+ * 비밀번호가 바뀌면 저장값과 달라져 다시 묻는다. (verifiedPassword 미전달 시 레거시 boolean)
  */
-export function unlockLakeAccess(scope: LakeAccessScope): void {
+export function unlockLakeAccess(scope: LakeAccessScope, verifiedPassword?: string): void {
   writeSession(unlockKey(scope));
+  writeStr(scopePwKey(scope), verifiedPassword ?? '1');
   const uid = currentUid();
   if (uid) writePersist(persistScopeKey(uid, scope));
 }
 
-export function unlockLakeItem(scope: LakeAccessScope, itemId: string): void {
+export function unlockLakeItem(
+  scope: LakeAccessScope,
+  itemId: string,
+  verifiedPassword?: string,
+): void {
   writeSession(itemUnlockKey(scope, itemId));
+  writeStr(itemPwKey(scope, itemId), verifiedPassword ?? '1');
   const uid = currentUid();
   if (uid) writePersist(persistItemKey(uid, scope, itemId));
 }
@@ -145,7 +195,7 @@ export function itemNeedsUnlock(
   if (!item?.secret) return false;
   const pw = resolveItemPassword(scope, item, settings);
   if (!pw) return false;
-  return !isLakeItemUnlocked(scope, (item as { id?: string }).id ?? 'global');
+  return !isLakeItemUnlocked(scope, (item as { id?: string }).id ?? 'global', pw);
 }
 
 /** @deprecated use isLakeAccessUnlocked('oc') */

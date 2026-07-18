@@ -3,6 +3,8 @@
 @import '../styles/trpg-scenario.css';
 @import '../styles/trpg-investigator.css';
 @import '../styles/trpg-investigator-detail.css';
+@import '../styles/pair/pair-note-flap.css';
+@import '../styles/shared/handwriting-note.css';
 
 .trpg-layout > .trpg-scenario-layout {
   flex: 1 1 auto;

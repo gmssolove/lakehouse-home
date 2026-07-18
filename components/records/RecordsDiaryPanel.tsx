@@ -9,6 +9,7 @@ import { LakeToggle } from '@/components/ui/LakeToggle';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
+import { useAuth } from '@/lib/hooks/useAuth';
 import { uploadImageFile } from '@/lib/r2/client';
 import { normalizeUploadFile } from '@/lib/r2/mime';
 import { newId, type DiaryThread, type SitePost } from '@/lib/types/site-content';
@@ -29,18 +30,25 @@ function pad(n: number) {
   return String(n).padStart(2, '0');
 }
 
-/** datetime-local 표시/편집용 (로컬, UTC 변환 없음) */
+/** 지금(로컬) — 글 쓰기 시작 시각 기본값 */
+function nowDateTimeLocal() {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+/** datetime-local 표시/편집용 (로컬). ISO(UTC·Z)는 Date로 파싱해 로컬 시각으로 변환 */
 function toDateTimeLocal(date: string) {
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(date)) return date.slice(0, 16);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    const now = new Date();
-    return `${date}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const raw = (date || '').trim();
+  /* 이미 로컬 wall-clock (타임존 접미사 없음) */
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(raw)) {
+    return raw.slice(0, 16);
   }
-  const d = new Date(date);
-  if (Number.isNaN(d.getTime())) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     const now = new Date();
-    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    return `${raw}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   }
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return nowDateTimeLocal();
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
@@ -413,8 +421,11 @@ function ImageAttachButton({
 export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, active = true }: Props) {
   const { showSaveToast } = useSaveToast();
   const { confirm } = useLakeDialog();
+  const { profile } = useAuth();
+  const commenterName =
+    profile?.nickname?.trim() || user?.displayName?.trim() || user?.email?.split('@')[0] || '익명';
   const [body, setBody] = useState('');
-  const [date, setDate] = useState(() => toDateTimeLocal(new Date().toISOString()));
+  const [date, setDate] = useState(() => nowDateTimeLocal());
   const [secret, setSecret] = useState(false);
   const [secretPassword, setSecretPassword] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -430,10 +441,15 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
   const [page, setPage] = useState(1);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerLeaving, setComposerLeaving] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLElement | null>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const timeInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!active) setSpoilerEpoch((n) => n + 1);
@@ -497,11 +513,15 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
     setSecretPassword('');
     setImageUrl('');
     setImageSpoiler(false);
-    setDate(toDateTimeLocal(new Date().toISOString()));
+    setDate(nowDateTimeLocal());
   }
 
   function openComposer(forEdit = false) {
-    if (!forEdit) resetComposer();
+    if (!forEdit) {
+      resetComposer();
+      /* 글 쓰기 누른 시점 = 기본 작성 시각 */
+      setDate(nowDateTimeLocal());
+    }
     setComposerLeaving(false);
     setComposerOpen(true);
   }
@@ -625,13 +645,19 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
   }
 
   async function addThread(item: SitePost) {
-    if (!isAdmin) return;
+    if (!user) {
+      onOpenAuth();
+      return;
+    }
     const t = threadDraft.trim();
     if (!t && !threadImage.trim()) return;
     const thread: DiaryThread = {
       id: newId(),
       body: t,
-      date: toDateTimeLocal(new Date().toISOString()),
+      date: nowDateTimeLocal(),
+      authorUid: user.uid,
+      authorName: isAdmin ? undefined : commenterName,
+      byOwner: isAdmin ? true : undefined,
       imageUrl: threadImage.trim() || undefined,
       imageSpoiler: threadImage.trim() ? threadSpoiler : undefined,
       likedBy: [],
@@ -649,8 +675,10 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
   }
 
   async function removeThread(item: SitePost, threadId: string) {
-    if (!isAdmin) return;
-    if (!(await confirm('이 타래를 삭제할까요?'))) return;
+    const target = (item.threads ?? []).find((t) => t.id === threadId);
+    const canDelete = isAdmin || (!!user && !!target?.authorUid && target.authorUid === user.uid);
+    if (!canDelete) return;
+    if (!(await confirm('이 댓글을 삭제할까요?'))) return;
     await persist(
       items.map((p) =>
         p.id === item.id
@@ -686,123 +714,126 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
         ) : null}
       </div>
 
-      {isAdmin && composerOpen ? (
-        <div
-          className={`lh-diary__modal${composerLeaving ? ' is-out' : ' is-in'}`}
-          role="dialog"
-          aria-modal="true"
-          aria-label="일기 작성"
-        >
-          <button type="button" className="lh-diary__modal-backdrop" aria-label="닫기" onClick={closeComposer} />
-          <div
-            className="lh-diary__modal-panel"
-            onAnimationEnd={(e) => {
-              if (e.target !== e.currentTarget) return;
-              if (composerLeaving) finishComposerClose();
-            }}
-          >
-            <div className="lh-diary__modal-top">
-              <strong>{editingId ? '일기 수정' : '새 일기'}</strong>
-              <button type="button" className="lh-diary__modal-close" aria-label="닫기" onClick={closeComposer}>
-                ×
-              </button>
-            </div>
-            <section className="lh-diary__composer" ref={composerRef}>
-              <div className="lh-diary__composer-meta">
-                <label className="lh-diary__cal" onClick={openDatePicker}>
-                  <input
-                    ref={dateInputRef}
-                    type="date"
-                    className="lh-diary__date-input"
-                    value={dateDay}
-                    onChange={(e) => setDate(`${e.target.value}T${dateTime}`)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openDatePicker();
-                    }}
-                    aria-label="날짜 선택"
-                  />
-                </label>
-                <label className="lh-diary__cal" onClick={openTimePicker}>
-                  <input
-                    ref={timeInputRef}
-                    type="time"
-                    className="lh-diary__date-input lh-diary__date-input--time"
-                    value={dateTime}
-                    onChange={(e) => setDate(`${dateDay}T${e.target.value}`)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openTimePicker();
-                    }}
-                    aria-label="시간 선택"
-                  />
-                </label>
-                {editingId ? <span className="lh-diary__editing">수정 중</span> : null}
-              </div>
-              <textarea
-                rows={5}
-                placeholder="오늘의 기록…"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-              />
-              {(imageUrl || uploading) && (
-                <ImageAttachButton
-                  url={imageUrl}
-                  spoiler={imageSpoiler}
-                  uploading={uploading}
-                  onUploading={setUploading}
-                  onChange={setImageUrl}
-                  onSpoilerChange={setImageSpoiler}
-                  onClear={() => {
-                    setImageUrl('');
-                    setImageSpoiler(false);
-                  }}
-                  hideTrigger
-                />
-              )}
-              <div style={{ padding: '0 0 8px' }}>
-                <SecretPostFields
-                  value={{ secret, secretPassword }}
-                  onChange={(patch) => {
-                    if ('secret' in patch) setSecret(!!patch.secret);
-                    if ('secretPassword' in patch) setSecretPassword(patch.secretPassword || '');
-                  }}
-                />
-              </div>
-              <div className="lh-diary__composer-bar">
-                <div className="lh-diary__composer-tools">
-                  <ImageAttachButton
-                    url={imageUrl}
-                    spoiler={imageSpoiler}
-                    uploading={uploading}
-                    onUploading={setUploading}
-                    onChange={setImageUrl}
-                    onSpoilerChange={setImageSpoiler}
-                    onClear={() => {
-                      setImageUrl('');
-                      setImageSpoiler(false);
-                    }}
-                    triggerOnly
-                  />
-                </div>
-                <div className="lh-diary__composer-actions">
-                  <button type="button" className="lh-diary__pill lh-diary__pill--ghost" onClick={closeComposer}>
-                    취소
-                  </button>
-                  <button
-                    type="button"
-                    className="lh-diary__pill"
-                    onClick={() => void submit()}
-                    disabled={uploading}
-                  >
-                    {editingId ? '저장' : '등록'}
+      {isAdmin && composerOpen && portalReady
+        ? createPortal(
+            <div
+              className={`lh-diary__modal${composerLeaving ? ' is-out' : ' is-in'}`}
+              role="dialog"
+              aria-modal="true"
+              aria-label="일기 작성"
+            >
+              <button type="button" className="lh-diary__modal-backdrop" aria-label="닫기" onClick={closeComposer} />
+              <div
+                className="lh-diary__modal-panel"
+                onAnimationEnd={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (composerLeaving) finishComposerClose();
+                }}
+              >
+                <div className="lh-diary__modal-top">
+                  <strong>{editingId ? '일기 수정' : '새 일기'}</strong>
+                  <button type="button" className="lh-diary__modal-close" aria-label="닫기" onClick={closeComposer}>
+                    ×
                   </button>
                 </div>
+                <section className="lh-diary__composer" ref={composerRef}>
+                  <div className="lh-diary__composer-meta">
+                    <label className="lh-diary__cal" onClick={openDatePicker}>
+                      <input
+                        ref={dateInputRef}
+                        type="date"
+                        className="lh-diary__date-input"
+                        value={dateDay}
+                        onChange={(e) => setDate(`${e.target.value}T${dateTime}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDatePicker();
+                        }}
+                        aria-label="날짜 선택"
+                      />
+                    </label>
+                    <label className="lh-diary__cal" onClick={openTimePicker}>
+                      <input
+                        ref={timeInputRef}
+                        type="time"
+                        className="lh-diary__date-input lh-diary__date-input--time"
+                        value={dateTime}
+                        onChange={(e) => setDate(`${dateDay}T${e.target.value}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openTimePicker();
+                        }}
+                        aria-label="시간 선택"
+                      />
+                    </label>
+                    {editingId ? <span className="lh-diary__editing">수정 중</span> : null}
+                  </div>
+                  <textarea
+                    rows={5}
+                    placeholder="오늘의 기록…"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                  />
+                  {(imageUrl || uploading) && (
+                    <ImageAttachButton
+                      url={imageUrl}
+                      spoiler={imageSpoiler}
+                      uploading={uploading}
+                      onUploading={setUploading}
+                      onChange={setImageUrl}
+                      onSpoilerChange={setImageSpoiler}
+                      onClear={() => {
+                        setImageUrl('');
+                        setImageSpoiler(false);
+                      }}
+                      hideTrigger
+                    />
+                  )}
+                  <div style={{ padding: '0 0 8px' }}>
+                    <SecretPostFields
+                      value={{ secret, secretPassword }}
+                      onChange={(patch) => {
+                        if ('secret' in patch) setSecret(!!patch.secret);
+                        if ('secretPassword' in patch) setSecretPassword(patch.secretPassword || '');
+                      }}
+                    />
+                  </div>
+                  <div className="lh-diary__composer-bar">
+                    <div className="lh-diary__composer-tools">
+                      <ImageAttachButton
+                        url={imageUrl}
+                        spoiler={imageSpoiler}
+                        uploading={uploading}
+                        onUploading={setUploading}
+                        onChange={setImageUrl}
+                        onSpoilerChange={setImageSpoiler}
+                        onClear={() => {
+                          setImageUrl('');
+                          setImageSpoiler(false);
+                        }}
+                        triggerOnly
+                      />
+                    </div>
+                    <div className="lh-diary__composer-actions">
+                      <button type="button" className="lh-diary__pill lh-diary__pill--ghost" onClick={closeComposer}>
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        className="lh-diary__pill"
+                        onClick={() => void submit()}
+                        disabled={uploading}
+                      >
+                        {editingId ? '저장' : '등록'}
+                      </button>
+                    </div>
+                  </div>
+                </section>
               </div>
-            </section>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
 
       {!sorted.length ? <div className="page-coming">— 일기가 없습니다 —</div> : null}
 
@@ -882,11 +913,14 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                 <footer className="lh-diary__actions">
                   <button
                     type="button"
-                    className={`lh-diary__action${threadOpenId === item.id ? ' is-on' : ''}${!isAdmin ? ' is-locked' : ''}`}
-                    aria-label={isAdmin ? '타래' : '타래 (작성자 전용)'}
-                    title={isAdmin ? '타래' : '작성자만 타래를 쓸 수 있어요'}
+                    className={`lh-diary__action${threadOpenId === item.id ? ' is-on' : ''}`}
+                    aria-label="댓글"
+                    title="댓글"
                     onClick={() => {
-                      if (!isAdmin) return;
+                      if (!user) {
+                        onOpenAuth();
+                        return;
+                      }
                       setThreadOpenId((id) => (id === item.id ? null : item.id));
                       setThreadDraft('');
                       setThreadImage('');
@@ -894,7 +928,6 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                     }}
                   >
                     <IconThread />
-                    {!isAdmin ? <span className="lh-diary__action-x">×</span> : null}
                     <em>{threads.length}</em>
                   </button>
 
@@ -906,21 +939,28 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                   />
                 </footer>
 
-                {threads.length || (isAdmin && threadOpenId === item.id) ? (
+                {threads.length || threadOpenId === item.id ? (
                   <div
                     className={`lh-diary__rail${
-                      isAdmin && threadOpenId === item.id && !threads.length ? ' is-enter' : ''
+                      threadOpenId === item.id && !threads.length ? ' is-enter' : ''
                     }`}
                   >
                     {threads.map((t) => {
                       const tLiked = !!user && (t.likedBy ?? []).includes(user.uid);
+                      const canDeleteThread =
+                        isAdmin || (!!user && !!t.authorUid && t.authorUid === user.uid);
                       return (
-                        <div key={t.id} className="lh-diary__rail-item">
+                        <div key={t.id} className={`lh-diary__rail-item${t.byOwner ? ' is-owner' : ''}`}>
                           <div className="lh-diary__rail-dot" aria-hidden />
                           <div className="lh-diary__rail-card">
                             <div className="lh-diary__rail-meta">
+                              {t.byOwner ? (
+                                <span className="lh-diary__rail-author lh-diary__rail-author--owner">작성자</span>
+                              ) : t.authorName ? (
+                                <span className="lh-diary__rail-author">{t.authorName}</span>
+                              ) : null}
                               <time className="lh-diary__stamp">{formatDiaryStamp(t.date)}</time>
-                              {isAdmin ? (
+                              {canDeleteThread ? (
                                 <button
                                   type="button"
                                   className="lh-diary__rail-del"
@@ -968,7 +1008,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                       );
                     })}
 
-                    {isAdmin && threadOpenId === item.id ? (
+                    {threadOpenId === item.id ? (
                       <div className="lh-diary__rail-item lh-diary__rail-item--compose is-enter">
                         <div className="lh-diary__rail-dot lh-diary__rail-dot--bubble" aria-hidden>
                           <IconBubble />
@@ -976,7 +1016,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                         <div className="lh-diary__rail-compose">
                           <textarea
                             rows={2}
-                            placeholder="타래 이어쓰기…"
+                            placeholder={isAdmin ? '타래 이어쓰기…' : '댓글 달기…'}
                             value={threadDraft}
                             autoFocus
                             onChange={(e) => setThreadDraft(e.target.value)}

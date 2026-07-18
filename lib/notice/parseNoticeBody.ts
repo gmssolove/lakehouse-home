@@ -24,7 +24,8 @@ export function isNoticeWarnLine(line: string): boolean {
 
 /** `-` / `*` 로 시작하면 불릿 — 본문만 반환, 아니면 null */
 export function matchNoticeBullet(line: string): string | null {
-  const m = line.match(/^\s*[-*]\s*(.*)$/);
+  // `**굵게**` 같은 인라인 마크업이 불릿으로 오인되지 않게 `*` 뒤에 `*`가 오면 제외
+  const m = line.match(/^\s*[-*](?!\*)\s*(.*)$/);
   if (!m) return null;
   // 섹션 라벨·경고와 겹치지 않게: 순수 `-`/`*`만 있는 줄도 항목으로
   return m[1] ?? '';

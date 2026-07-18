@@ -493,7 +493,7 @@
 
 .touch-react__bubble-text {
   position: relative;
-  font: 400 16.5px/1.45 var(--font-gowun-dodum), 'Gowun Dodum', var(--font-noto-sans-kr), sans-serif;
+  font: 400 16.5px/1.45 'Gowun Dodum', 'Noto Sans KR', sans-serif;
   color: rgba(255, 248, 235, 0.96);
   text-shadow:
     0 0 10px rgba(205, 179, 126, 0.55),

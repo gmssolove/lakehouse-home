@@ -741,11 +741,17 @@
 
 .trpg-inv-archive .ph-name-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
-  gap: 2px 6px;
+  gap: 0;
   min-width: 0;
   max-width: 100%;
+}
+
+.trpg-inv-archive .ph-name-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .trpg-inv-archive .ph-name {
@@ -1057,13 +1063,15 @@
   font-family: var(--font-jost), 'Jost', sans-serif;
 }
 
-.trpg-inv-profile-edit__count {
+.trpg-inv-profile-edit__count,
+.lh-char-count {
   font-size: 10px;
   letter-spacing: 0.08em;
   color: rgba(168, 164, 156, 0.55);
 }
 
-.trpg-inv-profile-edit__count.is-over {
+.trpg-inv-profile-edit__count.is-over,
+.lh-char-count.is-over {
   color: rgba(232, 160, 140, 0.92);
 }
 

@@ -1,0 +1,222 @@
+/* 쪽지 — 4단 접힘 펼침 (원본 비율, 배경 박스 없음) */
+
+.pair-note-flap-lb {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 4, 3, 0.82);
+  cursor: zoom-out;
+  opacity: 0;
+  filter: blur(0);
+  pointer-events: none;
+  transition:
+    opacity 0.28s ease,
+    filter 0.28s ease;
+}
+
+.pair-note-flap-lb.is-ready {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pair-note-flap-lb.is-leaving {
+  opacity: 0;
+  filter: blur(10px);
+  pointer-events: none;
+  transition:
+    opacity 0.42s ease,
+    filter 0.42s ease;
+}
+
+.pair-note-flap-lb__close {
+  position: absolute;
+  top: 2vh;
+  right: 3vw;
+  all: unset;
+  cursor: pointer;
+  font-size: 20px;
+  color: rgba(244, 238, 229, 0.8);
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  z-index: 2;
+}
+
+.pair-note-flap-lb__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pair-note-flap-lb__stage {
+  perspective: 1400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: min(90vw, 560px);
+  width: 100%;
+  cursor: default;
+}
+
+.pair-note-unfold-skeleton {
+  width: min(72vw, 280px);
+  height: min(48vh, 360px);
+  border-radius: 12px;
+  opacity: 0.15;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pair-note-unfold {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: min(78vh, 720px);
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pair-note-unfold__fold {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  transform-origin: top center;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transform: rotateX(-92deg);
+  opacity: 0.35;
+  animation: pair-note-fold-open 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--fold, 0) * 0.16s + 0.04s);
+  will-change: transform, opacity;
+}
+
+/* 닫힘: 접힘 애니 대신 오버레이 페이드+블러만 */
+.pair-note-flap-lb.is-leaving .pair-note-unfold__fold {
+  animation: none;
+  transform: none;
+  opacity: 1;
+}
+
+.pair-note-unfold__fold:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.18) 20%,
+    rgba(0, 0, 0, 0.18) 80%,
+    transparent
+  );
+  opacity: 0;
+  animation: pair-note-crease-in 0.35s ease forwards;
+  animation-delay: calc(var(--fold, 0) * 0.16s + 0.4s);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pair-note-flap-lb.is-leaving .pair-note-unfold__fold::after {
+  animation: none;
+  opacity: 0;
+}
+
+.pair-note-unfold__face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.pair-note-unfold__face img {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  max-width: none;
+  display: block;
+  object-fit: fill;
+  user-select: none;
+  pointer-events: none;
+}
+
+.pair-note-unfold__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  font-size: 13px;
+  color: rgba(220, 210, 198, 0.75);
+}
+
+.pair-note-unfold__pager button {
+  all: unset;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 0.15rem 0.45rem;
+  color: rgba(244, 238, 229, 0.88);
+  border-radius: 4px;
+}
+
+.pair-note-unfold__pager button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pair-note-unfold__pager button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+@keyframes pair-note-fold-open {
+  0% {
+    transform: rotateX(-92deg);
+    opacity: 0.25;
+  }
+  100% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes pair-note-fold-close {
+  0% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: rotateX(-92deg);
+    opacity: 0.2;
+  }
+}
+
+@keyframes pair-note-crease-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pair-note-flap-lb,
+  .pair-note-unfold__fold,
+  .pair-note-unfold__fold::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  .pair-note-flap-lb.is-leaving {
+    opacity: 0;
+  }
+}

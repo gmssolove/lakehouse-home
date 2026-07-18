@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-/** 페이드 완료(애니 72% of 1.1s ≈ 792ms)와 맞춤 */
-export const VN_CHOICE_RESOLVE_MS = 820;
+/** 선택 확정 아웃 애니(0.95s)와 맞춤 — 위로 빠지는 연출을 끝까지 보여줌 */
+export const VN_CHOICE_RESOLVE_MS = 1080;
 
 /**
  * 선택지 클릭 시 곧바로 분기하지 않고, 고른 티가 나게 잠깐 연출한 뒤 onPick.

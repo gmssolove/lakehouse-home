@@ -23,6 +23,8 @@ import { DEFAULT_SITE_ACCESS_SETTINGS } from '@/lib/types/secret-content';
 import { ImageFileField } from '@/components/ui/ImageFileField';
 import { LakeToggle } from '@/components/ui/LakeToggle';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
+import { AdminListItem } from '@/components/ui/AdminListItem';
+import { AccordionSection } from '@/components/ui/form';
 import { finalizeCommaList, splitCommaListLive } from '@/lib/ui/commaList';
 import { uploadMediaFile } from '@/lib/r2/client';
 import { normalizeUploadFile } from '@/lib/r2/mime';
@@ -46,9 +48,59 @@ const SCOPE_LABELS: Record<LakeAccessScope, string> = {
   guest: 'Guest 방명록',
 };
 
+const LOCK_SCOPES: LakeAccessScope[] = ['oc', 'pair', 'trpg', 'diary'];
+const PUBLIC_SCOPES: LakeAccessScope[] = [
+  'scrap',
+  'review',
+  'music',
+  'charArchive',
+  'notice',
+  'gallery',
+  'quote',
+  'guest',
+];
+
 export function AccessAdminPanel({ data, onSave }: AccessProps) {
   const { showSaveToast } = useSaveToast();
   const [form, setForm] = useState({ ...DEFAULT_SITE_ACCESS_SETTINGS, ...data });
+  const [showPw, setShowPw] = useState(false);
+
+  function renderScopeRow(scope: LakeAccessScope) {
+    const locked = !!form[scope];
+    return (
+      <div key={scope} className="form-group">
+        <label
+          className="form-label"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+        >
+          <span>{SCOPE_LABELS[scope]}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+            <input
+              type="checkbox"
+              checked={locked}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  // 잠금 켜면 기존 값이 없을 때 기본값 '1145', 끄면 빈 값(=잠금 해제)
+                  [scope]: e.target.checked ? form[scope] || '1145' : '',
+                })
+              }
+            />
+            {locked ? '잠금' : '공개'}
+          </span>
+        </label>
+        {locked ? (
+          <input
+            className="form-input"
+            type={showPw ? 'text' : 'password'}
+            value={form[scope]}
+            onChange={(e) => setForm({ ...form, [scope]: e.target.value })}
+            placeholder="기본 비밀번호"
+          />
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <AdminPanelShell
@@ -58,22 +110,28 @@ export function AccessAdminPanel({ data, onSave }: AccessProps) {
         showSaveToast();
       }}
     >
-      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
-        섹션별 기본 비밀번호입니다. 비밀글 항목에서 개별 비밀번호를 지정하면 그 값이 우선합니다. 비워 두면 해당 섹션
-        기본 잠금이 없습니다 (비밀글만 잠금).
-      </p>
-      {(Object.keys(SCOPE_LABELS) as LakeAccessScope[]).map((scope) => (
-        <div key={scope} className="form-group">
-          <label className="form-label">{SCOPE_LABELS[scope]}</label>
-          <input
-            className="form-input"
-            type="password"
-            value={form[scope]}
-            onChange={(e) => setForm({ ...form, [scope]: e.target.value })}
-            placeholder="기본 비밀번호"
-          />
-        </div>
-      ))}
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}
+      >
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+          섹션별 잠금 여부와 기본 비밀번호입니다. 잠금을 끄면 해당 메뉴는 누구나 열람할 수 있습니다(비밀글 항목만 개별
+          잠금). 잠금을 켜면 아래 비밀번호로 잠깁니다. 비밀글 항목에서 개별 비밀번호를 지정하면 그 값이 우선합니다.
+        </p>
+        <button
+          type="button"
+          className="btn-edit"
+          style={{ flexShrink: 0, fontSize: 11 }}
+          onClick={() => setShowPw((v) => !v)}
+        >
+          {showPw ? '비번 숨기기' : '비번 보기'}
+        </button>
+      </div>
+      <AccordionSection title="비밀번호 잠금 섹션" defaultOpen>
+        {LOCK_SCOPES.map(renderScopeRow)}
+      </AccordionSection>
+      <AccordionSection title="공개 여부 설정" defaultOpen>
+        {PUBLIC_SCOPES.map(renderScopeRow)}
+      </AccordionSection>
     </AdminPanelShell>
   );
 }
@@ -151,14 +209,13 @@ export function ScrapAdminPanel({ items, categories, onSave, onSaveCategories }:
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              title={item.author}
+              subtitle={item.date}
+              selected={editId === item.id}
               onClick={() => setEditId(item.id)}
-            >
-              <div>{item.author}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{item.date}</div>
-            </div>
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -303,12 +360,13 @@ export function ReviewAdminPanel({ categories, items, onSaveCategories, onSaveIt
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div key={item.id} className={`char-list-item${editId === item.id ? ' selected' : ''}`} onClick={() => setEditId(item.id)}>
-              <div>{item.title}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                {Number.isInteger(item.rating) ? item.rating : item.rating.toFixed(1)}점
-              </div>
-            </div>
+            <AdminListItem
+              key={item.id}
+              title={item.title}
+              subtitle={`${Number.isInteger(item.rating) ? item.rating : item.rating.toFixed(1)}점`}
+              selected={editId === item.id}
+              onClick={() => setEditId(item.id)}
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -477,22 +535,19 @@ export function QuoteAdminPanel({ items, onSave }: QuoteProps) {
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              title={item.text.slice(0, 40) || '(빈 인용)'}
+              subtitle={[
+                item.category === 'poem' ? '시' : item.category === 'lyrics' ? '가사' : item.category === 'sentence' ? '문장' : null,
+                item.author,
+                item.work,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              selected={editId === item.id}
               onClick={() => setEditId(item.id)}
-            >
-              <div>{item.text.slice(0, 40) || '(빈 인용)'}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                {[
-                  item.category === 'poem' ? '시' : item.category === 'lyrics' ? '가사' : item.category === 'sentence' ? '문장' : null,
-                  item.author,
-                  item.work,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </div>
-            </div>
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -662,9 +717,12 @@ export function MusicAdminPanel({ tracks, playlists, onSaveTracks, onSavePlaylis
       <div className="lh-admin-grid">
         <div>
           {tracks.map((t) => (
-            <div key={t.id} className={`char-list-item${trackEditId === t.id ? ' selected' : ''}`} onClick={() => setTrackEditId(t.id)}>
-              {t.title}
-            </div>
+            <AdminListItem
+              key={t.id}
+              title={t.title || '(제목 없음)'}
+              selected={trackEditId === t.id}
+              onClick={() => setTrackEditId(t.id)}
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -705,9 +763,12 @@ export function MusicAdminPanel({ tracks, playlists, onSaveTracks, onSavePlaylis
       <div className="lh-admin-grid">
         <div>
           {playlists.map((p) => (
-            <div key={p.id} className={`char-list-item${plEditId === p.id ? ' selected' : ''}`} onClick={() => setPlEditId(p.id)}>
-              {p.title}
-            </div>
+            <AdminListItem
+              key={p.id}
+              title={p.title || '(제목 없음)'}
+              selected={plEditId === p.id}
+              onClick={() => setPlEditId(p.id)}
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -904,9 +965,12 @@ export function CharArchiveAdminPanel({ items, onSave }: CharArchiveProps) {
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div key={item.id} className={`char-list-item${editId === item.id ? ' selected' : ''}`} onClick={() => setEditId(item.id)}>
-              {item.title}
-            </div>
+            <AdminListItem
+              key={item.id}
+              title={item.title || '(제목 없음)'}
+              selected={editId === item.id}
+              onClick={() => setEditId(item.id)}
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">
@@ -1002,14 +1066,13 @@ export function TimelineAdminPanel({ items, onSave }: TimelineProps) {
       <div className="lh-admin-grid">
         <div>
           {items.map((item) => (
-            <div
+            <AdminListItem
               key={item.id}
-              className={`char-list-item${editId === item.id ? ' selected' : ''}`}
+              title={item.authorName}
+              subtitle={item.body.slice(0, 40)}
+              selected={editId === item.id}
               onClick={() => setEditId(item.id)}
-            >
-              <div>{item.authorName}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{item.body.slice(0, 40)}</div>
-            </div>
+            />
           ))}
         </div>
         <div className="lh-oc-admin-block">

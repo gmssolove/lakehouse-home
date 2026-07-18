@@ -62,9 +62,15 @@ function ensureGestureListener() {
     if (gestureFallbackEnabled && gestureFallback) gestureFallback();
   }
 
+  // 마우스 뒤로가기 버튼(button 3)은 mouseup + auxclick 두 이벤트를 함께 발생시켜
+  // 한 번의 물리 클릭에 onGestureBack이 두 번 실행되던 문제 방지 (레이어 2개 pop → 홈으로).
+  let lastMouseBackAt = 0;
   function triggerMouse(e: MouseEvent) {
     if (e.button !== 3 || isEditableTarget(e.target)) return;
     e.preventDefault();
+    const now = Date.now();
+    if (now - lastMouseBackAt < 400) return;
+    lastMouseBackAt = now;
     onGestureBack();
   }
 

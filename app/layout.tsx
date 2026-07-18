@@ -140,8 +140,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       ].join(' ')}
     >
       {/* className 대신 CSS --lh-body-font('ChosunNm' 우선) — next/font Fallback이 Times로 가로채지 않게 */}
+      <head>
+        {/* Tabler Icons webfont — 서식 에디터 단색 아이콘 */}
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
+        />
+      </head>
       <body>
         <Providers>{children}</Providers>
+        <div className="lh-grain" aria-hidden="true" />
         <Script src="/lakehouse-r2.js" strategy="afterInteractive" />
       </body>
     </html>

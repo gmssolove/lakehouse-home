@@ -114,20 +114,11 @@
   pointer-events: auto;
 }
 
-/* no translateX bleed into nav column */
+/* no translateX bleed into nav column (블록 자체만 고정) */
 .layout.layout--home .content-block,
 .layout.layout--home .content-block.active,
 .layout.layout--home .content-block.active:not(#page-main),
-.layout.layout--home #page-main.active,
-.layout.layout--home .content-block.active:not(#page-main) .page-heading,
-.layout.layout--home .content-block.active:not(#page-main) .page-sub,
-.layout.layout--home .content-block.active:not(#page-main) .world-cards,
-.layout.layout--home .content-block.active:not(#page-main) #notice-list,
-.layout.layout--home .content-block.active:not(#page-main) #public-diary-list,
-.layout.layout--home .content-block.active:not(#page-main) #public-gallery-grid,
-.layout.layout--home .content-block.active:not(#page-main) #public-banner-list,
-.layout.layout--home .content-block.active:not(#page-main) #guest-list,
-.layout.layout--home .content-block.active:not(#page-main) .page-coming {
+.layout.layout--home #page-main.active {
   transform: none !important;
 }
 
@@ -144,19 +135,58 @@
   padding: 0 !important;
   display: block !important;
   scrollbar-width: thin;
-  animation: lhContentIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  animation: lhContentFade 0.26s ease both !important;
+  will-change: opacity;
 }
 
-@keyframes lhContentIn {
+/* 퇴장 블록은 즉시 감춰서 새 내용과 겹치지 않게 한다 */
+.layout.layout--home .content-block.is-leaving:not(#page-main) {
+  display: none !important;
+  animation: none !important;
+}
+
+/* 활성 블록의 직계 자식이 차례대로 떠오름 */
+.layout.layout--home .content-block.active:not(#page-main) > * {
+  animation: lhChildRise 0.5s cubic-bezier(0.22, 1, 0.32, 1) both;
+  will-change: transform, opacity;
+}
+.layout.layout--home .content-block.active:not(#page-main) > *:nth-child(1) {
+  animation-delay: 0.03s;
+}
+.layout.layout--home .content-block.active:not(#page-main) > *:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.layout.layout--home .content-block.active:not(#page-main) > *:nth-child(3) {
+  animation-delay: 0.17s;
+}
+.layout.layout--home .content-block.active:not(#page-main) > *:nth-child(4) {
+  animation-delay: 0.24s;
+}
+.layout.layout--home .content-block.active:not(#page-main) > *:nth-child(n + 5) {
+  animation-delay: 0.3s;
+}
+
+@keyframes lhContentFade {
   from {
     opacity: 0;
-    transform: translateY(14px) !important;
   }
   to {
     opacity: 1;
-    transform: none !important;
   }
 }
+
+@keyframes lhChildRise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 공지·배너 커스터마이즈는 home-menu-renew.css 에 있음(로드 순서·specificity 때문) */
 
 .layout.layout--home .content-block.active:not(#page-main) .page-heading {
   margin: 0 0 0.7rem !important;
@@ -167,6 +197,8 @@
   margin: 0 0 1.45rem 0 !important;
   width: 100% !important;
   max-width: none !important;
+  /* 예전 공지 정렬 실험의 잔재 규칙(translateX 이동)을 결정적으로 무효화 */
+  transform: none !important;
   opacity: 0.72;
 }
 
@@ -196,7 +228,7 @@
   margin: 0 auto !important;
   padding: 0 clamp(2rem, 5vw, 3.5rem) !important;
   overflow: hidden !important;
-  animation: lhContentIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  animation: lhContentFade 0.4s ease both !important;
 }
 
 /* ── Overlays ── */
@@ -282,7 +314,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .layout.layout--home .content-block.active,
-  .layout.layout--home #page-main.active {
+  .layout.layout--home #page-main.active,
+  .layout.layout--home .content-block.active:not(#page-main) > * {
+    animation: none !important;
+  }
+  .layout.layout--home .content-block.is-leaving:not(#page-main) {
+    display: none !important;
     animation: none !important;
   }
 }

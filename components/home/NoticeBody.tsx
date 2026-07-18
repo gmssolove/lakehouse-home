@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { parseNoticeBody, type NoticeSegment } from '@/lib/notice/parseNoticeBody';
 
 type Props = {
@@ -5,17 +6,38 @@ type Props = {
   className?: string;
 };
 
+/** 인라인 마크업: **굵게**, *기울임*, __밑줄__ */
+const INLINE_RE = /(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*)/g;
+
+function renderInline(text: string): ReactNode {
+  const parts = text.split(INLINE_RE);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => {
+    if (!part) return null;
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('__') && part.endsWith('__')) {
+      return <u key={i}>{part.slice(2, -2)}</u>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 function SegmentView({ segment }: { segment: NoticeSegment }) {
   switch (segment.type) {
     case 'label':
-      return <div className="lh-notice-body__label">{segment.text}</div>;
+      return <div className="lh-notice-body__label">{renderInline(segment.text)}</div>;
     case 'paragraph':
       return (
         <p className="lh-notice-body__p">
           {segment.lines.map((line, i) => (
             <span key={i}>
               {i > 0 ? <br /> : null}
-              {line}
+              {renderInline(line)}
             </span>
           ))}
         </p>
@@ -24,7 +46,7 @@ function SegmentView({ segment }: { segment: NoticeSegment }) {
       return (
         <ul className="lh-notice-body__list">
           {segment.items.map((item, i) => (
-            <li key={i}>{item}</li>
+            <li key={i}>{renderInline(item)}</li>
           ))}
         </ul>
       );
@@ -33,7 +55,7 @@ function SegmentView({ segment }: { segment: NoticeSegment }) {
         <div className="lh-notice-body__warn">
           {segment.lines.map((line, i) => (
             <p key={i} className="lh-notice-body__warn-line">
-              {line}
+              {renderInline(line)}
             </p>
           ))}
         </div>

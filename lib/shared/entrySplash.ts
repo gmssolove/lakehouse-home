@@ -63,12 +63,16 @@ export function normalizeEntrySplash(raw?: EntrySplashConfig | null): {
   enabled: boolean;
   layout: EntrySplashLayout;
   items: EntrySplashTipItem[];
+  tint: string;
 } {
   const layout: EntrySplashLayout = raw?.layout === 'corner' ? 'corner' : 'fullbleed';
+  const tintRaw = typeof raw?.tint === 'string' ? raw.tint.trim() : '';
+  const tint = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tintRaw) ? tintRaw : '';
   return {
     enabled: Boolean(raw?.enabled),
     layout,
     items: normalizeItems(raw),
+    tint,
   };
 }
 

@@ -1,0 +1,151 @@
+/* ==========================================================================
+   OC 능력(신비 연출) — 능력명 금빛 그라데이션+글로우 · 클릭 시 상세 안개 리빌
+   ========================================================================== */
+.oc-ability-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.oc-ability-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.oc-ability {
+  margin: 0;
+}
+
+/* 능력명 버튼 */
+.oc-ability__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  padding: 5px 2px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: default;
+  /* 그라데이션 클립 글자 주변으로 은은한 글로우 */
+  filter: drop-shadow(0 0 6px rgba(240, 207, 173, 0.26));
+  transition: filter 0.4s ease, transform 0.35s ease;
+}
+.oc-ability.has-detail .oc-ability__name {
+  cursor: pointer;
+}
+.oc-ability.has-detail .oc-ability__name:hover {
+  filter: drop-shadow(0 0 10px rgba(240, 207, 173, 0.42));
+  transform: translateX(2px);
+}
+.oc-ability.is-open .oc-ability__name {
+  filter: drop-shadow(0 0 11px rgba(240, 207, 173, 0.5));
+}
+
+.oc-ability__glyph {
+  font-size: 11px;
+  color: #e8c99a;
+  filter: drop-shadow(0 0 5px rgba(240, 207, 173, 0.45));
+  transition: transform 0.5s ease;
+}
+.oc-ability.is-open .oc-ability__glyph {
+  transform: rotate(180deg) scale(1.05);
+}
+
+/* 능력명 텍스트 — 금빛 그라데이션 + 아주 느린 시머 */
+.oc-ability__name-text {
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: clamp(15px, 1.5vw, 18px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: linear-gradient(
+    100deg,
+    #b98a58 0%,
+    #f0cfad 26%,
+    #ffe9c9 50%,
+    #f0cfad 74%,
+    #b98a58 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: ocAbilityShimmer 7s ease-in-out infinite;
+}
+@keyframes ocAbilityShimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.oc-ability__chev {
+  margin-left: 2px;
+  font-size: 10px;
+  color: rgba(232, 201, 154, 0.75);
+  transition: transform 0.4s ease, opacity 0.4s ease;
+  opacity: 0.7;
+}
+.oc-ability.is-open .oc-ability__chev {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+
+/* 상세(발동 조건) — 안개 걷히듯 리빌 (grid-rows + blur + opacity) */
+.oc-ability__detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  filter: blur(7px);
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    grid-template-rows 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.55s ease,
+    filter 0.55s ease,
+    transform 0.55s ease;
+}
+.oc-ability.is-open .oc-ability__detail {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.oc-ability__detail-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+.oc-ability__detail-text {
+  position: relative;
+  margin: 6px 0 6px 20px;
+  padding: 6px 0 6px 14px;
+  border-left: 1px solid rgba(215, 169, 130, 0.35);
+  font-size: 12.5px;
+  line-height: 1.72;
+  color: rgba(236, 226, 214, 0.92);
+}
+.oc-ability__detail-text::before {
+  content: '발동 조건';
+  display: block;
+  margin-bottom: 3px;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(240, 207, 173, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-ability__name-text {
+    animation: none;
+  }
+  .oc-ability__detail {
+    filter: none;
+    transform: none;
+    transition: grid-template-rows 0.35s ease, opacity 0.35s ease;
+  }
+}

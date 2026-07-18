@@ -1,0 +1,89 @@
+/* #8 드래그 복붙 방지
+   - 모든 이미지/미디어: 드래그 저장·복사 차단 (일러스트, TRPG 프로필 이미지 포함)
+   - 메뉴·카드·상단바 등 UI 크롬: 텍스트 선택/복사 차단
+   - 읽는 글(서사·소개·외관·기본정보·records·TRPG 정보 등)과 입력폼은 그대로 선택 허용 */
+
+/* 이미지·미디어 드래그 저장/복사 전면 차단 */
+img,
+svg,
+video,
+canvas,
+picture {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  user-select: none;
+}
+
+/* 배경이미지로 들어간 일러스트/헤드샷도 드래그 대상이 안 되게 */
+.char-card-img,
+.oc-stage,
+.oc-stage *,
+.pair-stage,
+.pair-stage *,
+.pair-slot,
+.pair-slot *,
+[style*="background-image"] {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+}
+
+/* UI 크롬 — 카드·네비·상단바·플레이어 텍스트 선택 차단 */
+.char-card,
+.char-card *,
+.rq-nav-item,
+.oc-topbar,
+.oc-topbar *,
+.lh-archive-topbar,
+.lh-archive-topbar *,
+.oc-left-menu,
+.oc-left-menu *,
+.oc-attr-head,
+.oc-identity-name,
+.oc-identity,
+.oc-identity *,
+.home-nav-arc,
+.home-nav-arc *,
+.content-nav,
+.content-nav *,
+#bgm-player,
+#bgm-player *,
+button,
+[role='button'] {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+/* 입력폼·에디터는 항상 선택 허용 (전역 차단에 막히지 않게) */
+input,
+textarea,
+select,
+[contenteditable='true'],
+[contenteditable='true'] * {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  user-select: text !important;
+}
+
+/* 읽는 글은 항상 선택 허용 — 서사/소개/외관/기본정보/공지/스크랩/일기 등 */
+.lh-story-reader,
+.lh-story-reader *,
+.oc-acc-text,
+.oc-acc-text *,
+.oc-acc-rel-note,
+.oc-acc-etc-value,
+.oc-attr-label,
+.oc-attr-value,
+.oc-keyword-chip,
+.oc-attr-keyword-chip,
+.lh-notice-body,
+.lh-notice-body *,
+.lh-site-post__body,
+.lh-diary__body,
+.lh-diary__text,
+.lh-scrap__note,
+.lh-scrap__link-memo {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}

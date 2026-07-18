@@ -1,0 +1,64 @@
+/* ==========================================================================
+   전역 필름 그레인 / 노이즈 오버레이
+   - transform(translate)만 애니메이션 → 컴포지터에서 처리, repaint 없음 = 렉/프레임드랍 없음
+   - 노이즈 텍스처는 SVG feTurbulence를 data-URI로 1회 래스터라이즈 후 타일 반복
+   - pointer-events:none 으로 클릭/입력 그대로 통과
+   ========================================================================== */
+.lh-grain {
+  position: fixed;
+  /* 뷰포트보다 크게 잡아 translate 지터 시 가장자리가 드러나지 않게 */
+  top: -12%;
+  left: -12%;
+  width: 124%;
+  height: 124%;
+  z-index: 99998;
+  pointer-events: none;
+  opacity: 0.08;
+  /* baseFrequency↓ → 입자 살짝 굵게 / tile↑ → 패턴 스케일 */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+  /* will-change 상시 유지 금지 — 합성 레이어 비용 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: strict;
+  /* steps 지터 완화: 간격↑ */
+  animation: lhGrainShift 2.4s steps(1, end) infinite;
+}
+
+@keyframes lhGrainShift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  12.5% {
+    transform: translate3d(-3%, 2%, 0);
+  }
+  25% {
+    transform: translate3d(4%, -2%, 0);
+  }
+  37.5% {
+    transform: translate3d(-2%, -4%, 0);
+  }
+  50% {
+    transform: translate3d(3%, 3%, 0);
+  }
+  62.5% {
+    transform: translate3d(-4%, 1%, 0);
+  }
+  75% {
+    transform: translate3d(2%, -3%, 0);
+  }
+  87.5% {
+    transform: translate3d(-1%, 4%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 모션 최소화 사용자 — 지터 정지(그레인 정지 이미지만 유지) */
+@media (prefers-reduced-motion: reduce) {
+  .lh-grain {
+    animation: none;
+  }
+}

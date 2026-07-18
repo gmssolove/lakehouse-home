@@ -39,7 +39,7 @@ nav{position:sticky;top:0;z-index:200;background:rgba(26,16,24,0.95);backdrop-fi
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:18px;}
 
 /* CARDS */
-.char-card{aspect-ratio:2/3;background:var(--bg3);border:1px solid var(--border);position:relative;overflow:hidden;cursor:pointer;transition:border-color .25s,transform .25s;}
+.char-card{aspect-ratio:3/4.55;background:var(--bg3);border:1px solid var(--border);position:relative;overflow:hidden;cursor:pointer;transition:border-color .25s,transform .25s;}
 .char-card:hover{border-color:var(--pink);transform:translateY(-5px);}
 .char-card-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top;transition:filter .3s,opacity .3s;}
 .char-card-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-jost),'Jost',sans-serif;font-style:normal;font-size:64px;color:rgba(196,154,108,.07);transition:filter .3s;}
