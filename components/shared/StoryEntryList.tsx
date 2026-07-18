@@ -8,6 +8,8 @@ import { isLakeItemUnlocked, resolveScopePassword } from '@/lib/lake/accessGate'
 import type { SiteAccessSettings } from '@/lib/types/secret-content';
 import type { StoryEntry } from '@/lib/types/character';
 
+const DEFAULT_PAGE_SIZE = 12;
+
 function tagClass(cat: string): string {
   const c = cat.trim().toUpperCase();
   if (c === '본편' || cat === '본편') return 'is-main';
@@ -41,6 +43,8 @@ type Props = {
   totalUnit?: string;
   /** 삭제 전 confirm (기본 true). 편집 탭으로만 보낼 때는 false */
   confirmDelete?: boolean;
+  /** 페이지당 개수 (갤러리형). 0이면 전체 */
+  pageSize?: number;
 };
 
 export function StoryEntryList({
@@ -62,12 +66,14 @@ export function StoryEntryList({
   heading,
   totalUnit = '포스트',
   confirmDelete = true,
+  pageSize = DEFAULT_PAGE_SIZE,
 }: Props) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<string>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [sort, setSort] = useState<'reg' | 'new'>('reg');
   const [unlockTick, setUnlockTick] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     if (resetKey === undefined) return;
@@ -75,7 +81,12 @@ export function StoryEntryList({
     setQuery('');
     setFilter('all');
     setSort('reg');
+    setPage(0);
   }, [resetKey]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [query, filter, sort]);
 
   const cats = useMemo(
     () => mergeStoryCategories(categories, entries),
@@ -108,12 +119,29 @@ export function StoryEntryList({
       .filter((e) => {
         if (filter !== 'all' && e.category !== filter) return false;
         if (!q) return true;
-        const hay = `${e.title} ${e.subtitle || ''} ${e.category} ${e.chapters.map((c) => c.body).join(' ')}`
-          .toLowerCase()
-          .replace(/<[^>]+>/g, '');
-        return hay.includes(q);
+        const meta = `${e.title} ${e.subtitle || ''} ${e.category} ${e.author || ''}`.toLowerCase();
+        if (meta.includes(q)) return true;
+        /* 본문은 1챕터·2KB만 — 전 로그 HTML join 시 메인스레드 스톨 */
+        const body = (e.chapters[0]?.body || '')
+          .replace(/<[^>]+>/g, ' ')
+          .slice(0, 2000)
+          .toLowerCase();
+        return body.includes(q);
       });
   }, [entries, filter, query, sort, unlockTick]);
+
+  const size = pageSize > 0 ? pageSize : filtered.length || 1;
+  const pages = Math.max(1, Math.ceil(filtered.length / size));
+  const safePage = Math.min(page, pages - 1);
+  const paged = useMemo(() => {
+    if (pageSize <= 0) return filtered;
+    const start = safePage * size;
+    return filtered.slice(start, start + size);
+  }, [filtered, pageSize, safePage, size]);
+
+  useEffect(() => {
+    if (page > pages - 1) setPage(Math.max(0, pages - 1));
+  }, [page, pages]);
 
   const fmtNum = (id: string) => String(numberById.get(id) ?? 0).padStart(3, '0');
 
@@ -270,7 +298,7 @@ export function StoryEntryList({
         <p className="lh-story-list__empty">해당하는 글이 없습니다.</p>
       ) : mode === 'accordion' ? (
         <div className="lh-story-list__rows">
-          {filtered.map((entry, i) => {
+          {paged.map((entry, i) => {
             const open = openId === entry.id;
             const locked = isLocked(entry);
             return (
@@ -353,7 +381,7 @@ export function StoryEntryList({
         </div>
       ) : (
         <div className="lh-story-list__rows">
-          {filtered.map((entry, i) => {
+          {paged.map((entry, i) => {
             const locked = isLocked(entry);
             return (
               <div
@@ -386,6 +414,50 @@ export function StoryEntryList({
           })}
         </div>
       )}
+
+      {filtered.length && pages > 1 ? (
+        <div className="lh-story-pager" role="navigation" aria-label="로그 목록 페이지">
+          <button
+            type="button"
+            className="lh-story-pager__nav"
+            disabled={safePage <= 0}
+            onClick={() => {
+              setOpenId(null);
+              setPage((p) => Math.max(0, p - 1));
+            }}
+            aria-label="이전"
+          >
+            ‹
+          </button>
+          {Array.from({ length: pages }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`lh-story-pager__dot${i === safePage ? ' is-active' : ''}`}
+              onClick={() => {
+                setOpenId(null);
+                setPage(i);
+              }}
+              aria-label={`${i + 1}페이지`}
+              aria-current={i === safePage ? 'page' : undefined}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="lh-story-pager__nav"
+            disabled={safePage >= pages - 1}
+            onClick={() => {
+              setOpenId(null);
+              setPage((p) => Math.min(pages - 1, p + 1));
+            }}
+            aria-label="다음"
+          >
+            ›
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

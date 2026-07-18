@@ -15,7 +15,7 @@ import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBa
 import { lakeBackClearAll, lakeBackConfigureGuard } from '@/lib/hooks/lakeBackStack';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
-import { lakeNavigate } from '@/lib/lake/routeTransition';
+import { lakeNavigate, clearLakeRouteClasses } from '@/lib/lake/routeTransition';
 import { auth } from '@/lib/firebase/client';
 import { HOME_RECORDS_TABS, isHomeRecordsTabId } from '@/lib/records/sections';
 import type { TrpgScenario } from '@/lib/types/site-content';
@@ -70,6 +70,10 @@ export function HomePageClient() {
   useEffect(() => {
     lakeBackConfigureGuard('/', router);
   }, [router]);
+
+  useEffect(() => {
+    clearLakeRouteClasses();
+  }, []);
 
   useEffect(() => {
     const tab = searchParams.get('p');

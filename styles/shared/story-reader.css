@@ -294,6 +294,49 @@
   padding: 0.75rem 0;
 }
 
+/* 로그 목록·편집 — 갤러리형 페이지 (pair-pager와 동일 톤) */
+.lh-story-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+  padding: 0.25rem 0 0.15rem;
+}
+
+.lh-story-pager__nav,
+.lh-story-pager__dot {
+  appearance: none;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  padding: 0 0.35rem;
+  border: 0.5px solid rgba(215, 169, 130, 0.22);
+  border-radius: 999px;
+  background: rgba(20, 18, 16, 0.55);
+  color: rgba(220, 208, 190, 0.78);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lh-story-pager__nav:hover:not(:disabled),
+.lh-story-pager__dot:hover {
+  color: rgba(244, 236, 224, 0.96);
+  border-color: rgba(215, 169, 130, 0.45);
+}
+
+.lh-story-pager__dot.is-active {
+  color: rgba(18, 14, 12, 0.92);
+  background: rgba(215, 169, 130, 0.88);
+  border-color: transparent;
+}
+
+.lh-story-pager__nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 @keyframes lhStoryChildIn {
   from {
     opacity: 0;

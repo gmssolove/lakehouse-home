@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import {
   clampBgEffectOpacity,
   createChapter,
@@ -24,6 +24,8 @@ import type {
   StoryViewMode,
   StoryVisibility,
 } from '@/lib/types/character';
+
+const EDITOR_PAGE_SIZE = 12;
 
 type Props = {
   entries: StoryEntry[];
@@ -73,17 +75,37 @@ export function StoryEntriesEditor({
   const [batchEdit, setBatchEdit] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editorPage, setEditorPage] = useState(0);
   const focusRef = useRef<HTMLLIElement | null>(null);
 
   const colors = categoryColors || {};
 
+  const editorPages = Math.max(1, Math.ceil(entries.length / EDITOR_PAGE_SIZE));
+  const safeEditorPage = Math.min(editorPage, editorPages - 1);
+  const pagedEntries = useMemo(() => {
+    const start = safeEditorPage * EDITOR_PAGE_SIZE;
+    return entries.slice(start, start + EDITOR_PAGE_SIZE);
+  }, [entries, safeEditorPage]);
+
   useEffect(() => {
-    if (!focusEntryId || !focusRef.current) return;
+    if (editorPage > editorPages - 1) setEditorPage(Math.max(0, editorPages - 1));
+  }, [editorPage, editorPages]);
+
+  useEffect(() => {
+    if (!focusEntryId) return;
+    const idx = entries.findIndex((e) => e.id === focusEntryId);
+    if (idx >= 0) setEditorPage(Math.floor(idx / EDITOR_PAGE_SIZE));
     setExpandedId(focusEntryId);
-    focusRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    focusRef.current.classList.add('is-focus-entry');
-    const t = window.setTimeout(() => focusRef.current?.classList.remove('is-focus-entry'), 2200);
+    const t = window.setTimeout(() => {
+      const el = focusRef.current;
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('is-focus-entry');
+      window.setTimeout(() => el.classList.remove('is-focus-entry'), 2200);
+    }, 40);
     return () => window.clearTimeout(t);
+    // entries는 focus 변경 시점 스냅샷만 사용 — 키입력마다 스크롤 재실행 방지
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusEntryId]);
 
   const commit = (
@@ -96,6 +118,23 @@ export function StoryEntriesEditor({
       mergeStoryCategories(nextCats, next),
       Object.keys(nextColors).length ? nextColors : undefined,
     );
+  };
+
+  /** 추가 직후 거대 폼+편집카드 동기 마운트로 메인스레드가 멈추지 않게 */
+  const addEntry = () => {
+    const created = createStoryEntry({
+      title: '',
+      category: '본편',
+      order: entries.length,
+      viewMode: 'text',
+    });
+    const next = [...entries, created];
+    const lastPage = Math.max(0, Math.ceil(next.length / EDITOR_PAGE_SIZE) - 1);
+    startTransition(() => {
+      commit(next);
+      setEditorPage(lastPage);
+    });
+    window.setTimeout(() => setExpandedId(created.id), 0);
   };
 
   const patch = (id: string, partial: Partial<StoryEntry>) => {
@@ -158,14 +197,7 @@ export function StoryEntriesEditor({
               type="button"
               className="btn-save"
               style={{ padding: '6px 12px' }}
-              onClick={() => {
-                const next = [
-                  ...entries,
-                  createStoryEntry({ title: '', category: '본편', order: entries.length, viewMode: 'text' }),
-                ];
-                commit(next);
-                setExpandedId(next[next.length - 1]?.id ?? null);
-              }}
+              onClick={addEntry}
             >
               글 추가
             </button>
@@ -324,7 +356,8 @@ export function StoryEntriesEditor({
       ) : null}
 
       <ul className="lh-story-editor__list">
-        {entries.map((entry, index) => {
+        {pagedEntries.map((entry) => {
+          const index = entries.findIndex((e) => e.id === entry.id);
           const open = expandedId === entry.id;
           return (
             <li
@@ -361,7 +394,7 @@ export function StoryEntriesEditor({
                   <button
                     type="button"
                     className="btn-del"
-                    disabled={index === 0}
+                    disabled={index <= 0}
                     onClick={() => commit(moveEntry(entries, entry.id, -1))}
                     aria-label="위로"
                   >
@@ -370,7 +403,7 @@ export function StoryEntriesEditor({
                   <button
                     type="button"
                     className="btn-del"
-                    disabled={index >= entries.length - 1}
+                    disabled={index < 0 || index >= entries.length - 1}
                     onClick={() => commit(moveEntry(entries, entry.id, 1))}
                     aria-label="아래로"
                   >
@@ -403,6 +436,41 @@ export function StoryEntriesEditor({
         })}
       </ul>
 
+      {editorPages > 1 ? (
+        <div className="lh-story-pager" role="navigation" aria-label="로그 편집 페이지">
+          <button
+            type="button"
+            className="lh-story-pager__nav"
+            disabled={safeEditorPage <= 0}
+            onClick={() => setEditorPage((p) => Math.max(0, p - 1))}
+            aria-label="이전"
+          >
+            ‹
+          </button>
+          {Array.from({ length: editorPages }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`lh-story-pager__dot${i === safeEditorPage ? ' is-active' : ''}`}
+              onClick={() => setEditorPage(i)}
+              aria-label={`${i + 1}페이지`}
+              aria-current={i === safeEditorPage ? 'page' : undefined}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="lh-story-pager__nav"
+            disabled={safeEditorPage >= editorPages - 1}
+            onClick={() => setEditorPage((p) => Math.min(editorPages - 1, p + 1))}
+            aria-label="다음"
+          >
+            ›
+          </button>
+        </div>
+      ) : null}
+
       {!entries.length ? (
         <p style={{ fontSize: 12, opacity: 0.6 }}>
           아직 글이 없습니다. {enableToolbarAdd ? '「글 추가」' : '「+ 로그 추가」'}를 눌러 주세요.
@@ -413,14 +481,7 @@ export function StoryEntriesEditor({
           type="button"
           className="lh-repeatable__add"
           style={{ marginTop: 10 }}
-          onClick={() => {
-            const next = [
-              ...entries,
-              createStoryEntry({ title: '', category: '본편', order: entries.length, viewMode: 'text' }),
-            ];
-            commit(next);
-            setExpandedId(next[next.length - 1]?.id ?? null);
-          }}
+          onClick={addEntry}
         >
           + 로그 추가
         </button>
@@ -462,9 +523,13 @@ function loadMoodPresets(): MoodPreset[] {
 
 function saveMoodPreset(preset: MoodPreset) {
   if (typeof window === 'undefined') return;
-  const key = JSON.stringify(preset);
-  const next = [preset, ...loadMoodPresets().filter((p) => JSON.stringify(p) !== key)].slice(0, 5);
-  localStorage.setItem(MOOD_PRESETS_KEY, JSON.stringify(next));
+  try {
+    const key = JSON.stringify(preset);
+    const next = [preset, ...loadMoodPresets().filter((p) => JSON.stringify(p) !== key)].slice(0, 5);
+    localStorage.setItem(MOOD_PRESETS_KEY, JSON.stringify(next));
+  } catch {
+    /* quota / private mode */
+  }
 }
 
 function moodPresetLabel(p: MoodPreset, i: number): string {
@@ -518,11 +583,18 @@ function StoryEntryEditorCard({
   const [pdfDraft, setPdfDraft] = useState<string | null>(null);
   const [pdfFilename, setPdfFilename] = useState<string | null>(null);
 
+  const moodInitRef = useRef(true);
+
   useEffect(() => {
     setMoodPresets(loadMoodPresets());
   }, []);
 
+  /* 마운트 시 자동 저장은 스킵 — 추가 직후 localStorage/리렌더 연쇄 방지 */
   useEffect(() => {
+    if (moodInitRef.current) {
+      moodInitRef.current = false;
+      return;
+    }
     saveMoodPreset({
       bgAccentMode: entry.bgAccentMode,
       bgColor: entry.bgColor,
