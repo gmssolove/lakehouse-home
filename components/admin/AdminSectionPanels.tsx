@@ -109,8 +109,8 @@ export function MainAdminPanel({ data, onSave }: MainProps) {
             else applyFavicon(url);
           }}
           accept="image"
-          acceptAttr="image/*,.ico"
-          asDataUrl
+          acceptAttr="image/*,.ico,.svg"
+          folder="site/favicon"
           emptyLabel="📁 파비콘 업로드"
           changeLabel="파일 변경"
         />
@@ -321,9 +321,17 @@ export function TrpgAdminPanel({
   }, [settings]);
 
   async function persist(next: TrpgScenario[], toast: ToastAction = false) {
-    await onSave(next);
-    if (toast === 'save') showSaveToast();
-    if (toast === 'delete') showDeleteToast();
+    try {
+      await onSave(next);
+      if (toast === 'save') showSaveToast();
+      if (toast === 'delete') showDeleteToast();
+    } catch (err) {
+      window.alert(
+        err instanceof Error
+          ? err.message
+          : '저장에 실패했습니다. HTML 로그 용량을 줄여 다시 시도해 주세요.',
+      );
+    }
   }
 
   async function persistSettings(next: TrpgListSettings) {
@@ -1236,16 +1244,20 @@ export function TrpgEditForm({
                   className="btn-edit"
                   onClick={() => {
                     if (!htmlPaste.trim()) return;
-                    const parsed = parseLogHtmlString(htmlPaste.trim());
-                    const log: TrpgSessionLog = {
-                      id: newId(),
-                      title: parsed.title,
-                      date: new Date().toISOString().slice(0, 10),
-                      body: parsed.body,
-                      html: parsed.html,
-                    };
-                    setForm((f) => ({ ...f, logs: [...(f.logs ?? []), log] }));
-                    setHtmlPaste('');
+                    try {
+                      const parsed = parseLogHtmlString(htmlPaste.trim());
+                      const log: TrpgSessionLog = {
+                        id: newId(),
+                        title: parsed.title,
+                        date: new Date().toISOString().slice(0, 10),
+                        body: parsed.body,
+                        html: parsed.html,
+                      };
+                      setForm((f) => ({ ...f, logs: [...(f.logs ?? []), log] }));
+                      setHtmlPaste('');
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'HTML 로그 붙여넣기 실패');
+                    }
                   }}
                 >
                   붙여넣기 적용
@@ -2927,8 +2939,16 @@ export function AdminPanelShell({
 
   async function handleSave() {
     if (!onSave) return;
-    await onSave();
-    showSaveToast();
+    try {
+      await onSave();
+      showSaveToast();
+    } catch (err) {
+      window.alert(
+        err instanceof Error
+          ? err.message
+          : '저장에 실패했습니다. HTML 로그 용량을 줄여 다시 시도해 주세요.',
+      );
+    }
   }
 
   return (

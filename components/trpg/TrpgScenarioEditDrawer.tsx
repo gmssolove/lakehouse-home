@@ -43,10 +43,14 @@ export function TrpgScenarioEditDrawer({
   }, [open]);
 
   async function persistScenario(item: TrpgScenario, close = false) {
-    await onSave(scenariosRef.current.map((s) => (s.id === item.id ? item : s)));
-    if (close) {
-      showSaveToast();
-      onClose();
+    try {
+      await onSave(scenariosRef.current.map((s) => (s.id === item.id ? item : s)));
+      if (close) {
+        showSaveToast();
+        onClose();
+      }
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '저장에 실패했습니다. HTML 로그 용량을 줄여 다시 시도해 주세요.');
     }
   }
 
@@ -56,9 +60,13 @@ export function TrpgScenarioEditDrawer({
 
   async function handleDelete() {
     if (!(await confirm('이 시나리오를 삭제할까요?'))) return;
-    await onSave(allScenarios.filter((s) => s.id !== scenario.id));
-    showDeleteToast();
-    onClose();
+    try {
+      await onSave(allScenarios.filter((s) => s.id !== scenario.id));
+      showDeleteToast();
+      onClose();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '삭제에 실패했습니다.');
+    }
   }
 
   return (

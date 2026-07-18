@@ -57,9 +57,26 @@ export function useFirebaseSection<T>(path: string, defaultValue: T) {
   const save = useCallback(
     async (next: T) => {
       const clean = stripUndefinedDeep(next);
-      localStorage.setItem(storageKey, JSON.stringify(clean));
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(clean));
+      } catch {
+        /* quota / private mode — Firebase 저장은 계속 */
+      }
+      try {
+        await set(ref(db, path), clean);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/PERMISSION_DENIED/i.test(msg)) {
+          throw new Error('저장 권한이 없습니다. 로그인 상태를 확인해 주세요.');
+        }
+        if (/too large|payload|SIZE_LIMIT|max.*size/i.test(msg) || msg.includes('413')) {
+          throw new Error(
+            '데이터가 너무 큽니다. HTML 로그를 나누거나 용량을 줄인 뒤 다시 저장해 주세요.',
+          );
+        }
+        throw err instanceof Error ? err : new Error(msg || '저장에 실패했습니다.');
+      }
       setData(clean);
-      await set(ref(db, path), clean);
     },
     [path, storageKey],
   );

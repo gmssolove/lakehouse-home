@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 type Props = {
-  urls: string[];
+  urls?: string[] | null;
   className?: string;
 };
 
@@ -32,7 +32,7 @@ function loadTwitterWidgets(): Promise<void> {
 
 export function StoryTweetEmbeds({ urls, className = '' }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const list = urls.map((u) => u.trim()).filter(Boolean);
+  const list = (urls ?? []).map((u) => u.trim()).filter(Boolean);
 
   useEffect(() => {
     if (!list.length || !wrapRef.current) return;

@@ -14,23 +14,69 @@ export function SiteEffects() {
   const settingsRef = useRef(uiSettings);
   settingsRef.current = uiSettings;
 
-  /* 파비콘 실시간 반영 — main.favicon 이 있으면 <link rel="icon"> 교체 */
+  /* 파비콘 — Admin main.favicon 우선. Next metadata(/favicon.svg)가 다시 끼어들면 제거 */
   useEffect(() => {
-    const href = main?.favicon?.trim();
-    if (!href) return;
+    const raw = main?.favicon?.trim();
+    const href = raw || '/favicon.svg';
     const head = document.head;
-    const links = Array.from(
-      head.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="shortcut icon"]'),
-    );
-    let link = links[0];
-    // 중복 아이콘 링크 정리 (첫 번째만 유지)
-    links.slice(1).forEach((l) => l.remove());
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      head.appendChild(link);
-    }
-    link.href = href;
+    let applying = false;
+
+    const withCacheBust = (url: string) => {
+      if (url.startsWith('data:')) return url;
+      try {
+        const u = new URL(url, window.location.origin);
+        u.searchParams.set('v', String(url.length));
+        if (/^https?:\/\//i.test(url.trim())) return u.toString();
+        return `${u.pathname}${u.search}`;
+      } catch {
+        return url;
+      }
+    };
+
+    const iconType = (url: string) => {
+      if (/^data:image\/svg/i.test(url) || /\.svg(\?|$)/i.test(url)) return 'image/svg+xml';
+      if (/^data:image\/png/i.test(url) || /\.png(\?|$)/i.test(url)) return 'image/png';
+      if (/^data:image\/jpe?g/i.test(url) || /\.jpe?g(\?|$)/i.test(url)) return 'image/jpeg';
+      if (/^data:image\/x-icon/i.test(url) || /\.ico(\?|$)/i.test(url)) return 'image/x-icon';
+      return '';
+    };
+
+    const apply = () => {
+      if (applying) return;
+      applying = true;
+      try {
+        const finalHref = withCacheBust(href);
+        head
+          .querySelectorAll<HTMLLinkElement>(
+            'link[rel="icon"], link[rel="shortcut icon"], link[rel~="icon"]',
+          )
+          .forEach((el) => {
+            if (el.dataset.lakeFavicon === '1') return;
+            el.remove();
+          });
+
+        let link = head.querySelector<HTMLLinkElement>('link[data-lake-favicon="1"]');
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          link.dataset.lakeFavicon = '1';
+          head.appendChild(link);
+        }
+        const type = iconType(href);
+        if (type) link.type = type;
+        else link.removeAttribute('type');
+        if (link.getAttribute('href') !== finalHref) {
+          link.setAttribute('href', finalHref);
+        }
+      } finally {
+        applying = false;
+      }
+    };
+
+    apply();
+    const mo = new MutationObserver(apply);
+    mo.observe(head, { childList: true, subtree: true });
+    return () => mo.disconnect();
   }, [main?.favicon]);
 
   useEffect(() => {
