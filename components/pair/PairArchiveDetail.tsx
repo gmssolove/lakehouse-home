@@ -179,6 +179,7 @@ function CharaSide({
   quoteStagger,
   onBodyLayoutChange,
   onGhostLayoutChange,
+  ghostBlur = true,
 }: {
   side: 'left' | 'right';
   name: string;
@@ -211,6 +212,8 @@ function CharaSide({
   quoteStagger?: number;
   onBodyLayoutChange?: (next: ImageFrame) => void;
   onGhostLayoutChange?: (next: ImageFrame) => void;
+  /** 고스트 soft blur (기본 on) */
+  ghostBlur?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -267,7 +270,10 @@ function CharaSide({
       {...ghostDrag.handlers}
     >
       {/* soft 분리: transform(wrapper)와 blur를 같이 두면 사각 경계선이 생김 */}
-      <div className="chara-ghost-soft" aria-hidden>
+      <div
+        className={`chara-ghost-soft${ghostBlur ? '' : ' is-blur-off'}${layoutEditable && ghostBlur ? ' is-blur-preview' : ''}`}
+        aria-hidden
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className={`chara-billboard chara-billboard--${side}`}
@@ -1619,6 +1625,7 @@ export function PairArchiveDetail({
             quoteStagger={0}
             onBodyLayoutChange={(next) => patchSlotLayout(0, next)}
             onGhostLayoutChange={(next) => patchGhostLayout(0, next)}
+            ghostBlur={pair.charGhostBlur !== false}
           />
 
           <div className="pair-info">
@@ -1806,6 +1813,7 @@ export function PairArchiveDetail({
             quoteStagger={1}
             onBodyLayoutChange={(next) => patchSlotLayout(1, next)}
             onGhostLayoutChange={(next) => patchGhostLayout(1, next)}
+            ghostBlur={pair.charGhostBlur !== false}
           />
         </div>
       </div>

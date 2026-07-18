@@ -242,7 +242,13 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
     const el = editorRef.current;
     if (!el) return;
     const off = getPlainSelectionOffsets(el, { allowCollapsed: true });
-    if (off) savedSelRef.current = off;
+    if (!off) return;
+    // 툴바 클릭 직후 selection이 caret로 접혀도, 기존 범위 선택을 덮어쓰지 않음
+    if (off.start === off.end) {
+      const saved = savedSelRef.current;
+      if (saved && saved.start !== saved.end) return;
+    }
+    savedSelRef.current = off;
   }, []);
 
   const preserveSelection = useCallback(
@@ -393,6 +399,7 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
       if (!t) return;
       if (bubbleRef.current?.contains(t)) return;
       if (editorRef.current?.contains(t)) {
+        interactRef.current = false;
         selectingRef.current = true;
         closeBubble();
         return;
@@ -533,6 +540,8 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
         if (!ed) return;
         setPlainSelectionOffsets(ed, restore.start, restore.end);
         ed.focus();
+        // 서식 버튼 beginInteract 후 endInteract가 안 불리면 버블이 영구 잠김
+        interactRef.current = false;
         syncBubble();
       });
     },
@@ -570,6 +579,7 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
         if (!ed) return;
         setPlainSelectionOffsets(ed, caretPlain, caretPlain);
         ed.focus();
+        interactRef.current = false;
         closeBubble();
       });
     });
@@ -606,6 +616,7 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
           if (!ed) return;
           setPlainSelectionOffsets(ed, inserted.caretPlain, inserted.caretPlain);
           ed.focus();
+          interactRef.current = false;
           syncBubble();
         });
       });

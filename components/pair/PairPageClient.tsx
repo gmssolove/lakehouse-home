@@ -484,6 +484,19 @@ export function PairPageClient() {
                   >
                     {layoutMode ? '✓ 위치' : '위치'}
                   </button>
+                  {layoutMode ? (
+                    <button
+                      type="button"
+                      className={`btn-edit${liveDetail.charGhostBlur !== false ? ' is-active' : ''}`}
+                      onClick={() => {
+                        const nextOn = liveDetail.charGhostBlur === false;
+                        persistLayoutLive({ ...liveDetail, charGhostBlur: nextOn });
+                      }}
+                      title="양옆 고스트 soft blur"
+                    >
+                      {liveDetail.charGhostBlur === false ? '고스트 블러 OFF' : '고스트 블러'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className={`btn-edit${quoteMode ? ' is-active' : ''}`}

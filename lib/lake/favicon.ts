@@ -1,6 +1,7 @@
 /** Favicon apply helpers — shared by inline bootstrap + SiteEffects */
 
 export const LAKE_FAVICON_STORAGE_KEY = 'lhdata_site_main';
+export const LAKE_FAVICON_HREF_KEY = 'lake_favicon_href';
 export const LAKE_FAVICON_ATTR = 'data-lake-favicon';
 
 export function resolveLakeFaviconHref(raw?: string | null): string {
@@ -12,11 +13,13 @@ export function resolveLakeFaviconHref(raw?: string | null): string {
   return href;
 }
 
-export function withFaviconCacheBust(url: string): string {
+export function withFaviconCacheBust(url: string, pathHint = ''): string {
   if (url.startsWith('data:')) return url;
   try {
     const u = new URL(url, typeof window !== 'undefined' ? window.location.origin : 'https://lakehouse.me.kr');
-    u.searchParams.set('v', String(url.length));
+    // path별 브라우저 파비콘 캐시 깨기
+    const hint = pathHint.replace(/[^\w/-]/g, '').slice(0, 24) || 'x';
+    u.searchParams.set('v', `${url.length}-${hint}`);
     if (/^https?:\/\//i.test(url.trim())) return u.toString();
     return `${u.pathname}${u.search}`;
   } catch {
@@ -32,41 +35,46 @@ export function faviconMimeType(url: string): string {
   return '';
 }
 
+function persistFaviconHref(href: string) {
+  if (typeof window === 'undefined') return;
+  if (!href || href === '/favicon.svg') return;
+  try {
+    localStorage.setItem(LAKE_FAVICON_HREF_KEY, href);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Replace competing icon links with a single lake favicon link. */
-export function applyLakeFavicon(rawHref?: string | null): void {
+export function applyLakeFavicon(rawHref?: string | null, pathHint?: string): void {
   if (typeof document === 'undefined') return;
   const href = resolveLakeFaviconHref(rawHref);
-  const finalHref = withFaviconCacheBust(href);
+  const finalHref = withFaviconCacheBust(href, pathHint || (typeof window !== 'undefined' ? window.location.pathname : ''));
   const head = document.head;
 
   head
-    .querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="shortcut icon"], link[rel~="icon"]')
-    .forEach((el) => {
-      if (el.getAttribute(LAKE_FAVICON_ATTR) === '1') return;
-      el.remove();
-    });
+    .querySelectorAll<HTMLLinkElement>(
+      'link[rel="icon"], link[rel="shortcut icon"], link[rel~="icon"], link[rel="apple-touch-icon"]',
+    )
+    .forEach((el) => el.remove());
 
-  let link = head.querySelector<HTMLLinkElement>(`link[${LAKE_FAVICON_ATTR}="1"]`);
-  // 브라우저가 path별 파비콘을 캐시하므로, 같은 노드 href만 바꾸면 OC/Pair에서 옛 아이콘이 남음 → 교체
-  if (link && link.getAttribute('href') === finalHref) {
-    const type = faviconMimeType(href);
-    if (type) link.type = type;
-    return;
-  }
-  link?.remove();
-  link = document.createElement('link');
+  const link = document.createElement('link');
   link.rel = 'icon';
   link.setAttribute(LAKE_FAVICON_ATTR, '1');
   const type = faviconMimeType(href);
   if (type) link.type = type;
   link.href = finalHref;
-  head.appendChild(link);
+  head.insertBefore(link, head.firstChild);
+
+  if (href !== '/favicon.svg') persistFaviconHref(href);
 }
 
 /** localStorage에 캐시된 Admin 파비콘 (하드 네비 first paint용) */
 export function readCachedLakeFavicon(): string | null {
   if (typeof window === 'undefined') return null;
   try {
+    const direct = localStorage.getItem(LAKE_FAVICON_HREF_KEY)?.trim();
+    if (direct) return direct;
     const data = JSON.parse(localStorage.getItem(LAKE_FAVICON_STORAGE_KEY) || 'null');
     const href = data?.favicon;
     return typeof href === 'string' && href.trim() ? href.trim() : null;

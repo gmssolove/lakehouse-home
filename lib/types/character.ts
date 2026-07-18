@@ -823,6 +823,8 @@ export type PairItem = WithSecret & {
   charBodyLayout?: [ImageFrame, ImageFrame];
   /** 상세 고스트(뒤 일러) 위치·크기 A/B (드래그/휠) */
   charGhostLayout?: [ImageFrame, ImageFrame];
+  /** 상세 고스트 soft blur (기본 true, false면 끄기) */
+  charGhostBlur?: boolean;
   /** 상세 폴라로이드 래퍼 위치·크기 (드래그/휠) */
   charHeadLayout?: [ImageFrame, ImageFrame];
   /** 캐릭터별 포인트 컬러 */

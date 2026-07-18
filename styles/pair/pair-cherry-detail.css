@@ -474,10 +474,33 @@
   );
 }
 
+.pair-detail-screen .chara-item .chara-ghost-soft.is-blur-off {
+  filter: none;
+}
+
 .pair-detail-screen .pair-cherry-root.is-layout-edit .chara-item .chara-ghost-soft {
+  /* 위치 편집 중엔 경계 확인용으로 블러 끄되, 토글 ON이면 미리보기 유지 */
   filter: none;
   -webkit-mask-image: none;
   mask-image: none;
+}
+
+.pair-detail-screen .pair-cherry-root.is-layout-edit .chara-item .chara-ghost-soft.is-blur-preview {
+  filter: blur(3px);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 48%,
+    rgba(0, 0, 0, 0.4) 72%,
+    transparent 92%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 48%,
+    rgba(0, 0, 0, 0.4) 72%,
+    transparent 92%
+  );
 }
 
 .pair-detail-screen .chara-item .chara-ghost-wrapper .chara-billboard {

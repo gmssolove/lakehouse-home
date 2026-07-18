@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
-import { applyLakeFavicon } from '@/lib/lake/favicon';
+import { applyLakeFavicon, readCachedLakeFavicon } from '@/lib/lake/favicon';
 import { playClickSound } from '@/lib/sounds/clickSound';
 import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
 
@@ -19,13 +19,15 @@ export function SiteEffects() {
 
   /* 파비콘 — Admin main.favicon. 하드 네비(/oc·/pair)마다 링크 노드를 갈아끼움 */
   useEffect(() => {
-    const apply = () => applyLakeFavicon(main?.favicon);
+    const apply = () => applyLakeFavicon(main?.favicon || readCachedLakeFavicon(), pathname);
     apply();
     const t1 = window.setTimeout(apply, 0);
     const t2 = window.setTimeout(apply, 300);
+    const t3 = window.setTimeout(apply, 1200);
     return () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
+      window.clearTimeout(t3);
     };
   }, [main?.favicon, pathname]);
 

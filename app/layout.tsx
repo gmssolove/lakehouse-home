@@ -141,16 +141,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       {/* className 대신 CSS --lh-body-font('ChosunNm' 우선) — next/font Fallback이 Times로 가로채지 않게 */}
       <head>
+        {/* Admin 파비콘 — head 최상단 (브라우저가 /favicon.ico를 선요청하기 전) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var h=localStorage.getItem('lake_favicon_href');if(!h){var d=JSON.parse(localStorage.getItem('lhdata_site_main')||'null');h=d&&d.favicon}if(!h||typeof h!=='string')return;h=h.trim();if(!h)return;if(h.indexOf('data:')===0&&h.length>24000)return;var u=h;if(h.indexOf('data:')!==0){try{var x=new URL(h,location.origin);x.searchParams.set('v',String(h.length)+'-'+location.pathname.replace(/[^\\w/-]/g,'').slice(0,24));u=/^https?:/i.test(h)?x.toString():(x.pathname+x.search)}catch(e){}}document.querySelectorAll('link[rel*=\"icon\"]').forEach(function(el){el.remove()});var l=document.createElement('link');l.rel='icon';l.setAttribute('data-lake-favicon','1');l.href=u;document.head.insertBefore(l,document.head.firstChild);try{localStorage.setItem('lake_favicon_href',h)}catch(e){}}catch(e){}})();`,
+          }}
+        />
         {/* Tabler Icons webfont — 서식 에디터 단색 아이콘 */}
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
-        />
-        {/* Admin 파비콘을 하드 네비 first paint에 맞춤 (lhdata/site/main localStorage) */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var d=JSON.parse(localStorage.getItem('lhdata_site_main')||'null');var h=d&&d.favicon;if(!h||typeof h!=='string')return;h=h.trim();if(!h)return;if(h.indexOf('data:')===0&&h.length>24000)return;var u=h;if(h.indexOf('data:')!==0){try{var x=new URL(h,location.origin);x.searchParams.set('v',String(h.length));u=/^https?:/i.test(h)?x.toString():(x.pathname+x.search)}catch(e){}}document.querySelectorAll('link[rel=\"icon\"],link[rel=\"shortcut icon\"]').forEach(function(el){el.remove()});var l=document.createElement('link');l.rel='icon';l.setAttribute('data-lake-favicon','1');l.href=u;document.head.appendChild(l)}catch(e){}})();`,
-          }}
         />
       </head>
       <body>

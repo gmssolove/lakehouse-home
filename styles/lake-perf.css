@@ -664,11 +664,7 @@ body.lh-route-leaving.lh-route-back .lh-archive-topbar.lh-route-panel-leaving {
   animation: none !important;
 }
 
-/* 상세 호버 비용 추가 완화 */
-.pair-detail-screen .chara-ghost-soft {
-  filter: none !important;
-}
-
+/* 상세 호버 비용 추가 완화 — 고스트 soft blur는 pair-cherry-detail 유지 */
 .pair-detail-screen .chara-billboard,
 .pair-detail-screen .pair-extra__gal-item img {
   transition: opacity 0.2s ease !important;
