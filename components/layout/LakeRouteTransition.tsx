@@ -6,7 +6,6 @@ import {
   beginLakeRouteEnter,
   clearLakeRouteClasses,
   consumePendingLakeRouteDir,
-  isLakeRouteEnterLocked,
   lakeNavigate,
   normalizeLakePath,
   shouldLakeRouteAnimate,
@@ -20,7 +19,8 @@ export function LakeRouteTransition() {
   useLayoutEffect(() => {
     const dir = consumePendingLakeRouteDir();
     if (dir === 'neutral') {
-      if (!isLakeRouteEnterLocked()) clearLakeRouteClasses();
+      // lock 중이어도 leaving을 남기면 opacity/pointer-events가 영구 고정됨
+      clearLakeRouteClasses();
       return;
     }
     beginLakeRouteEnter(pathname, dir);

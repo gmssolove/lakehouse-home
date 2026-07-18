@@ -162,6 +162,14 @@ export function lakeNavigate(
     router.push(`${url.pathname}${url.search}${url.hash}`);
   }, 340);
 
+  // Soft nav 실패·Strict Mode 등으로 enter가 안 돌아도 leaving에 영구 고정되지 않게
+  window.setTimeout(() => {
+    if (document.body.classList.contains('lh-route-leaving')) {
+      clearLakeRouteClasses();
+      resetPendingLakeRouteDir();
+    }
+  }, 1200);
+
   return dir;
 }
 
