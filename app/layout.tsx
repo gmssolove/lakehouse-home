@@ -111,7 +111,7 @@ const quicksand = Quicksand({
 export const metadata: Metadata = {
   title: 'lakehouse',
   description: 'archive & stories',
-  icons: { icon: '/favicon.svg' },
+  // icons는 SiteEffects + head bootstrap이 담당 (정적 /favicon.svg가 OC·Pair 하드로드에 고착되던 문제)
 };
 
 export const viewport: Viewport = {
@@ -145,6 +145,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
+        />
+        {/* Admin 파비콘을 하드 네비 first paint에 맞춤 (lhdata/site/main localStorage) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var d=JSON.parse(localStorage.getItem('lhdata_site_main')||'null');var h=d&&d.favicon;if(!h||typeof h!=='string')return;h=h.trim();if(!h)return;if(h.indexOf('data:')===0&&h.length>24000)return;var u=h;if(h.indexOf('data:')!==0){try{var x=new URL(h,location.origin);x.searchParams.set('v',String(h.length));u=/^https?:/i.test(h)?x.toString():(x.pathname+x.search)}catch(e){}}document.querySelectorAll('link[rel=\"icon\"],link[rel=\"shortcut icon\"]').forEach(function(el){el.remove()});var l=document.createElement('link');l.rel='icon';l.setAttribute('data-lake-favicon','1');l.href=u;document.head.appendChild(l)}catch(e){}})();`,
+          }}
         />
       </head>
       <body>
