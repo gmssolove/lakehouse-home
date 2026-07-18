@@ -136,7 +136,7 @@ export function lakeNavigate(
     url = new URL(href, window.location.href);
   } catch {
     clearLakeRouteClasses();
-    router.push(href);
+    window.location.assign(href);
     return null;
   }
 
@@ -149,10 +149,18 @@ export function lakeNavigate(
   /* 같은 path라도 ?c= 딥링크면 push (목록→상세) */
   if (nextPath === from && !url.search) return null;
 
-  // 전환 애니/지연 push 없이 즉시 이동 (soft-nav URL·트리 불일치 방지)
   clearLakeRouteClasses();
   resetPendingLakeRouteDir();
   pendingRouteLockUntil = 0;
+
+  // OpenNext/CF soft-nav 가 URL만 바꾸고 React 트리를 안 갈아끼우는 케이스 회피
+  // (/ · /oc · /pair 상호 이동은 풀 로드가 가장 안전)
+  const archive = new Set(['/', '/oc', '/pair']);
+  if (archive.has(from) || archive.has(nextPath)) {
+    window.location.assign(fullHref);
+    return null;
+  }
+
   router.push(fullHref);
   return null;
 }

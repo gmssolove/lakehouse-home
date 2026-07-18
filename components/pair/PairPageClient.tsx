@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBgm } from '@/lib/contexts/BgmContext';
@@ -110,9 +109,8 @@ export function PairPageClient() {
   }, [savePairs]);
 
   const leavePair = useCallback(() => {
-    if (window.history.length > 1) router.back();
-    else router.replace('/');
-  }, [router]);
+    window.location.assign('/');
+  }, []);
 
   const routeGuard = useMemo(() => ({ guardPath: '/pair', router }), [router]);
 
@@ -392,9 +390,9 @@ export function PairPageClient() {
               ← back
             </button>
           ) : (
-            <Link href="/" replace className="nav-back">
+            <a href="/" className="nav-back">
               ← back
-            </Link>
+            </a>
           )
         }
       />

@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
@@ -351,9 +350,9 @@ export function OcPageClient() {
               ← back
             </button>
           ) : (
-            <Link href="/" replace className="nav-back">
+            <a href="/" className="nav-back">
               ← back
-            </Link>
+            </a>
           )
         }
       />

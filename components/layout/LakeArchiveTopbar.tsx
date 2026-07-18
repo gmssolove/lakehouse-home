@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 type Props = {
@@ -13,17 +12,18 @@ export function LakeArchiveTopbar({ title, active, back }: Props) {
   return (
     <nav className="oc-topbar lh-archive-topbar">
       {back ?? (
-        <Link href="/" replace className="nav-back">
+        // plain <a> — Next <Link> soft-nav can desync URL vs page on OpenNext/CF
+        <a href="/" className="nav-back">
           ← back
-        </Link>
+        </a>
       )}
       <div className="nav-title">{title}</div>
       <ul className="nav-links">
         <li className={active === 'oc' ? 'active' : undefined}>
-          <Link href="/oc">OC</Link>
+          <a href="/oc">OC</a>
         </li>
         <li className={active === 'pair' ? 'active' : undefined}>
-          <Link href="/pair">Pair</Link>
+          <a href="/pair">Pair</a>
         </li>
       </ul>
     </nav>
