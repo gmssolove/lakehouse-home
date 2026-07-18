@@ -27,41 +27,32 @@ export function LakeRouteTransition() {
   }, [pathname]);
 
   useEffect(() => {
+    // Archive 전환 애니 비활성 — Link 기본 동작 유지. 잔여 leaving만 정리.
     const onClick = (e: MouseEvent) => {
       const target = e.target;
       if (!(target instanceof Element)) return;
-
       const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
-      if (!anchor || anchor.getAttribute('target') || anchor.hasAttribute('download')) return;
-      if (anchor.dataset.lakeRoute === 'off') return;
-
+      if (!anchor) return;
       const href = anchor.getAttribute('href');
       if (!href || href.startsWith('#')) return;
-
-      const currentPath = normalizeLakePath(pathname);
-      let url: URL;
       try {
-        url = new URL(href, window.location.href);
+        const url = new URL(href, window.location.href);
+        if (url.origin !== window.location.origin) return;
+        const nextPath = normalizeLakePath(url.pathname);
+        const currentPath = normalizeLakePath(pathname);
+        if (nextPath === currentPath) return;
+        // 즉시 이동 경로에서도 잔여 전환 클래스 제거
+        if (!shouldLakeRouteAnimate(currentPath, nextPath, `${url.pathname}${url.search}`)) {
+          clearLakeRouteClasses();
+        }
       } catch {
-        return;
+        /* ignore */
       }
-
-      if (url.origin !== window.location.origin) return;
-
-      const nextPath = normalizeLakePath(url.pathname);
-      if (nextPath === currentPath) return;
-      if (!shouldLakeRouteAnimate(currentPath, nextPath)) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      const dir = lakeNavigate(router, `${url.pathname}${url.search}${url.hash}`, currentPath);
-      void dir;
     };
 
     document.addEventListener('click', onClick, true);
     return () => document.removeEventListener('click', onClick, true);
-  }, [pathname, router]);
+  }, [pathname]);
 
   return null;
 }

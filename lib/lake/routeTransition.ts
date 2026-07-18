@@ -46,7 +46,11 @@ export function shouldLakeRouteAnimate(from: string, to: string, href?: string) 
   if (TRPG_SCENARIO.test(from) || TRPG_SCENARIO.test(to)) return false;
   // 페어↔OC 상세 딥링크도 즉시 — 목록이 한 프레임 보이던 문제
   if (href && isLakeDeepProfileHref(href)) return false;
-  return ARCHIVE_PATHS.has(from) || ARCHIVE_PATHS.has(to);
+  // Archive(/ · /oc · /pair) 지연 leave+preventDefault 가
+  // URL만 바뀌고 React 트리는 이전 페이지에 남는 현상으로 메뉴/back이 먹통이 됨 → 애니 비활성
+  void from;
+  void to;
+  return false;
 }
 
 export function clearLakeRouteClasses() {
@@ -132,6 +136,7 @@ export function lakeNavigate(
   try {
     url = new URL(href, window.location.href);
   } catch {
+    clearLakeRouteClasses();
     router.push(href);
     return null;
   }
@@ -145,32 +150,12 @@ export function lakeNavigate(
   /* 같은 path라도 ?c= 딥링크면 push (목록→상세) */
   if (nextPath === from && !url.search) return null;
 
-  if (!shouldLakeRouteAnimate(from, nextPath, fullHref)) {
-    router.push(fullHref);
-    return null;
-  }
-
-  const dir = beginLakeRouteLeave(from, nextPath);
-  if (!dir) {
-    router.push(`${url.pathname}${url.search}${url.hash}`);
-    return null;
-  }
-
-  setPendingLakeRouteDir(dir);
-
-  window.setTimeout(() => {
-    router.push(`${url.pathname}${url.search}${url.hash}`);
-  }, 340);
-
-  // Soft nav 실패·Strict Mode 등으로 enter가 안 돌아도 leaving에 영구 고정되지 않게
-  window.setTimeout(() => {
-    if (document.body.classList.contains('lh-route-leaving')) {
-      clearLakeRouteClasses();
-      resetPendingLakeRouteDir();
-    }
-  }, 1200);
-
-  return dir;
+  // 전환 애니/지연 push 없이 즉시 이동 (soft-nav URL·트리 불일치 방지)
+  clearLakeRouteClasses();
+  resetPendingLakeRouteDir();
+  pendingRouteLockUntil = 0;
+  router.push(fullHref);
+  return null;
 }
 
 let pendingRouteDir: 'forward' | 'back' | 'neutral' = 'neutral';
