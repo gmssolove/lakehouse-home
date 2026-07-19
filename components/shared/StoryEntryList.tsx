@@ -174,14 +174,22 @@ export function StoryEntryList({
     );
   };
 
+  const isSecret = (entry: StoryEntry) => entry.visibility === 'secret';
+
   const renderBadges = (entry: StoryEntry) => (
     <>
       {entry.adult ? <span className="lh-story-badge lh-story-badge--adult">19</span> : null}
-      {entry.visibility === 'secret' ? (
-        <span className="lh-story-badge lh-story-badge--secret">비밀</span>
-      ) : null}
     </>
   );
+
+  const renderTitle = (entry: StoryEntry) => entry.title.trim() || '(제목 없음)';
+
+  const renderSecretLock = (entry: StoryEntry) =>
+    isSecret(entry) ? (
+      <span className="lh-story-row__lock" aria-label="비밀글" title="비밀글">
+        🔒
+      </span>
+    ) : null;
 
   const renderMetaLine = (entry: StoryEntry) => {
     const parts = [
@@ -332,13 +340,14 @@ export function StoryEntryList({
                   </span>
                   <span className="lh-story-row__main">
                     <span className="lh-story-row__title-line">
-                      <span className="lh-story-row__title">
-                        {locked ? '잠긴 글' : entry.title.trim() || '(제목 없음)'}
-                      </span>
+                      <span className="lh-story-row__title">{renderTitle(entry)}</span>
                       {renderBadges(entry)}
-                      <span className="lh-story-row__chev" aria-hidden>
-                        {locked ? '🔒' : open ? '▾' : '▸'}
-                      </span>
+                      {renderSecretLock(entry)}
+                      {!locked ? (
+                        <span className="lh-story-row__chev" aria-hidden>
+                          {open ? '▾' : '▸'}
+                        </span>
+                      ) : null}
                     </span>
                   </span>
                 </button>
@@ -400,10 +409,9 @@ export function StoryEntryList({
                   </span>
                   <span className="lh-story-row__main">
                     <span className="lh-story-row__title-wrap">
-                      <span className="lh-story-row__title">
-                        {locked ? '잠긴 글' : entry.title.trim() || '(제목 없음)'}
-                      </span>
+                      <span className="lh-story-row__title">{renderTitle(entry)}</span>
                       {renderBadges(entry)}
+                      {renderSecretLock(entry)}
                     </span>
                     {locked ? null : renderMetaLine(entry)}
                   </span>

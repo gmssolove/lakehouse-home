@@ -4845,7 +4845,7 @@
   box-sizing: border-box;
 }
 
-/* 스토리: 한 화면에 시리즈+목록이 최대한 들어오게 압축·풀높이 */
+/* 스토리: 메뉴 고정 + 로그 목록 행 영역 스크롤 */
 .pair-detail-screen .pair-panel__story-list {
   display: flex;
   flex-direction: column;
@@ -4855,17 +4855,12 @@
   font-family: 'ChosunNm', var(--font-chosun-nm), var(--pair-read), serif;
 }
 
-.pair-detail-screen .pair-panel__story-list .pair-panel__timeline-shell {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
+.pair-detail-screen .pair-panel__story-list > .pair-menu--story-sub,
 .pair-detail-screen .pair-panel__story-list > .pair-story-admin-bar {
   flex-shrink: 0;
-  margin-bottom: 0.55rem;
 }
 
-.pair-detail-screen .pair-panel__story-list > .lh-story-list {
+.pair-detail-screen .pair-panel__story-list > .pair-story-pane {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -4873,22 +4868,38 @@
   overflow: hidden;
 }
 
-.pair-detail-screen .pair-panel__story-list > .lh-story-list > .lh-story-list__tools {
+.pair-detail-screen .pair-panel__story-list .pair-panel__timeline-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pair-detail-screen .pair-panel__story-list .lh-story-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pair-detail-screen .pair-panel__story-list .lh-story-list__tools {
   flex-shrink: 0;
 }
 
-.pair-detail-screen .pair-panel__story-list > .lh-story-list > .lh-story-list__rows {
+.pair-detail-screen .pair-panel__story-list .lh-story-list__rows {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
-.pair-detail-screen .pair-panel__story-list > .lh-story-list > .lh-story-list__rows::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+.pair-detail-screen .pair-panel__story-list .lh-story-pager {
+  flex-shrink: 0;
+  margin-top: 0.65rem;
+  padding-bottom: 0.25rem;
 }
 
 .pair-detail-screen .pair-panel__story-list .pair-subtabs {

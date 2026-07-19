@@ -337,6 +337,13 @@
   cursor: default;
 }
 
+.lh-story-row__lock {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  line-height: 1;
+  opacity: 0.88;
+}
+
 @keyframes lhStoryChildIn {
   from {
     opacity: 0;

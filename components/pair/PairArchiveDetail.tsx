@@ -892,7 +892,7 @@ export function PairArchiveDetail({
     };
     const allowTarget = (t: EventTarget | null) =>
       (t as HTMLElement | null)?.closest?.(
-        '.pair-vn-stand.is-stand-editable, .lh-vn-box, .lh-vn-choice, .lh-vn-action-choice, .btn-edit, .pair-vn-stand-pose-btn, .pair-panel-stage__media, .pair-panel-stage__edit, .pair-panel-stage__toolbar, .pair-page, .pair-panel, .pair-intro-scroll, .pair-intro-v2, .lh-story-list, .lh-story-reader',
+        '.pair-vn-stand.is-stand-editable, .lh-vn-box, .lh-vn-choice, .lh-vn-action-choice, .btn-edit, .pair-vn-stand-pose-btn, .pair-panel-stage__media, .pair-panel-stage__edit, .pair-panel-stage__toolbar, .pair-page, .pair-panel, .pair-intro-scroll, .pair-intro-v2, .pair-panel__story-list, .lh-story-list, .lh-story-list__rows, .lh-story-pager, .lh-story-reader',
       );
     const blockWheel = (e: WheelEvent) => {
       if (allowTarget(e.target)) return;
