@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   createUserWithEmailAndPassword,
   deleteUser,
@@ -59,17 +59,38 @@ export function AuthModal({ open, onClose, backdrop = 'default' }: Props) {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(open);
+  const [leaving, setLeaving] = useState(false);
+  const mountedRef = useRef(open);
+  mountedRef.current = mounted;
 
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      mountedRef.current = true;
+      setMounted(true);
+      setLeaving(false);
+      return;
+    }
+    if (!mountedRef.current) return;
+    setLeaving(true);
+    const t = window.setTimeout(() => {
+      mountedRef.current = false;
+      setMounted(false);
+      setLeaving(false);
+    }, 240);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
+  useEffect(() => {
+    if (!mounted) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, [mounted]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   function mapAuthError(code: string): string {
     const map: Record<string, string> = {
@@ -241,7 +262,7 @@ export function AuthModal({ open, onClose, backdrop = 'default' }: Props) {
   return (
     <div
       id="auth-modal"
-      className={`active${backdrop === 'popup' ? ' auth-modal--popup' : ''}`}
+      className={`active${backdrop === 'popup' ? ' auth-modal--popup' : ''}${leaving ? ' is-leaving' : ' is-entering'}`}
       style={{ display: 'flex' }}
     >
       {backdrop === 'popup' ? (

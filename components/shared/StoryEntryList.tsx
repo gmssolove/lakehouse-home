@@ -5,6 +5,7 @@ import { LakeSearchField } from '@/components/ui/LakeSearchField';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { formatStoryMeta, mergeStoryCategories, storySecretItemId, storyCategoryTagStyle } from '@/lib/oc/storyEntries';
 import { isLakeItemUnlocked, resolveScopePassword } from '@/lib/lake/accessGate';
+import { SecretLockIcon } from '@/components/ui/SecretLockBadge';
 import type { SiteAccessSettings } from '@/lib/types/secret-content';
 import type { StoryEntry } from '@/lib/types/character';
 
@@ -187,7 +188,7 @@ export function StoryEntryList({
   const renderSecretLock = (entry: StoryEntry) =>
     isSecret(entry) ? (
       <span className="lh-story-row__lock" aria-label="비밀글" title="비밀글">
-        🔒
+        <SecretLockIcon className="lh-story-row__lock-icon" />
       </span>
     ) : null;
 
@@ -340,9 +341,9 @@ export function StoryEntryList({
                   </span>
                   <span className="lh-story-row__main">
                     <span className="lh-story-row__title-line">
+                      {renderSecretLock(entry)}
                       <span className="lh-story-row__title">{renderTitle(entry)}</span>
                       {renderBadges(entry)}
-                      {renderSecretLock(entry)}
                       {!locked ? (
                         <span className="lh-story-row__chev" aria-hidden>
                           {open ? '▾' : '▸'}
@@ -409,9 +410,9 @@ export function StoryEntryList({
                   </span>
                   <span className="lh-story-row__main">
                     <span className="lh-story-row__title-wrap">
+                      {renderSecretLock(entry)}
                       <span className="lh-story-row__title">{renderTitle(entry)}</span>
                       {renderBadges(entry)}
-                      {renderSecretLock(entry)}
                     </span>
                     {locked ? null : renderMetaLine(entry)}
                   </span>

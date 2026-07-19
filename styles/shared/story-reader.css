@@ -339,9 +339,17 @@
 
 .lh-story-row__lock {
   flex-shrink: 0;
-  font-size: 0.85em;
+  display: inline-flex;
+  align-items: center;
+  color: rgba(240, 207, 173, 0.82);
   line-height: 1;
-  opacity: 0.88;
+  opacity: 0.92;
+}
+
+.lh-story-row__lock-icon {
+  width: 13px;
+  height: 13px;
+  display: block;
 }
 
 @keyframes lhStoryChildIn {

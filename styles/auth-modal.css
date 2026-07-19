@@ -29,17 +29,66 @@
 #auth-modal.auth-modal--popup .auth-box {
   position: relative;
   z-index: 1;
-  animation: authModalPop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes authModalPop {
+#auth-modal.is-entering .auth-modal-backdrop,
+#auth-modal.is-entering:not(.auth-modal--popup) {
+  animation: lakeGateBackdropIn 0.28s ease both;
+}
+
+#auth-modal.is-entering .auth-box {
+  animation: lakeGateDialogIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#auth-modal.is-leaving .auth-modal-backdrop {
+  animation: lakeGateBackdropOut 0.24s ease both;
+}
+
+#auth-modal.is-leaving .auth-box {
+  animation: lakeGateDialogOut 0.24s ease both;
+}
+
+#auth-modal.is-leaving:not(.auth-modal--popup) {
+  animation: lakeGateBackdropOut 0.24s ease both;
+}
+
+@keyframes lakeGateBackdropIn {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lakeGateBackdropOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lakeGateDialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes lakeGateDialogOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
   }
 }
 

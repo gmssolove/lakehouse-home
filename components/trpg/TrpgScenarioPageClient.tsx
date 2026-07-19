@@ -733,52 +733,52 @@ export function TrpgScenarioPageClient({ id }: Props) {
           {activePanel.startsWith('log:') && activeLog ? (
             <section className="trpg-scenario-page__section">
               <h2 className="trpg-scenario-page__section-title">Session Log</h2>
-              <SecretItemGate
-                scope="trpg"
-                item={activeLog}
-                isAdmin={isAdmin}
-                loggedIn={!!user}
-                onRequestLogin={requestLogin}
-                lockedLabel={activeLog.title}
-              >
-                <article className="trpg-log-view" style={logStyle}>
-                  <header className="trpg-log-view__head">
-                    <div className="trpg-log-view__titleblock">
-                      <div className="trpg-log-view__title-row">
-                        {activeLog.secret ? <SecretLockBadge compact /> : null}
-                        <h3>{activeLog.title}</h3>
-                      </div>
-                      {activeLog.subtitle ? (
-                        <p className="trpg-log-view__subtitle">{activeLog.subtitle}</p>
-                      ) : null}
-                      {activeLog.date ? (
-                        <span className="trpg-log-view__date">
-                          <time>{activeLog.date}</time>
-                        </span>
-                      ) : null}
+              <article className="trpg-log-view" style={logStyle}>
+                <header className="trpg-log-view__head">
+                  <div className="trpg-log-view__titleblock">
+                    <div className="trpg-log-view__title-row">
+                      {activeLog.secret ? <SecretLockBadge compact /> : null}
+                      <h3>{activeLog.title}</h3>
                     </div>
-                    {canEdit ? (
-                      <div className="trpg-log-view__admin">
-                        {editing ? (
-                          <div className="trpg-log-view__admin-actions">
-                            <LakeIconToolButton label="저장" onClick={() => void persistScenario(draft!)}>
-                              <LakeSaveIcon />
-                            </LakeIconToolButton>
-                            <LakeIconToolButton label="취소" onClick={() => setDraft(null)}>
-                              <LakeCancelIcon />
-                            </LakeIconToolButton>
-                            <LakeIconToolButton label="삭제" onClick={() => void handleDeleteLog()}>
-                              <LakeTrashIcon />
-                            </LakeIconToolButton>
-                          </div>
-                        ) : (
-                          <LakeIconToolButton label="수정" onClick={() => startEditLog(activeLog)}>
-                            <LakeEditIcon />
-                          </LakeIconToolButton>
-                        )}
-                      </div>
+                    {activeLog.subtitle ? (
+                      <p className="trpg-log-view__subtitle">{activeLog.subtitle}</p>
                     ) : null}
-                  </header>
+                    {activeLog.date ? (
+                      <span className="trpg-log-view__date">
+                        <time>{activeLog.date}</time>
+                      </span>
+                    ) : null}
+                  </div>
+                  {canEdit ? (
+                    <div className="trpg-log-view__admin">
+                      {editing ? (
+                        <div className="trpg-log-view__admin-actions">
+                          <LakeIconToolButton label="저장" onClick={() => void persistScenario(draft!)}>
+                            <LakeSaveIcon />
+                          </LakeIconToolButton>
+                          <LakeIconToolButton label="취소" onClick={() => setDraft(null)}>
+                            <LakeCancelIcon />
+                          </LakeIconToolButton>
+                          <LakeIconToolButton label="삭제" onClick={() => void handleDeleteLog()}>
+                            <LakeTrashIcon />
+                          </LakeIconToolButton>
+                        </div>
+                      ) : (
+                        <LakeIconToolButton label="수정" onClick={() => startEditLog(activeLog)}>
+                          <LakeEditIcon />
+                        </LakeIconToolButton>
+                      )}
+                    </div>
+                  ) : null}
+                </header>
+                <SecretItemGate
+                  scope="trpg"
+                  item={activeLog}
+                  isAdmin={isAdmin}
+                  loggedIn={!!user}
+                  onRequestLogin={requestLogin}
+                  lockedLabel="본문 열람"
+                >
                   {editing ? (
                     <>
                       <input
@@ -809,8 +809,8 @@ export function TrpgScenarioPageClient({ id }: Props) {
                   ) : (
                     <TrpgLogSpeakerBody log={activeLog} players={view.playerProfiles ?? []} style={logStyle} />
                   )}
-                </article>
-              </SecretItemGate>
+                </SecretItemGate>
+              </article>
             </section>
           ) : null}
           </div>
@@ -889,7 +889,8 @@ export function TrpgScenarioPageClient({ id }: Props) {
                   isAdmin={isAdmin}
                   loggedIn={!!user}
                   onRequestLogin={requestLogin}
-                  lockedLabel={log.title}
+                  showWhenLocked
+                  onUnlocked={() => goPanel(panelFromLogId(log.id))}
                 >
                   <button
                     type="button"

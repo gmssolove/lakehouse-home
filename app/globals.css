@@ -1194,18 +1194,64 @@ html.lake-custom-cursor [contenteditable='true'] {
     0 0 0 1px rgba(215, 169, 130, 0.12);
 }
 
-.oc-profile-gate--popup .oc-profile-gate-box {
-  animation: ocProfileGatePop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+.oc-profile-gate.is-entering .oc-profile-gate-backdrop {
+  animation: lakeGateBackdropIn 0.28s ease both;
 }
 
-@keyframes ocProfileGatePop {
+.oc-profile-gate.is-entering .oc-profile-gate-box {
+  animation: lakeGateDialogIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.oc-profile-gate.is-leaving .oc-profile-gate-backdrop {
+  animation: lakeGateBackdropOut 0.24s ease both;
+}
+
+.oc-profile-gate.is-leaving .oc-profile-gate-box {
+  animation: lakeGateDialogOut 0.24s ease both;
+}
+
+.oc-profile-gate--clear.is-entering .oc-profile-gate-backdrop,
+.oc-profile-gate--clear.is-leaving .oc-profile-gate-backdrop {
+  animation: none;
+}
+
+@keyframes lakeGateBackdropIn {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lakeGateBackdropOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lakeGateDialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes lakeGateDialogOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
   }
 }
 

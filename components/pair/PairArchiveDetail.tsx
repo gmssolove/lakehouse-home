@@ -892,7 +892,7 @@ export function PairArchiveDetail({
     };
     const allowTarget = (t: EventTarget | null) =>
       (t as HTMLElement | null)?.closest?.(
-        '.pair-vn-stand.is-stand-editable, .lh-vn-box, .lh-vn-choice, .lh-vn-action-choice, .btn-edit, .pair-vn-stand-pose-btn, .pair-panel-stage__media, .pair-panel-stage__edit, .pair-panel-stage__toolbar, .pair-page, .pair-panel, .pair-intro-scroll, .pair-intro-v2, .pair-panel__story-list, .lh-story-list, .lh-story-list__rows, .lh-story-pager, .lh-story-reader',
+        '.pair-vn-stand.is-stand-editable, .lh-vn-box, .lh-vn-choice, .lh-vn-action-choice, .btn-edit, .pair-vn-stand-pose-btn, .pair-panel-stage__media, .pair-panel-stage__edit, .pair-panel-stage__toolbar, .pair-page, .pair-panel, .pair-intro-scroll, .pair-intro-v2, .pair-panel__story-list, .pair-panel__gallery-shell, .pair-panel__gallery-wrap, .pair-panel__timeline-wrap, .lh-story-list, .lh-story-list__rows, .lh-story-pager, .lh-story-reader',
       );
     const blockWheel = (e: WheelEvent) => {
       if (allowTarget(e.target)) return;
@@ -1252,10 +1252,10 @@ export function PairArchiveDetail({
 
   const renderPager = (page: number, pages: number, setPage: (n: number) => void) =>
     pages > 1 ? (
-      <div className="pair-pager" role="navigation" aria-label="페이지">
+      <div className="lh-story-pager" role="navigation" aria-label="페이지">
         <button
           type="button"
-          className="pair-pager__nav"
+          className="lh-story-pager__nav"
           disabled={page <= 0}
           onClick={() => setPage(Math.max(0, page - 1))}
           aria-label="이전"
@@ -1266,7 +1266,7 @@ export function PairArchiveDetail({
           <button
             key={i}
             type="button"
-            className={`pair-pager__dot${i === page ? ' is-active' : ''}`}
+            className={`lh-story-pager__dot${i === page ? ' is-active' : ''}`}
             onClick={() => setPage(i)}
             aria-label={`${i + 1}페이지`}
             aria-current={i === page ? 'page' : undefined}
@@ -1276,7 +1276,7 @@ export function PairArchiveDetail({
         ))}
         <button
           type="button"
-          className="pair-pager__nav"
+          className="lh-story-pager__nav"
           disabled={page >= pages - 1}
           onClick={() => setPage(Math.min(pages - 1, page + 1))}
           aria-label="다음"
@@ -1424,7 +1424,6 @@ export function PairArchiveDetail({
                     />
                   ))}
                 </ol>
-                {renderPager(timelinePage, timelinePages, setTimelinePage)}
               </div>
               <div className="pair-gallery-more" aria-hidden={!timelineHasMore}>
                 <div className="pair-gallery-more__fade" />
@@ -1435,6 +1434,7 @@ export function PairArchiveDetail({
                   </svg>
                 </div>
               </div>
+              {renderPager(timelinePage, timelinePages, setTimelinePage)}
             </div>
           ) : (
             <p className="lh-story-list__empty">아직 등록된 타임라인이 없습니다.</p>
@@ -1475,7 +1475,6 @@ export function PairArchiveDetail({
               );
             })}
           </div>
-          {renderPager(galleryPage, galleryPages, setGalleryPage)}
         </div>
         <div className="pair-gallery-more" aria-hidden={!galleryHasMore}>
           <div className="pair-gallery-more__fade" />
@@ -1486,6 +1485,7 @@ export function PairArchiveDetail({
             </svg>
           </div>
         </div>
+        {renderPager(galleryPage, galleryPages, setGalleryPage)}
       </div>
     );
   }

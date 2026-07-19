@@ -5215,45 +5215,9 @@
   border-color: rgba(215, 169, 130, 0.4);
 }
 
-/* ===== 페이지네이션 ===== */
+/* ===== 페이지네이션 (구 pair-pager → lh-story-pager 통일) ===== */
 .pair-detail-screen .pair-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  margin: 1.6rem auto 0;
-}
-
-.pair-detail-screen .pair-pager__nav,
-.pair-detail-screen .pair-pager__dot {
-  all: unset;
-  cursor: pointer;
-  min-width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--pair-sans), sans-serif;
-  font-size: 12.5px;
-  color: rgba(198, 190, 178, 0.6);
-  border-radius: 4px;
-  transition: color 0.2s ease, background 0.2s ease;
-}
-
-.pair-detail-screen .pair-pager__nav:hover:not(:disabled),
-.pair-detail-screen .pair-pager__dot:hover {
-  color: rgba(244, 238, 229, 0.95);
-  background: rgba(205, 179, 126, 0.1);
-}
-
-.pair-detail-screen .pair-pager__dot.is-active {
-  color: rgba(11, 13, 12, 0.95);
-  background: rgba(215, 169, 130, 0.85);
-}
-
-.pair-detail-screen .pair-pager__nav:disabled {
-  opacity: 0.3;
-  cursor: default;
+  display: none;
 }
 
 /* ===== 갤러리 라이트박스 (OC 미로드 대비 자립 스타일) ===== */
@@ -5411,6 +5375,14 @@
 .pair-detail-screen .pair-panel__gallery-wrap .pair-extra__gallery {
   margin-top: 0.55rem;
   gap: 0.9rem;
+}
+
+/* 갤러리·타임라인 페이저 — 로그 목록과 동일하게 하단 고정 */
+.pair-detail-screen .pair-panel__gallery-shell > .lh-story-pager,
+.pair-detail-screen .pair-panel__timeline-shell > .lh-story-pager {
+  flex-shrink: 0;
+  margin-top: 0.65rem;
+  padding: 0.15rem 0 0.35rem;
 }
 
 .pair-extra__gal-btn {

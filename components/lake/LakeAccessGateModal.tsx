@@ -27,6 +27,8 @@ type Props = {
   verifyOverride?: (input: string) => boolean;
 };
 
+const EXIT_MS = 240;
+
 export function LakeAccessGateModal({
   open,
   scope,
@@ -43,32 +45,50 @@ export function LakeAccessGateModal({
 }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [mounted, setMounted] = useState(open);
+  const [leaving, setLeaving] = useState(false);
+  const mountedRef = useRef(open);
+  mountedRef.current = mounted;
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) {
-      setPassword('');
-      setError('');
+    if (open) {
+      mountedRef.current = true;
+      setMounted(true);
+      setLeaving(false);
       return;
     }
+    if (!mountedRef.current) return;
+    setLeaving(true);
+    const t = window.setTimeout(() => {
+      mountedRef.current = false;
+      setMounted(false);
+      setLeaving(false);
+      setPassword('');
+      setError('');
+    }, EXIT_MS);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !mounted || leaving) return;
     if (loggedIn) {
       inputRef.current?.focus();
     }
-  }, [loggedIn, open]);
+  }, [loggedIn, open, mounted, leaving]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!mounted || leaving) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, open]);
+  }, [onClose, mounted, leaving]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const rawDesc = description ?? '로그인 후 비밀번호를 입력해야 열람할 수 있습니다.';
-  // 로그인 상태에서는 "로그인 후" 안내를 빼서 자연스럽게 보이도록 한다.
   const shownDesc = loggedIn ? rawDesc.replace(/로그인\s*후\s*/g, '') : rawDesc;
 
   function submit() {
@@ -95,7 +115,7 @@ export function LakeAccessGateModal({
 
   const modal = (
     <div
-      className={`oc-profile-gate oc-profile-gate--${backdrop}`}
+      className={`oc-profile-gate oc-profile-gate--${backdrop}${leaving ? ' is-leaving' : ' is-entering'}`}
       role="dialog"
       aria-modal="true"
       aria-label="접근 잠금"
@@ -152,6 +172,5 @@ export function LakeAccessGateModal({
     </div>
   );
 
-  /* 리뷰 등 transform이 걸린 컨테이너 안에서도 항상 뷰포트(전체화면) 기준으로 뜨도록 body에 포털 */
   return typeof document !== 'undefined' ? createPortal(modal, document.body) : modal;
 }
