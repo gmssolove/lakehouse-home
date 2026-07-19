@@ -1475,6 +1475,7 @@ export function PairArchiveDetail({
               );
             })}
           </div>
+          {renderPager(galleryPage, galleryPages, setGalleryPage)}
         </div>
         <div className="pair-gallery-more" aria-hidden={!galleryHasMore}>
           <div className="pair-gallery-more__fade" />
@@ -1485,7 +1486,6 @@ export function PairArchiveDetail({
             </svg>
           </div>
         </div>
-        {renderPager(galleryPage, galleryPages, setGalleryPage)}
       </div>
     );
   }

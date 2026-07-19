@@ -5377,12 +5377,16 @@
   gap: 0.9rem;
 }
 
-/* 갤러리·타임라인 페이저 — 로그 목록과 동일하게 하단 고정 */
-.pair-detail-screen .pair-panel__gallery-shell > .lh-story-pager,
+/* 타임라인 페이저만 하단 고정 — 갤러리는 스크롤 끝에서 표시 */
 .pair-detail-screen .pair-panel__timeline-shell > .lh-story-pager {
   flex-shrink: 0;
   margin-top: 0.65rem;
   padding: 0.15rem 0 0.35rem;
+}
+
+.pair-detail-screen .pair-panel__gallery-wrap > .lh-story-pager {
+  margin-top: 1.25rem;
+  padding-bottom: 0.5rem;
 }
 
 .pair-extra__gal-btn {
