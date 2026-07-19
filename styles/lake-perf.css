@@ -1,3 +1,47 @@
+/* React 밖 leave 베일 — 레이아웃 DOM을 건드리지 않아 removeChild 방지 */
+#lh-route-veil,
+.lh-route-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  background: #0b0d0c;
+  opacity: 0;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.18s ease-out;
+}
+
+.lh-route-veil.is-on {
+  opacity: 1;
+}
+
+.lh-route-veil--forward.is-on {
+  transform: translate3d(-8px, 0, 0);
+}
+
+.lh-route-veil--back.is-on {
+  transform: translate3d(8px, 0, 0);
+}
+
+#lh-portal-root {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 2147482000;
+}
+
+#lh-portal-root > * {
+  pointer-events: auto;
+}
+
 /* GPU-heavy effects를 줄여 Chrome 등에서 프레임 드랍 완화 */
 
 /* Next.js 클라이언트 라우팅 시 body가 opacity:0에 고정되는 문제 방지 */
@@ -23,15 +67,19 @@ body.lh-route-leaving {
 
 /* leaving 클래스가 패널에만 남고 body.lh-route-leaving이 빠지면
    화면이 opacity:0에 영구 고정됨 → 반드시 body.leaving일 때만 숨김 */
+/* 가벼움: opacity + translate만 (filter/scale 금지 → 렉) */
 body.lh-route-leaving .layout.lh-route-panel-leaving,
 body.lh-route-leaving #detail-screen.lh-route-panel-leaving,
-body.lh-route-leaving .lh-archive-topbar.lh-route-panel-leaving {
+body.lh-route-leaving .lh-archive-topbar.lh-route-panel-leaving,
+body.lh-route-leaving .main-content.pair-main.lh-route-panel-leaving,
+body.lh-route-leaving .pair-layout.lh-route-panel-leaving,
+body.lh-route-leaving .archive-layout.lh-route-panel-leaving {
   opacity: 0 !important;
   pointer-events: none !important;
   transition:
-    opacity 0.34s cubic-bezier(0.33, 1, 0.32, 1),
-    transform 0.34s cubic-bezier(0.33, 1, 0.32, 1),
-    filter 0.34s cubic-bezier(0.33, 1, 0.32, 1) !important;
+    opacity 0.24s ease-out,
+    transform 0.24s ease-out !important;
+  will-change: opacity, transform;
 }
 
 /* 하드 리프레시·이탈 중단 후 잔여 클래스 → 다시 보이게 */
@@ -40,22 +88,27 @@ body:not(.lh-route-leaving) .lh-route-panel-leaving {
   pointer-events: auto !important;
   transform: none !important;
   filter: none !important;
+  will-change: auto;
 }
 
 body.lh-route-leaving.lh-route-forward .layout.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-forward .main-content.pair-main.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-forward .pair-layout.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-forward #detail-screen.lh-route-panel-leaving,
-body.lh-route-leaving.lh-route-forward .lh-archive-topbar.lh-route-panel-leaving {
-  transform: translateX(-14px) scale(0.996) !important;
-  filter: brightness(0.97) !important;
+body.lh-route-leaving.lh-route-forward .lh-archive-topbar.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-forward .archive-layout.lh-route-panel-leaving {
+  transform: translate3d(-24px, 0, 0) !important;
+  filter: none !important;
 }
 
 body.lh-route-leaving.lh-route-back .layout.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-back .main-content.pair-main.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-back .pair-layout.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-back #detail-screen.lh-route-panel-leaving,
-body.lh-route-leaving.lh-route-back .lh-archive-topbar.lh-route-panel-leaving {
-  transform: translateX(14px) scale(0.996) !important;
-  filter: brightness(0.97) !important;
+body.lh-route-leaving.lh-route-back .lh-archive-topbar.lh-route-panel-leaving,
+body.lh-route-leaving.lh-route-back .archive-layout.lh-route-panel-leaving {
+  transform: translate3d(24px, 0, 0) !important;
+  filter: none !important;
 }
 
 body.lh-route-leaving #page-trpg.lh-route-panel-leaving,
@@ -65,9 +118,9 @@ body.lh-route-leaving .layout.layout--home > .content-area.lh-route-panel-leavin
   opacity: 0 !important;
   pointer-events: none !important;
   transition:
-    opacity 0.36s cubic-bezier(0.45, 0, 0.15, 1),
-    transform 0.36s cubic-bezier(0.45, 0, 0.15, 1),
-    filter 0.36s cubic-bezier(0.45, 0, 0.15, 1) !important;
+    opacity 0.16s ease-out,
+    transform 0.16s ease-out !important;
+  will-change: opacity, transform;
 }
 
 body.lh-route-leaving.lh-route-forward .layout.layout--home > .right-panel.lh-route-panel-leaving,
@@ -76,8 +129,8 @@ body.lh-route-leaving.lh-route-forward .layout.layout--home #page-trpg.lh-route-
 body.lh-route-leaving.lh-route-forward .layout.layout--home .content-block.active.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-forward .layout.layout--home > .content-area.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-forward .layout.layout--home.lh-route-panel-leaving {
-  transform: translateX(-56px) scale(0.988) !important;
-  filter: brightness(0.9) !important;
+  transform: translate3d(-28px, 0, 0) !important;
+  filter: none !important;
   opacity: 0 !important;
   animation: none !important;
 }
@@ -88,54 +141,117 @@ body.lh-route-leaving.lh-route-back .layout.layout--home #page-trpg.lh-route-pan
 body.lh-route-leaving.lh-route-back .layout.layout--home .content-block.active.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-back .layout.layout--home > .content-area.lh-route-panel-leaving,
 body.lh-route-leaving.lh-route-back .layout.layout--home.lh-route-panel-leaving {
-  transform: translateX(56px) scale(0.988) !important;
-  filter: brightness(0.9) !important;
+  transform: translate3d(28px, 0, 0) !important;
+  filter: none !important;
   opacity: 0 !important;
   animation: none !important;
 }
 
 body.lh-route-enter.lh-route-forward .layout,
+body.lh-route-enter.lh-route-forward .layout.oc-archive-layout,
+body.lh-route-enter.lh-route-forward .layout.layout--home,
+body.lh-route-enter.lh-route-forward .pair-layout,
 body.lh-route-enter.lh-route-forward .main-content.pair-main,
-body.lh-route-enter.lh-route-forward .trpg-scenario-shell,
-body.lh-route-enter.lh-route-forward .lh-archive-topbar {
-  animation: lhArchiveSlideInForward 0.52s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+body.lh-route-enter.lh-route-forward .trpg-scenario-shell {
+  animation: lhArchiveSlideInForward 0.48s cubic-bezier(0.22, 1, 0.36, 1) both !important;
 }
 
 body.lh-route-enter.lh-route-back .layout,
+body.lh-route-enter.lh-route-back .layout.oc-archive-layout,
+body.lh-route-enter.lh-route-back .layout.layout--home,
+body.lh-route-enter.lh-route-back .pair-layout,
 body.lh-route-enter.lh-route-back .main-content.pair-main,
-body.lh-route-enter.lh-route-back .trpg-scenario-shell,
-body.lh-route-enter.lh-route-back .lh-archive-topbar {
-  animation: lhArchiveSlideInBack 0.52s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+body.lh-route-enter.lh-route-back .trpg-scenario-shell {
+  animation: lhArchiveSlideInBack 0.48s cubic-bezier(0.22, 1, 0.36, 1) both !important;
 }
 
-/* Fixed home menu stays viewport-anchored (not inside animated .layout) */
+/* oc.css lhPanelIn 과 enter 슬라이드가 겹치면 카드가 덜컥임 → 기본은 끄고 enter만 허용 */
+.layout.oc-archive-layout {
+  animation: none !important;
+}
+
+/* 아카이브 탑바는 전환 중에도 고정 — 같이 움직이면 버벅임 */
+body.lh-route-enter .lh-archive-topbar,
+body.lh-route-leaving .lh-archive-topbar {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  pointer-events: auto !important;
+}
+
+/* 사이드바 unfurl도 네비 직후 억제 */
+html.lh-nav-instant .sidebar,
+body.lh-nav-instant .sidebar,
+body.lh-route-enter .sidebar {
+  animation: none !important;
+}
+
+/* 목록 카드 등장 애니 영구 비활성 — DEFAULT→local→RTDB 리마운트 때 두 번 뜨는 원인 */
+.card-grid .char-card,
+.layout.oc-archive-layout .char-card,
+.main-content .card-grid .char-card,
+.pair-archive-card,
+.pair-archive-add,
+.pair-deck-slot.is-front .pair-archive-card,
+.pair-deck-slot .pair-archive-card {
+  animation: none !important;
+  animation-delay: 0s !important;
+}
+
+html.lh-nav-instant .char-card,
+html.lh-nav-instant .card-grid .char-card,
+html.lh-nav-instant .main-content .card-grid .char-card,
+html.lh-nav-instant .pair-archive-card,
+html.lh-nav-instant .pair-archive-add,
+html.lh-nav-instant .pair-deck-slot.is-front .pair-archive-card,
+body.lh-nav-instant .char-card,
+body.lh-nav-instant .card-grid .char-card,
+body.lh-nav-instant .main-content .card-grid .char-card,
+body.lh-nav-instant .pair-archive-card,
+body.lh-nav-instant .pair-archive-add,
+body.lh-nav-instant .pair-deck-slot.is-front .pair-archive-card,
+body.lh-route-enter .char-card,
+body.lh-route-enter .card-grid .char-card,
+body.lh-route-enter .main-content .card-grid .char-card,
+body.lh-route-enter .pair-archive-card,
+body.lh-route-enter .pair-archive-add,
+body.lh-route-enter .pair-deck-slot.is-front .pair-archive-card {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Fixed home menu stays viewport-anchored (portal is under html, not body) */
 @media (min-width: 641px) {
-  body.lh-route-enter .rq-menu-panel,
-  body.lh-route-leaving .rq-menu-panel {
+  html:has(body.lh-route-enter) .rq-menu-panel,
+  html:has(body.lh-route-leaving) .rq-menu-panel {
     filter: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
     transform: translate3d(0, -50%, 0) !important;
   }
 }
 
 @keyframes lhArchiveSlideInForward {
   from {
-    opacity: 0;
-    transform: translateX(16px) scale(0.997);
+    opacity: 0.55;
+    transform: translate3d(32px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes lhArchiveSlideInBack {
   from {
-    opacity: 0;
-    transform: translateX(-16px) scale(0.997);
+    opacity: 0.55;
+    transform: translate3d(-32px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: translate3d(0, 0, 0);
   }
 }
 

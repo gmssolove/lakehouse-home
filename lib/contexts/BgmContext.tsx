@@ -518,18 +518,28 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   const persistState = useCallback(
     (extra: SavedState) => {
       const t = trackRef.current;
+      let time = currentTime;
+      try {
+        if (t?.kind === 'youtube' && ytRef.current?.getCurrentTime) {
+          time = ytRef.current.getCurrentTime() || time;
+        } else if (audioRef.current) {
+          time = audioRef.current.currentTime;
+        }
+      } catch {
+        /* ignore */
+      }
       writeJson(STATE_KEY, {
         kind: t?.kind,
         id: t?.id,
         title: t?.title,
         artist: t?.artist,
         scope: t?.scope,
-        playing,
-        currentTime: audioRef.current?.currentTime ?? currentTime,
+        playing: playingRef.current,
+        currentTime: time,
         ...extra,
       });
     },
-    [playing, currentTime],
+    [currentTime],
   );
 
   const getTime = useCallback(() => {
@@ -1289,6 +1299,12 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   }, [applyVolume]);
 
   useEffect(() => {
+    const flush = () => persistState({});
+    window.addEventListener('lh-before-hard-nav', flush);
+    return () => window.removeEventListener('lh-before-hard-nav', flush);
+  }, [persistState]);
+
+  useEffect(() => {
     const pl = buildPagePlaylist(siteBgm);
     const prevLen = prevPlaylistLenRef.current;
     pagePlaylistRef.current = pl;
@@ -1306,6 +1322,22 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       if (track?.scope === 'character') {
         return;
       }
+
+      /* hard-nav 후 재생 위치 복원 (lh_bgm_shared_state) */
+      const saved = readJson<SavedState>(STATE_KEY);
+      if (saved?.id && (saved.scope === 'page' || !saved.scope)) {
+        const match = pl.find((t) => t.id === saved.id) ?? pl[0];
+        const idx = pl.findIndex((t) => t.id === match.id);
+        playlistIndexRef.current = idx >= 0 ? idx : 0;
+        userPausedRef.current = saved.playing === false;
+        applyTrackRef.current(match, {
+          autoplay: saved.playing !== false,
+          currentTime: Math.max(0, Number(saved.currentTime) || 0),
+          force: true,
+        });
+        return;
+      }
+
       userPausedRef.current = false;
       playlistIndexRef.current = 0;
       applyTrackRef.current(pl[0], { autoplay: true, currentTime: 0, force: true });

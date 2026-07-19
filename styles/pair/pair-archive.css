@@ -524,7 +524,7 @@
 }
 
 .pair-deck-slot.is-front .pair-archive-card {
-  animation: pairCardReveal 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: none;
 }
 
 .pair-deck-index {
@@ -578,8 +578,7 @@
   scroll-snap-align: start;
   overflow: visible;
   padding-bottom: 28px;
-  animation: pairCardReveal 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  animation-delay: calc(var(--pair-i, 0) * 0.09s);
+  animation: none;
 }
 
 .pair-archive-card {

@@ -24,7 +24,7 @@ function forceLakeVisible(opts?: { allowDuringRouteLock?: boolean }) {
   body.style.removeProperty('filter');
   body.style.removeProperty('overflow');
   document.documentElement.style.removeProperty('overflow');
-  body.classList.remove('lh-leaving');
+  body.classList.remove('lh-leaving', 'lh-route-leaving');
 
   document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
     el.classList.remove('lh-route-panel-leaving');
@@ -39,25 +39,32 @@ function RouteBodyReset() {
   const pathname = usePathname();
 
   useLayoutEffect(() => {
-    /* enter lock 중에는 leaving 잔여만 걷고, enter 클래스는 LakeRouteTransition이 담당 */
+    document.body.style.setProperty('opacity', '1');
+    document.body.classList.remove('lh-leaving');
+
+    /* enter 애니 중에는 클래스를 지우지 않음 — 하이드레이션 리마운트가 슬라이드를 죽임 */
     if (isLakeRouteEnterLocked()) {
-      document.body.style.setProperty('opacity', '1');
-      document.body.classList.remove('lh-leaving');
       document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
         el.classList.remove('lh-route-panel-leaving');
       });
-      const t = window.setTimeout(() => {
-        forceLakeVisible({ allowDuringRouteLock: true });
-      }, 780);
-      return () => window.clearTimeout(t);
+      return;
     }
 
     forceLakeVisible();
   }, [pathname]);
 
   useLayoutEffect(() => {
-    forceLakeVisible();
-    const onShow = () => forceLakeVisible();
+    /* 마운트 시 leaving 잔여만 정리 — enter는 LakeRouteTransition이 적용 */
+    document.body.style.setProperty('opacity', '1');
+    document.body.classList.remove('lh-leaving');
+    document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
+      el.classList.remove('lh-route-panel-leaving');
+    });
+
+    const onShow = () => {
+      if (!isLakeRouteEnterLocked()) forceLakeVisible();
+      else document.body.style.setProperty('opacity', '1');
+    };
     window.addEventListener('pageshow', onShow);
     return () => window.removeEventListener('pageshow', onShow);
   }, []);

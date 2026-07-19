@@ -10,7 +10,7 @@ import {
   type HomeRecordsTabId,
 } from '@/lib/records/sections';
 import { updateNickname, type UserProfile } from '@/lib/auth/userProfile';
-import { lakeNavigate, clearLakeRouteClasses } from '@/lib/lake/routeTransition';
+import { lakeNavigate, clearLakeRouteClasses, getLakePortalRoot } from '@/lib/lake/routeTransition';
 
 export type HomePageId =
   | 'main'
@@ -208,7 +208,7 @@ export function LeftNav({
   }
 
   useLayoutEffect(() => {
-    setPortalEl(document.body);
+    setPortalEl(getLakePortalRoot());
   }, []);
 
   useEffect(() => {
@@ -220,6 +220,12 @@ export function LeftNav({
     return () => window.clearTimeout(t);
   }, [onHome]);
 
+  useEffect(() => {
+    router.prefetch('/oc');
+    router.prefetch('/pair');
+    router.prefetch('/');
+  }, [router]);
+
   function isRecordsGroupActive() {
     return isRecordsTab(activePage) && onHome;
   }
@@ -230,7 +236,6 @@ export function LeftNav({
 
   function goHomeTab(page: HomePageId) {
     if (!onHome) {
-      /* OC/Pair → 홈 탭: soft-nav는 URL만 바뀌고 클릭 먹통 남김 → hard navigate */
       lakeNavigate(router, `/?p=${page}`, pathname);
       return;
     }

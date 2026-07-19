@@ -64,7 +64,7 @@ function charImg(c: OcCharacter, auIdx: number) {
 export function OcPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { characters, categories, saveCharacters } = useOcData();
+  const { characters, categories, loaded, saveCharacters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
   const { restorePageSnapshot, resumePageBgmIfNeeded, playCharacterTheme } = useBgm();
   const { user, isAdmin, ready: authReady } = useAuth();
@@ -457,7 +457,7 @@ export function OcPageClient() {
               </div>
             </div>
           )}
-          <div className="sidebar-count">{filtered.length}개</div>
+          <div className="sidebar-count">{loaded ? `${filtered.length}개` : '\u00A0'}</div>
         </div>
         <div className="main-content">
           <h2 className="oc-archive-heading">Character Archive</h2>

@@ -128,6 +128,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="ko"
+      suppressHydrationWarning
       className={[
         chosunNm.variable,
         notoSansKr.variable,
@@ -153,7 +154,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <Providers>{children}</Providers>
         <div className="lh-grain" aria-hidden="true" />
         <Script src="/lakehouse-r2.js" strategy="afterInteractive" />

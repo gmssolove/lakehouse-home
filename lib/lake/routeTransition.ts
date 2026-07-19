@@ -3,14 +3,18 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 const TRPG_SCENARIO = /^\/trpg\/[^/]+$/;
 const VERSE_PATH = /^\/verse(\/|$)/;
 const ARCHIVE = new Set(['/', '/oc', '/pair']);
-const LEAVE_MS = 340;
-const SOFT_NAV_FALLBACK_MS = 900;
+/** leave 연출 후 hard — 메인→아카이브도 체감되게 */
+const HARD_LEAVE_MS = 280;
 
 const ARCHIVE_ORDER: Record<string, number> = {
   '/': 0,
   '/oc': 1,
   '/pair': 2,
 };
+
+export const LAKE_ROUTE_ENTER_KEY = 'lh_route_enter';
+export const LAKE_NAV_INSTANT_KEY = 'lh_nav_instant';
+const VEIL_ID = 'lh-route-veil';
 
 export function normalizeLakePath(path: string) {
   return path.replace(/\/$/, '') || '/';
@@ -29,7 +33,6 @@ export function lakeRouteDirection(from: string, to: string): 'forward' | 'back'
   return 'neutral';
 }
 
-/** 상세 딥링크(?c= / view=detail) — 목록 깜빡임 방지를 위해 전환 애니 생략 */
 export function isLakeDeepProfileHref(href: string) {
   try {
     const url = new URL(href, 'http://lake.local');
@@ -45,8 +48,11 @@ export function shouldLakeRouteAnimate(from: string, to: string, href?: string) 
   if (VERSE_PATH.test(from) || VERSE_PATH.test(to)) return false;
   if (TRPG_SCENARIO.test(from) || TRPG_SCENARIO.test(to)) return false;
   if (href && isLakeDeepProfileHref(href)) return false;
-  /* 홈 ↔ OC ↔ Pair 만 leave/enter (BGM 유지용 soft-nav와 맞춤) */
   return ARCHIVE.has(from) && ARCHIVE.has(to) && from !== to;
+}
+
+function isArchiveTabSwap(from: string, to: string) {
+  return (from === '/oc' || from === '/pair') && (to === '/oc' || to === '/pair');
 }
 
 export function clearLakeRouteClasses() {
@@ -60,74 +66,128 @@ export function clearLakeRouteClasses() {
   document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
     el.classList.remove('lh-route-panel-leaving');
   });
+  removeLeaveVeil();
 }
 
-export function markLakeLeavingPanel(from: string, to: string) {
-  document.querySelectorAll('.lh-route-panel-leaving').forEach((el) => {
-    el.classList.remove('lh-route-panel-leaving');
-  });
-
-  if (TRPG_SCENARIO.test(from)) {
-    document.querySelector('.trpg-scenario-shell')?.classList.add('lh-route-panel-leaving');
-    return;
-  }
-
-  if (from === '/oc' && TRPG_SCENARIO.test(to)) {
-    document.querySelector('#detail-screen')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.layout.oc-archive-layout')?.classList.add('lh-route-panel-leaving');
-    return;
-  }
-
-  /* 아카이브 상호 이동 — 레이아웃·상단바·상세까지 */
-  if (ARCHIVE.has(from) && ARCHIVE.has(to)) {
-    document.querySelector('.layout.layout--home')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.layout.oc-archive-layout')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.main-content.pair-main')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('#detail-screen')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.lh-archive-topbar')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.layout.layout--home > .right-panel')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.layout.layout--home > .content-area')?.classList.add('lh-route-panel-leaving');
-    return;
-  }
-
-  if (from === '/' && TRPG_SCENARIO.test(to)) {
-    document.querySelector('#page-trpg.active')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.layout.layout--home > .right-panel')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.layout.layout--home > .content-area')?.classList.add('lh-route-panel-leaving');
-    document.querySelector('.layout.layout--home')?.classList.add('lh-route-panel-leaving');
-    return;
-  }
-
-  document
-    .querySelector('.layout, .main-content.pair-main, .content-area')
-    ?.classList.add('lh-route-panel-leaving');
+/** React 밖(html)에만 두는 leave 오버레이 — body portal/레이아웃 DOM을 만지지 않음 */
+function showLeaveVeil(dir: 'forward' | 'back') {
+  removeLeaveVeil();
+  const el = document.createElement('div');
+  el.id = VEIL_ID;
+  el.className = `lh-route-veil lh-route-veil--${dir}`;
+  el.setAttribute('aria-hidden', 'true');
+  document.documentElement.appendChild(el);
+  void el.offsetWidth;
+  el.classList.add('is-on');
 }
+
+function removeLeaveVeil() {
+  document.getElementById(VEIL_ID)?.remove();
+}
+
+export function stashNavInstant() {
+  try {
+    sessionStorage.setItem(LAKE_NAV_INSTANT_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function consumeNavInstant() {
+  try {
+    if (sessionStorage.getItem(LAKE_NAV_INSTANT_KEY) !== '1') return false;
+    sessionStorage.removeItem(LAKE_NAV_INSTANT_KEY);
+  } catch {
+    return false;
+  }
+  document.documentElement.classList.add('lh-nav-instant');
+  document.body.classList.add('lh-nav-instant');
+  window.setTimeout(() => {
+    document.documentElement.classList.remove('lh-nav-instant');
+    document.body.classList.remove('lh-nav-instant');
+  }, 1200);
+  return true;
+}
+
+let pendingRouteDir: 'forward' | 'back' | 'neutral' = 'neutral';
+let pendingRouteLockUntil = 0;
+let leaveGuardUntil = 0;
+let pendingSkipEnter = false;
+let navToken = 0;
 
 export function beginLakeRouteLeave(from: string, to: string): 'forward' | 'back' | null {
   const dir = lakeRouteDirection(from, to);
   if (dir === 'neutral') return null;
-
+  const leaveDir: 'forward' | 'back' = dir === 'back' ? 'back' : 'forward';
   clearLakeRouteClasses();
-  document.body.classList.add('lh-route-leaving', dir === 'forward' ? 'lh-route-forward' : 'lh-route-back');
-  markLakeLeavingPanel(from, to);
-  void document.body.offsetHeight;
-  return dir;
+  document.body.classList.add('lh-route-leaving', leaveDir === 'forward' ? 'lh-route-forward' : 'lh-route-back');
+  showLeaveVeil(leaveDir);
+  /* hard-nav 직전이라 React reconcile 전에 unload — 패널 leave 클래스 OK */
+  document.querySelectorAll('.layout, .main-content.pair-main, .archive-layout').forEach((el) => {
+    el.classList.add('lh-route-panel-leaving');
+  });
+  leaveGuardUntil = Date.now() + HARD_LEAVE_MS + 80;
+  return leaveDir;
 }
 
 export function beginLakeRouteEnter(pathname: string, dir: 'forward' | 'back') {
   clearLakeRouteClasses();
+  document.documentElement.classList.add('lh-nav-instant');
+  document.body.classList.add('lh-nav-instant');
   document.body.classList.add('lh-route-enter', dir === 'forward' ? 'lh-route-forward' : 'lh-route-back');
   if (TRPG_SCENARIO.test(pathname)) {
     document.body.classList.add('lh-route-trpg-enter');
   }
-  pendingRouteLockUntil = Date.now() + 780;
+  pendingRouteLockUntil = Date.now() + 900;
+  /* enter 슬라이드(~480ms) 끝난 뒤에도 카드 등장은 nav-instant로 잠시 더 막음 */
   window.setTimeout(() => {
-    clearLakeRouteClasses();
+    document.body.classList.remove('lh-route-enter', 'lh-route-forward', 'lh-route-back', 'lh-route-trpg-enter');
+  }, 520);
+  window.setTimeout(() => {
+    document.documentElement.classList.remove('lh-nav-instant');
+    document.body.classList.remove('lh-nav-instant');
     resetPendingLakeRouteDir();
-  }, 700);
+    pendingRouteLockUntil = 0;
+  }, 1100);
 }
 
-let navSeq = 0;
+function stashRouteEnter(dir: 'forward' | 'back', path: string, skipEnter = false) {
+  try {
+    sessionStorage.setItem(
+      LAKE_ROUTE_ENTER_KEY,
+      JSON.stringify({ dir, path, t: Date.now(), skipEnter }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function consumeStashedRouteEnter(pathname: string): 'forward' | 'back' | 'skip' | null {
+  try {
+    const raw = sessionStorage.getItem(LAKE_ROUTE_ENTER_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(LAKE_ROUTE_ENTER_KEY);
+    const data = JSON.parse(raw) as { dir?: string; path?: string; t?: number; skipEnter?: boolean };
+    if (!data?.dir || !data.path || !data.t) return null;
+    if (Date.now() - data.t > 8000) return null;
+    if (normalizeLakePath(data.path) !== normalizeLakePath(pathname)) return null;
+    if (data.skipEnter) return 'skip';
+    return data.dir === 'back' ? 'back' : 'forward';
+  } catch {
+    return null;
+  }
+}
+
+function flushBgmAndAssign(fullHref: string) {
+  try {
+    window.dispatchEvent(new Event('lh-before-hard-nav'));
+  } catch {
+    /* ignore */
+  }
+  /* leave 클래스·베일 유지한 채 이탈 — 여기서 지우면 leave 연출이 끊김 */
+  document.body.style.setProperty('opacity', '1');
+  window.location.assign(fullHref);
+}
 
 export function lakeNavigate(
   router: AppRouterInstance,
@@ -146,66 +206,56 @@ export function lakeNavigate(
   const nextPath = normalizeLakePath(url.pathname);
   const from = normalizeLakePath(currentPath);
   const fullHref = `${url.pathname}${url.search}${url.hash}`;
-  if (nextPath === from && url.search === (typeof window !== 'undefined' ? window.location.search : '')) {
+  const samePath =
+    nextPath === from &&
+    url.search === (typeof window !== 'undefined' ? window.location.search : '');
+
+  if (samePath) {
+    clearLakeRouteClasses();
+    document.body.style.setProperty('opacity', '1');
     return null;
   }
-  if (nextPath === from && !url.search) return null;
 
   const animate = shouldLakeRouteAnimate(from, nextPath, fullHref);
-  const seq = ++navSeq;
 
   if (animate) {
-    const dir = beginLakeRouteLeave(from, nextPath) ?? lakeRouteDirection(from, nextPath);
-    const leaveDir: 'forward' | 'back' = dir === 'back' ? 'back' : 'forward';
-    setPendingLakeRouteDir(leaveDir);
+    const rawDir = lakeRouteDirection(from, nextPath);
+    const leaveDir: 'forward' | 'back' = rawDir === 'back' ? 'back' : 'forward';
+    const tabSwap = isArchiveTabSwap(from, nextPath);
+    const token = ++navToken;
+
+    stashNavInstant();
+    stashRouteEnter(leaveDir, nextPath, tabSwap);
+    beginLakeRouteLeave(from, nextPath);
 
     window.setTimeout(() => {
-      if (seq !== navSeq) return;
-      try {
-        router.push(fullHref);
-      } catch {
-        clearLakeRouteClasses();
-        window.location.assign(fullHref);
-        return;
-      }
-      /* OpenNext soft-nav 실패 시 hard fallback — BGM은 잃지만 먹통은 방지 */
-      window.setTimeout(() => {
-        if (seq !== navSeq) return;
-        const now = normalizeLakePath(window.location.pathname);
-        if (now !== nextPath) {
-          clearLakeRouteClasses();
-          resetPendingLakeRouteDir();
-          window.location.assign(fullHref);
-          return;
-        }
-        /* 도착했는데 leaving이 남으면 정리 (enter가 안 탄 경우) */
-        if (document.body.classList.contains('lh-route-leaving')) {
-          clearLakeRouteClasses();
-        }
-      }, SOFT_NAV_FALLBACK_MS);
-    }, LEAVE_MS);
-
+      if (token !== navToken) return;
+      flushBgmAndAssign(fullHref);
+    }, HARD_LEAVE_MS);
     return leaveDir;
   }
 
   clearLakeRouteClasses();
   resetPendingLakeRouteDir();
   pendingRouteLockUntil = 0;
+  document.body.style.setProperty('opacity', '1');
   router.push(fullHref);
   return null;
 }
 
-let pendingRouteDir: 'forward' | 'back' | 'neutral' = 'neutral';
-let pendingRouteLockUntil = 0;
-
 export function setPendingLakeRouteDir(dir: 'forward' | 'back' | 'neutral') {
   pendingRouteDir = dir;
   if (dir !== 'neutral') {
-    pendingRouteLockUntil = Date.now() + 780;
+    pendingRouteLockUntil = Date.now() + 560;
   }
 }
 
-export function consumePendingLakeRouteDir() {
+export function consumePendingLakeRouteDir(): 'forward' | 'back' | 'neutral' | 'skip' {
+  if (pendingSkipEnter) {
+    pendingSkipEnter = false;
+    pendingRouteDir = 'neutral';
+    return 'skip';
+  }
   const dir = pendingRouteDir;
   if (dir === 'neutral') return 'neutral';
   pendingRouteDir = 'neutral';
@@ -218,8 +268,25 @@ export function peekPendingLakeRouteDir() {
 
 export function resetPendingLakeRouteDir() {
   pendingRouteDir = 'neutral';
+  pendingSkipEnter = false;
 }
 
 export function isLakeRouteEnterLocked() {
   return Date.now() < pendingRouteLockUntil;
+}
+
+export function isLakeRouteLeaveGuarded() {
+  return Date.now() < leaveGuardUntil;
+}
+
+/** 메뉴 등 portal용 — React body 자식과 분리해 removeChild 레이스 방지 */
+export function getLakePortalRoot(): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+  let el = document.getElementById('lh-portal-root');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'lh-portal-root';
+    document.documentElement.appendChild(el);
+  }
+  return el;
 }

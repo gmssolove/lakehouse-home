@@ -8,6 +8,7 @@ import {
   verifyLakeAccessPassword,
   type LakeAccessScope,
 } from '@/lib/lake/accessGate';
+import { getLakePortalRoot } from '@/lib/lake/routeTransition';
 import type { SiteAccessSettings, WithSecret } from '@/lib/types/secret-content';
 
 type Props = {
@@ -172,5 +173,6 @@ export function LakeAccessGateModal({
     </div>
   );
 
-  return typeof document !== 'undefined' ? createPortal(modal, document.body) : modal;
+  const portal = typeof document !== 'undefined' ? getLakePortalRoot() || document.body : null;
+  return portal ? createPortal(modal, portal) : modal;
 }

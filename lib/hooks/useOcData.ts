@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { onValue, ref, set } from 'firebase/database';
 import { db } from '@/lib/firebase/client';
 import { prepareCharactersForSave } from '@/lib/oc/prepareCharacterSave';
@@ -35,15 +35,21 @@ function readLocal<T>(key: string, fallback: T): T {
 }
 
 export function useOcData() {
+  /* SSR·첫 클라 페인트 동일 — localStorage는 effect에서만 (hydration 0≠N 방지) */
   const [characters, setCharacters] = useState<OcCharacter[]>(DEFAULT_OC);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    setCharacters(normalizeCharacters(readLocal('oc_characters', DEFAULT_OC)));
-    setCategories(mergeCategoryList(readLocal('oc_categories', DEFAULT_CATEGORIES)));
+  /* 페인트 전에 로컬 채움 — useEffect면 빈 그리드가 한 프레임 보여 메인→OC 버벅임 */
+  useLayoutEffect(() => {
+    const localChars = normalizeCharacters(readLocal('oc_characters', DEFAULT_OC));
+    const localCats = mergeCategoryList(readLocal('oc_categories', DEFAULT_CATEGORIES));
+    if (localChars.length) setCharacters(localChars);
+    setCategories(localCats);
     setLoaded(true);
+  }, []);
 
+  useEffect(() => {
     const unsubs = [
       onValue(ref(db, 'lhdata/oc_characters'), (snap) => {
         if (!snap.exists()) return;

@@ -17,6 +17,17 @@ body:has(.layout--home) {
   background: var(--rq-ink);
 }
 
+/* OC/Pair 스타일(oc-final-polish·legacy pair)이 홈에 남아
+   html{overflow:hidden;height:100%} 로 비율·스크롤이 깨지는 것 방어 */
+html:has(.layout--home),
+body:has(.layout--home) {
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
 body:has(.layout--home) .bg-layer {
   background:
     radial-gradient(ellipse 58% 70% at 72% 28%, rgba(215, 169, 130, 0.05), transparent 68%),
@@ -69,6 +80,11 @@ body:has(.layout--home) .layout.layout--home::before {
   grid-template-columns: none !important;
   overflow: visible !important;
   isolation: auto !important;
+  /* archive .layout 그리드·블러 잔재 무력화 */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
 }
 
 .layout.layout--home > .right-panel {
@@ -129,7 +145,8 @@ body:has(.layout--home) #bgm-player {
  * Size to content + translateY(-50%). Do NOT use top/bottom stretch:
  * legacy `nav { height:52px }` used to collapse the panel and dump the list downward.
  */
-body:has(.layout--home) .rq-menu-panel {
+/* 메뉴는 html>#lh-portal-root 에 포탈됨 — body 자손 셀렉터는 매칭 안 됨 */
+html:has(.layout--home) .rq-menu-panel {
   position: fixed !important;
   top: 50% !important;
   bottom: auto !important;
@@ -159,29 +176,28 @@ body:has(.layout--home) .rq-menu-panel {
   transition: opacity var(--rq-anim) ease-out;
 }
 
-body:has(.layout--home) .rq-menu-panel::before,
-body:has(.layout--home) .rq-menu-panel::after {
+html:has(.layout--home) .rq-menu-panel::before,
+html:has(.layout--home) .rq-menu-panel::after {
   display: none !important;
   content: none !important;
 }
 
-body:has(.layout--home) .rq-menu-panel.is-ready {
+html:has(.layout--home) .rq-menu-panel.is-ready {
   opacity: 1;
   pointer-events: auto;
   animation: none !important;
 }
 
-/* While leaving home, fade menu with the page (menu sits outside .layout) */
-body.lh-route-leaving:has(.layout--home) .rq-menu-panel {
+/* While leaving home, keep menu usable — opacity:0 + pointer-events:none 는 먹통 원인 */
+html:has(.layout--home):has(body.lh-route-leaving) .rq-menu-panel {
   animation: none !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
   transform: translate3d(0, -50%, 0) !important;
-  transition: opacity 0.2s ease !important;
 }
 
 /* Route enter must never move the fixed menu */
-body.lh-route-enter:has(.layout--home) .rq-menu-panel {
+html:has(.layout--home):has(body.lh-route-enter) .rq-menu-panel {
   animation: none !important;
   transform: translate3d(0, -50%, 0) !important;
   filter: none !important;
@@ -589,7 +605,7 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
     --lh-menu-safe: clamp(13.5rem, 12vw + 5rem, 16rem);
   }
 
-  body:has(.layout--home) .rq-menu-panel {
+  html:has(.layout--home) .rq-menu-panel {
     left: clamp(28px, 3.5vw, 64px) !important;
   }
 }
@@ -683,7 +699,7 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
   }
 
   /* Full-height drawer */
-  body:has(.layout--home) .rq-menu-panel {
+  html:has(.layout--home) .rq-menu-panel {
     top: 0 !important;
     bottom: 0 !important;
     left: 0 !important;
@@ -704,7 +720,7 @@ body.lh-route-enter:has(.layout--home) .rq-menu-panel {
     overflow-y: auto !important;
   }
 
-  body:has(.layout--home) .rq-menu-panel.is-mobile-open {
+  html:has(.layout--home) .rq-menu-panel.is-mobile-open {
     transform: translate3d(0, 0, 0) !important;
   }
 

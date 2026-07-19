@@ -36,7 +36,7 @@ type SortMode = 'order' | 'name';
 
 export function PairPageClient() {
   const router = useRouter();
-  const { pairs, savePairs } = usePairData();
+  const { pairs, loaded, savePairs } = usePairData();
   const { characters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
   const { resumePageBgmIfNeeded } = useBgm();
@@ -452,7 +452,7 @@ export function PairPageClient() {
               </button>
             </div>
           </div>
-          <div className="sidebar-count">{filtered.length}개</div>
+          <div className="sidebar-count">{loaded ? `${filtered.length}개` : '\u00A0'}</div>
         </div>
 
         <div className="main-content">
