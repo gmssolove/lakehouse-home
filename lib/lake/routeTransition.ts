@@ -2,6 +2,9 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 
 const TRPG_SCENARIO = /^\/trpg\/[^/]+$/;
 const VERSE_PATH = /^\/verse(\/|$)/;
+const ARCHIVE = new Set(['/', '/oc', '/pair']);
+const LEAVE_MS = 340;
+const SOFT_NAV_FALLBACK_MS = 900;
 
 const ARCHIVE_ORDER: Record<string, number> = {
   '/': 0,
@@ -39,17 +42,11 @@ export function isLakeDeepProfileHref(href: string) {
 }
 
 export function shouldLakeRouteAnimate(from: string, to: string, href?: string) {
-  // Verse gate/archive use their own page chrome — don't intercept
   if (VERSE_PATH.test(from) || VERSE_PATH.test(to)) return false;
-  // 관련 프로필 바로가기(OC/홈 ↔ TRPG 시나리오)는 전환 애니메이션·딜레이 없이 즉시 이동
   if (TRPG_SCENARIO.test(from) || TRPG_SCENARIO.test(to)) return false;
-  // 페어↔OC 상세 딥링크도 즉시 — 목록이 한 프레임 보이던 문제
   if (href && isLakeDeepProfileHref(href)) return false;
-  // Archive(/ · /oc · /pair) 지연 leave+preventDefault 가
-  // URL만 바뀌고 React 트리는 이전 페이지에 남는 현상으로 메뉴/back이 먹통이 됨 → 애니 비활성
-  void from;
-  void to;
-  return false;
+  /* 홈 ↔ OC ↔ Pair 만 leave/enter (BGM 유지용 soft-nav와 맞춤) */
+  return ARCHIVE.has(from) && ARCHIVE.has(to) && from !== to;
 }
 
 export function clearLakeRouteClasses() {
@@ -81,11 +78,15 @@ export function markLakeLeavingPanel(from: string, to: string) {
     return;
   }
 
-  // OC ↔ Pair — 아카이브 + 상세 스테이지까지 함께 페이드
-  if ((from === '/oc' || from === '/pair') && (to === '/oc' || to === '/pair')) {
+  /* 아카이브 상호 이동 — 레이아웃·상단바·상세까지 */
+  if (ARCHIVE.has(from) && ARCHIVE.has(to)) {
+    document.querySelector('.layout.layout--home')?.classList.add('lh-route-panel-leaving');
     document.querySelector('.layout.oc-archive-layout')?.classList.add('lh-route-panel-leaving');
+    document.querySelector('.main-content.pair-main')?.classList.add('lh-route-panel-leaving');
     document.querySelector('#detail-screen')?.classList.add('lh-route-panel-leaving');
     document.querySelector('.lh-archive-topbar')?.classList.add('lh-route-panel-leaving');
+    document.querySelector('.layout.layout--home > .right-panel')?.classList.add('lh-route-panel-leaving');
+    document.querySelector('.layout.layout--home > .content-area')?.classList.add('lh-route-panel-leaving');
     return;
   }
 
@@ -126,6 +127,8 @@ export function beginLakeRouteEnter(pathname: string, dir: 'forward' | 'back') {
   }, 700);
 }
 
+let navSeq = 0;
+
 export function lakeNavigate(
   router: AppRouterInstance,
   href: string,
@@ -146,21 +149,48 @@ export function lakeNavigate(
   if (nextPath === from && url.search === (typeof window !== 'undefined' ? window.location.search : '')) {
     return null;
   }
-  /* 같은 path라도 ?c= 딥링크면 push (목록→상세) */
   if (nextPath === from && !url.search) return null;
+
+  const animate = shouldLakeRouteAnimate(from, nextPath, fullHref);
+  const seq = ++navSeq;
+
+  if (animate) {
+    const dir = beginLakeRouteLeave(from, nextPath) ?? lakeRouteDirection(from, nextPath);
+    const leaveDir: 'forward' | 'back' = dir === 'back' ? 'back' : 'forward';
+    setPendingLakeRouteDir(leaveDir);
+
+    window.setTimeout(() => {
+      if (seq !== navSeq) return;
+      try {
+        router.push(fullHref);
+      } catch {
+        clearLakeRouteClasses();
+        window.location.assign(fullHref);
+        return;
+      }
+      /* OpenNext soft-nav 실패 시 hard fallback — BGM은 잃지만 먹통은 방지 */
+      window.setTimeout(() => {
+        if (seq !== navSeq) return;
+        const now = normalizeLakePath(window.location.pathname);
+        if (now !== nextPath) {
+          clearLakeRouteClasses();
+          resetPendingLakeRouteDir();
+          window.location.assign(fullHref);
+          return;
+        }
+        /* 도착했는데 leaving이 남으면 정리 (enter가 안 탄 경우) */
+        if (document.body.classList.contains('lh-route-leaving')) {
+          clearLakeRouteClasses();
+        }
+      }, SOFT_NAV_FALLBACK_MS);
+    }, LEAVE_MS);
+
+    return leaveDir;
+  }
 
   clearLakeRouteClasses();
   resetPendingLakeRouteDir();
   pendingRouteLockUntil = 0;
-
-  // OpenNext/CF soft-nav 가 URL만 바꾸고 React 트리를 안 갈아끼우는 케이스 회피
-  // (/ · /oc · /pair 상호 이동은 풀 로드가 가장 안전)
-  const archive = new Set(['/', '/oc', '/pair']);
-  if (archive.has(from) || archive.has(nextPath)) {
-    window.location.assign(fullHref);
-    return null;
-  }
-
   router.push(fullHref);
   return null;
 }

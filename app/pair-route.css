@@ -61,34 +61,16 @@ body:has(.archive-layout) #bgm-vol {
   touch-action: pan-x !important;
 }
 
-/* body 투명 고정만 막고, 패널 leave/enter 애니메이션은 허용 */
+/* body 투명 고정만 막고, 패널 leave/enter 애니메이션은 lake-perf가 담당 */
 html,
 body {
   opacity: 1 !important;
-  animation: none !important;
 }
 
-/* 라우트 전환 잔여 클래스로 화면이 안 보이는 문제 방지 */
-.archive-layout,
-.archive-layout .layout.oc-archive-layout,
-.archive-layout .layout.oc-archive-layout.lh-route-panel-leaving,
-body.lh-route-enter .archive-layout .layout,
-body.lh-route-leaving .archive-layout .layout,
-.archive-layout .main-content {
-  opacity: 1 !important;
-  transform: none !important;
-  filter: none !important;
-  animation: none !important;
-  pointer-events: auto !important;
-  visibility: visible !important;
-}
-
-/* 페어 카드 = OC char-card 그대로 (포인트 컬러만 테두리에 반영) */
+/* 페어 카드 — accent hover는 보더만 (큰 box-shadow glow 금지 → 목록 렉) */
 #pair-grid.card-grid .char-card[style*='--pair-card-accent']:hover {
   border-color: color-mix(in srgb, var(--pair-card-accent) 72%, white) !important;
-  box-shadow:
-    0 24px 52px rgba(0, 0, 0, 0.46),
-    0 0 22px color-mix(in srgb, var(--pair-card-accent) 28%, transparent) !important;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.36) !important;
 }
 
 #detail-screen.pair-detail-screen.active {

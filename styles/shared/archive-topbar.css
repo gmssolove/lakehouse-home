@@ -136,9 +136,13 @@ body .archive-layout .layout.oc-archive-layout .main-content {
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button,
 .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button,
 .records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
-.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a {
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li button {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -148,26 +152,39 @@ body .archive-layout .layout.oc-archive-layout .main-content {
   height: 100% !important;
   min-height: 46px !important;
   padding: 0 !important;
+  margin: 0 !important;
   line-height: 1.2 !important;
+  font: inherit;
   font-size: 11px !important;
   letter-spacing: 0.16em !important;
   text-transform: uppercase !important;
   text-decoration: none !important;
   color: var(--text-muted, rgba(216, 213, 203, 0.55)) !important;
+  border: 0 !important;
   border-bottom: 2px solid transparent !important;
+  background: none !important;
+  cursor: pointer;
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover,
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button:hover,
 .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button:hover,
 .records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a:hover,
-.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a:hover {
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button:hover,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a:hover,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li button:hover {
   color: rgba(240, 207, 173, 0.82) !important;
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a,
+.archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active button,
 .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a,
+.pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active button,
 .records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active a,
-.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li.active a {
+.records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li.active button,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li.active a,
+.records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li.active button {
   color: var(--pink, rgba(240, 207, 173, 0.92)) !important;
   border-bottom-color: var(--pink, rgba(215, 169, 130, 0.85)) !important;
 }
@@ -183,9 +200,13 @@ body .archive-layout .layout.oc-archive-layout .main-content {
   }
 
   .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+  .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button,
   .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
+  .pair-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button,
   .records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li a,
-  .records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a {
+  .records-layout > nav.oc-topbar.lh-archive-topbar > .nav-links li button,
+  .records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li a,
+  .records-layout > nav.oc-topbar.lh-records-topbar > .nav-links li button {
     width: 48px !important;
     min-width: 48px !important;
     font-size: 10px !important;

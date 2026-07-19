@@ -29,7 +29,7 @@ import {
   unlockLakeItem,
   verifyLakeAccessPassword,
 } from '@/lib/lake/accessGate';
-import { clearLakeRouteClasses, isLakeRouteEnterLocked } from '@/lib/lake/routeTransition';
+import { clearLakeRouteClasses, isLakeRouteEnterLocked, lakeNavigate } from '@/lib/lake/routeTransition';
 import type { OcCharacter, PairItem } from '@/lib/types/character';
 
 type SortMode = 'order' | 'name';
@@ -109,8 +109,8 @@ export function PairPageClient() {
   }, [savePairs]);
 
   const leavePair = useCallback(() => {
-    window.location.assign('/');
-  }, []);
+    lakeNavigate(router, '/', '/pair');
+  }, [router]);
 
   const routeGuard = useMemo(() => ({ guardPath: '/pair', router }), [router]);
 
@@ -390,9 +390,9 @@ export function PairPageClient() {
               ← back
             </button>
           ) : (
-            <a href="/" className="nav-back">
+            <button type="button" className="nav-back" onClick={leavePair}>
               ← back
-            </a>
+            </button>
           )
         }
       />

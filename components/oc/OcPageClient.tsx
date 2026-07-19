@@ -350,9 +350,9 @@ export function OcPageClient() {
               ← back
             </button>
           ) : (
-            <a href="/" className="nav-back">
+            <button type="button" className="nav-back" onClick={leaveOc}>
               ← back
-            </a>
+            </button>
           )
         }
       />

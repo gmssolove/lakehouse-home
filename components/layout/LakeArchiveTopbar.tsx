@@ -1,6 +1,8 @@
 'use client';
 
+import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { lakeNavigate } from '@/lib/lake/routeTransition';
 
 type Props = {
   title: string;
@@ -9,21 +11,31 @@ type Props = {
 };
 
 export function LakeArchiveTopbar({ title, active, back }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  function go(href: string) {
+    lakeNavigate(router, href, pathname || '/');
+  }
+
   return (
     <nav className="oc-topbar lh-archive-topbar">
       {back ?? (
-        // plain <a> — Next <Link> soft-nav can desync URL vs page on OpenNext/CF
-        <a href="/" className="nav-back">
+        <button type="button" className="nav-back" onClick={() => go('/')}>
           ← back
-        </a>
+        </button>
       )}
       <div className="nav-title">{title}</div>
       <ul className="nav-links">
         <li className={active === 'oc' ? 'active' : undefined}>
-          <a href="/oc">OC</a>
+          <button type="button" onClick={() => go('/oc')}>
+            OC
+          </button>
         </li>
         <li className={active === 'pair' ? 'active' : undefined}>
-          <a href="/pair">Pair</a>
+          <button type="button" onClick={() => go('/pair')}>
+            Pair
+          </button>
         </li>
       </ul>
     </nav>
