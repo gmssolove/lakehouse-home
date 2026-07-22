@@ -92,6 +92,10 @@ type Props = {
   accessSettings?: Partial<SiteAccessSettings>;
   /** 수정 모달 열기 (시리즈/포스트) */
   onRequestEdit?: (opts?: { storyFocusId?: string; openStoryTab?: boolean }) => void;
+  /** 오버레이가 없을 때 상세→목록 이탈 */
+  onBack?: () => void;
+  /** 상단 「← 목록」/브라우저 뒤로에 레이어드 핸들러 연결 (OC onBindBack과 동일) */
+  onBindBack?: (handler: (() => void) | null) => void;
 };
 
 function formatDday(iso?: string) {
@@ -568,6 +572,8 @@ export function PairArchiveDetail({
   isAdmin = false,
   accessSettings,
   onRequestEdit,
+  onBack,
+  onBindBack,
 }: Props) {
   const { playCharacterTheme, playing, restorePageSnapshot } = useBgm();
   const { ocSettings } = useSiteContent();
@@ -1121,8 +1127,56 @@ export function PairArchiveDetail({
     setReaderOpen(false);
     setReaderEntry(null);
   }, []);
+
+  const handleBack = useCallback(() => {
+    if (readerOpen) {
+      closeStoryReader();
+      return;
+    }
+    if (galleryLightbox) {
+      setGalleryLightbox(null);
+      return;
+    }
+    if (storyGate) {
+      setStoryGate(null);
+      return;
+    }
+    if (authOpen) {
+      setAuthOpen(false);
+      return;
+    }
+    if (vn.present) {
+      vn.close();
+      return;
+    }
+    if (activeSection) {
+      closeSection();
+      return;
+    }
+    onBack?.();
+  }, [
+    activeSection,
+    authOpen,
+    closeSection,
+    closeStoryReader,
+    galleryLightbox,
+    onBack,
+    readerOpen,
+    storyGate,
+    vn,
+  ]);
+
+  useEffect(() => {
+    onBindBack?.(handleBack);
+    return () => onBindBack?.(null);
+  }, [handleBack, onBindBack]);
+
   useLakeBackNavigation(readerOpen, closeStoryReader, 'pair-story-reader');
   useLakeBackNavigation(!!galleryLightbox, () => setGalleryLightbox(null), 'pair-gallery');
+  useLakeBackNavigation(!!storyGate, () => setStoryGate(null), 'pair-story-gate');
+  useLakeBackNavigation(authOpen, () => setAuthOpen(false), 'pair-detail-auth');
+  useLakeBackNavigation(vn.present && !vn.leaving, () => vn.close(), 'pair-detail-vn');
+  useLakeBackNavigation(!!activeSection && !vn.present, closeSection, 'pair-detail-section');
   const stepPairGallery = useCallback(
     (delta: 1 | -1) => {
       if (!galleryLightbox) return;

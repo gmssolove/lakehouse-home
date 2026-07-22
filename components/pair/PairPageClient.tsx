@@ -271,6 +271,11 @@ export function PairPageClient() {
   const [detailLeaving, setDetailLeaving] = useState(false);
   const leaveTimerRef = useRef(0);
   const listEnterTimerRef = useRef(0);
+  const detailBackHandlerRef = useRef<(() => void) | null>(null);
+
+  const bindDetailBack = useCallback((handler: (() => void) | null) => {
+    detailBackHandlerRef.current = handler;
+  }, []);
 
   const playArchiveListEnter = useCallback(() => {
     const layout = document.querySelector('.layout.oc-archive-layout');
@@ -284,7 +289,7 @@ export function PairPageClient() {
     }, 900);
   }, []);
 
-  const handleDetailBack = useCallback(() => {
+  const leavePairDetail = useCallback(() => {
     if (detailLeaving) return;
     flushLayoutSave();
     setEditOpen(false);
@@ -304,6 +309,14 @@ export function PairPageClient() {
       requestAnimationFrame(() => playArchiveListEnter());
     }, 720);
   }, [detail, detailLeaving, flushLayoutSave, playArchiveListEnter]);
+
+  const handleDetailBack = useCallback(() => {
+    if (detailBackHandlerRef.current) {
+      detailBackHandlerRef.current();
+      return;
+    }
+    leavePairDetail();
+  }, [leavePairDetail]);
 
   useEffect(() => {
     return () => {
@@ -632,6 +645,8 @@ export function PairPageClient() {
                 onLayoutChange={persistLayoutLive}
                 isAdmin={isAdmin}
                 accessSettings={accessSettings}
+                onBack={leavePairDetail}
+                onBindBack={bindDetailBack}
                 onRequestEdit={(opts) => {
                   setLayoutMode(false);
                   setQuoteMode(false);
