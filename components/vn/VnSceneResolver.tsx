@@ -75,7 +75,7 @@ export function VnSceneResolver({ sceneId }: Props) {
         position: sp.position || prev?.position || 'center',
         sprite: sp.sprite?.trim() || prev?.sprite,
         treatAsNarration: sp.treatAsNarration ?? prev?.treatAsNarration,
-        standPos: standPos ? { ...standPos } : undefined,
+        standPos: standPos ? normalizeStandPose(standPos) : undefined,
         standPosBySlot: standPosBySlot ? { ...standPosBySlot } : undefined,
         standAnimation: sp.standAnimation || prev?.standAnimation,
       });

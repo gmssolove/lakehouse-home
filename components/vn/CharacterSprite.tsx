@@ -558,8 +558,8 @@ export function SpriteLayer({
             ...sp,
             key,
             src,
-            /* resolveUrl 참조만 바뀐 경우에도 등장 연출 유지 */
-            phase: old.phase === 'enter' ? 'enter' : old.phase === 'exit' ? 'exit' : 'idle',
+            /* resolveUrl 참조만 바뀐 경우에도 등장 연출 유지 (이 분기에선 exit 없음) */
+            phase: old.phase,
             enterToken: old.enterToken,
           });
         }

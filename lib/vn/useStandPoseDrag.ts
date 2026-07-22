@@ -253,7 +253,7 @@ export function useStandPoseDrag(
   }, []);
 
   const syncDom = useCallback(
-    (p: StandPose, slotNow: StandSlotPosition) => {
+    (p: StandPose, slotNow: StandSlotPosition | string) => {
       const el = figureRef.current;
       if (!el) return;
       const x = effectiveStandX(p, slotNow);

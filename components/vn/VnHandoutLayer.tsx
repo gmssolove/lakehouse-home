@@ -60,7 +60,7 @@ export function VnHandoutLayer({
   const resolveRef = useRef(resolveUrl);
   resolveRef.current = resolveUrl;
   const keyRef = useRef<string | null>(null);
-  const urlRef = useRef<string | undefined>();
+  const urlRef = useRef<string | undefined>(undefined);
   const exitTimerRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const poseEditRef = useRef(poseEditMode);

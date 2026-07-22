@@ -1704,6 +1704,7 @@ type YTPlayer = {
   stopVideo: () => void;
   loadVideoById: (videoId: string, startSeconds?: number) => void;
   getVideoData?: () => { video_id?: string };
+  getPlayerState?: () => number;
   seekTo: (s: number, allowSeek: boolean) => void;
   setVolume: (n: number) => void;
   getCurrentTime: () => number;
