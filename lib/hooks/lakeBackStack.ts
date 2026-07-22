@@ -11,12 +11,11 @@ type LakeRouter = {
 
 const stack: Layer[] = [];
 let guardPath: string | null = null;
-let guardRouter: LakeRouter | null = null;
-let trapPushed = false;
 let popListenerInstalled = false;
 let gestureListenerInstalled = false;
 let gestureFallback: (() => void) | null = null;
 let gestureFallbackEnabled = false;
+let lastBackHandledAt = 0;
 
 function isEditableTarget(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -30,22 +29,33 @@ function normalizePath(path: string) {
   return path.replace(/\/$/, '') || '/';
 }
 
-function isStillOnGuardPath() {
-  const current = normalizePath(window.location.pathname);
-  const guarded = normalizePath(guardPath || '/');
-  return current === guarded;
+function claimBackHandle() {
+  const now = Date.now();
+  if (now - lastBackHandledAt < 400) return false;
+  lastBackHandledAt = now;
+  return true;
 }
 
-function syncHistoryAfterPop() {
-  if (stack.length > 0) {
-    stayOnGuardPage(true);
+function deferLakeBack(fn: () => void) {
+  window.setTimeout(fn, 0);
+}
+
+function isStillOnGuardPath() {
+  return normalizePath(window.location.pathname) === normalizePath(guardPath || '/');
+}
+
+/**
+ * history.pushState 트랩 금지.
+ * Next App Router 가 history 를 패치해서 pushState 하면 navigated 루프·removeChild 레이스가 난다.
+ * 마우스/키보드 뒤로·같은 URL popstate 에서만 오버레이를 닫는다.
+ */
+function invokeTopBack() {
+  if (stack.length === 0) {
+    if (gestureFallbackEnabled && gestureFallback) gestureFallback();
     return;
   }
-  trapPushed = false;
-  if (!isStillOnGuardPath()) return;
-  const path = guardPath || '/';
-  if (guardRouter) guardRouter.replace(path, { scroll: false });
-  window.history.replaceState(null, '', path);
+  const layer = stack[stack.length - 1]!;
+  deferLakeBack(() => layer.onBack());
 }
 
 function ensureGestureListener() {
@@ -53,24 +63,18 @@ function ensureGestureListener() {
   gestureListenerInstalled = true;
 
   function onGestureBack() {
+    if (!claimBackHandle()) return;
     if (stack.length > 0) {
-      const layer = stack.pop()!;
-      syncHistoryAfterPop();
-      layer.onBack();
+      invokeTopBack();
       return;
     }
     if (gestureFallbackEnabled && gestureFallback) gestureFallback();
   }
 
-  // 마우스 뒤로가기 버튼(button 3)은 mouseup + auxclick 두 이벤트를 함께 발생시켜
-  // 한 번의 물리 클릭에 onGestureBack이 두 번 실행되던 문제 방지 (레이어 2개 pop → 홈으로).
-  let lastMouseBackAt = 0;
   function triggerMouse(e: MouseEvent) {
     if (e.button !== 3 || isEditableTarget(e.target)) return;
     e.preventDefault();
-    const now = Date.now();
-    if (now - lastMouseBackAt < 400) return;
-    lastMouseBackAt = now;
+    e.stopPropagation();
     onGestureBack();
   }
 
@@ -91,38 +95,21 @@ function ensurePopListener() {
   if (popListenerInstalled) return;
   popListenerInstalled = true;
   window.addEventListener('popstate', () => {
-    if (stack.length === 0) {
-      trapPushed = false;
+    if (stack.length === 0) return;
+
+    /* 다른 라우트로 이미 이탈 — onBack 호출 금지 (페이지 unmount 레이스) */
+    if (!isStillOnGuardPath()) {
+      stack.length = 0;
       return;
     }
-    const layer = stack.pop()!;
-    syncHistoryAfterPop();
-    layer.onBack();
+
+    if (!claimBackHandle()) return;
+    invokeTopBack();
   });
 }
 
-function stayOnGuardPage(repushTrap: boolean) {
-  if (!isStillOnGuardPath()) return;
-  const path = guardPath || '/';
-  if (guardRouter) guardRouter.replace(path, { scroll: false });
-  if (repushTrap && stack.length > 0) {
-    window.history.pushState({ lhLakeBack: true }, '', path);
-    trapPushed = true;
-  }
-}
-
-function ensureTrap() {
-  if (trapPushed || stack.length === 0) return;
-  ensurePopListener();
-  ensureGestureListener();
-  const path = guardPath || window.location.pathname;
-  window.history.pushState({ lhLakeBack: true }, '', path);
-  trapPushed = true;
-}
-
-export function lakeBackConfigureGuard(path: string, router: LakeRouter) {
+export function lakeBackConfigureGuard(path: string, _router?: LakeRouter) {
   guardPath = path;
-  guardRouter = router;
 }
 
 export function lakeBackPush(id: string, onBack: () => void) {
@@ -131,29 +118,17 @@ export function lakeBackPush(id: string, onBack: () => void) {
   const idx = stack.findIndex((l) => l.id === id);
   if (idx >= 0) stack.splice(idx, 1);
   stack.push({ id, onBack });
-  ensureTrap();
 }
 
 export function lakeBackRemove(id: string) {
   const idx = stack.findIndex((l) => l.id === id);
   if (idx < 0) return;
   stack.splice(idx, 1);
-  if (stack.length === 0) {
-    trapPushed = false;
-    // Unmount / route leave must not rewrite URL back to the guard path
-    // (e.g. leaving /?p=trpg → /oc used to force replace('/') and blank the page).
-    if (!isStillOnGuardPath()) return;
-    const path = guardPath || '/';
-    if (guardRouter) guardRouter.replace(path, { scroll: false });
-    window.history.replaceState(null, '', path);
-  }
 }
 
 export function lakeBackTrigger() {
-  if (stack.length === 0) return;
-  const layer = stack.pop()!;
-  syncHistoryAfterPop();
-  layer.onBack();
+  if (!claimBackHandle()) return;
+  invokeTopBack();
 }
 
 export function lakeBackSetGestureFallback(handler: (() => void) | null, enabled = true) {
@@ -164,5 +139,12 @@ export function lakeBackSetGestureFallback(handler: (() => void) | null, enabled
 
 export function lakeBackClearAll() {
   stack.length = 0;
-  trapPushed = false;
+}
+
+export function lakeHistoryReplaceQuiet(url: string) {
+  try {
+    History.prototype.replaceState.call(window.history, null, '', url);
+  } catch {
+    /* ignore */
+  }
 }

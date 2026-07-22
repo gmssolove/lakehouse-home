@@ -6,12 +6,12 @@ type Props = {
   onToggle: () => void;
 };
 
-/** 대사창 자동 재생 토글 — X 버튼 왼쪽 */
+/** 대사창 자동 재생 토글 — 세이브/로드와 같은 savebar 레이아웃 */
 export function VnAutoPlayButton({ on, disabled, onToggle }: Props) {
   return (
     <button
       type="button"
-      className={`lh-vn-auto${on ? ' is-on' : ''}`}
+      className={`lh-vn-save-btn lh-vn-auto${on ? ' is-on' : ''}`}
       onClick={(e) => {
         e.stopPropagation();
         onToggle();

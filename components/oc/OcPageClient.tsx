@@ -24,9 +24,16 @@ import {
 } from '@/lib/lake/accessGate';
 import {
   clearLakeRouteClasses,
+  consumePendingOcCharId,
   isLakeRouteEnterLocked,
   lakeNavigate,
+  peekPendingOcCharId,
 } from '@/lib/lake/routeTransition';
+import {
+  clearOcReturnPath,
+  consumeOcReturnPath,
+  resolveOcReturnHref,
+} from '@/lib/lake/ocReturn';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { buildCharacterNumberMap } from '@/lib/oc/characterOrder';
@@ -136,6 +143,31 @@ export function OcPageClient() {
     }
   }, []);
 
+  const scrubOcDeepLink = useCallback(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (
+        url.searchParams.has('c') ||
+        url.searchParams.has('view') ||
+        url.searchParams.has('direct') ||
+        url.searchParams.has('from') ||
+        url.searchParams.has('pair') ||
+        url.searchParams.has('trpg')
+      ) {
+        url.searchParams.delete('c');
+        url.searchParams.delete('view');
+        url.searchParams.delete('direct');
+        url.searchParams.delete('from');
+        url.searchParams.delete('pair');
+        url.searchParams.delete('trpg');
+        const next = `${url.pathname}${url.search}${url.hash}`;
+        router.replace(next, { scroll: false });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [router]);
+
   const detailBackHandlerRef = useRef<(() => void) | null>(null);
 
   const bindDetailBack = useCallback((handler: (() => void) | null) => {
@@ -144,30 +176,57 @@ export function OcPageClient() {
 
   const leaveTimerRef = useRef(0);
   const leavingRef = useRef(false);
+  const [detailLeaving, setDetailLeaving] = useState(false);
 
   const leaveDetail = useCallback(() => {
     if (leavingRef.current) return;
+    const returnHref = resolveOcReturnHref(searchParams) || consumeOcReturnPath();
     const screen = document.getElementById('detail-screen');
     const playLeave = !!(detail || intro) && !!screen?.classList.contains('active');
+
     const finish = () => {
       leavingRef.current = false;
+      setDetailLeaving(false);
       if (detailUsedThemeRef.current) {
         restorePageSnapshot(ocSettings.autoResumeMainBgm);
       }
       detailUsedThemeRef.current = false;
-      /* 목록은 상세 아래에 그대로 있음 — settle/강제 리플로우하면 퇴장 직후 뚝 끊김 */
+      /* 페어 복귀: 상세를 먼저 닫으면 목록이 한 프레임 보임 — soft nav 후 unmount에 맡김 */
+      if (returnHref) {
+        clearOcReturnPath();
+        lakeNavigate(router, returnHref, '/oc');
+        return;
+      }
       clearDetailView();
+      scrubOcDeepLink();
     };
+
+    /* 페어/TRPG 복귀: 상세 leave 애니 생략 → 즉시 soft/hard 이동 */
+    if (returnHref) {
+      finish();
+      return;
+    }
+
     if (!playLeave || !screen) {
       finish();
       return;
     }
     leavingRef.current = true;
+    setDetailLeaving(true);
     window.clearTimeout(leaveTimerRef.current);
     screen.classList.remove('is-ui-enter');
     screen.classList.add('is-ui-leaving');
     leaveTimerRef.current = window.setTimeout(finish, 720);
-  }, [clearDetailView, detail, intro, ocSettings.autoResumeMainBgm, restorePageSnapshot]);
+  }, [
+    clearDetailView,
+    detail,
+    intro,
+    ocSettings.autoResumeMainBgm,
+    restorePageSnapshot,
+    router,
+    scrubOcDeepLink,
+    searchParams,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -186,12 +245,28 @@ export function OcPageClient() {
   const handleDetailBack = requestOcBack;
 
   const leaveOc = useCallback(() => {
+    const returnHref = resolveOcReturnHref(searchParams) || consumeOcReturnPath();
+    if (returnHref) {
+      clearOcReturnPath();
+      lakeNavigate(router, returnHref, '/oc');
+      return;
+    }
     lakeNavigate(router, '/', '/oc');
-  }, [router]);
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    const href = resolveOcReturnHref(searchParams);
+    if (href) router.prefetch(href);
+  }, [router, searchParams]);
 
   const routeGuard = useMemo(() => ({ guardPath: '/oc', router }), [router]);
 
-  useLakeBackNavigation(!!detail || !!intro || !!entrySplash, requestOcBack, 'oc-detail', routeGuard);
+  useLakeBackNavigation(
+    !!detail || !!intro || !!entrySplash || detailLeaving,
+    requestOcBack,
+    'oc-detail',
+    routeGuard,
+  );
   useLakeBackGesture(leaveOc, !detail && !intro && !entrySplash);
 
   useEffect(() => {
@@ -316,14 +391,35 @@ export function OcPageClient() {
     setPasswordGate({ character: c, au, skipIntro: opts?.skipIntro });
   }
 
+  const bootCharRef = useRef<string | null>(peekPendingOcCharId());
+  const [bootCharCover, setBootCharCover] = useState(() => Boolean(bootCharRef.current));
+  const autoOpenedCharRef = useRef<string | null>(null);
+
   useEffect(() => {
     // 인증 상태가 확정되기 전엔 열지 않는다 — 관리자가 로딩 중 isAdmin=false로
     // 오판돼 비밀번호 게이트가 뜨는 것을 방지.
     if (!authReady) return;
-    const charId = searchParams.get('c');
-    if (!charId || !characters.length || detail || intro || entrySplash) return;
+    const fromUrl = searchParams.get('c')?.trim();
+    const fromStore = consumePendingOcCharId();
+    const charId = fromUrl || fromStore || bootCharRef.current;
+    if (!charId || !characters.length) return;
+
+    if (autoOpenedCharRef.current === charId && !detail && !intro && !entrySplash) {
+      bootCharRef.current = null;
+      setBootCharCover(false);
+      return;
+    }
+    if (detail || intro || entrySplash) return;
+
     const c = characters.find((ch) => String(ch.id) === String(charId));
-    if (!c) return;
+    if (!c) {
+      bootCharRef.current = null;
+      setBootCharCover(false);
+      return;
+    }
+    autoOpenedCharRef.current = charId;
+    bootCharRef.current = null;
+    setBootCharCover(false);
     const skipIntro = searchParams.get('direct') === '1';
     /* view=detail / from=trpg 여도 PV는 재생 — 관련 프로필 이동 시 대사 필요 */
     requestOpenDetail(c, -1, { skipIntro, instant: true });
@@ -336,8 +432,9 @@ export function OcPageClient() {
     [ocSettings.tipToastOc],
   );
   const showArchiveTip = !detail && !intro && !entrySplash;
-  /* URL로 상세 진입 중 — 목록 깜빡임 방지 */
-  const urlCharPending = Boolean(searchParams.get('c')) && !detail && !intro && !entrySplash;
+  /* URL/ soft-nav pending — 목록 깜빡임 방지 */
+  const urlCharPending =
+    (Boolean(searchParams.get('c')) || bootCharCover) && !detail && !intro && !entrySplash;
 
   return (
     <>

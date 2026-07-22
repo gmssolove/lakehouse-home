@@ -13,6 +13,7 @@ import {
 import { createPortal } from 'react-dom';
 import { InvestigatorPortraitImage, portraitOptions } from '@/components/trpg/TrpgInvestigatorImage';
 import { DustAtmosphere } from '@/components/shared/DustAtmosphere';
+import { useDocumentVisible } from '@/lib/hooks/useInViewActive';
 import {
   clampFrameOffset,
   clampFrameScale,
@@ -112,6 +113,35 @@ export function TrpgInvestigatorDetail({
   const stageStyle = personalColor
     ? ({ '--inv-personal': personalColor } as CSSProperties)
     : undefined;
+
+  const docVisible = useDocumentVisible();
+  const [stageInView, setStageInView] = useState(true);
+  const [enterSettled, setEnterSettled] = useState(false);
+
+  useEffect(() => {
+    setEnterSettled(false);
+    const t = window.setTimeout(() => setEnterSettled(true), 1500);
+    return () => window.clearTimeout(t);
+  }, [player.id]);
+
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setStageInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        setStageInView(entries.some((e) => e.isIntersecting && e.intersectionRatio > 0));
+      },
+      { root: null, rootMargin: '80px 0px', threshold: [0, 0.05, 0.2] },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [player.id]);
+
+  /* DustAtmosphere — pair/OC와 동일 게이트 (편집 중엔 유지) */
+  const stageFxLive = editing || (enterSettled && stageInView && docVisible);
 
   const requestClose = useCallback(() => {
     if (closing) return;
@@ -359,13 +389,13 @@ export function TrpgInvestigatorDetail({
 
       <div className="trpg-inv-detail__body" key={player.id}>
         <div
-          className={`trpg-inv-detail__stage${showGuides ? ' is-guiding' : ''}${personalColor ? ' has-personal' : ''}`}
+          className={`trpg-inv-detail__stage${showGuides ? ' is-guiding' : ''}${personalColor ? ' has-personal' : ''}${!stageFxLive ? ' is-fx-paused' : ''}`}
           ref={stageRef}
           style={stageStyle}
         >
           {personalColor ? <div className="trpg-inv-detail__personal-glow" aria-hidden="true" /> : null}
           <div className="trpg-inv-detail__gradient" aria-hidden="true" />
-          <DustAtmosphere fx={player.dustFx} />
+          <DustAtmosphere fx={player.dustFx} active={stageFxLive} />
           {showGuides ? (
             <div className="trpg-inv-detail__guides" aria-hidden="true">
               <span className={`trpg-inv-detail__guide trpg-inv-detail__guide--v${guideSnap.v ? ' is-snap' : ''}`} />

@@ -1,0 +1,598 @@
+/* 풀스테이지 다이스 — 3D 큐브 굴림 + 블러 판정 */
+
+.root {
+  --dice-gold: 216, 201, 158;
+  position: absolute;
+  inset: 0;
+  z-index: 655;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.root[data-tone='extreme'] {
+  --dice-gold: 248, 230, 186;
+}
+.root[data-tone='great'] {
+  --dice-gold: 236, 216, 164;
+}
+.root[data-tone='ok'] {
+  --dice-gold: 216, 201, 158;
+}
+.root[data-tone='fail'] {
+  --dice-gold: 168, 158, 148;
+}
+.root[data-tone='fumble'] {
+  --dice-gold: 196, 110, 98;
+}
+.root[data-tone='neutral'] {
+  --dice-gold: 200, 190, 175;
+}
+
+.veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 5, 6, 0);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  opacity: 0;
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 0.6, 0.35, 1),
+    background 0.65s ease,
+    backdrop-filter 0.65s ease,
+    -webkit-backdrop-filter 0.65s ease;
+}
+
+.rootVeil .veil {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 40%, rgba(18, 14, 10, 0.32), transparent 72%),
+    rgba(3, 4, 5, 0.4);
+  backdrop-filter: blur(7px) saturate(0.85);
+  -webkit-backdrop-filter: blur(7px) saturate(0.85);
+}
+
+.rootResult .veil {
+  background:
+    radial-gradient(ellipse 65% 55% at 50% 36%, rgba(20, 16, 12, 0.26), transparent 75%),
+    rgba(2, 3, 4, 0.55);
+  backdrop-filter: blur(12px) saturate(0.78);
+  -webkit-backdrop-filter: blur(12px) saturate(0.78);
+}
+
+.stage {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 520px);
+  min-height: min(52vh, 380px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.verdictSlot {
+  height: clamp(4.5rem, 12vh, 6.5rem);
+  width: 100%;
+}
+
+/* —— 주사위 —— */
+.diceRow {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(2.6rem, 9vw, 4rem);
+  width: 100%;
+}
+
+.dieWrap {
+  position: relative;
+  width: 72px;
+  height: 150px;
+}
+
+.shadow {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  width: 52px;
+  height: 15px;
+  margin-left: -26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  filter: blur(4px);
+  opacity: 0;
+  transform: scale(0.35);
+  z-index: 0;
+}
+
+.diceRowPlay .shadow_a {
+  animation: dieShadowA 1.65s cubic-bezier(0.33, 0.1, 0.25, 1) both;
+}
+.diceRowPlay .shadow_b {
+  animation: dieShadowB 1.65s cubic-bezier(0.33, 0.1, 0.25, 1) 0.11s both;
+}
+
+@keyframes dieShadowA {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  12% {
+    opacity: 0.2;
+    transform: scale(0.45);
+  }
+  38% {
+    opacity: 0.65;
+    transform: scale(1.05);
+  }
+  48% {
+    opacity: 0.28;
+    transform: scale(0.55);
+  }
+  62% {
+    opacity: 0.72;
+    transform: scale(1.12);
+  }
+  74% {
+    opacity: 0.38;
+    transform: scale(0.68);
+  }
+  88% {
+    opacity: 0.62;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.52;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes dieShadowB {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  14% {
+    opacity: 0.2;
+    transform: scale(0.45);
+  }
+  42% {
+    opacity: 0.65;
+    transform: scale(1.05);
+  }
+  52% {
+    opacity: 0.28;
+    transform: scale(0.55);
+  }
+  66% {
+    opacity: 0.72;
+    transform: scale(1.12);
+  }
+  78% {
+    opacity: 0.38;
+    transform: scale(0.68);
+  }
+  90% {
+    opacity: 0.62;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.52;
+    transform: scale(0.94);
+  }
+}
+
+.persp {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  perspective: 480px;
+  transform-style: preserve-3d;
+  z-index: 1;
+}
+
+.diceRowPlay .persp_a {
+  animation: dieFallA 1.65s cubic-bezier(0.28, 0.05, 0.2, 1) both;
+}
+.diceRowPlay .persp_b {
+  animation: dieFallB 1.65s cubic-bezier(0.28, 0.05, 0.2, 1) 0.11s both;
+}
+
+@keyframes dieFallA {
+  0% {
+    transform: translate(-110%, -320%) rotate(-20deg);
+  }
+  34% {
+    transform: translate(10%, 6%) rotate(7deg);
+  }
+  46% {
+    transform: translate(-6%, 32%) rotate(-5deg);
+  }
+  58% {
+    transform: translate(8%, -22%) rotate(9deg);
+  }
+  70% {
+    transform: translate(-3%, 18%) rotate(-4deg);
+  }
+  82% {
+    transform: translate(3%, -6%) rotate(2deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+}
+
+@keyframes dieFallB {
+  0% {
+    transform: translate(120%, -340%) rotate(24deg);
+  }
+  38% {
+    transform: translate(-12%, 2%) rotate(-9deg);
+  }
+  50% {
+    transform: translate(10%, 34%) rotate(6deg);
+  }
+  62% {
+    transform: translate(-8%, -24%) rotate(-11deg);
+  }
+  74% {
+    transform: translate(5%, 16%) rotate(4deg);
+  }
+  86% {
+    transform: translate(-2%, -4%) rotate(-2deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+}
+
+.cube {
+  width: 56px;
+  height: 56px;
+  position: relative;
+  transform-style: preserve-3d;
+}
+
+.spin_a {
+  animation: dieSpinA 1.65s cubic-bezier(0.3, 0.05, 0.2, 1) both;
+}
+.spin_b {
+  animation: dieSpinB 1.65s cubic-bezier(0.3, 0.05, 0.2, 1) both;
+}
+
+/* 앞면(결과 숫자)이 카메라를 향하도록 착지 */
+.cubeLanded {
+  animation: none;
+  transform: rotateX(-14deg) rotateY(16deg) rotateZ(-3deg);
+}
+
+.rootResult .cubeLanded {
+  transform: rotateX(-10deg) rotateY(12deg) rotateZ(-2deg) scale(0.9);
+  filter: brightness(0.7);
+  transition:
+    transform 0.5s cubic-bezier(0.22, 0.7, 0.3, 1),
+    filter 0.5s ease;
+}
+
+/* 720deg = 한 바퀴 → 앞면 유지. 중간에만 격하게 회전 */
+@keyframes dieSpinA {
+  0% {
+    transform: rotateX(50deg) rotateY(-90deg) rotateZ(30deg);
+  }
+  32% {
+    transform: rotateX(640deg) rotateY(500deg) rotateZ(210deg);
+  }
+  52% {
+    transform: rotateX(800deg) rotateY(620deg) rotateZ(290deg);
+  }
+  72% {
+    transform: rotateX(880deg) rotateY(700deg) rotateZ(340deg);
+  }
+  100% {
+    transform: rotateX(706deg) rotateY(736deg) rotateZ(-3deg);
+  }
+}
+
+@keyframes dieSpinB {
+  0% {
+    transform: rotateX(-70deg) rotateY(110deg) rotateZ(-40deg);
+  }
+  36% {
+    transform: rotateX(-600deg) rotateY(-540deg) rotateZ(-180deg);
+  }
+  56% {
+    transform: rotateX(-720deg) rotateY(-640deg) rotateZ(-260deg);
+  }
+  76% {
+    transform: rotateX(-800deg) rotateY(-700deg) rotateZ(-320deg);
+  }
+  100% {
+    transform: rotateX(-734deg) rotateY(-704deg) rotateZ(-3deg);
+  }
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(240, 207, 173, 0.55);
+  background:
+    linear-gradient(145deg, rgba(255, 236, 200, 0.22) 0%, transparent 42%),
+    linear-gradient(165deg, rgba(48, 40, 32, 0.92), rgba(10, 9, 8, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 210, 0.18),
+    inset 0 -8px 16px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: #f0cfad;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.face_0 {
+  transform: translateZ(28px);
+}
+.face_1 {
+  transform: rotateY(180deg) translateZ(28px);
+}
+.face_2 {
+  transform: rotateY(90deg) translateZ(28px);
+}
+.face_3 {
+  transform: rotateY(-90deg) translateZ(28px);
+}
+.face_4 {
+  transform: rotateX(90deg) translateZ(28px);
+}
+.face_5 {
+  transform: rotateX(-90deg) translateZ(28px);
+}
+
+/* —— 판정 —— */
+.verdict {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-height: clamp(4.5rem, 12vh, 6.5rem);
+  justify-content: center;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  text-transform: uppercase;
+  color: rgba(var(--dice-gold), 0.78);
+  animation: verdictEye 1s cubic-bezier(0.22, 0.7, 0.3, 1) both;
+}
+
+.verdictGlow {
+  position: absolute;
+  left: 50%;
+  top: 55%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.bloomOuter,
+.bloomInner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.2);
+  opacity: 0;
+}
+
+.bloomOuter {
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(var(--dice-gold), 0.55) 0%, transparent 70%);
+  filter: blur(30px);
+  animation: bloomOut 2.2s cubic-bezier(0.22, 0.55, 0.3, 1) both;
+}
+
+.bloomInner {
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(var(--dice-gold), 0.92) 0%, transparent 68%);
+  filter: blur(18px);
+  animation: bloomIn 1.85s cubic-bezier(0.22, 0.55, 0.3, 1) 0.06s both;
+}
+
+.verdictText {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-voice), 'ChosunNm', Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: clamp(1.65rem, 4.5vw, 2.35rem);
+  letter-spacing: 0.08em;
+  color: rgb(var(--dice-gold));
+  text-shadow:
+    0 0 28px rgba(var(--dice-gold), 0.42),
+    0 0 60px rgba(var(--dice-gold), 0.2),
+    0 3px 14px rgba(0, 0, 0, 0.78);
+  opacity: 0;
+  filter: blur(10px);
+  animation: verdictTextIn 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+
+.rollHint {
+  position: relative;
+  margin: 0.7rem 0 0;
+  opacity: 0;
+  animation: verdictTextIn 0.55s ease 0.32s both;
+}
+
+.rollHintNum {
+  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
+  font-size: 1rem;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  color: rgba(var(--dice-gold), 0.42);
+}
+
+@keyframes verdictEye {
+  from {
+    opacity: 0;
+    letter-spacing: 0.72em;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.42em;
+    filter: blur(0);
+  }
+}
+
+@keyframes bloomOut {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.25);
+  }
+  40% {
+    opacity: 0.48;
+  }
+  100% {
+    opacity: 0.2;
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}
+
+@keyframes bloomIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  35% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0.36;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes verdictTextIn {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+.rootResult .diceRow {
+  transform: translateY(8px) scale(0.94);
+  transition: transform 0.5s cubic-bezier(0.22, 0.7, 0.3, 1);
+  opacity: 0.82;
+}
+
+@media (max-width: 640px) {
+  .dieWrap {
+    width: 64px;
+    height: 130px;
+  }
+
+  .persp,
+  .cube {
+    width: 48px;
+    height: 48px;
+  }
+
+  .persp {
+    margin-left: -24px;
+  }
+
+  .face {
+    border-radius: 12px;
+    font-size: 18px;
+  }
+
+  .face_0 {
+    transform: translateZ(24px);
+  }
+  .face_1 {
+    transform: rotateY(180deg) translateZ(24px);
+  }
+  .face_2 {
+    transform: rotateY(90deg) translateZ(24px);
+  }
+  .face_3 {
+    transform: rotateY(-90deg) translateZ(24px);
+  }
+  .face_4 {
+    transform: rotateX(90deg) translateZ(24px);
+  }
+  .face_5 {
+    transform: rotateX(-90deg) translateZ(24px);
+  }
+
+  .verdictText {
+    font-size: clamp(1.4rem, 5.8vw, 1.85rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diceRowPlay .persp_a,
+  .diceRowPlay .persp_b,
+  .spin_a,
+  .spin_b,
+  .diceRowPlay .shadow_a,
+  .diceRowPlay .shadow_b,
+  .eyebrow,
+  .bloomOuter,
+  .bloomInner,
+  .verdictText,
+  .rollHint {
+    animation: none !important;
+  }
+
+  .veil {
+    transition: none !important;
+  }
+
+  .rootVeil .veil,
+  .rootResult .veil {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+
+  .cubeLanded,
+  .spin_a,
+  .spin_b {
+    transform: rotateX(-12deg) rotateY(14deg) !important;
+    filter: none;
+  }
+
+  .verdictText,
+  .eyebrow,
+  .rollHint,
+  .shadow {
+    opacity: 1 !important;
+    filter: none !important;
+  }
+}

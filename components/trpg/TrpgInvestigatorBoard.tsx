@@ -22,6 +22,7 @@ import { LikeHateView } from '@/components/trpg/TrpgInvestigatorLikeHate';
 import { PROFILE_TEXT_LIMIT, ProfileTextBlock } from '@/components/trpg/TrpgProfileText';
 import { useOcData } from '@/lib/hooks/useOcData';
 import { lakeNavigate } from '@/lib/lake/routeTransition';
+import { setOcReturnPath } from '@/lib/lake/ocReturn';
 import { markTrpgSkipBgmRestore } from '@/lib/lake/trpgReturn';
 import { normalizeHex } from '@/lib/oc/characterTheme';
 import { mergePlayerInfoFields } from '@/lib/trpg/defaultPlayerInfo';
@@ -441,7 +442,11 @@ export function TrpgInvestigatorBoard({
           identity={
             !editing ? (
               <header className="trpg-inv-detail__identity ph-meta">
-                <div className="ph-name-row">
+                <div className="lh-handnote-name-row ph-name-row">
+                  <div className="ph-name-stack">
+                    <div className="ph-name">{view.name}</div>
+                    <div className="ph-name-en">{investigatorCardSubtitle(view)}</div>
+                  </div>
                   {(view.handwritingNotes || []).some((u) => u.trim()) ? (
                     <button
                       type="button"
@@ -473,10 +478,6 @@ export function TrpgInvestigatorBoard({
                       />
                     </button>
                   ) : null}
-                  <div className="ph-name-stack">
-                    <div className="ph-name">{view.name}</div>
-                    <div className="ph-name-en">{investigatorCardSubtitle(view)}</div>
-                  </div>
                 </div>
                 {view.playerName ? (
                   <div className="trpg-inv-player-label">플레이어 · {view.playerName}</div>
@@ -492,16 +493,31 @@ export function TrpgInvestigatorBoard({
                 ) : null}
                 {linkedOcId ? (
                   <a
-                    href={`/oc?c=${encodeURIComponent(linkedOcId)}&view=detail&from=trpg`}
+                    href={(() => {
+                      const trpgId = (pathname || '').match(/^\/trpg\/([^/]+)/)?.[1];
+                      const q = new URLSearchParams({
+                        c: String(linkedOcId),
+                        view: 'detail',
+                        from: 'trpg',
+                      });
+                      if (trpgId) q.set('trpg', trpgId);
+                      return `/oc?${q.toString()}`;
+                    })()}
                     className="trpg-inv-detail__oc-link"
                     onClick={(e) => {
                       e.preventDefault();
+                      const trpgId = (pathname || '').match(/^\/trpg\/([^/]+)/)?.[1];
+                      const q = new URLSearchParams({
+                        c: String(linkedOcId),
+                        view: 'detail',
+                        from: 'trpg',
+                      });
+                      if (trpgId) {
+                        q.set('trpg', trpgId);
+                        setOcReturnPath(`/trpg/${encodeURIComponent(trpgId)}`);
+                      }
                       markTrpgSkipBgmRestore();
-                      lakeNavigate(
-                        router,
-                        `/oc?c=${encodeURIComponent(linkedOcId)}&view=detail&from=trpg`,
-                        pathname || `/trpg`,
-                      );
+                      lakeNavigate(router, `/oc?${q.toString()}`, pathname || `/trpg`);
                     }}
                   >
                     OC 프로필 보기 →

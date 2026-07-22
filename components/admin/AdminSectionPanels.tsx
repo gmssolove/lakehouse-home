@@ -38,6 +38,8 @@ import { ImageFileField } from '@/components/ui/ImageFileField';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { GalleryCreditInput } from '@/components/ui/GalleryCreditInput';
 import { AudioFileField } from '@/components/ui/AudioFileField';
+import { ScenarioVnEditor, type ScenarioVnEditorHandle } from '@/components/shared/ScenarioVnEditor';
+import { uploadImageFile } from '@/lib/r2/client';
 import { AdminListItem } from '@/components/ui/AdminListItem';
 import {
   AccordionSection,
@@ -520,7 +522,7 @@ export function TrpgAdminPanel({
   );
 }
 
-type TrpgEditTab = 'basic' | 'session' | 'investigators' | 'logs' | 'gallery' | 'dice' | 'handouts';
+type TrpgEditTab = 'basic' | 'session' | 'investigators' | 'logs' | 'gallery' | 'dice' | 'handouts' | 'vn';
 
 export type { TrpgEditTab };
 
@@ -532,6 +534,7 @@ const TRPG_EDIT_TABS: { id: TrpgEditTab; label: string }[] = [
   { id: 'gallery', label: '갤러리' },
   { id: 'dice', label: '주요 판정' },
   { id: 'handouts', label: '핸드아웃' },
+  { id: 'vn', label: '비주얼 노벨' },
 ];
 
 export function TrpgEditForm({
@@ -563,20 +566,35 @@ export function TrpgEditForm({
 }) {
   const { confirm } = useLakeDialog();
   const formRef = useRef<HTMLDivElement>(null);
+  const vnEditorRef = useRef<ScenarioVnEditorHandle | null>(null);
+  const formStateRef = useRef(item);
   const [form, setForm] = useState(item);
   const [tab, setTab] = useState<TrpgEditTab>(initialTab);
   const [htmlPaste, setHtmlPaste] = useState('');
+  formStateRef.current = form;
 
+  /* 시나리오가 바뀔 때만 폼 리셋 — 저장 직후 item 갱신으로 편집 중이던 값이 덮이지 않게 */
   useEffect(() => {
     setForm(item);
-  }, [item]);
+  }, [item.id]);
 
   useEffect(() => {
     setTab(initialTab);
   }, [initialTab, item.id]);
 
   useEffect(() => {
-    onBindActions?.({ save: () => onSave(form), delete: onDelete });
+    onBindActions?.({
+      save: () => {
+        const snap = vnEditorRef.current?.getSnapshot();
+        const base = formStateRef.current;
+        onSave(
+          snap
+            ? { ...base, vnEditable: snap.editable, vnScene: snap.vnScene }
+            : base,
+        );
+      },
+      delete: onDelete,
+    });
   }, [form, onBindActions, onDelete, onSave]);
 
   function addLog() {
@@ -1531,6 +1549,154 @@ export function TrpgEditForm({
               </div>
             ))}
           </RepeatableList>
+        ) : null}
+
+        {tab === 'vn' ? (
+          <>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">「비주얼 노벨로 보기」 버튼 색</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <input
+                  type="color"
+                  value={/^#[0-9a-fA-F]{6}$/.test(form.vnPlayBtnColor || '') ? form.vnPlayBtnColor! : '#d7a982'}
+                  onChange={(e) => setForm({ ...form, vnPlayBtnColor: e.target.value })}
+                  aria-label="VN 보기 버튼 색"
+                />
+                <input
+                  className="form-input"
+                  style={{ maxWidth: 120 }}
+                  value={form.vnPlayBtnColor || '#d7a982'}
+                  onChange={(e) => setForm({ ...form, vnPlayBtnColor: e.target.value })}
+                  placeholder="#d7a982"
+                />
+                <button
+                  type="button"
+                  className="lh-dialogue-editor__tool"
+                  onClick={() => setForm({ ...form, vnPlayBtnColor: undefined })}
+                >
+                  기본값
+                </button>
+              </div>
+              <p className="lh-dialogue-editor__hint" style={{ margin: '6px 0 0' }}>
+                시나리오 상세의 VN 보기 버튼 액센트 색입니다.
+              </p>
+            </div>
+            <ScenarioVnEditor
+              ref={vnEditorRef}
+              scenarioId={form.id}
+              scenarioTitle={form.title || '시나리오'}
+              initial={
+                form.vnEditable ??
+                (form.vnScene
+                  ? {
+                      speakers: form.vnScene.speakers,
+                      lines: form.vnScene.lines,
+                      backgrounds: form.vnScene.backgrounds,
+                      bgms: form.vnScene.bgms,
+                      ambients: form.vnScene.ambients,
+                      handouts: form.vnScene.handouts,
+                      diceSfxList: form.vnScene.diceSfxList,
+                      diceRollSfx: form.vnScene.diceRollSfx,
+                      diceResultSfx: form.vnScene.diceResultSfx,
+                      diceResultSfxByTone: form.vnScene.diceResultSfxByTone,
+                      maxOnStage: form.vnScene.maxOnStage,
+                      menuTheme: form.vnScene.menuTheme,
+                      chapterLoading: form.vnScene.chapterLoading,
+                    }
+                  : null)
+              }
+              uploadBusy={uploading}
+              onUploadSprite={async (speakerKey, file) => {
+                onUploadStart();
+                try {
+                  return await uploadImageFile(file, `site/trpg/vn/${form.id}/${speakerKey}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadBackground={async (backgroundKey, file) => {
+                onUploadStart();
+                try {
+                  return await uploadImageFile(file, `site/trpg/vn/${form.id}/bg/${backgroundKey}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadBgm={async (bgmKey, file) => {
+                onUploadStart();
+                try {
+                  return await uploadMediaFile(file, `site/trpg/vn/${form.id}/bgm/${bgmKey}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadAmbient={async (ambientKey, file) => {
+                onUploadStart();
+                try {
+                  return await uploadMediaFile(file, `site/trpg/vn/${form.id}/ambient/${ambientKey}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadDiceSfx={async (diceSfxKey, file) => {
+                onUploadStart();
+                try {
+                  return await uploadMediaFile(file, `site/trpg/vn/${form.id}/dice-sfx/${diceSfxKey}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadHandout={async (handoutKey, file) => {
+                onUploadStart();
+                try {
+                  return await uploadImageFile(file, `site/trpg/vn/${form.id}/handout/${handoutKey}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadTutorialGif={async (stepId, file) => {
+                onUploadStart();
+                try {
+                  return await uploadImageFile(file, `site/trpg/vn/${form.id}/tutorial/${stepId}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadExpression={async (lineId, file) => {
+                onUploadStart();
+                try {
+                  return await uploadImageFile(file, `site/trpg/vn/${form.id}/expr/${lineId}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadVoice={async (lineId, file) => {
+                onUploadStart();
+                try {
+                  return await uploadMediaFile(file, `site/trpg/vn/${form.id}/voice/${lineId}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadSfx={async (lineId, file) => {
+                onUploadStart();
+                try {
+                  return await uploadMediaFile(file, `site/trpg/vn/${form.id}/sfx/${lineId}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onDraftChange={(editable, vnScene) => {
+                setForm((f) => ({ ...f, vnEditable: editable, vnScene }));
+              }}
+              onSave={async (editable, vnScene) => {
+                const next = { ...formStateRef.current, vnEditable: editable, vnScene };
+                setForm(next);
+                if (onPersist) onPersist(next);
+                else onSave(next);
+              }}
+            />
+          </>
         ) : null}
       </div>
     </div>

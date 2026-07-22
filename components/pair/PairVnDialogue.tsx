@@ -1,13 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
 import { usePairSlotLayoutDrag } from '@/components/pair/usePairSlotLayoutDrag';
 import { VnActionChoices } from '@/components/shared/VnActionChoices';
 import { VnAutoPlayButton } from '@/components/shared/VnAutoPlayButton';
 import { VnDialogueChoices } from '@/components/shared/VnDialogueChoices';
 import { isNarrationSpeaker } from '@/components/shared/DialogueNodesEditor';
-import { VnLocationLabel } from '@/components/vn/VnLocationLabel';
+import { VnLocationBanner } from '@/components/vn/VnLocationBanner';
 import {
   buildPairSideDialogueList,
   pairHasDialogue,
@@ -18,7 +17,6 @@ import { useBalancedDialogueText } from '@/lib/hooks/useBalancedDialogueText';
 import { VN_OUT_MS } from '@/lib/vn/presence';
 import { playLineVoice, stopLineVoice } from '@/lib/vn/playLineVoice';
 import { useVnAutoPlay } from '@/lib/vn/useVnAutoPlay';
-import '@/styles/shared/vn-location.css';
 import '@/styles/shared/vn-savebar.css';
 import {
   DIALOGUE_FX_MS,
@@ -467,10 +465,8 @@ export function PairVnDialogue({
 
   const display = typedLen > 0 ? text.slice(0, typedLen) : '';
   const hasNext = !choices.length && !endsHere && (hasLinkedNext || !isLastNode);
-  const host =
-    typeof document !== 'undefined' ? document.getElementById('detail-screen') : null;
 
-  const layer = (
+  return (
     <div
       key={session}
       className={`pair-vn-layer${leaving ? ' is-leaving' : enterAnim ? ' is-enter' : ''}`}
@@ -545,12 +541,15 @@ export function PairVnDialogue({
         />
       ) : null}
 
+      <VnLocationBanner location={node?.location} />
+
       <div
         className={`lh-vn-overlay active oc-vn-overlay${leaving ? ' is-leaving' : ''}`}
         id="lh-vn"
         role="dialog"
         aria-label="대화"
-      >        <div
+      >
+        <div
           className={`lh-vn-box${hasNext && !isTyping && !choices.length ? ' has-next' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
@@ -568,7 +567,6 @@ export function PairVnDialogue({
           >
             ×
           </button>
-          <VnLocationLabel location={node?.location} />
           <div className={`lh-vn-speaker${isNarration || !speaker ? ' is-empty' : ''}`} id="lh-vn-speaker">
             {isNarration || !speaker ? '\u00A0' : speaker}
           </div>
@@ -593,8 +591,6 @@ export function PairVnDialogue({
       </div>
     </div>
   );
-
-  return host ? createPortal(layer, host) : layer;
 }
 
 export function usePairVnDialogue() {

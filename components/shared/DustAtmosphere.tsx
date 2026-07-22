@@ -25,12 +25,15 @@ type Particle = {
 type Props = {
   fx?: DustFxConfig | null;
   className?: string;
+  /** false면 파티클 미생성·미렌더 (IO/진입 지연 게이트) */
+  active?: boolean;
 };
 
 function makeParticles(intensity: number): Particle[] {
   const t = intensity / 100;
-  const sparkCount = Math.round(22 + t * 36);
-  const moteCount = Math.round(10 + t * 18);
+  /* 58→~28 상한 — 페어 상세 진입 시 GPU 레이어 폭증 완화 */
+  const sparkCount = Math.round(10 + t * 18);
+  const moteCount = Math.round(5 + t * 10);
   const speedMul = 1.4 - t * 0.45;
   const out: Particle[] = [];
 
@@ -74,8 +77,8 @@ function makeParticles(intensity: number): Particle[] {
 /**
  * 상세 스테이지용 먼지 부유 — spark + mote.
  */
-export function DustAtmosphere({ fx, className }: Props) {
-  const enabled = dustFxActive(fx);
+export function DustAtmosphere({ fx, className, active = true }: Props) {
+  const enabled = dustFxActive(fx) && active;
   const intensity = dustFxIntensity(fx);
   const [particles, setParticles] = useState<Particle[]>([]);
 

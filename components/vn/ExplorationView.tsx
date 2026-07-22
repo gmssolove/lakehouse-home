@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DialogueBox } from './DialogueBox';
+import { VnLocationBanner } from './VnLocationBanner';
 import { useVnBgm } from './useVnBgm';
 import type { ExplorationScene, Hotspot, VNLine } from './types';
 import { saveVnSlot, type VNSaveData } from '@/lib/vn/vnSave';
@@ -238,24 +239,28 @@ export function ExplorationView({
       </div>
 
       {activeHotspot && currentLine ? (
-        <DialogueBox
-          speaker={currentLine.speaker}
-          text={isTyping ? displayText : displayText || fullText}
-          isTyping={isTyping}
-          hasNext={lineIndex < dialogueLines.length - 1}
-          isNarration={!currentLine.speaker?.trim() || Boolean(currentLine.narrationOnly)}
-          leaving={leaving}
-          choices={[]}
-          location={scene.location}
-          sceneId={scene.id}
-          lineId={currentLine.id}
-          missionsActive={missionsActive}
-          missionsCompleted={[]}
-          hotspotsChecked={checked}
-          onClose={closeDialogue}
-          onBoxClick={advanceDialogue}
-          onLoadSave={applyLoad}
-        />
+        <>
+          <VnLocationBanner location={currentLine.location || scene.location} />
+          <DialogueBox
+            speaker={currentLine.speaker}
+            text={isTyping ? displayText : displayText || fullText}
+            isTyping={isTyping}
+            hasNext={lineIndex < dialogueLines.length - 1}
+            isNarration={!currentLine.speaker?.trim() || Boolean(currentLine.narrationOnly)}
+            leaving={leaving}
+            choices={[]}
+            sceneId={scene.id}
+            lineId={currentLine.id}
+            missionsActive={missionsActive}
+            missionsCompleted={[]}
+            hotspotsChecked={checked}
+            onClose={closeDialogue}
+            onBoxClick={advanceDialogue}
+            onLoadSave={applyLoad}
+          />
+        </>
+      ) : scene.location ? (
+        <VnLocationBanner location={scene.location} />
       ) : null}
     </div>
   );

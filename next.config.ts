@@ -16,7 +16,8 @@ const nextConfig: NextConfig = {
         assetPrefix: '',
       }
     : {}),
-  reactStrictMode: true,
+  /* StrictMode double-mount 가 portal/YT unmount removeChild 레이스를 키움 (dev) */
+  reactStrictMode: false,
   devIndicators: {
     position: 'bottom-left',
   },

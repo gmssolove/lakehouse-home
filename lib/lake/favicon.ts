@@ -45,7 +45,12 @@ function persistFaviconHref(remoteHref: string) {
   }
 }
 
-/** Replace competing icon links with same-origin lake favicon. */
+/**
+ * Update favicon href in place.
+ * Never removeChild / el.remove() on head links — Next/React owns
+ * layout metadata icons; detaching them causes
+ * "Cannot read properties of null (reading 'removeChild')".
+ */
 export function applyLakeFavicon(remoteHref?: string | null): void {
   if (typeof document === 'undefined') return;
   const version =
@@ -53,24 +58,21 @@ export function applyLakeFavicon(remoteHref?: string | null): void {
     (typeof window !== 'undefined' ? localStorage.getItem(LAKE_FAVICON_HREF_KEY) || '' : '');
   const href = withFaviconCacheBust(LAKE_FAVICON_SAME_ORIGIN, String(version.length || 1));
   const head = document.head;
+  if (!head) return;
 
-  head
-    .querySelectorAll<HTMLLinkElement>(
-      'link[rel="icon"], link[rel="shortcut icon"], link[rel~="icon"], link[rel="apple-touch-icon"]',
-    )
-    .forEach((el) => {
-      if (el.getAttribute(LAKE_FAVICON_ATTR) === '1' && el.href.includes('/favicon.ico')) {
-        /* keep if already ours with same path — still refresh href below */
-      }
-      el.remove();
-    });
+  let link = head.querySelector<HTMLLinkElement>(`link[${LAKE_FAVICON_ATTR}="1"]`);
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    link.setAttribute(LAKE_FAVICON_ATTR, '1');
+    link.type = 'image/png';
+    head.appendChild(link);
+  }
 
-  const link = document.createElement('link');
-  link.rel = 'icon';
-  link.setAttribute(LAKE_FAVICON_ATTR, '1');
-  link.type = 'image/png';
-  link.href = href;
-  head.insertBefore(link, head.firstChild);
+  if (link.getAttribute('href') !== href) {
+    link.type = 'image/png';
+    link.setAttribute('href', href);
+  }
 
   if (remoteHref?.trim()) persistFaviconHref(remoteHref.trim());
 }

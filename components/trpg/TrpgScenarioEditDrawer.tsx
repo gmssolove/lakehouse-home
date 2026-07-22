@@ -9,7 +9,7 @@ import { useOcData } from '@/lib/hooks/useOcData';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import type { TrpgScenario } from '@/lib/types/site-content';
 
-export type TrpgEditTabId = 'basic' | 'session' | 'investigators' | 'logs' | 'gallery' | 'dice' | 'handouts';
+export type TrpgEditTabId = 'basic' | 'session' | 'investigators' | 'logs' | 'gallery' | 'dice' | 'handouts' | 'vn';
 
 type Props = {
   open: boolean;
@@ -55,7 +55,9 @@ export function TrpgScenarioEditDrawer({
   }
 
   async function handleSave(item: TrpgScenario) {
-    await persistScenario(item, true);
+    /* 저장 후에도 모달 유지 — 위치 미세 조정을 반복할 때 다시 열지 않게 */
+    await persistScenario(item, false);
+    showSaveToast();
   }
 
   async function handleDelete() {

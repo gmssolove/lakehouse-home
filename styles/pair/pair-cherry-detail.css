@@ -116,11 +116,12 @@
 .pair-detail-screen .pair-bg__haze-orb {
   position: absolute;
   border-radius: 50%;
-  /* blur 64→28 · 상시 will-change/infinite 제거 (GPU 상시 점유 방지) */
-  filter: blur(28px);
+  /* blur 28→16 — 진입 시 대형 블러 레이어 3개 비용 완화 */
+  filter: blur(16px);
   opacity: 0.28;
   will-change: auto;
   animation: none;
+  contain: paint;
 }
 
 .pair-detail-screen .pair-bg__haze-orb--a {
@@ -519,7 +520,7 @@
 }
 
 .pair-detail-screen .pair-cherry-root.vn-active .chara-item .chara-ghost-wrapper .chara-billboard {
-  opacity: 0.22;
+  opacity: 0.3;
 }
 
 .pair-detail-screen .pair-cherry-root.is-layout-edit .chara-ghost-wrapper.is-layout-editable {
@@ -799,7 +800,7 @@
 }
 
 .pair-detail-screen .pair-cherry-root.vn-active:not(.is-enter) .chara-item .chara-ghost-wrapper .chara-billboard {
-  opacity: 0.22;
+  opacity: 0.3;
 }
 
 .pair-detail-screen .pair-cherry-root.is-enter .chara-item.chara-left .chara-footer {
@@ -2128,7 +2129,7 @@
   pointer-events: none;
 }
 
-.pair-detail-screen > .pair-vn-layer {
+.pair-detail-screen .pair-vn-layer {
   position: absolute !important;
   inset: 0 !important;
   z-index: 600 !important;
@@ -2136,7 +2137,7 @@
   animation: none;
 }
 
-.pair-detail-screen > .pair-vn-layer.is-leaving {
+.pair-detail-screen .pair-vn-layer.is-leaving {
   pointer-events: none !important;
 }
 
@@ -2148,6 +2149,7 @@
   z-index: 0;
 }
 
+/* 장소 배너보다 스탠딩이 앞에 — 배너는 상단이라 겹침 적음 */
 .pair-detail-screen .pair-vn-stage {
   position: absolute;
   left: 0;
@@ -2162,7 +2164,7 @@
   justify-content: center;
   gap: 0;
   pointer-events: none;
-  z-index: 1;
+  z-index: 630;
   padding: 0;
   box-sizing: border-box;
 }
@@ -2178,7 +2180,7 @@
   transition: filter 0.35s ease, opacity 0.35s ease;
   pointer-events: auto;
   transform-origin: center bottom;
-  will-change: transform, filter;
+  will-change: auto;
 }
 
 .pair-detail-screen .pair-vn-stand--a {
@@ -2392,7 +2394,7 @@
 }
 
 /* OC 테마 토큰 — Pair에도 동일 변수로 색·선택지 반응 맞춤 */
-.pair-detail-screen > .pair-vn-layer {
+.pair-detail-screen .pair-vn-layer {
   --oc-vn: var(--pair-copper-soft, #f0cfad);
   --oc-vn-border: rgba(215, 169, 130, 0.38);
   --oc-accent-soft: var(--pair-copper-soft, #f0cfad);
@@ -2400,18 +2402,18 @@
   --oc-accent: var(--pair-copper, #d7a982);
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-action-layer {
+.pair-detail-screen .pair-vn-layer .lh-vn-action-layer {
   z-index: 18;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-action-choice {
+.pair-detail-screen .pair-vn-layer .lh-vn-action-choice {
   --vn-action-accent: var(--oc-vn, var(--pair-copper, #d7a982));
   --vn-action-soft: var(--oc-accent-soft, var(--pair-copper-soft, #f0cfad));
   --vn-action-panel: var(--oc-panel-solid, #101210);
 }
 
 /* 위치 + 인/아웃 — 열릴 때마다 새 레이어이므로 .active 인 애니가 다시 재생됨 */
-.pair-detail-screen > .pair-vn-layer .lh-vn-overlay {
+.pair-detail-screen .pair-vn-layer .lh-vn-overlay {
   position: absolute !important;
   left: 50% !important;
   bottom: 96px !important;
@@ -2422,36 +2424,36 @@
   display: block !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-overlay.active:not(.is-leaving) {
+.pair-detail-screen .pair-vn-layer .lh-vn-overlay.active:not(.is-leaving) {
   animation: lhVNInSlow 1.2s cubic-bezier(0.16, 1, 0.3, 1) both !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-overlay.active.is-leaving,
-.pair-detail-screen > .pair-vn-layer.is-leaving .lh-vn-overlay.active {
+.pair-detail-screen .pair-vn-layer .lh-vn-overlay.active.is-leaving,
+.pair-detail-screen .pair-vn-layer.is-leaving .lh-vn-overlay.active {
   animation: lhVNOutSlow 0.42s cubic-bezier(0.4, 0, 0.2, 1) both !important;
   pointer-events: none !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-box {
+.pair-detail-screen .pair-vn-layer .lh-vn-box {
   border-color: var(--oc-vn-border, rgba(215, 169, 130, 0.38)) !important;
   background: linear-gradient(180deg, rgba(12, 14, 13, 0.92), rgba(8, 10, 10, 0.86));
   box-shadow: 0 22px 60px color-mix(in srgb, var(--oc-panel-solid, #080a09) 72%, rgba(0, 0, 0, 0.5)) !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-speaker {
+.pair-detail-screen .pair-vn-layer .lh-vn-speaker {
   color: var(--oc-vn, var(--oc-accent-soft)) !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-text.lh-typing::after {
+.pair-detail-screen .pair-vn-layer .lh-vn-text.lh-typing::after {
   color: var(--oc-vn, var(--oc-accent-soft)) !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-next {
+.pair-detail-screen .pair-vn-layer .lh-vn-next {
   border-right-color: var(--oc-vn, rgba(240, 207, 173, 0.9)) !important;
   border-bottom-color: var(--oc-vn, rgba(240, 207, 173, 0.9)) !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-choices {
+.pair-detail-screen .pair-vn-layer .lh-vn-choices {
   top: auto !important;
   bottom: calc(100% + 12px) !important;
   flex-direction: column !important;
@@ -2461,7 +2463,7 @@
   max-width: min(280px, 42vw) !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-choice {
+.pair-detail-screen .pair-vn-layer .lh-vn-choice {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -2479,7 +2481,7 @@
   box-shadow: 0 14px 34px color-mix(in srgb, var(--oc-panel-solid, #080a09) 38%, rgba(0, 0, 0, 0.38)) !important;
 }
 
-.pair-detail-screen > .pair-vn-layer .lh-vn-choice:hover {
+.pair-detail-screen .pair-vn-layer .lh-vn-choice:hover {
   border-color: color-mix(in srgb, var(--oc-vn) 72%, white) !important;
   color: var(--oc-vn, #f0cfad) !important;
 }
@@ -2496,7 +2498,7 @@
     max-width: 55%;
   }
 
-  .pair-detail-screen > .pair-vn-layer .lh-vn-overlay {
+  .pair-detail-screen .pair-vn-layer .lh-vn-overlay {
     bottom: 72px !important;
     width: calc(100vw - 20px) !important;
   }
@@ -2648,7 +2650,7 @@
   pointer-events: none;
   transform-origin: center bottom;
   animation: chara-note-float 3.4s ease-in-out infinite;
-  will-change: transform;
+  will-change: auto;
 }
 
 @keyframes chara-note-float {
@@ -2672,6 +2674,15 @@
   position: fixed;
   inset: 0;
   z-index: 13000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: transparent;
+  cursor: default;
+}
+
+.pair-handnote-lightbox {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2680,8 +2691,7 @@
   cursor: zoom-out;
 }
 
-.pair-handnote-lightbox .oc-gallery-lightbox-close,
-.pair-gallery-lightbox .oc-gallery-lightbox-close {
+.pair-handnote-lightbox .oc-gallery-lightbox-close {
   position: absolute;
   top: 1rem;
   right: 1rem;
@@ -3775,14 +3785,14 @@
   border: 0;
   border-radius: 0;
   cursor: pointer;
-  color: rgba(200, 188, 168, 0.88);
+  color: rgba(215, 169, 130, 0.88);
   background: transparent;
   overflow: visible;
   transition: color 0.25s ease;
 }
 
 .pair-detail-screen .pair-panel__ascend:hover {
-  color: rgba(215, 169, 130, 0.98);
+  color: rgba(238, 205, 152, 0.98);
 }
 
 .pair-detail-screen .pair-panel__ascend svg {
@@ -5199,6 +5209,9 @@
   display: block;
   cursor: zoom-in;
   width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
 .pair-detail-screen .pair-extra__gal-item img {
@@ -5206,13 +5219,23 @@
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 6px;
-  border: 1px solid rgba(205, 179, 126, 0.12);
-  transition: transform 0.3s ease, border-color 0.3s ease;
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  opacity: 0.9;
+  transition:
+    transform 0.22s ease,
+    border-color 0.22s ease,
+    opacity 0.2s ease;
+}
+
+.pair-detail-screen .pair-extra__gal-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 .pair-detail-screen .pair-extra__gal-btn:hover img {
-  transform: scale(1.03);
-  border-color: rgba(215, 169, 130, 0.4);
+  border-color: rgba(215, 169, 130, 0.72);
+  opacity: 1;
+  transform: none;
 }
 
 /* ===== 페이지네이션 (구 pair-pager → lh-story-pager 통일) ===== */
@@ -5220,63 +5243,212 @@
   display: none;
 }
 
-/* ===== 갤러리 라이트박스 (OC 미로드 대비 자립 스타일) ===== */
+/* ===== 갤러리 라이트박스 (TRPG와 동일: 화살표·장수·작가) ===== */
 .pair-gallery-lightbox {
   position: fixed;
   inset: 0;
   z-index: 3000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.pair-gallery-lightbox__bg {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.8);
+  cursor: pointer;
+}
+
+.pair-gallery-lightbox__frame {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4vh 4vw;
-  background: rgba(6, 7, 6, 0.92);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  gap: 14px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.pair-gallery-lightbox__panel {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  max-width: min(720px, calc(100vw - 120px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: visible;
+  min-width: 0;
 }
 
 .pair-gallery-lightbox .oc-gallery-lightbox-stage {
   position: relative;
-  max-width: min(92vw, 1100px);
-  max-height: 90vh;
+  max-width: min(720px, calc(100vw - 120px));
+  max-height: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0;
+  overflow: hidden;
 }
 
-.pair-gallery-lightbox .oc-gallery-lightbox-stage img {
-  max-width: 100%;
-  max-height: 82vh;
+.pair-gallery-lightbox .oc-gallery-lightbox-stage img,
+.pair-gallery-lightbox__img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(720px, calc(100vw - 120px));
+  max-height: min(72vh, calc(100vh - 96px));
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 4px;
+  background: #050505;
+}
+
+.pair-gallery-lightbox__img.is-slide-in {
+  animation: pairGalleryImgFade 0.28s ease both;
+}
+
+.pair-gallery-lightbox__img.is-slide-next {
+  animation: pairGalleryImgNext 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pair-gallery-lightbox__img.is-slide-prev {
+  animation: pairGalleryImgPrev 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pairGalleryImgFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pairGalleryImgNext {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pairGalleryImgPrev {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .pair-gallery-lightbox .oc-gallery-lightbox-credit {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  max-width: min(72vw, 520px);
   margin: 0;
-  font-size: 12.5px;
-  color: rgba(205, 179, 126, 0.85);
-  letter-spacing: 0.04em;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: rgba(8, 10, 9, 0.72);
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  color: rgba(240, 207, 173, 0.82);
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 .pair-gallery-lightbox .oc-gallery-lightbox-close {
   position: absolute;
-  top: 2vh;
-  right: 3vw;
+  top: -6px;
+  right: -6px;
+  z-index: 3;
   all: unset;
+  box-sizing: border-box;
   cursor: pointer;
-  font-size: 20px;
-  color: rgba(244, 238, 229, 0.8);
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  transition: background 0.2s ease;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  border-radius: 4px;
+  background: rgba(8, 10, 9, 0.72);
+  color: rgba(240, 207, 173, 0.88);
+  font-size: 14px;
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .pair-gallery-lightbox .oc-gallery-lightbox-close:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(215, 169, 130, 0.16);
+  border-color: rgba(215, 169, 130, 0.48);
+}
+
+.pair-gallery-lightbox__nav {
+  appearance: none;
+  position: static;
+  flex-shrink: 0;
+  transform: none;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(215, 169, 130, 0.4);
+  border-radius: 50%;
+  background: rgba(12, 10, 8, 0.72);
+  color: rgba(240, 207, 173, 0.95);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pair-gallery-lightbox__nav:hover {
+  border-color: rgba(215, 169, 130, 0.7);
+  background: rgba(18, 14, 12, 0.88);
+  color: #f0cfad;
+}
+
+.pair-gallery-lightbox__nav.is-prev,
+.pair-gallery-lightbox__nav.is-next {
+  left: auto;
+  right: auto;
+}
+
+.pair-gallery-lightbox__nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pair-gallery-lightbox__pager {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: rgba(240, 207, 173, 0.78);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ===== 편집: 타임라인 에디터 ===== */
@@ -5377,16 +5549,26 @@
   gap: 0.9rem;
 }
 
-/* 타임라인 페이저만 하단 고정 — 갤러리는 스크롤 끝에서 표시 */
-.pair-detail-screen .pair-panel__timeline-shell > .lh-story-pager {
+/* 타임라인·갤러리 페이저 — Records와 동일 + 전역 nav 구분선/그림자 제거 */
+.pair-detail-screen .pair-panel__timeline-shell > .lh-diary__pager,
+.pair-detail-screen .pair-panel__gallery-wrap > .lh-diary__pager,
+.pair-detail-screen .pair-panel__story-list .lh-diary__pager,
+.pair-detail-screen .pair-panel__timeline-shell > .lh-story-pager,
+.pair-detail-screen .pair-panel__gallery-wrap > .lh-story-pager,
+.pair-detail-screen .pair-panel__story-list .lh-story-pager {
   flex-shrink: 0;
-  margin-top: 0.65rem;
-  padding: 0.15rem 0 0.35rem;
-}
-
-.pair-detail-screen .pair-panel__gallery-wrap > .lh-story-pager {
-  margin-top: 1.25rem;
-  padding-bottom: 0.5rem;
+  height: auto !important;
+  margin-top: 1rem;
+  margin-bottom: 0.35rem;
+  padding: 0.15rem 0 !important;
+  gap: 0.55rem !important;
+  border: 0 !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  z-index: auto !important;
 }
 
 .pair-extra__gal-btn {
@@ -5440,11 +5622,12 @@
   position: absolute;
   left: 50%;
   bottom: 0.65rem;
+  /* translateX는 키프레임에도 유지 — animation이 transform을 덮어쓰면 우측으로 밀림 */
   transform: translateX(-50%);
   width: 1.2rem;
   height: 1.2rem;
   color: rgba(215, 169, 130, 0.88);
-  animation: pairAscendBob 1.6s ease-in-out infinite;
+  animation: pairGalleryMoreBob 1.6s ease-in-out infinite;
 }
 
 .pair-gallery-more__cue svg {
@@ -5453,41 +5636,21 @@
   display: block;
 }
 
-.pair-gallery-lightbox__nav {
-  appearance: none;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  width: 2.4rem;
-  height: 2.4rem;
-  border: 1px solid rgba(215, 169, 130, 0.35);
-  border-radius: 999px;
-  background: rgba(12, 11, 10, 0.72);
-  color: rgba(244, 236, 224, 0.92);
-  font-size: 1.35rem;
-  cursor: pointer;
+@keyframes pairGalleryMoreBob {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-4px);
+  }
 }
 
-.pair-gallery-lightbox__nav:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.pair-gallery-lightbox__nav.is-prev {
-  left: 0.75rem;
-}
-
-.pair-gallery-lightbox__nav.is-next {
-  right: 0.75rem;
-}
-
-.pair-gallery-lightbox__pager {
-  margin: 0.55rem 0 0;
-  text-align: center;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: rgba(205, 179, 126, 0.78);
+@media (prefers-reduced-motion: reduce) {
+  .pair-gallery-more__cue {
+    animation: none;
+    transform: translateX(-50%);
+  }
 }
 
 .lh-gal-edit-card {

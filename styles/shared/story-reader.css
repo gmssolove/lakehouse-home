@@ -294,46 +294,65 @@
   padding: 0.75rem 0;
 }
 
-/* 로그 목록·편집 — 갤러리형 페이지 (pair-pager와 동일 톤) */
+/* 로그·페어 목록 페이저 — Records diary와 동일 (전역 nav 스타일 비해당: div) */
 .lh-story-pager {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.55rem;
+  width: 100%;
+  height: auto;
   margin-top: 0.85rem;
-  padding: 0.25rem 0 0.15rem;
+  padding: 0.15rem 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  user-select: none;
 }
 
 .lh-story-pager__nav,
 .lh-story-pager__dot {
   appearance: none;
-  min-width: 1.65rem;
-  height: 1.65rem;
-  padding: 0 0.35rem;
-  border: 0.5px solid rgba(215, 169, 130, 0.22);
-  border-radius: 999px;
-  background: rgba(20, 18, 16, 0.55);
-  color: rgba(220, 208, 190, 0.78);
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: auto;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(215, 169, 130, 0.42);
+  font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
   line-height: 1;
   cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.lh-story-pager__nav {
+  font-size: 18px;
+  letter-spacing: 0;
+  color: rgba(215, 169, 130, 0.4);
 }
 
 .lh-story-pager__nav:hover:not(:disabled),
 .lh-story-pager__dot:hover {
-  color: rgba(244, 236, 224, 0.96);
-  border-color: rgba(215, 169, 130, 0.45);
+  color: rgba(238, 205, 152, 0.92);
+  border-color: transparent;
 }
 
 .lh-story-pager__dot.is-active {
-  color: rgba(18, 14, 12, 0.92);
-  background: rgba(215, 169, 130, 0.88);
+  color: rgba(215, 169, 130, 0.98);
+  background: transparent;
   border-color: transparent;
 }
 
 .lh-story-pager__nav:disabled {
-  opacity: 0.35;
+  opacity: 0.28;
   cursor: default;
 }
 

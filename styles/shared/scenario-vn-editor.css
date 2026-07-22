@@ -1,0 +1,364 @@
+@import './dialogue-nodes-editor.css';
+
+.svn-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.svn-editor__tabs {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 10px;
+  border-bottom: 0.5px solid rgba(215, 169, 130, 0.14);
+  background: transparent;
+  overflow-x: auto;
+  width: auto;
+  max-width: 100%;
+}
+
+.svn-editor__tab {
+  appearance: none;
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: auto !important;
+  max-width: none;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  background: rgba(215, 169, 130, 0.06);
+  color: rgba(240, 231, 220, 0.88);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 5px 12px;
+  cursor: pointer;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.svn-editor__tab:hover:not(:disabled) {
+  border-color: rgba(240, 207, 173, 0.65);
+  color: #f0cfad;
+  background: rgba(215, 169, 130, 0.14);
+}
+
+.svn-editor__tab.is-active {
+  border-color: rgba(240, 207, 173, 0.7);
+  background: rgba(215, 169, 130, 0.16);
+  color: #f0cfad;
+  font-weight: 500;
+}
+
+.svn-editor__tab:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.svn-editor__block {
+  display: grid;
+  gap: 8px;
+}
+
+.svn-editor__importrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.svn-editor__importhint {
+  font-size: 11px;
+  color: rgba(215, 169, 130, 0.65);
+}
+
+.svn-editor__speakers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.svn-speaker {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  border-radius: 8px;
+  background: rgba(7, 9, 8, 0.28);
+}
+
+.svn-speaker__thumb {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.svn-speaker__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.svn-speaker__swatch {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  opacity: 0.85;
+}
+
+.svn-speaker__fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.svn-speaker__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.svn-speaker__narr {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(232, 222, 211, 0.75);
+  white-space: nowrap;
+}
+
+.svn-editor__check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 12px;
+  color: rgba(232, 222, 211, 0.78);
+  cursor: pointer;
+  user-select: none;
+}
+
+.svn-editor__check input {
+  accent-color: #c9a15c;
+}
+
+.svn-speaker__file {
+  align-self: flex-start;
+  font-size: 11px;
+}
+
+.svn-speaker__pose {
+  display: grid;
+  gap: 4px;
+  font-size: 10px;
+  color: rgba(232, 222, 211, 0.72);
+}
+
+.svn-speaker__pose label {
+  display: grid;
+  grid-template-columns: 28px 1fr 36px;
+  align-items: center;
+  gap: 6px;
+}
+
+.svn-speaker__pose input[type='range'] {
+  width: 100%;
+  accent-color: #d7a982;
+}
+
+.svn-speaker__pose em {
+  font-style: normal;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.svn-editor__chapinsert {
+  flex-shrink: 0;
+  margin: 0 4px 0 0;
+  padding: 2px 7px;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  border-radius: 999px;
+  background: rgba(215, 169, 130, 0.08);
+  color: rgba(240, 207, 173, 0.88);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.svn-editor__chapinsert:hover {
+  border-color: rgba(215, 169, 130, 0.55);
+  color: #f0cfad;
+}
+
+.svn-editor__insertcol,
+.svn-editor__reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.svn-editor__sqbtn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(215, 169, 130, 0.28);
+  border-radius: 4px;
+  background: rgba(215, 169, 130, 0.08);
+  color: rgba(240, 207, 173, 0.9);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.svn-editor__sqbtn:hover:not(:disabled) {
+  border-color: rgba(215, 169, 130, 0.55);
+  color: #f0cfad;
+}
+
+.svn-editor__sqbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.svn-editor__spellbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.svn-editor__spelllist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid rgba(215, 169, 130, 0.18);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.svn-editor__spellitem {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.svn-editor__spellmeta {
+  min-width: 0;
+  font-size: 11px;
+  color: rgba(232, 222, 211, 0.82);
+}
+
+.svn-editor__spellmeta strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #f0cfad;
+}
+
+.svn-editor__spellmeta ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.svn-editor__chapnode .lh-dialogue-node__summary em {
+  color: #c9a15c;
+}
+
+.svn-editor__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11px;
+  color: rgba(232, 222, 211, 0.7);
+}
+
+.svn-editor__stats .is-warn {
+  color: #e7a570;
+  font-weight: 600;
+}
+
+.svn-editor__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.svn-editor__grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.svn-editor__chapnode {
+  border-color: rgba(240, 207, 173, 0.4);
+  background: rgba(215, 169, 130, 0.06);
+}
+
+.svn-editor__maxstage {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.svn-editor__maxstage-label {
+  font-size: 11px;
+  color: rgba(215, 169, 130, 0.65);
+}
+
+.svn-editor__maxstage-hint {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: rgba(216, 213, 203, 0.5);
+  line-height: 1.5;
+}
+
+.svn-editor__savebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(215, 169, 130, 0.16);
+}
+
+.svn-editor__msg {
+  font-size: 12px;
+  color: rgba(215, 169, 130, 0.8);
+}
+
+@media (max-width: 640px) {
+  .svn-editor__speakers {
+    grid-template-columns: 1fr;
+  }
+  .svn-editor__grid3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.svn-play-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -70,15 +70,17 @@ type Options = {
   glyph?: boolean;
   glitch?: boolean;
   intensity?: number;
+  /** false면 타이머 정지 (탭 숨김·오프스크린) */
+  active?: boolean;
 };
 
 export function useCreepyGlyphScramble(
   rootRef: RefObject<HTMLElement | null>,
   options: Options,
 ) {
-  const { glyph = false, glitch = false, intensity = 0.4 } = options;
+  const { glyph = false, glitch = false, intensity = 0.4, active = true } = options;
   useEffect(() => {
-    if ((!glyph && !glitch) || typeof window === 'undefined') return;
+    if ((!glyph && !glitch) || !active || typeof window === 'undefined') return;
     const root = rootRef.current;
     if (!root) return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
@@ -168,5 +170,5 @@ export function useCreepyGlyphScramble(
       timers.forEach((t) => window.clearTimeout(t));
       rootRef.current?.querySelectorAll('.lh-fx-tear').forEach((el) => el.classList.remove('lh-fx-tear'));
     };
-  }, [glyph, glitch, intensity, rootRef]);
+  }, [glyph, glitch, intensity, rootRef, active]);
 }

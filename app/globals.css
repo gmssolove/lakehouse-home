@@ -323,6 +323,14 @@ body:has(.layout--home) #bgm-player {
   cursor: grabbing;
 }
 
+#bgm-player.is-dragging {
+  cursor: grabbing;
+  /* 드래그 중에만 레이어 힌트 — 상시 will-change 금지 */
+  will-change: left, top, width, height;
+  transition: none !important;
+  pointer-events: auto;
+}
+
 #bgm-player:not(.collapsed) {
   height: auto !important;
   overflow: hidden !important;
@@ -1508,4 +1516,17 @@ html.lake-custom-cursor [contenteditable='true'] {
 
 .layout.layout--home #page-banner.active {
   overflow: visible !important;
+}
+
+/* emergency: never leave body invisible (stuck leave / lhPageOut) */
+body {
+  opacity: 1 !important;
+}
+body.lh-leaving,
+body.lh-route-leaving {
+  opacity: 1 !important;
+  animation: none !important;
+}
+#lh-route-veil {
+  display: none !important;
 }

@@ -59,18 +59,56 @@ export function BgmPlayer() {
     setSeekScrubbing,
   } = useBgm();
 
-  const dragRef = useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0, moved: false });
+  const dragRef = useRef({
+    active: false,
+    sx: 0,
+    sy: 0,
+    ox: 0,
+    oy: 0,
+    moved: false,
+    w: COLLAPSED_SZ,
+    h: COLLAPSED_SZ,
+  });
   const suppressExpandClickRef = useRef(false);
   const resizeRef = useRef({ active: false, sw: 0, sh: 0, ox: 0, oy: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
   const collapseBtnRef = useRef<HTMLButtonElement>(null);
   const scrubbingRef = useRef(false);
+  const dragRafRef = useRef(0);
+  const pendingDragPosRef = useRef<{ left: number; top: number } | null>(null);
+  const pendingResizeRef = useRef<{ w: number; h: number } | null>(null);
   const [uiReady, setUiReady] = useState(false);
   const [animClass, setAnimClass] = useState('');
   const [scrubbing, setScrubbing] = useState(false);
   const [scrubValue, setScrubValue] = useState(0);
+  const [draggingUi, setDraggingUi] = useState(false);
 
   const minW = playlistActive ? MIN_W_PLAYLIST : BGM_PLAYER_SIZE.minW;
+
+  /** 드래그 중 React setState 금지 — style만 갱신 (리렌더·localStorage·리플로우 폭주 방지) */
+  const flushDragStyle = useCallback(() => {
+    dragRafRef.current = 0;
+    const el = rootRef.current;
+    if (!el) return;
+    const pos = pendingDragPosRef.current;
+    if (pos) {
+      el.style.left = `${pos.left}px`;
+      el.style.top = `${pos.top}px`;
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+    }
+    const sz = pendingResizeRef.current;
+    if (sz) {
+      el.style.width = `${sz.w}px`;
+      el.style.minWidth = `${minW}px`;
+      el.style.minHeight = `${sz.h}px`;
+    }
+  }, [minW]);
+
+  const scheduleDragStyle = useCallback(() => {
+    if (dragRafRef.current) return;
+    dragRafRef.current = window.requestAnimationFrame(flushDragStyle);
+  }, [flushDragStyle]);
 
   const ensureVisible = useCallback(() => {
     const el = rootRef.current;
@@ -182,6 +220,9 @@ export function BgmPlayer() {
       ox: e.clientX,
       oy: e.clientY,
       moved: false,
+      /* 드래그 중 offsetWidth 반복 읽기 금지 */
+      w: collapsed ? COLLAPSED_SZ : Math.max(r.width, minW),
+      h: collapsed ? COLLAPSED_SZ : Math.max(r.height, BGM_PLAYER_SIZE.minH),
     };
     if (collapsed) {
       el.setPointerCapture(e.pointerId);
@@ -192,13 +233,16 @@ export function BgmPlayer() {
     e.stopPropagation();
     const el = rootRef.current;
     if (!el || collapsed) return;
+    const r = el.getBoundingClientRect();
     resizeRef.current = {
       active: true,
-      sw: el.offsetWidth,
-      sh: el.offsetHeight,
+      sw: r.width,
+      sh: r.height,
       ox: e.clientX,
       oy: e.clientY,
     };
+    setDraggingUi(true);
+    el.classList.add('is-dragging');
     el.setPointerCapture(e.pointerId);
   }
 
@@ -208,10 +252,13 @@ export function BgmPlayer() {
 
     if (resizeRef.current.active) {
       const r = resizeRef.current;
-      setPlayerSize(
-        Math.max(minW, r.sw + (e.clientX - r.ox)),
-        r.sh + (e.clientY - r.oy),
+      const w = Math.max(minW, Math.min(BGM_PLAYER_SIZE.maxW, r.sw + (e.clientX - r.ox)));
+      const h = Math.max(
+        BGM_PLAYER_SIZE.minH,
+        Math.min(BGM_PLAYER_SIZE.maxH, r.sh + (e.clientY - r.oy)),
       );
+      pendingResizeRef.current = { w, h };
+      scheduleDragStyle();
       return;
     }
 
@@ -220,30 +267,52 @@ export function BgmPlayer() {
     if (Math.abs(e.clientX - d.ox) > DRAG_THRESHOLD || Math.abs(e.clientY - d.oy) > DRAG_THRESHOLD) {
       if (!d.moved) {
         d.moved = true;
+        setDraggingUi(true);
+        el.classList.add('is-dragging');
         el.setPointerCapture(e.pointerId);
       }
     }
     if (!d.moved) return;
-    const sz = collapsed ? COLLAPSED_SZ : el.offsetWidth;
-    const sh = collapsed ? COLLAPSED_SZ : el.offsetHeight;
-    const nx = clamp(d.sx + e.clientX - d.ox, 0, window.innerWidth - sz);
-    const ny = clamp(d.sy + e.clientY - d.oy, 0, window.innerHeight - sh);
-    setPosition(`${nx}px`, `${ny}px`);
+    const nx = clamp(d.sx + e.clientX - d.ox, 0, window.innerWidth - d.w);
+    const ny = clamp(d.sy + e.clientY - d.oy, 0, window.innerHeight - d.h);
+    pendingDragPosRef.current = { left: nx, top: ny };
+    scheduleDragStyle();
     if (collapsed) writeAnchor(nx + COLLAPSED_SZ / 2, ny + COLLAPSED_SZ / 2);
   }
 
   function onPointerUp(e: ReactPointerEvent<HTMLDivElement>) {
+    const el = rootRef.current;
     const d = dragRef.current;
     const wasDrag = d.moved;
+    const wasResize = resizeRef.current.active;
+
+    if (dragRafRef.current) {
+      window.cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = 0;
+      flushDragStyle();
+    }
+
+    if (wasResize) {
+      const sz = pendingResizeRef.current;
+      if (sz) setPlayerSize(sz.w, sz.h);
+      pendingResizeRef.current = null;
+    }
+
     if (wasDrag) {
       suppressExpandClickRef.current = true;
+      const pos = pendingDragPosRef.current;
+      if (pos) setPosition(`${pos.left}px`, `${pos.top}px`);
+      pendingDragPosRef.current = null;
     } else if (collapsed && d.active) {
       expandFromAnchor();
     }
+
     d.active = false;
     d.moved = false;
     resizeRef.current.active = false;
-    rootRef.current?.releasePointerCapture(e.pointerId);
+    setDraggingUi(false);
+    el?.classList.remove('is-dragging');
+    el?.releasePointerCapture(e.pointerId);
   }
 
   function onCollapsedClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -289,7 +358,7 @@ export function BgmPlayer() {
     <div
       ref={rootRef}
       id="bgm-player"
-      className={`${collapsed ? 'collapsed' : ''}${animClass ? ` ${animClass}` : ''}`}
+      className={`${collapsed ? 'collapsed' : ''}${animClass ? ` ${animClass}` : ''}${draggingUi ? ' is-dragging' : ''}`}
       style={{ ...posStyle, ...sizeStyle }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

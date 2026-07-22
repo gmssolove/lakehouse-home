@@ -1,0 +1,159 @@
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 700;
+  pointer-events: none;
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 38%, rgba(245, 214, 182, 0.14), transparent 60%);
+  animation: missionFlash 0.5s ease both;
+}
+
+@keyframes missionFlash {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 총 길이는 반드시 VnMissionBanner.tsx의 TOTAL_MS(3800ms)와 같아야 함 */
+.wrapShow {
+  position: absolute;
+  top: 16%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  opacity: 0;
+  animation: missionFade 3.8s ease both;
+  z-index: 1;
+}
+
+/* 나레이션(.narrationGlow)과 동일 타원 비네트 */
+.glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% + 5.5rem);
+  height: calc(100% + 3.6rem);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 78% 68% at 50% 50%,
+    rgba(0, 0, 0, 0.26) 0%,
+    rgba(0, 0, 0, 0.2) 35%,
+    rgba(0, 0, 0, 0.1) 62%,
+    rgba(0, 0, 0, 0.03) 82%,
+    transparent 96%
+  );
+  filter: blur(20px);
+}
+
+@keyframes missionFade {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  12% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  78% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.eyebrow {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-jost), 'Jost', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #e2c98a;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 20px rgba(0, 0, 0, 0.4),
+    0 0 14px rgba(226, 201, 138, 0.35);
+  white-space: nowrap;
+}
+
+.eyebrowComplete {
+  color: #f0cfad;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 20px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(240, 207, 173, 0.4);
+}
+
+.title {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: 18px;
+  letter-spacing: 0.03em;
+  color: #f8eede;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 20px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+
+.ruleShow {
+  position: relative;
+  z-index: 1;
+  width: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 207, 173, 0.95), transparent);
+  overflow: hidden;
+  animation: missionRuleGrow 1s cubic-bezier(0.33, 1, 0.68, 1) 0.3s both;
+}
+
+@keyframes missionRuleGrow {
+  to {
+    width: 140px;
+  }
+}
+
+.sweep {
+  position: absolute;
+  inset: -4px -30px;
+  background: linear-gradient(100deg, transparent 35%, rgba(255, 244, 224, 0.5) 50%, transparent 65%);
+  transform: translateX(-160%);
+  animation: missionSweep 0.9s cubic-bezier(0.33, 1, 0.68, 1) 1.3s both;
+}
+
+@keyframes missionSweep {
+  to {
+    transform: translateX(160%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash,
+  .wrapShow,
+  .ruleShow,
+  .sweep {
+    animation-duration: 0.01ms !important;
+  }
+}

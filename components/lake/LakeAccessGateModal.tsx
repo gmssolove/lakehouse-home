@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   resolveScopePassword,
   unlockLakeAccess,
   verifyLakeAccessPassword,
   type LakeAccessScope,
 } from '@/lib/lake/accessGate';
-import { getLakePortalRoot } from '@/lib/lake/routeTransition';
 import type { SiteAccessSettings, WithSecret } from '@/lib/types/secret-content';
 
 type Props = {
@@ -173,6 +171,5 @@ export function LakeAccessGateModal({
     </div>
   );
 
-  const portal = typeof document !== 'undefined' ? getLakePortalRoot() || document.body : null;
-  return portal ? createPortal(modal, portal) : modal;
+  return modal;
 }

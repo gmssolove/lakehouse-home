@@ -20,6 +20,7 @@ import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import { creepyFxClass, creepyFxStyle } from '@/lib/oc/creepyFx';
 import { DustAtmosphere } from '@/components/shared/DustAtmosphere';
 import { useCreepyGlyphScramble } from '@/lib/hooks/useCreepyGlyphScramble';
+import { useDocumentVisible } from '@/lib/hooks/useInViewActive';
 import { pairSideHasDialogue, type PairVnSide } from '@/lib/pair/dialogue';
 import { usePairSlotLayoutDrag } from '@/components/pair/usePairSlotLayoutDrag';
 import { PairPanelStage, PairReveal } from '@/components/pair/PairPanelStage';
@@ -49,6 +50,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { visibleRiskStages } from '@/lib/oc/riskStages';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { lakeNavigate } from '@/lib/lake/routeTransition';
+import { setOcReturnPath } from '@/lib/lake/ocReturn';
 import {
   resolveScopePassword,
   unlockLakeItem,
@@ -389,6 +391,17 @@ function CharaSide({
                 style={color ? ({ ['--oc-link-accent' as string]: color }) : undefined}
                 onClick={(e) => {
                   e.preventDefault();
+                  try {
+                    const u = new URL(ocProfileLink, window.location.origin);
+                    const pairId = u.searchParams.get('pair');
+                    if (pairId) {
+                      setOcReturnPath(`/pair?p=${encodeURIComponent(pairId)}`);
+                    } else {
+                      setOcReturnPath('/pair');
+                    }
+                  } catch {
+                    setOcReturnPath('/pair');
+                  }
                   lakeNavigate(router, ocProfileLink, pathname || '/pair');
                 }}
               >
@@ -620,11 +633,7 @@ export function PairArchiveDetail({
   })();
 
   const rootRef = useRef<HTMLDivElement>(null);
-  useCreepyGlyphScramble(rootRef, {
-    glyph: Boolean(pair.creepyFx?.enabled && pair.creepyFx.kinds?.includes('glyphScramble')),
-    glitch: Boolean(pair.creepyFx?.enabled && pair.creepyFx.kinds?.includes('textGlitch')),
-    intensity: (pair.creepyFx?.intensity ?? 40) / 100,
-  });
+  const heroRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLElement>(null);
   const scrollGenRef = useRef(0);
   /** 메뉴 열기 직전 히어로 스크롤 (복귀 목표 — sticky 네비 오차 방지) */
@@ -638,6 +647,8 @@ export function PairArchiveDetail({
   const [readerOpen, setReaderOpen] = useState(false);
   const [galleryLightbox, setGalleryLightbox] = useState<PairGalleryItem | null>(null);
   const [galleryLbIndex, setGalleryLbIndex] = useState(0);
+  const [gallerySlideDir, setGallerySlideDir] = useState<'next' | 'prev' | 'none'>('none');
+  const [gallerySlideTick, setGallerySlideTick] = useState(0);
   const [galleryHasMore, setGalleryHasMore] = useState(false);
   const [timelineHasMore, setTimelineHasMore] = useState(false);
   const [timelineLightbox, setTimelineLightbox] = useState<{ src: string; title?: string } | null>(
@@ -663,6 +674,55 @@ export function PairArchiveDetail({
   const hasVnA = pairSideHasDialogue(pair, 'A');
   const hasVnB = pairSideHasDialogue(pair, 'B');
   const vn = usePairVnDialogue();
+  const docVisible = useDocumentVisible();
+  const [heroInView, setHeroInView] = useState(true);
+  const [enterSettled, setEnterSettled] = useState(false);
+
+  /* 등장 애니(~1.4s) 끝날 때까지 무거운 GPU 이펙트 지연 */
+  useEffect(() => {
+    setEnterSettled(false);
+    const t = window.setTimeout(() => setEnterSettled(true), 1500);
+    return () => window.clearTimeout(t);
+  }, [enterKey]);
+
+  /* 히어로가 뷰포트에 있을 때만 스테이지 FX */
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setHeroInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.some((e) => e.isIntersecting && e.intersectionRatio > 0);
+        setHeroInView(hit);
+      },
+      { root: null, rootMargin: '80px 0px', threshold: [0, 0.05, 0.2] },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [enterKey]);
+
+  /*
+   * 진입 시 동시 ON 이던 것:
+   * DustAtmosphere · creepy scramble · haze(blur×3+blend) · ghost soft blur×2 · anchored quotes
+   * → 등장 후·히어로 가시·탭 보일 때만 켠다 (편집 모드는 예외).
+   */
+  const stageFxLive =
+    (layoutEditable || quoteEditable) ||
+    (enterSettled &&
+      heroInView &&
+      docVisible &&
+      !vn.present &&
+      transit !== 'diving' &&
+      transit !== 'returning');
+
+  useCreepyGlyphScramble(rootRef, {
+    glyph: Boolean(pair.creepyFx?.enabled && pair.creepyFx.kinds?.includes('glyphScramble')),
+    glitch: Boolean(pair.creepyFx?.enabled && pair.creepyFx.kinds?.includes('textGlitch')),
+    intensity: (pair.creepyFx?.intensity ?? 40) / 100,
+    active: stageFxLive,
+  });
 
   const vignetteColor = pair.bgVignetteColor?.trim() || pair.color?.trim() || '#d7a982';
   const vignetteSplit = !!pair.bgVignetteSplit;
@@ -1063,22 +1123,61 @@ export function PairArchiveDetail({
   }, []);
   useLakeBackNavigation(readerOpen, closeStoryReader, 'pair-story-reader');
   useLakeBackNavigation(!!galleryLightbox, () => setGalleryLightbox(null), 'pair-gallery');
+  const stepPairGallery = useCallback(
+    (delta: 1 | -1) => {
+      if (!galleryLightbox) return;
+      const urls = pairGalleryUrls(galleryLightbox);
+      if (urls.length < 2) return;
+      const len = urls.length;
+      const nextIndex = (galleryLbIndex + delta + len) % len;
+      if (nextIndex === galleryLbIndex) return;
+      setGallerySlideDir(delta > 0 ? 'next' : 'prev');
+      setGallerySlideTick((t) => t + 1);
+      setGalleryLbIndex(nextIndex);
+    },
+    [galleryLightbox, galleryLbIndex],
+  );
+
+  useEffect(() => {
+    if (!galleryLightbox) {
+      setGallerySlideDir('none');
+      setGallerySlideTick(0);
+    }
+  }, [galleryLightbox]);
+
   useEffect(() => {
     if (!galleryLightbox) return;
-    setGalleryLbIndex(0);
     const urls = pairGalleryUrls(galleryLightbox);
+    if (urls.length < 2) return;
+    const len = urls.length;
+    const idx = galleryLbIndex;
+    [urls[(idx + 1) % len], urls[(idx - 1 + len) % len]].forEach((src) => {
+      if (!src) return;
+      const img = new window.Image();
+      img.decoding = 'async';
+      img.src = src;
+    });
+  }, [galleryLightbox, galleryLbIndex]);
+
+  useEffect(() => {
+    if (!galleryLightbox) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setGalleryLightbox(null);
-      if (e.key === 'ArrowRight' && urls.length > 1) {
-        setGalleryLbIndex((i) => Math.min(urls.length - 1, i + 1));
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setGalleryLightbox(null);
+        return;
       }
-      if (e.key === 'ArrowLeft' && urls.length > 1) {
-        setGalleryLbIndex((i) => Math.max(0, i - 1));
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        stepPairGallery(1);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        stepPairGallery(-1);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [galleryLightbox]);
+  }, [galleryLightbox, stepPairGallery]);
 
   const startVn = useCallback(
     (side: PairVnSide) => {
@@ -1252,13 +1351,13 @@ export function PairArchiveDetail({
 
   const renderPager = (page: number, pages: number, setPage: (n: number) => void) =>
     pages > 1 ? (
-      <div className="lh-story-pager" role="navigation" aria-label="페이지">
+      <div className="lh-diary__pager" role="navigation" aria-label="페이지">
         <button
           type="button"
-          className="lh-story-pager__nav"
+          className="lh-diary__pager-btn lh-diary__pager-btn--nav"
           disabled={page <= 0}
           onClick={() => setPage(Math.max(0, page - 1))}
-          aria-label="이전"
+          aria-label="이전 페이지"
         >
           ‹
         </button>
@@ -1266,7 +1365,7 @@ export function PairArchiveDetail({
           <button
             key={i}
             type="button"
-            className={`lh-story-pager__dot${i === page ? ' is-active' : ''}`}
+            className={`lh-diary__pager-btn${i === page ? ' is-current' : ''}`}
             onClick={() => setPage(i)}
             aria-label={`${i + 1}페이지`}
             aria-current={i === page ? 'page' : undefined}
@@ -1276,10 +1375,10 @@ export function PairArchiveDetail({
         ))}
         <button
           type="button"
-          className="lh-story-pager__nav"
+          className="lh-diary__pager-btn lh-diary__pager-btn--nav"
           disabled={page >= pages - 1}
           onClick={() => setPage(Math.min(pages - 1, page + 1))}
-          aria-label="다음"
+          aria-label="다음 페이지"
         >
           ›
         </button>
@@ -1462,6 +1561,8 @@ export function PairArchiveDetail({
                     onClick={() => {
                       setGalleryLightbox(g);
                       setGalleryLbIndex(0);
+                      setGallerySlideDir('none');
+                      setGallerySlideTick(0);
                     }}
                     aria-label={g.title?.trim() || '이미지 보기'}
                   >
@@ -1518,12 +1619,13 @@ export function PairArchiveDetail({
   const activeMeta = menuItems.find((m) => m.id === activeSection);
 
   return (
+    <>
     <div
       className={`pair-cherry-root${introPlay ? ' is-enter' : ''}${vn.present ? ' vn-active' : ''}${
         layoutEditable ? ' is-layout-edit' : ''
       }${quoteEditable ? ' is-quote-edit' : ''}${transit === 'diving' ? ' is-diving' : ''}${transit === 'returning' ? ' is-returning' : ''}${
         transit === 'landed' || panelReveal ? ' is-landed' : ''
-      }${creepyFxClass(pair.creepyFx)}`}
+      }${!stageFxLive ? ' is-fx-paused' : ''}${creepyFxClass(pair.creepyFx)}`}
       ref={rootRef}
       key={enterKey}
       style={creepyFxStyle(pair.creepyFx)}
@@ -1538,19 +1640,19 @@ export function PairArchiveDetail({
         <div className="pair-bg__vignette" />
         <div className="pair-bg__vsplit pair-bg__vsplit--left" />
         <div className="pair-bg__vsplit pair-bg__vsplit--right" />
-        <div className="pair-bg__haze">
+        <div className="pair-bg__haze" aria-hidden={!stageFxLive}>
           <span className="pair-bg__haze-orb pair-bg__haze-orb--a" />
           <span className="pair-bg__haze-orb pair-bg__haze-orb--b" />
           <span className="pair-bg__haze-orb pair-bg__haze-orb--c" />
           <span className="pair-bg__haze-shimmer" />
         </div>
-        <DustAtmosphere fx={pair.dustFx} />
+        <DustAtmosphere fx={pair.dustFx} active={stageFxLive} />
       </section>
       <div className="pair-glide" aria-hidden>
         <span className="pair-glide__mist" />
         <span className="pair-glide__spark" />
       </div>
-      <div className="pair-hero">
+      <div className="pair-hero" ref={heroRef}>
         {quoteEditable ? (
           <div className="pair-float-quote-tools" role="toolbar" aria-label="대표 대사 조절">
             {floatingQuotes.map((q, i) => (
@@ -1621,7 +1723,7 @@ export function PairArchiveDetail({
             selectedQuoteId={selectedQuoteId}
             onSelectQuoteId={setSelectedQuoteId}
             onQuoteScaleChange={onQuoteScaleChange}
-            quotesPaused={vn.present}
+            quotesPaused={vn.present || !stageFxLive}
             quoteStagger={0}
             onBodyLayoutChange={(next) => patchSlotLayout(0, next)}
             onGhostLayoutChange={(next) => patchGhostLayout(0, next)}
@@ -1809,7 +1911,7 @@ export function PairArchiveDetail({
             selectedQuoteId={selectedQuoteId}
             onSelectQuoteId={setSelectedQuoteId}
             onQuoteScaleChange={onQuoteScaleChange}
-            quotesPaused={vn.present}
+            quotesPaused={vn.present || !stageFxLive}
             quoteStagger={1}
             onBodyLayoutChange={(next) => patchSlotLayout(1, next)}
             onGhostLayoutChange={(next) => patchGhostLayout(1, next)}
@@ -1951,54 +2053,80 @@ export function PairArchiveDetail({
           className="oc-gallery-lightbox pair-gallery-lightbox"
           role="dialog"
           aria-modal="true"
-          onClick={() => setGalleryLightbox(null)}
+          aria-label="갤러리 이미지"
         >
           <button
             type="button"
-            className="oc-gallery-lightbox-close"
-            onClick={() => setGalleryLightbox(null)}
+            className="pair-gallery-lightbox__bg"
             aria-label="닫기"
-          >
-            ✕
-          </button>
+            onClick={() => setGalleryLightbox(null)}
+          />
           {(() => {
             const urls = pairGalleryUrls(galleryLightbox);
             const cur = urls[galleryLbIndex] || urls[0] || galleryLightbox.src;
+            const creditRaw =
+              galleryLightbox.credit?.trim() || galleryLightbox.title?.trim() || '';
+            const credit = creditRaw
+              ? creditRaw.startsWith('©')
+                ? creditRaw
+                : `© ${creditRaw.replace(/^©+\s*/g, '')}`
+              : '';
+            const slideClass =
+              gallerySlideDir === 'none' ? 'in' : gallerySlideDir;
             return (
-              <div className="oc-gallery-lightbox-stage is-slider" onClick={(e) => e.stopPropagation()}>
+              <div className="pair-gallery-lightbox__frame">
                 {urls.length > 1 ? (
                   <button
                     type="button"
                     className="pair-gallery-lightbox__nav is-prev"
-                    disabled={galleryLbIndex <= 0}
-                    onClick={() => setGalleryLbIndex((i) => Math.max(0, i - 1))}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stepPairGallery(-1);
+                    }}
                     aria-label="이전"
                   >
                     ‹
                   </button>
                 ) : null}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cur} alt="" referrerPolicy="no-referrer" />
+                <div className="pair-gallery-lightbox__panel">
+                  <button
+                    type="button"
+                    className="oc-gallery-lightbox-close"
+                    onClick={() => setGalleryLightbox(null)}
+                    aria-label="닫기"
+                  >
+                    ✕
+                  </button>
+                  <div className="oc-gallery-lightbox-stage is-slider" onClick={(e) => e.stopPropagation()}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      key={`${galleryLightbox.id || galleryLightbox.src}-${galleryLbIndex}-${gallerySlideTick}`}
+                      src={cur}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      decoding="async"
+                      className={`pair-gallery-lightbox__img is-slide-${slideClass}`}
+                    />
+                    {credit ? <p className="oc-gallery-lightbox-credit">{credit}</p> : null}
+                  </div>
+                  {urls.length > 1 ? (
+                    <p className="pair-gallery-lightbox__pager" aria-live="polite">
+                      {galleryLbIndex + 1} / {urls.length}
+                    </p>
+                  ) : null}
+                </div>
                 {urls.length > 1 ? (
                   <button
                     type="button"
                     className="pair-gallery-lightbox__nav is-next"
-                    disabled={galleryLbIndex >= urls.length - 1}
-                    onClick={() => setGalleryLbIndex((i) => Math.min(urls.length - 1, i + 1))}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stepPairGallery(1);
+                    }}
                     aria-label="다음"
                   >
                     ›
                   </button>
-                ) : null}
-                {urls.length > 1 ? (
-                  <p className="pair-gallery-lightbox__pager">
-                    {galleryLbIndex + 1} / {urls.length}
-                  </p>
-                ) : null}
-                {galleryLightbox.title?.trim() ? (
-                  <p className="oc-gallery-lightbox-credit">{galleryLightbox.title.trim()}</p>
-                ) : galleryLightbox.credit?.trim() ? (
-                  <p className="oc-gallery-lightbox-credit">{galleryLightbox.credit.trim()}</p>
                 ) : null}
               </div>
             );
@@ -2039,6 +2167,7 @@ export function PairArchiveDetail({
           onClose={() => setHandNoteLb(null)}
         />
       ) : null}
+    </div>
 
       <PairVnDialogue
         pair={pair}
@@ -2051,6 +2180,6 @@ export function PairArchiveDetail({
         standEditable={standEditable}
         onStandPoseChange={standEditable ? patchStandPose : undefined}
       />
-    </div>
+    </>
   );
 }

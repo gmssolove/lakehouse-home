@@ -11,6 +11,13 @@
 /* #11 아카이브 박스는 항상 화면 폭을 꽉 채운다.
    공용 파일(모든 아카이브 페이지가 로드)에 두어, 라우트 CSS 로딩 타이밍/캐시/잔재와 무관하게
    최대 명시도로 legacy .layout{width:min(1220px)} 캡을 항상 이김. OC↔Pair 클라이언트 이동에도 유지. */
+/* soft-nav Suspense — 텍스트 폴백 대신 배경만 (중간 화면처럼 안 보이게) */
+.lh-archive-route-fallback {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #0b0d0c;
+}
+
 body .archive-layout > .layout.oc-archive-layout,
 body .archive-layout .layout.oc-archive-layout {
   width: calc(100vw - 24px) !important;

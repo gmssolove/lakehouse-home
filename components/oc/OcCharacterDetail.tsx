@@ -9,6 +9,7 @@ import { OcEditForm } from '@/components/admin/OcEditForm';
 import { creepyFxClass, creepyFxStyle } from '@/lib/oc/creepyFx';
 import { DustAtmosphere } from '@/components/shared/DustAtmosphere';
 import { useCreepyGlyphScramble } from '@/lib/hooks/useCreepyGlyphScramble';
+import { useDocumentVisible } from '@/lib/hooks/useInViewActive';
 import { LakeEditModal } from '@/components/ui/LakeEditModal';
 import { OcAbilityList } from '@/components/oc/OcAbilityList';
 import { OcAuPicker } from '@/components/oc/OcAuPicker';
@@ -1017,10 +1018,44 @@ export function OcCharacterDetail({
     };
   }, [panelMounted, openLeft, panelId, panelClosing, syncLeftPanelTop]);
 
+  const docVisible = useDocumentVisible();
+  const [stageInView, setStageInView] = useState(true);
+  const [enterSettled, setEnterSettled] = useState(false);
+
+  useEffect(() => {
+    setEnterSettled(false);
+    const t = window.setTimeout(() => setEnterSettled(true), 1500);
+    return () => window.clearTimeout(t);
+  }, [character.id]);
+
+  useEffect(() => {
+    const el = detailBodyRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setStageInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        setStageInView(entries.some((e) => e.isIntersecting && e.intersectionRatio > 0));
+      },
+      { root: null, rootMargin: '80px 0px', threshold: [0, 0.05, 0.2] },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [character.id]);
+
+  /* Dust · creepy · ghost blur · floating quotes — pair와 동일 게이트 */
+  const stageFxLive =
+    ghostLayoutMode ||
+    quoteLayoutMode ||
+    touchEditMode ||
+    (enterSettled && stageInView && docVisible && !vn.present);
+
   useCreepyGlyphScramble(detailBodyRef, {
     glyph: Boolean(character.creepyFx?.enabled && character.creepyFx.kinds?.includes('glyphScramble')),
     glitch: Boolean(character.creepyFx?.enabled && character.creepyFx.kinds?.includes('textGlitch')),
     intensity: (character.creepyFx?.intensity ?? 40) / 100,
+    active: stageFxLive,
   });
 
   const updatePanelScrollCue = useCallback(() => {
@@ -1482,10 +1517,10 @@ export function OcCharacterDetail({
 
       <div
         ref={detailBodyRef}
-        className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.present ? ' vn-active' : ''}${layoutEdit ? ' is-ghost-layout-edit' : ''}${charEdit ? ' is-char-layout-target' : ''}${ghostEdit ? ' is-ghost-layout-target' : ''}${creepyFxClass(character.creepyFx)}`}
+        className={`game-body oc-detail-body${openLeft ? ' has-left-open' : ''}${vn.present ? ' vn-active' : ''}${layoutEdit ? ' is-ghost-layout-edit' : ''}${charEdit ? ' is-char-layout-target' : ''}${ghostEdit ? ' is-ghost-layout-target' : ''}${!stageFxLive ? ' is-fx-paused' : ''}${creepyFxClass(character.creepyFx)}`}
         style={creepyFxStyle(character.creepyFx)}
       >
-        <DustAtmosphere fx={character.dustFx} />
+        <DustAtmosphere fx={character.dustFx} active={stageFxLive} />
         {isAdmin && onSave && ghostLayoutMode ? (
           <div className="oc-ghost-tools" role="toolbar" aria-label="위치 조절">
             <div className="oc-ghost-tools__targets" role="tablist" aria-label="조절 대상">
@@ -1695,7 +1730,7 @@ export function OcCharacterDetail({
               selectedId={selectedQuoteId}
               onSelectId={setSelectedQuoteId}
               onChange={persistFloatingQuotes}
-              paused={vn.present || ghostLayoutMode || touchEditMode}
+              paused={vn.present || ghostLayoutMode || touchEditMode || !stageFxLive}
             />
           )}
           {ghostDisplaySrc && ghostEnabled ? (
@@ -2025,8 +2060,6 @@ export function OcCharacterDetail({
                     type="button"
                     className="oc-trpg-link-btn"
                     onClick={() => {
-                      /* OC 테마 끄고 시나리오로 — 브금이 안 꺼지던 문제 */
-                      bgmApi.current.silenceMedia();
                       setTrpgReturnPath(
                         `/oc?c=${encodeURIComponent(String(character.id))}&view=detail&from=trpg`,
                       );

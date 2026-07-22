@@ -17,16 +17,9 @@ export function SiteEffects() {
   const settingsRef = useRef(uiSettings);
   settingsRef.current = uiSettings;
 
-  /* 파비콘 — 동일 출처 /favicon.ico 유지, Admin URL 바뀌면 ?v= 갱신 */
+  /* 파비콘 — href만 갱신 (head link remove 금지 → React removeChild 레이스) */
   useEffect(() => {
-    const apply = () => applyLakeFavicon(main?.favicon || readCachedLakeFavicon());
-    apply();
-    const t1 = window.setTimeout(apply, 0);
-    const t2 = window.setTimeout(apply, 400);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
+    applyLakeFavicon(main?.favicon || readCachedLakeFavicon());
   }, [main?.favicon, pathname]);
 
   useEffect(() => {

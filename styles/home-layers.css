@@ -136,7 +136,7 @@
   display: block !important;
   scrollbar-width: thin;
   animation: lhContentFade 0.26s ease both !important;
-  will-change: opacity;
+  will-change: auto;
 }
 
 /* 퇴장 블록은 즉시 감춰서 새 내용과 겹치지 않게 한다 */
@@ -148,7 +148,7 @@
 /* 활성 블록의 직계 자식이 차례대로 떠오름 */
 .layout.layout--home .content-block.active:not(#page-main) > * {
   animation: lhChildRise 0.5s cubic-bezier(0.22, 1, 0.32, 1) both;
-  will-change: transform, opacity;
+  will-change: auto;
 }
 .layout.layout--home .content-block.active:not(#page-main) > *:nth-child(1) {
   animation-delay: 0.03s;

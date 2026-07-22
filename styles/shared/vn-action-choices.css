@@ -110,7 +110,7 @@
 
 .lh-vn-action-choice.is-picked {
   z-index: 2;
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
   animation: lhVnActionPicked 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
   animation-delay: 0s !important;
   border-color: color-mix(in srgb, var(--vn-action-accent) 88%, white);
@@ -128,7 +128,7 @@
 }
 
 .lh-vn-action-choice.is-dismissed {
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
   animation: lhVnActionDismiss 0.72s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
   animation-delay: 0.06s !important;
 }

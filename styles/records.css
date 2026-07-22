@@ -2709,6 +2709,14 @@
   display: block;
   transition: transform 0.25s ease;
 }
+.lh-gallery__thumb-empty {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 6rem;
+  background: linear-gradient(145deg, rgba(30, 28, 26, 0.92), rgba(14, 13, 12, 0.96));
+  box-shadow: inset 0 0 0 1px rgba(215, 169, 130, 0.1);
+}
 .lh-gallery__thumb:hover img,
 .lh-gallery__thumb:focus-visible img {
   transform: scale(1.03);

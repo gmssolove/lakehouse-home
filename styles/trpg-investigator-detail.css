@@ -877,7 +877,8 @@ body.trpg-inv-detail-open {
   animation: trpgInvAttrIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
 }
 
-.trpg-inv-detail__identity .ph-name-row {
+.trpg-inv-detail__identity .ph-name-row,
+.trpg-inv-detail__identity .lh-handnote-name-row {
   display: flex;
   flex-wrap: nowrap;
   align-items: flex-end;
@@ -892,9 +893,15 @@ body.trpg-inv-detail-open {
   min-width: 0;
 }
 
+/* 이름 오른쪽 · OC·Pair 정도의 여백 */
 .trpg-inv-detail__identity .lh-handnote-btn {
-  margin: 0.35rem 0.05rem 0.05rem 0;
-  transform: translate(0.12rem, 0.1rem);
+  margin: 0.2rem 0 0.02rem 0.12rem;
+  padding: 0.25rem 0.2rem;
+  transform: translate(0.05rem, 0.06rem);
+}
+
+.trpg-inv-detail__identity .lh-handnote-btn:hover {
+  transform: translate(0.05rem, -0.02rem);
 }
 
 .trpg-inv-detail__oc-link {

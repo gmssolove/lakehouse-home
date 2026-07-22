@@ -10,6 +10,8 @@ import {
   type VNAnyScene,
 } from '@/components/vn/types';
 import { closeVnToArchiveOrMenu } from '@/components/vn/MainMenu';
+import { VnEndingScreen } from './VnEndingScreen';
+import { VnPlayShell } from './VnPlayShell';
 import type { VNSaveData } from '@/lib/vn/vnSave';
 
 type Props = {
@@ -57,7 +59,7 @@ export function VnSceneClient({ scene, scenes }: Props) {
       setActive(false);
       setLeaving(false);
       setEnded(true);
-    }, 720);
+    }, 580);
   }, []);
 
   const goScene = useCallback(
@@ -83,50 +85,72 @@ export function VnSceneClient({ scene, scenes }: Props) {
   );
 
   return (
-    <>
-      <div className="vn-chrome">
-        <button type="button" className="detail-back-btn" onClick={goBack}>
-          닫기
-        </button>
-      </div>
-
-      <div className="vn-stage active" id="detail-screen">
-        {ended && !active ? (
-          <div className="vn-ended">
-            <p>씬이 끝났습니다.</p>
-            <button type="button" className="detail-back-btn" onClick={restart}>
-              다시 보기
-            </button>
-            <button type="button" className="detail-back-btn" onClick={goBack}>
-              돌아가기
-            </button>
-          </div>
-        ) : isExplorationScene(scene) ? (
-          <ExplorationView
-            key={`${key}-explore`}
-            scene={scene}
-            active={active}
-            leaving={leaving}
-            initialChecked={initialChecked}
-            onClose={beginClose}
-            onNext={goScene}
-          />
-        ) : isDialogueScene(scene) ? (
-          <VNEngine
-            key={`${key}-${startLineId ?? 'start'}`}
-            scene={scene}
-            scenes={scenes}
-            active={active}
-            leaving={leaving}
-            startLineId={startLineId}
-            onEnd={beginClose}
-            onClose={beginClose}
-            onMainMenu={() => router.push('/vn')}
-            onNavigateScene={goScene}
-            onLoadSaveNavigate={loadSaveNavigate}
-          />
-        ) : null}
-      </div>
-    </>
+    <div className="vn-stage active" id="detail-screen">
+      {isDialogueScene(scene) ? (
+        <VnPlayShell
+          onExit={goBack}
+          onNewGame={() => {
+            setStartLineId(undefined);
+            setInitialChecked([]);
+            router.replace(`/vn/${scene.id}`);
+          }}
+          onContinueSave={(data) => {
+            setStartLineId(
+              data.lineId && data.lineId !== '__explore__' ? data.lineId : undefined,
+            );
+            if (data.hotspotsChecked?.length) {
+              setInitialChecked(data.hotspotsChecked);
+            }
+            setKey((k) => k + 1);
+            loadSaveNavigate(data);
+          }}
+        >
+          {({ returnToMenu }) => (
+            <>
+              {active || leaving || ended ? (
+                <VNEngine
+                  key={`${key}-${startLineId ?? 'start'}`}
+                  scene={scene}
+                  scenes={scenes}
+                  active={active && !ended}
+                  leaving={leaving && !ended}
+                  holdBgm={ended}
+                  startLineId={startLineId}
+                  onEnd={beginClose}
+                  onClose={beginClose}
+                  onExit={goBack}
+                  onMainMenu={returnToMenu}
+                  onNavigateScene={goScene}
+                  onLoadSaveNavigate={loadSaveNavigate}
+                />
+              ) : null}
+              {ended ? (
+                <VnEndingScreen
+                  onRestart={restart}
+                  onMainMenu={() => {
+                    setEnded(false);
+                    setLeaving(false);
+                    setActive(true);
+                    returnToMenu();
+                  }}
+                />
+              ) : null}
+            </>
+          )}
+        </VnPlayShell>
+      ) : ended && !active ? (
+        <VnEndingScreen onRestart={restart} onMainMenu={goBack} />
+      ) : isExplorationScene(scene) ? (
+        <ExplorationView
+          key={`${key}-explore`}
+          scene={scene}
+          active={active}
+          leaving={leaving}
+          initialChecked={initialChecked}
+          onClose={beginClose}
+          onNext={goScene}
+        />
+      ) : null}
+    </div>
   );
 }

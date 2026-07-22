@@ -155,6 +155,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body suppressHydrationWarning>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var v=document.getElementById('lh-route-veil');if(v)v.remove();var b=document.body;if(b){b.style.setProperty('opacity','1','important');b.classList.remove('lh-route-leaving','lh-leaving','lh-route-enter','lh-route-forward','lh-route-back');document.querySelectorAll('.lh-route-panel-leaving').forEach(function(el){el.classList.remove('lh-route-panel-leaving');});}if(typeof Node!=='undefined'&&!Node.prototype.__lhRemoveChildPatched){Node.prototype.__lhRemoveChildPatched=true;var orig=Node.prototype.removeChild;Node.prototype.removeChild=function(child){if(!child||child.parentNode!==this)return child;try{return orig.call(this,child);}catch(e){return child;}};}}catch(e){}})();`,
+          }}
+        />
         <Providers>{children}</Providers>
         <div className="lh-grain" aria-hidden="true" />
         <Script src="/lakehouse-r2.js" strategy="afterInteractive" />

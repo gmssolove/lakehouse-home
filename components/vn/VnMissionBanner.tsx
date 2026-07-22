@@ -1,64 +1,68 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getMission } from '@/data/vn/missions';
-import { playSafe } from '@/lib/vn/safeAudio';
-import styles from './vn-engine.module.css';
+import { useEffect, useRef, useState } from 'react';
+import styles from './vn-mission-banner.module.css';
+
+export type VnMissionBannerData = {
+  id: string;
+  title: string;
+  status: 'start' | 'complete';
+};
 
 type Props = {
-  missionId: string | null;
+  mission: VnMissionBannerData | null;
   onDone: () => void;
 };
 
+/** CSS의 missionFade 키프레임 총 길이와 반드시 같아야 함 (아래 CSS의 .wrapShow 참고) */
+const TOTAL_MS = 3800;
+
 /**
- * complete 배너: 0.3s 인 → 1.5s 유지 → 아웃. 클릭 차단 없음.
+ * 박스 없이 뜨는 미션 알림 — 장소 배너와 같은 시각 언어(텍스트 + 선/빛).
+ * 등장부터 소멸까지 하나의 CSS 애니메이션(missionFade)이 통째로 재생되고,
+ * JS 타이머는 그 총 길이(TOTAL_MS)가 끝난 뒤 onDone만 호출한다 — 중간에 끊기지 않음.
  */
-export function VnMissionBanner({ missionId, onDone }: Props) {
-  const [phase, setPhase] = useState<'in' | 'hold' | 'out' | 'gone'>('gone');
-  const [title, setTitle] = useState('');
+export function VnMissionBanner({ mission, onDone }: Props) {
+  const [current, setCurrent] = useState<VnMissionBannerData | null>(null);
+  const [playKey, setPlayKey] = useState(0);
+  const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
-    if (!missionId) {
-      setPhase('gone');
+    if (doneTimer.current) clearTimeout(doneTimer.current);
+
+    if (!mission) {
+      setCurrent(null);
       return;
     }
-    const m = getMission(missionId);
-    setTitle(m?.title ?? missionId);
-    setPhase('in');
 
-    try {
-      const el = new Audio('/vn/sfx/mission_chime.mp3');
-      el.volume = 0.55;
-      playSafe(el, 'sfx', '/vn/sfx/mission_chime.mp3');
-    } catch {
-      /* 파일 없으면 생략 */
-    }
-
-    const tHold = window.setTimeout(() => setPhase('hold'), 300);
-    const tOut = window.setTimeout(() => setPhase('out'), 300 + 1500);
-    const tDone = window.setTimeout(() => {
-      setPhase('gone');
-      onDone();
-    }, 300 + 1500 + 300);
+    setCurrent(mission);
+    setPlayKey((k) => k + 1);
+    doneTimer.current = setTimeout(() => onDoneRef.current(), TOTAL_MS);
 
     return () => {
-      window.clearTimeout(tHold);
-      window.clearTimeout(tOut);
-      window.clearTimeout(tDone);
+      if (doneTimer.current) clearTimeout(doneTimer.current);
     };
-  }, [missionId, onDone]);
+  }, [mission]);
 
-  if (!missionId || phase === 'gone') return null;
+  if (!current) return null;
+
+  const isComplete = current.status === 'complete';
 
   return (
-    <div
-      className={`${styles.missionBanner}${
-        phase === 'in' || phase === 'hold' ? ` ${styles.missionBannerShow}` : ''
-      }${phase === 'out' ? ` ${styles.missionBannerHide}` : ''}`}
-      aria-live="polite"
-    >
-      <p className={styles.missionBannerEn}>MISSION COMPLETE</p>
-      <p className={styles.missionBannerKo}>{title}</p>
+    <div className={styles.root} aria-hidden={false} key={playKey}>
+      <span className={styles.flash} />
+      <div className={styles.wrapShow} role="status" aria-live="polite">
+        <span className={styles.glow} aria-hidden />
+        <span className={`${styles.eyebrow}${isComplete ? ` ${styles.eyebrowComplete}` : ''}`}>
+          {isComplete ? '✓ 미션 완료' : '✦ 새 미션'}
+        </span>
+        <span className={styles.title}>{current.title}</span>
+        <span className={styles.ruleShow}>
+          <span className={styles.sweep} />
+        </span>
+      </div>
     </div>
   );
 }

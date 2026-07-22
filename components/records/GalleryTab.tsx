@@ -503,7 +503,7 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
 
         <article className="lh-gallery__detail">
           <div className="lh-gallery__detail-media">
-            <img src={detail.img} alt={titleText || ''} />
+            {detail.img?.trim() ? <img src={detail.img} alt={titleText || ''} /> : null}
           </div>
           {titleText ? <h2 className="lh-gallery__detail-title">{titleText}</h2> : null}
           {detail.date ? <p className="lh-gallery__detail-date">{formatGalleryDate(detail.date)}</p> : null}
@@ -722,7 +722,11 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
                 className={`lh-gallery__thumb${hasTitle ? '' : ' is-notitle'}`}
                 onClick={() => openDetail(item.id)}
               >
-                <img src={item.img} alt={item.title?.trim() || ''} loading="lazy" decoding="async" />
+                {item.img?.trim() ? (
+                  <img src={item.img} alt={item.title?.trim() || ''} loading="lazy" decoding="async" />
+                ) : (
+                  <span className="lh-gallery__thumb-empty" aria-hidden="true" />
+                )}
                 <span className="lh-gallery__scrim">
                   {hasTitle ? <span className="lh-gallery__cap">{item.title!.trim()}</span> : null}
                 </span>

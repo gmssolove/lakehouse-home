@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { playSafe } from '@/lib/vn/safeAudio';
 
 type Props = {
@@ -140,7 +141,7 @@ export function HandwritingNoteFlap({
 
   if (!open) return null;
 
-  return (
+  const overlay = (
     <div
       className={`pair-note-flap-lb${leaving ? ' is-leaving' : ''}${ready ? ' is-ready' : ''}`}
       role="dialog"
@@ -216,4 +217,7 @@ export function HandwritingNoteFlap({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return overlay;
+  return createPortal(overlay, document.body);
 }

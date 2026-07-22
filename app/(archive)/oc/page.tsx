@@ -1,25 +1,12 @@
 import { Suspense } from 'react';
 import { OcPageClient } from '@/components/oc/OcPageClient';
 
+/** soft-nav 중 텍스트 폴백이 보이면 "다른 화면"처럼 느껴짐 — 배경만 */
+const FALLBACK = <div className="lh-archive-route-fallback" aria-hidden />;
+
 export default function OcPage() {
   return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            minHeight: '100vh',
-            background: '#0b0d0c',
-            color: 'rgba(240,207,173,0.55)',
-            display: 'grid',
-            placeItems: 'center',
-            fontSize: 13,
-            letterSpacing: '0.12em',
-          }}
-        >
-          OC
-        </div>
-      }
-    >
+    <Suspense fallback={FALLBACK}>
       <OcPageClient />
     </Suspense>
   );

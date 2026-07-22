@@ -14,6 +14,7 @@ export { CharacterSprite, SpriteLayer } from './CharacterSprite';
 export { DialogueBox } from './DialogueBox';
 export type { DialogueBoxChoice } from './DialogueBox';
 export { VnLocationLabel } from './VnLocationLabel';
+export { VnLocationBanner } from './VnLocationBanner';
 export { ExplorationView } from './ExplorationView';
 export { MainMenu, closeVnToArchiveOrMenu, exitVnApp } from './MainMenu';
 export { VNEngine } from './VNEngine';
@@ -27,9 +28,18 @@ export { VnSystemMenu } from './VnSystemMenu';
 export type { VnLogEntry } from './VnSystemMenu';
 export { VnChoicePanel } from './VnChoicePanel';
 export type { VnChoiceItem } from './VnChoicePanel';
+export { VnDiceLayer } from './VnDiceLayer';
+export { VnHandoutLayer } from './VnHandoutLayer';
 export { VnMissionBanner } from './VnMissionBanner';
+export type { VnMissionBannerData } from './VnMissionBanner';
 export { VnMissionJournal } from './VnMissionJournal';
 export { VnTauriHotkeys } from './VnTauriHotkeys';
+export { VnSceneResolver } from './VnSceneResolver';
+export { VnPlayShell } from './VnPlayShell';
+export { VnInGameMenu } from './VnInGameMenu';
+export { VnTutorial } from './VnTutorial';
+export { VnEndingScreen } from './VnEndingScreen';
+export { VnChapterLoading } from './VnChapterLoading';
 
 /** 씬을 id → 씬 맵으로 묶을 때 사용 */
 export function indexScenes(list: import('./types').VNAnyScene[]) {

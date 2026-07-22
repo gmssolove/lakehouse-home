@@ -12,9 +12,37 @@ import { useSaveToast } from '@/components/ui/SaveToast';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { uploadImageFile } from '@/lib/r2/client';
 import { normalizeUploadFile } from '@/lib/r2/mime';
-import { newId, type DiaryThread, type SitePost } from '@/lib/types/site-content';
+import { newId, type DiaryImage, type DiaryThread, type SitePost } from '@/lib/types/site-content';
 
 const PAGE_SIZE = 10;
+const MAX_DIARY_IMAGES = 12;
+
+/** 구 imageUrl / 신규 images 배열 통합 */
+function resolvePostImages(p: SitePost): DiaryImage[] {
+  if (Array.isArray(p.images) && p.images.length) {
+    return p.images.filter((img) => !!img?.url?.trim()).map((img) => ({
+      url: img.url.trim(),
+      spoiler: !!img.spoiler,
+    }));
+  }
+  const url = p.imageUrl?.trim();
+  if (url) return [{ url, spoiler: !!p.imageSpoiler }];
+  return [];
+}
+
+function serializePostImages(images: DiaryImage[]): Pick<SitePost, 'images' | 'imageUrl' | 'imageSpoiler'> {
+  const clean = images
+    .filter((img) => !!img?.url?.trim())
+    .map((img) => ({ url: img.url.trim(), spoiler: !!img.spoiler }));
+  if (!clean.length) {
+    return { images: undefined, imageUrl: undefined, imageSpoiler: undefined };
+  }
+  return {
+    images: clean,
+    imageUrl: clean[0].url,
+    imageSpoiler: clean[0].spoiler || undefined,
+  };
+}
 
 type Props = {
   items: SitePost[];
@@ -318,36 +346,41 @@ function SpoilerImage({
 }
 
 function ImageAttachButton({
-  url,
-  spoiler,
+  images,
   uploading,
   onUploading,
   onChange,
-  onSpoilerChange,
-  onClear,
   triggerOnly = false,
   hideTrigger = false,
 }: {
-  url: string;
-  spoiler: boolean;
+  images: DiaryImage[];
   uploading: boolean;
   onUploading: (v: boolean) => void;
-  onChange: (url: string) => void;
-  onSpoilerChange: (v: boolean) => void;
-  onClear: () => void;
+  onChange: (next: DiaryImage[]) => void;
   /** 아이콘 버튼만 */
   triggerOnly?: boolean;
   /** 미리보기만 (아이콘 숨김) */
   hideTrigger?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const atLimit = images.length >= MAX_DIARY_IMAGES;
 
-  async function pick(file: File | undefined) {
-    if (!file) return;
+  async function pick(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const room = MAX_DIARY_IMAGES - images.length;
+    if (room <= 0) {
+      alert(`사진은 최대 ${MAX_DIARY_IMAGES}장까지 추가할 수 있어요.`);
+      return;
+    }
+    const files = Array.from(fileList).slice(0, room);
     onUploading(true);
     try {
-      const next = await uploadDiaryImage(file);
-      onChange(next);
+      const added: DiaryImage[] = [];
+      for (const file of files) {
+        const url = await uploadDiaryImage(file);
+        added.push({ url, spoiler: false });
+      }
+      onChange([...images, ...added]);
     } catch (err) {
       alert(err instanceof Error ? err.message : '이미지 업로드 실패');
     } finally {
@@ -360,10 +393,11 @@ function ImageAttachButton({
       ref={inputRef}
       type="file"
       accept="image/*"
+      multiple
       hidden
-      disabled={uploading}
+      disabled={uploading || atLimit}
       onChange={(e) => {
-        void pick(e.target.files?.[0]);
+        void pick(e.target.files);
         e.target.value = '';
       }}
     />
@@ -374,10 +408,10 @@ function ImageAttachButton({
       <>
         <button
           type="button"
-          className={`lh-diary__icon-btn${url ? ' is-on' : ''}`}
+          className={`lh-diary__icon-btn${images.length ? ' is-on' : ''}`}
           aria-label="이미지 추가"
-          title="이미지 추가"
-          disabled={uploading}
+          title={atLimit ? `최대 ${MAX_DIARY_IMAGES}장` : '이미지 추가 (여러 장 가능)'}
+          disabled={uploading || atLimit}
           onClick={() => inputRef.current?.click()}
         >
           <IconImage />
@@ -392,16 +426,107 @@ function ImageAttachButton({
       {!hideTrigger ? (
         <button
           type="button"
-          className={`lh-diary__icon-btn${url ? ' is-on' : ''}`}
+          className={`lh-diary__icon-btn${images.length ? ' is-on' : ''}`}
           aria-label="이미지 추가"
-          title="이미지 추가"
-          disabled={uploading}
+          title={atLimit ? `최대 ${MAX_DIARY_IMAGES}장` : '이미지 추가 (여러 장 가능)'}
+          disabled={uploading || atLimit}
           onClick={() => inputRef.current?.click()}
         >
           <IconImage />
         </button>
       ) : null}
       {fileInput}
+      {images.length ? (
+        <ul className="lh-diary__attach-list">
+          {images.map((img, idx) => (
+            <li key={`${img.url}-${idx}`} className="lh-diary__attach-preview">
+              <SpoilerImage src={img.url} spoiler={img.spoiler} />
+              <div className="lh-diary__attach-tools">
+                <LakeToggle
+                  checked={!!img.spoiler}
+                  onChange={(v) =>
+                    onChange(images.map((it, i) => (i === idx ? { ...it, spoiler: v } : it)))
+                  }
+                  label="스포일러"
+                />
+                <button
+                  type="button"
+                  className="lh-diary__attach-clear"
+                  onClick={() => onChange(images.filter((_, i) => i !== idx))}
+                >
+                  제거
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {uploading ? <span className="lh-diary__attach-status">업로드 중…</span> : null}
+      {images.length > 0 ? (
+        <span className="lh-diary__attach-status">
+          {images.length}/{MAX_DIARY_IMAGES}
+          {!atLimit ? ' · 사진 아이콘으로 추가' : ' · 최대 장수'}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** 타래/댓글용 — 이미지 1장 */
+function ThreadImageAttach({
+  url,
+  spoiler,
+  uploading,
+  onUploading,
+  onChange,
+  onSpoilerChange,
+  onClear,
+}: {
+  url: string;
+  spoiler: boolean;
+  uploading: boolean;
+  onUploading: (v: boolean) => void;
+  onChange: (url: string) => void;
+  onSpoilerChange: (v: boolean) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    onUploading(true);
+    try {
+      onChange(await uploadDiaryImage(file));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '이미지 업로드 실패');
+    } finally {
+      onUploading(false);
+    }
+  }
+
+  return (
+    <div className="lh-diary__attach">
+      <button
+        type="button"
+        className={`lh-diary__icon-btn${url ? ' is-on' : ''}`}
+        aria-label="이미지 추가"
+        title="이미지 추가"
+        disabled={uploading}
+        onClick={() => inputRef.current?.click()}
+      >
+        <IconImage />
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        disabled={uploading}
+        onChange={(e) => {
+          void pick(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
       {url ? (
         <div className="lh-diary__attach-preview">
           <SpoilerImage src={url} spoiler={spoiler} />
@@ -428,8 +553,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
   const [date, setDate] = useState(() => nowDateTimeLocal());
   const [secret, setSecret] = useState(false);
   const [secretPassword, setSecretPassword] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [imageSpoiler, setImageSpoiler] = useState(false);
+  const [images, setImages] = useState<DiaryImage[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [threadOpenId, setThreadOpenId] = useState<string | null>(null);
@@ -511,8 +635,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
     setBody('');
     setSecret(false);
     setSecretPassword('');
-    setImageUrl('');
-    setImageSpoiler(false);
+    setImages([]);
     setDate(nowDateTimeLocal());
   }
 
@@ -541,8 +664,9 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
   async function submit() {
     if (!isAdmin) return;
     const b = body.trim();
-    if (!b && !imageUrl.trim()) return;
+    if (!b && !images.length) return;
     const stamped = fromDateTimeLocal(date);
+    const imageFields = serializePostImages(images);
 
     if (editingId) {
       await persist(
@@ -555,8 +679,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                 secret,
                 secretPassword: secret ? secretPassword.trim() || undefined : undefined,
                 title: p.title || '',
-                imageUrl: imageUrl.trim() || undefined,
-                imageSpoiler: imageUrl.trim() ? imageSpoiler : undefined,
+                ...imageFields,
               }
             : p,
         ),
@@ -569,8 +692,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
         date: stamped,
         secret: secret || undefined,
         secretPassword: secret ? secretPassword.trim() || undefined : undefined,
-        imageUrl: imageUrl.trim() || undefined,
-        imageSpoiler: imageUrl.trim() ? imageSpoiler : undefined,
+        ...imageFields,
         likedBy: [],
         threads: [],
       };
@@ -586,8 +708,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
     setDate(toDateTimeLocal(item.date));
     setSecret(!!item.secret);
     setSecretPassword(item.secretPassword || '');
-    setImageUrl(item.imageUrl || '');
-    setImageSpoiler(!!item.imageSpoiler);
+    setImages(resolvePostImages(item));
     setMenuId(null);
     setComposerLeaving(false);
     setComposerOpen(true);
@@ -774,18 +895,12 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
                   />
-                  {(imageUrl || uploading) && (
+                  {(images.length > 0 || uploading) && (
                     <ImageAttachButton
-                      url={imageUrl}
-                      spoiler={imageSpoiler}
+                      images={images}
                       uploading={uploading}
                       onUploading={setUploading}
-                      onChange={setImageUrl}
-                      onSpoilerChange={setImageSpoiler}
-                      onClear={() => {
-                        setImageUrl('');
-                        setImageSpoiler(false);
-                      }}
+                      onChange={setImages}
                       hideTrigger
                     />
                   )}
@@ -801,16 +916,10 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                   <div className="lh-diary__composer-bar">
                     <div className="lh-diary__composer-tools">
                       <ImageAttachButton
-                        url={imageUrl}
-                        spoiler={imageSpoiler}
+                        images={images}
                         uploading={uploading}
                         onUploading={setUploading}
-                        onChange={setImageUrl}
-                        onSpoilerChange={setImageSpoiler}
-                        onClear={() => {
-                          setImageUrl('');
-                          setImageSpoiler(false);
-                        }}
+                        onChange={setImages}
                         triggerOnly
                       />
                     </div>
@@ -902,13 +1011,24 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                 </header>
 
                 {item.body ? <p className="lh-diary__body">{item.body}</p> : null}
-                {item.imageUrl ? (
-                  <SpoilerImage
-                    src={item.imageUrl}
-                    spoiler={item.imageSpoiler}
-                    resetKey={`${spoilerEpoch}-${active}`}
-                  />
-                ) : null}
+                {(() => {
+                  const imgs = resolvePostImages(item);
+                  if (!imgs.length) return null;
+                  return (
+                    <div
+                      className={`lh-diary__media-grid${imgs.length > 1 ? ' is-multi' : ''}`}
+                    >
+                      {imgs.map((img, idx) => (
+                        <SpoilerImage
+                          key={`${item.id}-img-${idx}`}
+                          src={img.url}
+                          spoiler={img.spoiler}
+                          resetKey={`${spoilerEpoch}-${active}-${item.id}-${idx}`}
+                        />
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 <footer className="lh-diary__actions">
                   <button
@@ -1021,7 +1141,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
                             autoFocus
                             onChange={(e) => setThreadDraft(e.target.value)}
                           />
-                          <ImageAttachButton
+                          <ThreadImageAttach
                             url={threadImage}
                             spoiler={threadSpoiler}
                             uploading={uploading}

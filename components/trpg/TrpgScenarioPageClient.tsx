@@ -1,6 +1,6 @@
 'use client';
 
-import { notFound, usePathname, useRouter } from 'next/navigation';
+import { notFound, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { TrpgInvestigatorBoard } from '@/components/trpg/TrpgInvestigatorBoard';
@@ -24,10 +24,11 @@ import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked, isLakeItemUnlocked, resolveItemPassword, resolveScopePassword, unlockLakeItem, verifyLakeAccessPassword } from '@/lib/lake/accessGate';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
-import { lakeNavigate, peekPendingLakeRouteDir, beginLakeRouteEnter } from '@/lib/lake/routeTransition';
+import { lakeNavigate } from '@/lib/lake/routeTransition';
 import { consumeTrpgReturnPath, consumeTrpgSkipBgmRestore, markTrpgSkipBgmRestore } from '@/lib/lake/trpgReturn';
 import { trpgFontFamily } from '@/lib/trpg/fonts';
 import { TrpgScenarioEditDrawer, type TrpgEditTabId } from '@/components/trpg/TrpgScenarioEditDrawer';
+import { ScenarioVnPlayButton } from '@/components/shared/ScenarioVnPlayButton';
 import { formatTrpgDateRange, formatTrpgGalleryCredit, normalizeTrpgScenario, trpgGalleryImages } from '@/lib/trpg/normalize';
 import { highlightLogPlainText } from '@/lib/trpg/logHighlight';
 import type { TrpgGalleryItem, TrpgScenario, TrpgSessionLog } from '@/lib/types/site-content';
@@ -99,7 +100,6 @@ export function TrpgScenarioPageClient({ id }: Props) {
   const [invUploading, setInvUploading] = useState(false);
   const [reviewEditing, setReviewEditing] = useState(false);
   const [reviewDraft, setReviewDraft] = useState('');
-  const pathname = usePathname();
 
   const openScenarioEdit = useCallback((tab: TrpgEditTabId = 'basic') => {
     setEditInitialTab(tab);
@@ -110,7 +110,36 @@ export function TrpgScenarioPageClient({ id }: Props) {
     null,
   );
   const [galleryLeaving, setGalleryLeaving] = useState(false);
+  const [gallerySlideDir, setGallerySlideDir] = useState<'next' | 'prev' | 'none'>('none');
+  const [gallerySlideTick, setGallerySlideTick] = useState(0);
   const galleryCloseTimerRef = useRef<number | null>(null);
+
+  const stepGallery = useCallback((delta: 1 | -1) => {
+    if (!galleryLightbox || galleryLightbox.item.viewMode === 'scroll') return;
+    const images = trpgGalleryImages(galleryLightbox.item);
+    if (images.length < 2) return;
+    const len = images.length;
+    const nextIndex = (galleryLightbox.index + delta + len) % len;
+    if (nextIndex === galleryLightbox.index) return;
+    setGallerySlideDir(delta > 0 ? 'next' : 'prev');
+    setGallerySlideTick((t) => t + 1);
+    setGalleryLightbox({ item: galleryLightbox.item, index: nextIndex });
+  }, [galleryLightbox]);
+
+  /* 인접 장 프리로드 — 넘김 시 네트워크 대기 제거 */
+  useEffect(() => {
+    if (!galleryLightbox || galleryLightbox.item.viewMode === 'scroll') return;
+    const images = trpgGalleryImages(galleryLightbox.item);
+    if (images.length < 2) return;
+    const len = images.length;
+    const idx = galleryLightbox.index;
+    [images[(idx + 1) % len], images[(idx - 1 + len) % len]].forEach((src) => {
+      if (!src) return;
+      const img = new window.Image();
+      img.decoding = 'async';
+      img.src = src;
+    });
+  }, [galleryLightbox]);
 
   const closeGalleryLightbox = useCallback(() => {
     if (!galleryLightbox || galleryLeaving) return;
@@ -119,6 +148,8 @@ export function TrpgScenarioPageClient({ id }: Props) {
     galleryCloseTimerRef.current = window.setTimeout(() => {
       setGalleryLightbox(null);
       setGalleryLeaving(false);
+      setGallerySlideDir('none');
+      setGallerySlideTick(0);
       galleryCloseTimerRef.current = null;
     }, 220);
   }, [galleryLightbox, galleryLeaving]);
@@ -184,16 +215,6 @@ export function TrpgScenarioPageClient({ id }: Props) {
   useLakeBackNavigation(loaded && !!raw && canView, goBack, `trpg-${id}`, routeGuard);
 
   useEffect(() => {
-    const dir = peekPendingLakeRouteDir();
-    if (dir !== 'forward') return;
-    const timer = window.setTimeout(() => {
-      if (document.body.classList.contains('lh-route-trpg-enter')) return;
-      beginLakeRouteEnter(pathname, dir);
-    }, 48);
-    return () => window.clearTimeout(timer);
-  }, [pathname]);
-
-  useEffect(() => {
     if (item && !activeLogId && item.logs?.length) setActiveLogId(item.logs[0].id);
   }, [activeLogId, item]);
 
@@ -201,24 +222,22 @@ export function TrpgScenarioPageClient({ id }: Props) {
     if (!galleryLightbox || galleryLeaving) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         closeGalleryLightbox();
         return;
       }
       if (galleryLightbox.item.viewMode === 'scroll') return;
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        const images = trpgGalleryImages(galleryLightbox.item);
-        if (images.length < 2) return;
-        const delta = e.key === 'ArrowLeft' ? -1 : 1;
-        setGalleryLightbox((cur) => {
-          if (!cur) return cur;
-          const len = trpgGalleryImages(cur.item).length;
-          return { item: cur.item, index: (cur.index + delta + len) % len };
-        });
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        stepGallery(-1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        stepGallery(1);
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [galleryLightbox, galleryLeaving, closeGalleryLightbox]);
+  }, [galleryLightbox, galleryLeaving, closeGalleryLightbox, stepGallery]);
 
   useEffect(() => {
     setReviewEditing(false);
@@ -232,16 +251,11 @@ export function TrpgScenarioPageClient({ id }: Props) {
     const extUrl = bgm?.url?.trim();
     const ytId = extUrl ? parseYoutubeId(extUrl) : null;
 
-    /* 이전(OC 테마 등) 끊고 시작 — 시나리오 BGM 유무와 무관 */
-    bgmActionsRef.current.silenceMedia();
-
+    /* 시나리오 BGM 있을 때만 전환 — 없으면 메인 BGM 유지(페이지 전환 끊김 방지) */
     if (!fileUrl && !extUrl) {
       return () => {
-        if (consumeTrpgSkipBgmRestore()) {
-          bgmActionsRef.current.silenceMedia();
-          return;
-        }
-        bgmActionsRef.current.restorePageSnapshot(true);
+        if (consumeTrpgSkipBgmRestore()) return;
+        /* 메인 유지 중이었으면 restore 불필요 */
       };
     }
 
@@ -257,7 +271,6 @@ export function TrpgScenarioPageClient({ id }: Props) {
 
     return () => {
       if (consumeTrpgSkipBgmRestore()) {
-        bgmActionsRef.current.silenceMedia();
         return;
       }
       bgmActionsRef.current.restorePageSnapshot(true);
@@ -476,6 +489,26 @@ export function TrpgScenarioPageClient({ id }: Props) {
                     세션 바로가기 ↗
                   </a>
                 ) : null}
+                <div className="trpg-scenario-page__vn-actions">
+                  <ScenarioVnPlayButton
+                    hasVnScene={Boolean(view.vnScene?.lines?.length || view.vnEditable?.lines?.length)}
+                    subtitle={view.title}
+                    accentColor={view.vnPlayBtnColor}
+                    onClick={() => router.push(`/vn/${encodeURIComponent(view.id)}`)}
+                  />
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      className="trpg-scenario-session-link__btn"
+                      onClick={() => {
+                        setEditInitialTab('vn');
+                        setEditDrawerOpen(true);
+                      }}
+                    >
+                      VN 편집
+                    </button>
+                  ) : null}
+                </div>
               </header>
 
               {view.summary || view.body ? (
@@ -596,13 +629,7 @@ export function TrpgScenarioPageClient({ id }: Props) {
                 const images = trpgGalleryImages(item);
                 const idx = Math.min(Math.max(galleryLightbox.index, 0), Math.max(images.length - 1, 0));
                 const isScroll = item.viewMode === 'scroll' && images.length > 1;
-                const meta = (
-                  <div className="trpg-gallery-lightbox__meta">
-                    {item.title ? <strong>{item.title}</strong> : null}
-                    {item.caption ? <span>{item.caption}</span> : null}
-                    {item.artist ? <em>{formatTrpgGalleryCredit(item.artist)}</em> : null}
-                  </div>
-                );
+                const credit = item.artist ? formatTrpgGalleryCredit(item.artist) : '';
                 return (
                   <div className="trpg-gallery-lightbox__frame">
                     {!isScroll && images.length > 1 ? (
@@ -610,12 +637,10 @@ export function TrpgScenarioPageClient({ id }: Props) {
                         type="button"
                         className="trpg-gallery-lightbox__arrow is-prev"
                         aria-label="이전"
-                        onClick={() =>
-                          setGalleryLightbox({
-                            item,
-                            index: (idx - 1 + images.length) % images.length,
-                          })
-                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          stepGallery(-1);
+                        }}
                       >
                         ‹
                       </button>
@@ -634,27 +659,31 @@ export function TrpgScenarioPageClient({ id }: Props) {
 
                       {isScroll ? (
                         <div className="trpg-gallery-lightbox__scroll">
-                          {item.title || item.caption || item.artist ? meta : null}
                           <div className="trpg-gallery-lightbox__stack">
                             {images.map((src, i) => (
                               <img key={`${item.id}-${i}`} src={src} alt={item.title ? `${item.title} ${i + 1}` : ''} />
                             ))}
                           </div>
+                          {credit ? <p className="trpg-gallery-lightbox__credit">{credit}</p> : null}
                         </div>
                       ) : (
                         <>
                           <div className="trpg-gallery-lightbox__stage">
                             {images[idx] ? (
-                              <img src={images[idx]} alt={item.title || ''} />
+                              <img
+                                key={`${item.id}-${idx}-${gallerySlideTick}`}
+                                src={images[idx]}
+                                alt={item.title || ''}
+                                decoding="async"
+                                className={`trpg-gallery-lightbox__img is-slide-${gallerySlideDir === 'none' ? 'in' : gallerySlideDir}`}
+                              />
                             ) : null}
+                            {credit ? <p className="trpg-gallery-lightbox__credit">{credit}</p> : null}
                           </div>
-                          {item.title || item.caption || item.artist ? meta : null}
                           {images.length > 1 ? (
-                            <div className="trpg-gallery-lightbox__pager">
-                              <span>
-                                {idx + 1} / {images.length}
-                              </span>
-                            </div>
+                            <p className="trpg-gallery-lightbox__pager" aria-live="polite">
+                              {idx + 1} / {images.length}
+                            </p>
                           ) : null}
                         </>
                       )}
@@ -664,12 +693,10 @@ export function TrpgScenarioPageClient({ id }: Props) {
                         type="button"
                         className="trpg-gallery-lightbox__arrow is-next"
                         aria-label="다음"
-                        onClick={() =>
-                          setGalleryLightbox({
-                            item,
-                            index: (idx + 1) % images.length,
-                          })
-                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          stepGallery(1);
+                        }}
                       >
                         ›
                       </button>

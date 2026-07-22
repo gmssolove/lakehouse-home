@@ -3,9 +3,10 @@
 /**
  * OcVnDialogue / PairVnDialogue 의 lh-vn 오버레이 JSX 구조·클래스 이식.
  * 우측 상단 세이브/로드 슬롯 UI 포함.
+ * liveTyping: vnTypingStore 구독 — 글자 갱신은 이 박스만 리렌더.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   listVnSlots,
   loadVnSlot,
@@ -14,26 +15,41 @@ import {
   type VNSaveData,
   type VNSaveSlotId,
 } from '@/lib/vn/vnSave';
+import {
+  getVnTypingDisplay,
+  getVnTypingFlag,
+  subscribeVnTyping,
+} from '@/lib/vn/vnTypingStore';
 import { VnDialogueChoices } from '@/components/shared/VnDialogueChoices';
-import { VnLocationLabel } from '@/components/vn/VnLocationLabel';
+import { VnAutoPlayButton } from '@/components/shared/VnAutoPlayButton';
 import '@/styles/shared/vn-savebar.css';
-import '@/styles/shared/vn-location.css';
 
 export type DialogueBoxChoice = {
   label: string;
   next?: string;
 };
 
+const subscribeNoop = () => () => {};
+const getFalse = () => false;
+
+function DialogueLiveText() {
+  return useSyncExternalStore(subscribeVnTyping, getVnTypingDisplay, getVnTypingDisplay);
+}
+
 type Props = {
   speaker?: string;
   text: string;
+  /** typewriter 미사용 시 외부에서 넘기는 타자 중 여부 */
   isTyping?: boolean;
+  /**
+   * true면 vnTypingStore 표시 구독 (VNEngine 경로).
+   * 엔진 전체는 isTyping 불리언만 구독해 글자마다 리렌더하지 않음.
+   */
+  liveTyping?: boolean;
   hasNext?: boolean;
   leaving?: boolean;
   isNarration?: boolean;
   choices?: DialogueBoxChoice[];
-  /** 현재 씬 장소 — 대사창 안에만 표시 */
-  location?: string | null;
   sceneId?: string;
   lineId?: string;
   missionsActive?: string[];
@@ -43,6 +59,11 @@ type Props = {
   onBoxClick: () => void;
   onChoice?: (next?: string) => void;
   onLoadSave?: (data: VNSaveData) => void;
+  /** 자동 재생 — 있으면 AUTO 버튼 표시 */
+  autoPlay?: boolean;
+  onToggleAutoPlay?: () => void;
+  /** false면 대사창 × 숨김 (VN 풀스크린 등). 기본 true */
+  showClose?: boolean;
 };
 
 function formatSavedAt(ts: number) {
@@ -62,12 +83,12 @@ function formatSavedAt(ts: number) {
 export function DialogueBox({
   speaker = '',
   text,
-  isTyping = false,
+  isTyping: isTypingProp = false,
+  liveTyping = false,
   hasNext = false,
   leaving = false,
   isNarration = false,
   choices = [],
-  location,
   sceneId,
   lineId,
   missionsActive = [],
@@ -77,11 +98,21 @@ export function DialogueBox({
   onBoxClick,
   onChoice,
   onLoadSave,
+  autoPlay,
+  onToggleAutoPlay,
+  showClose = true,
 }: Props) {
   const [panel, setPanel] = useState<'save' | 'load' | null>(null);
   const [slots, setSlots] = useState<Record<VNSaveSlotId, VNSaveData | null> | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+
+  const liveFlag = useSyncExternalStore(
+    liveTyping ? subscribeVnTyping : subscribeNoop,
+    liveTyping ? getVnTypingFlag : getFalse,
+    getFalse,
+  );
+  const isTyping = liveTyping ? liveFlag : isTypingProp;
 
   const refreshSlots = useCallback(async () => {
     try {
@@ -192,12 +223,19 @@ export function DialogueBox({
         onClick={(e) => {
           e.stopPropagation();
           if (leaving) return;
-          if ((e.target as HTMLElement).closest('.lh-vn-choice, .lh-vn-close, .lh-vn-savebar, .lh-vn-slot-panel'))
+          if (
+            (e.target as HTMLElement).closest(
+              '.lh-vn-choice, .lh-vn-close, .lh-vn-auto, .lh-vn-savebar, .lh-vn-slot-panel',
+            )
+          )
             return;
           onBoxClick();
         }}
       >
         <div className="lh-vn-savebar" onClick={(e) => e.stopPropagation()}>
+          {onToggleAutoPlay ? (
+            <VnAutoPlayButton on={Boolean(autoPlay)} onToggle={onToggleAutoPlay} disabled={leaving} />
+          ) : null}
           <button type="button" className="lh-vn-save-btn" onClick={() => openPanel('save')} disabled={leaving}>
             세이브
           </button>
@@ -217,35 +255,33 @@ export function DialogueBox({
                   type="button"
                   className="lh-vn-slot-btn"
                   disabled={busy || (panel === 'load' && !data)}
-                  onClick={() => (panel === 'save' ? handleSave(slot) : handleLoad(slot))}
+                  onClick={() => {
+                    if (panel === 'save') void handleSave(slot);
+                    else void handleLoad(slot);
+                  }}
                 >
                   <span className="lh-vn-slot-num">{i + 1}</span>
                   <span className="lh-vn-slot-meta">
-                    {data ? (
-                      <>
-                        <em>{data.sceneId}</em>
-                        <small>{formatSavedAt(data.savedAt)}</small>
-                      </>
-                    ) : (
-                      <small>비어 있음</small>
-                    )}
+                    <em>{data ? `${data.sceneId}` : '빈 슬롯'}</em>
+                    <small>{data ? formatSavedAt(data.savedAt) : '—'}</small>
                   </span>
                 </button>
               );
             })}
-            {msg && <div className="lh-vn-slot-msg">{msg}</div>}
+            {msg ? <div className="lh-vn-slot-msg">{msg}</div> : null}
           </div>
         )}
 
-        <button type="button" className="lh-vn-close" onClick={onClose} aria-label="닫기" disabled={leaving}>
-          ×
-        </button>
-        <VnLocationLabel location={location} />
+        {showClose ? (
+          <button type="button" className="lh-vn-close" aria-label="닫기" onClick={onClose}>
+            ×
+          </button>
+        ) : null}
         <div className={`lh-vn-speaker${isNarration || !speaker ? ' is-empty' : ''}`} id="lh-vn-speaker">
           {isNarration || !speaker ? '\u00A0' : speaker}
         </div>
         <div className={`lh-vn-text${isTyping ? ' lh-typing' : ''}`} id="lh-vn-text">
-          {text}
+          {liveTyping ? <DialogueLiveText /> : text}
         </div>
         {choices.length > 0 && !isTyping && (
           <VnDialogueChoices

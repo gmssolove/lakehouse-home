@@ -1,19 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { VnActionChoices } from '@/components/shared/VnActionChoices';
 import { VnAutoPlayButton } from '@/components/shared/VnAutoPlayButton';
 import { VnDialogueChoices } from '@/components/shared/VnDialogueChoices';
 import { isNarrationSpeaker } from '@/components/shared/DialogueNodesEditor';
-import { VnLocationLabel } from '@/components/vn/VnLocationLabel';
+import { VnLocationBanner } from '@/components/vn/VnLocationBanner';
 import { useBalancedDialogueText } from '@/lib/hooks/useBalancedDialogueText';
 import { playLineVoice, stopLineVoice } from '@/lib/vn/playLineVoice';
 import { VN_OUT_MS } from '@/lib/vn/presence';
 import { useVnAutoPlay } from '@/lib/vn/useVnAutoPlay';
 import { normalizeMotion, isDialogueFx, type DialogueFx, type DialogueMotion } from '@/lib/vn/motions';
 import type { DialogueNode, OcCharacter } from '@/lib/types/character';
-import '@/styles/shared/vn-location.css';
 import '@/styles/shared/vn-savebar.css';
 
 type Props = {
@@ -294,8 +292,6 @@ export function OcVnDialogue({
 
   const display = typedLen > 0 ? text.slice(0, typedLen) : '';
   const hasNext = !choices.length && !endsHere && (hasLinkedNext || !isLastNode);
-  const host =
-    typeof document !== 'undefined' ? document.getElementById('detail-screen') : null;
 
   const actionLayer =
     actionChoices.length > 0 && !isTyping && !leaving ? (
@@ -328,7 +324,6 @@ export function OcVnDialogue({
         <button type="button" className="lh-vn-close" onClick={onClose} aria-label="닫기" disabled={leaving}>
           ×
         </button>
-        <VnLocationLabel location={node?.location} />
         <div className={`lh-vn-speaker${isNarration || !speaker ? ' is-empty' : ''}`} id="lh-vn-speaker">
           {isNarration || !speaker ? '\u00A0' : speaker}
         </div>
@@ -355,18 +350,9 @@ export function OcVnDialogue({
     </div>
   );
 
-  if (host) {
-    return createPortal(
-      <>
-        {actionLayer}
-        {overlay}
-      </>,
-      host,
-    );
-  }
-
   return (
     <>
+      <VnLocationBanner location={node?.location} />
       {actionLayer}
       {overlay}
     </>

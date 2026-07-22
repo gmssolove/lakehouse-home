@@ -16,6 +16,8 @@
   pointer-events: none;
   animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
   animation-iteration-count: infinite;
+  will-change: auto;
+  contain: layout style;
 }
 
 .lh-dust-atmosphere__mote.is-spark {

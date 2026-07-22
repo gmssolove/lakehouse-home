@@ -1,5 +1,7 @@
 @import '../styles/shared/image-frame.css';
 @import '../styles/shared/archive-topbar.css';
+@import '../styles/shared/dialogue-nodes-editor.css';
+@import '../styles/shared/scenario-vn-editor.css';
 @import '../styles/trpg-scenario.css';
 @import '../styles/trpg-investigator.css';
 @import '../styles/trpg-investigator-detail.css';

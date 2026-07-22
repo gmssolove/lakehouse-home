@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import type { User } from 'firebase/auth';
 import {
   HOME_RECORDS_LABELS,
@@ -10,7 +9,7 @@ import {
   type HomeRecordsTabId,
 } from '@/lib/records/sections';
 import { updateNickname, type UserProfile } from '@/lib/auth/userProfile';
-import { lakeNavigate, clearLakeRouteClasses, getLakePortalRoot } from '@/lib/lake/routeTransition';
+import { lakeNavigate, clearLakeRouteClasses } from '@/lib/lake/routeTransition';
 
 export type HomePageId =
   | 'main'
@@ -155,7 +154,6 @@ export function LeftNav({
   const charMenu = useSubmenu();
   const recordsMenu = useSubmenu();
   const [ready, setReady] = useState(false);
-  const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
   const [editingNick, setEditingNick] = useState(false);
   const [nickDraft, setNickDraft] = useState('');
   const [nickError, setNickError] = useState<string | null>(null);
@@ -207,10 +205,6 @@ export function LeftNav({
     }
   }
 
-  useLayoutEffect(() => {
-    setPortalEl(getLakePortalRoot());
-  }, []);
-
   useEffect(() => {
     const t = window.setTimeout(() => {
       setReady(true);
@@ -236,7 +230,8 @@ export function LeftNav({
 
   function goHomeTab(page: HomePageId) {
     if (!onHome) {
-      lakeNavigate(router, `/?p=${page}`, pathname);
+      /* hard-nav — soft push 시 메뉴 portal removeChild 레이스 */
+      window.location.assign(`/?p=${page}`);
       return;
     }
     onPageChange(page);
@@ -440,8 +435,10 @@ export function LeftNav({
     </aside>
   );
 
-  if (!portalEl) return null;
-  return createPortal(
+  if (!ready) return null;
+  /* createPortal 금지 — soft-nav/StrictMode unmount 시 removeChild null.
+   * 메뉴는 position:fixed 로 충분 (rq-menu-* CSS). */
+  return (
     <>
       <button
         type="button"
@@ -463,7 +460,6 @@ export function LeftNav({
         onClick={closeMobile}
       />
       {panel}
-    </>,
-    portalEl,
+    </>
   );
 }

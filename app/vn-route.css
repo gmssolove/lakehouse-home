@@ -107,6 +107,19 @@
   overflow: hidden;
 }
 
+.vn-main-menu-host {
+  position: relative;
+  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050505;
+}
+
+.vn-main-menu-host > * {
+  position: absolute;
+  inset: 0;
+}
+
 .vn-main-menu--fallback {
   background:
     radial-gradient(ellipse 80% 60% at 50% 30%, rgba(40, 32, 22, 0.55), transparent 70%),
@@ -348,4 +361,91 @@
   text-shadow:
     0 2px 4px rgba(0, 0, 0, 0.9),
     0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* VN 재생 전용 — 대사창 본문 흰색 */
+.vn-fullscreen .lh-vn-text {
+  color: #ffffff;
+}
+
+/* —— 스탠딩 인/아웃 (글로벌 — CSS module 해시 회피) —— */
+@keyframes vn-spr-enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes vn-spr-enter-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes vn-spr-enter-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes vn-spr-enter-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(36px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes vn-spr-enter-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes vn-spr-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.vn-spr-enter-fade {
+  animation: vn-spr-enter-fade 0.85s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+.vn-spr-enter-slide-left {
+  animation: vn-spr-enter-slide-left 0.75s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+.vn-spr-enter-slide-right {
+  animation: vn-spr-enter-slide-right 0.75s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+.vn-spr-enter-slide-up {
+  animation: vn-spr-enter-slide-up 0.75s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+.vn-spr-enter-pop {
+  animation: vn-spr-enter-pop 0.55s cubic-bezier(0.34, 1.5, 0.4, 1) both !important;
+  transform-origin: center bottom;
+}
+.vn-spr-exit {
+  animation: vn-spr-exit 0.35s ease both !important;
 }

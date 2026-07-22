@@ -80,7 +80,7 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
     onRequestClose();
   }, [ocEditId, pairEditId, onRequestClose]);
 
-  useLakeBackNavigation(phase === 'open', handleAdminBack, 'admin', {
+  useLakeBackNavigation(phase === 'open' || phase === 'closing', handleAdminBack, 'admin', {
     guardPath: '/',
     router,
   });

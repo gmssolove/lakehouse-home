@@ -28,6 +28,36 @@ import { useSiteContent } from '@/lib/hooks/useSiteContent';
 
 const STATE_KEY = 'lh_bgm_shared_state';
 const UI_KEY = 'lh_bgm_ui_state';
+/** hard-nav(location.assign) 직후에만 재생 위치 복원 — 새로고침은 항상 1번 곡 */
+const HARD_RESUME_KEY = 'lh_bgm_hard_resume';
+
+/** React 트리 밖 마운트 — #yt-container 를 JSX로 두면 destroy/removeChild 레이스 */
+function getYtMountBox(): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+  let box = document.getElementById('lh-yt-mount');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'lh-yt-mount';
+    box.setAttribute('aria-hidden', 'true');
+    box.style.cssText =
+      'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0;overflow:hidden;';
+    document.documentElement.appendChild(box);
+  }
+  return box;
+}
+
+function clearYtMount(box: HTMLElement) {
+  /* removeChild 루프 금지 — YT iframe 이 이미 detach 되면 null 로 TypeError */
+  try {
+    box.replaceChildren();
+  } catch {
+    try {
+      box.innerHTML = '';
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 export type { BgmKind, BgmTrack } from '@/lib/bgm/types';
 
@@ -38,6 +68,8 @@ type SavedState = {
   artist?: string;
   scope?: string;
   playing?: boolean;
+  /** 사용자가 일시정지 버튼을 누른 경우만 true — 자동재생 실패와 구분 */
+  userPaused?: boolean;
   currentTime?: number;
 };
 
@@ -105,6 +137,8 @@ type BgmContextValue = {
     wasPlaying: boolean,
   ) => void;
   silenceMedia: () => void;
+  /** /vn 등에서 사이트 BGM만 잠시 멈춤 — userPaused로 기록하지 않음 */
+  setPlaybackSuppressed: (suppressed: boolean) => void;
 };
 
 const BgmContext = createContext<BgmContextValue | null>(null);
@@ -159,6 +193,8 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   const switchingTrackRef = useRef(false);
   const userPausedRef = useRef(false);
   const playingRef = useRef(false);
+  const routeSuppressedRef = useRef(false);
+  const suppressedWasPlayingRef = useRef(false);
   const toggleBusyRef = useRef(false);
   const volumeRef = useRef(DEFAULT_VOLUME);
   const audioLoadGenRef = useRef(0);
@@ -191,25 +227,44 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     playingRef.current = playing;
   }, [playing]);
 
-  const destroyYtPlayer = useCallback(() => {
-    if (!ytRef.current) return;
-    switchingTrackRef.current = true;
-    ytGenRef.current += 1;
+  /** YT destroy — iframe이 아직 mount에 있을 때만 destroy (선 clear 금지) */
+  const detachYtPlayer = useCallback(() => {
     ytPendingPlayRef.current = false;
+    ytCreatingRef.current = false;
+    ytGenRef.current += 1;
+    const player = ytRef.current;
+    ytRef.current = null;
+    if (!player) return;
     try {
-      ytRef.current?.destroy?.();
+      player.pauseVideo?.();
     } catch {
       /* ignore */
     }
-    ytRef.current = null;
-    const box = document.getElementById('yt-container');
-    if (box) box.innerHTML = '';
+    try {
+      player.stopVideo?.();
+    } catch {
+      /* ignore */
+    }
+    try {
+      player.destroy?.();
+    } catch {
+      /* ignore */
+    }
+    /* destroy 가 iframe을 못 지운 경우만 비움 — 선 clear 하면 YT 가 null.removeChild */
+    const box = typeof document !== 'undefined' ? document.getElementById('lh-yt-mount') : null;
+    if (box?.childNodes.length) clearYtMount(box);
+  }, []);
+
+  const destroyYtPlayer = useCallback(() => {
+    if (!ytRef.current) return;
+    switchingTrackRef.current = true;
+    detachYtPlayer();
     window.setTimeout(() => {
       switchingTrackRef.current = false;
     }, 200);
-  }, []);
+  }, [detachYtPlayer]);
 
-  const stopAudio = useCallback(() => {
+  const stopAudio = useCallback((opts?: { clearSrc?: boolean }) => {
     audioReadyAbortRef.current?.abort();
     audioReadyAbortRef.current = null;
     for (const id of autoplayRetryTimersRef.current) window.clearTimeout(id);
@@ -221,42 +276,25 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-    try {
-      audio.removeAttribute('src');
-      // empty source list so the element cannot keep decoding
-      audio.load();
-    } catch {
-      /* ignore */
+    if (opts?.clearSrc !== false) {
+      try {
+        audio.removeAttribute('src');
+        audio.load();
+      } catch {
+        /* ignore */
+      }
+      audioLoadGenRef.current += 1;
     }
-    audioLoadGenRef.current += 1;
   }, []);
 
   /** HTML·YouTube 모두 즉시 묵음 (파괴는 비동기여도 소리는 바로 끊김) */
-  const silenceAllOutputs = useCallback(() => {
-    stopAudio();
-    ytPendingPlayRef.current = false;
-    ytCreatingRef.current = false;
-    // onReady / deferPlay 콜백 무효화
-    ytGenRef.current += 1;
-    try {
-      ytRef.current?.pauseVideo?.();
-    } catch {
-      /* ignore */
-    }
-    try {
-      ytRef.current?.stopVideo?.();
-    } catch {
-      /* ignore */
-    }
-    try {
-      ytRef.current?.destroy?.();
-    } catch {
-      /* ignore */
-    }
-    ytRef.current = null;
-    const box = document.getElementById('yt-container');
-    if (box) box.innerHTML = '';
-  }, [stopAudio]);
+  const silenceAllOutputs = useCallback(
+    (opts?: { clearSrc?: boolean }) => {
+      stopAudio(opts);
+      detachYtPlayer();
+    },
+    [detachYtPlayer, stopAudio],
+  );
 
   const stopAllMedia = useCallback(async () => {
     silenceAllOutputs();
@@ -264,7 +302,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   }, [silenceAllOutputs]);
 
   const silenceMedia = useCallback(() => {
-    userPausedRef.current = true;
+    /* 라우트/테마 전환용 묵음 — 사용자 일시정지로 기록하면 이후 자동·클릭 재생이 영구 차단됨 */
     playingRef.current = false;
     setPlaying(false);
     pendingAutoplayRef.current = false;
@@ -535,6 +573,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         artist: t?.artist,
         scope: t?.scope,
         playing: playingRef.current,
+        userPaused: userPausedRef.current,
         currentTime: time,
         ...extra,
       });
@@ -568,13 +607,14 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
       setPlaying(false);
-      if (markPaused) persistState({ playing: false, currentTime: getTime() });
+      if (markPaused) persistState({ playing: false, userPaused: true, currentTime: getTime() });
     },
     [getTime, persistState],
   );
 
   const playInternal = useCallback(
     (seek?: number) => {
+      if (routeSuppressedRef.current) return;
       const track = trackRef.current;
       if (!track?.id) return;
 
@@ -585,7 +625,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         // HTML audio must never keep playing under a YT track
         stopAudio();
         const ensureYt = () => {
-          const box = document.getElementById('yt-container');
+          const box = getYtMountBox();
           if (!box) return;
 
           if (ytRef.current) {
@@ -606,14 +646,15 @@ export function BgmProvider({ children }: { children: ReactNode }) {
                 setPlaying(true);
               }
             } catch {
+              const broken = ytRef.current;
+              ytRef.current = null;
+              ytGenRef.current += 1;
               try {
-                ytRef.current?.destroy?.();
+                broken?.destroy?.();
               } catch {
                 /* ignore */
               }
-              ytRef.current = null;
-              ytGenRef.current += 1;
-              box.innerHTML = '';
+              clearYtMount(box);
             }
             if (ytRef.current) return;
           }
@@ -622,8 +663,10 @@ export function BgmProvider({ children }: { children: ReactNode }) {
           if (ytCreatingRef.current) return;
           ytCreatingRef.current = true;
 
-          if (box.querySelector('iframe, #yt-iframe')) box.innerHTML = '';
-          box.innerHTML = '<div id="yt-iframe"></div>';
+          clearYtMount(box);
+          const host = document.createElement('div');
+          host.id = 'yt-iframe';
+          box.appendChild(host);
           const ytGen = ++ytGenRef.current;
           try {
             ytRef.current = new window.YT!.Player('yt-iframe', {
@@ -671,7 +714,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
           } catch {
             ytCreatingRef.current = false;
             ytRef.current = null;
-            box.innerHTML = '';
+            clearYtMount(box);
           }
         };
 
@@ -775,6 +818,24 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   );
 
   playInternalRef.current = playInternal;
+
+  const setPlaybackSuppressed = useCallback(
+    (suppressed: boolean) => {
+      if (routeSuppressedRef.current === suppressed) return;
+      routeSuppressedRef.current = suppressed;
+      if (suppressed) {
+        suppressedWasPlayingRef.current =
+          playingRef.current || Boolean(audioRef.current && !audioRef.current.paused);
+        pauseInternal(false);
+      } else if (suppressedWasPlayingRef.current && !userPausedRef.current && trackRef.current?.id) {
+        suppressedWasPlayingRef.current = false;
+        playInternal(getTime());
+      } else {
+        suppressedWasPlayingRef.current = false;
+      }
+    },
+    [getTime, pauseInternal, playInternal],
+  );
 
   const applyTrack = useCallback(
     (next: BgmTrack | null, opts?: { autoplay?: boolean; currentTime?: number; force?: boolean }) => {
@@ -906,16 +967,35 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       // MP3/URL 전환 — YouTube 160ms 대기 없이 즉시 (자동 넘김·⏭)
       if (next.kind !== 'youtube' && prev?.kind !== 'youtube') {
         persist(wantPlay);
+        switchingTrackRef.current = true;
+        /* clearSrc:false — src 비운 채 playing UI만 남는 먹통 방지. loadAndPlayAudio가 교체 */
+        silenceAllOutputs({ clearSrc: false });
+        const pageMulti = next.scope === 'page' && pagePlaylistRef.current.length > 1;
         if (!wantPlay) {
+          switchingTrackRef.current = false;
           playingRef.current = false;
           setPlaying(false);
-          silenceAllOutputs();
+          /* 일시정지 복원이라도 src는 올려 두어 클릭 재생이 바로 되게 */
+          const audio = audioRef.current;
+          if (audio) {
+            audio.src = next.id;
+            audio.loop = next.scope === 'character' ? true : !pageMulti;
+            audio.load();
+            if (seek > 0) {
+              const onMeta = () => {
+                try {
+                  audio.currentTime = seek;
+                } catch {
+                  /* ignore */
+                }
+              };
+              audio.addEventListener('loadedmetadata', onMeta, { once: true });
+            }
+          }
           return;
         }
-        // YouTube 고스트가 남아 있으면 HTML과 겹침 — 항상 둘 다 묵음 후 로드
-        silenceAllOutputs();
-        const pageMulti = next.scope === 'page' && pagePlaylistRef.current.length > 1;
         loadAndPlayAudio(serial, pageMulti);
+        switchingTrackRef.current = false;
         if (wantPlay) scheduleAutoplayRetries();
         return;
       }
@@ -1039,6 +1119,21 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     [applyTrack],
   );
 
+  const isMediaActuallyPlaying = useCallback(() => {
+    const track = trackRef.current;
+    if (!track?.id) return false;
+    if (track.kind === 'youtube') {
+      try {
+        /* 1 = PLAYING */
+        return ytRef.current?.getPlayerState?.() === 1;
+      } catch {
+        return false;
+      }
+    }
+    const audio = audioRef.current;
+    return !!(audio && audio.src && !audio.paused && audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA);
+  }, []);
+
   const toggle = useCallback(() => {
     if (toggleBusyRef.current) return;
     toggleBusyRef.current = true;
@@ -1050,18 +1145,29 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       const first = firstPageTrack(siteBgm);
       if (first) {
         userPausedRef.current = false;
-        applyTrack(first, { autoplay: true });
+        applyTrack(first, { autoplay: true, force: true });
       }
       return;
     }
-    const stuck = isAudioPlaybackStuck();
-    if (playingRef.current && !stuck) {
+
+    if (isMediaActuallyPlaying()) {
       pauseInternal(true);
-    } else {
-      userPausedRef.current = false;
-      playInternal(getTime());
+      return;
     }
-  }, [applyTrack, getTime, isAudioPlaybackStuck, pauseInternal, playInternal, siteBgm]);
+
+    /* UI만 ▶/⏸ 어긋난 경우·src 미로드·userPaused 잔여 → 무조건 재생 시도 */
+    userPausedRef.current = false;
+    persistState({ userPaused: false, playing: true });
+    const t = trackRef.current;
+    if (t && t.kind !== 'youtube') {
+      const audio = audioRef.current;
+      if (audio && (!audio.src || !audio.src.includes(t.id.slice(-24)))) {
+        applyTrack(t, { autoplay: true, currentTime: getTime(), force: true });
+        return;
+      }
+    }
+    playInternal(getTime());
+  }, [applyTrack, getTime, isMediaActuallyPlaying, pauseInternal, persistState, playInternal, siteBgm]);
 
   const setVolume = useCallback(
     (v: number) => {
@@ -1298,8 +1404,15 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     };
   }, [applyVolume]);
 
-  useEffect(() => {
-    const flush = () => persistState({});
+      useEffect(() => {
+    const flush = () => {
+      persistState({});
+      try {
+        sessionStorage.setItem(HARD_RESUME_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+    };
     window.addEventListener('lh-before-hard-nav', flush);
     return () => window.removeEventListener('lh-before-hard-nav', flush);
   }, [persistState]);
@@ -1323,15 +1436,23 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      /* hard-nav 후 재생 위치 복원 (lh_bgm_shared_state) */
+      /* hard-nav 직후에만 이전 곡·위치 복원. 새로고침은 항상 플레이리스트 1번 */
+      let hardResume = false;
+      try {
+        hardResume = sessionStorage.getItem(HARD_RESUME_KEY) === '1';
+        sessionStorage.removeItem(HARD_RESUME_KEY);
+      } catch {
+        hardResume = false;
+      }
+
       const saved = readJson<SavedState>(STATE_KEY);
-      if (saved?.id && (saved.scope === 'page' || !saved.scope)) {
+      if (hardResume && saved?.id && (saved.scope === 'page' || !saved.scope)) {
         const match = pl.find((t) => t.id === saved.id) ?? pl[0];
         const idx = pl.findIndex((t) => t.id === match.id);
         playlistIndexRef.current = idx >= 0 ? idx : 0;
-        userPausedRef.current = saved.playing === false;
+        userPausedRef.current = saved.userPaused === true;
         applyTrackRef.current(match, {
-          autoplay: saved.playing !== false,
+          autoplay: saved.userPaused !== true,
           currentTime: Math.max(0, Number(saved.currentTime) || 0),
           force: true,
         });
@@ -1400,6 +1521,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       setPlaying(true);
     };
     const onPause = () => {
+      if (switchingTrackRef.current) return;
       playingRef.current = false;
       setPlaying(false);
     };
@@ -1424,6 +1546,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unlock = () => {
       // 퍼즈 후 화면 클릭으로 재개 금지 — 자동재생 차단 해제만 허용
+      if (routeSuppressedRef.current) return;
       if (userPausedRef.current || playingRef.current) return;
       if (!pendingAutoplayRef.current) return;
       pendingAutoplayRef.current = false;
@@ -1441,32 +1564,49 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     if (!playing) return;
     const id = window.setInterval(() => {
       if (seekScrubbingRef.current) return;
+      const track = trackRef.current;
+      /* UI만 재생 중·media는 빈 src/일시정지 → 자동 복구 (컨트롤 먹통처럼 보이던 상태) */
+      if (
+        track?.id &&
+        track.kind !== 'youtube' &&
+        !userPausedRef.current &&
+        !routeSuppressedRef.current &&
+        !switchingTrackRef.current &&
+        isAudioPlaybackStuck()
+      ) {
+        applyTrackRef.current(track, {
+          autoplay: true,
+          currentTime: getTime() > 0.25 ? getTime() : 0,
+          force: true,
+        });
+        return;
+      }
       const t = getTime();
       setCurrentTime(t);
-      if (trackRef.current?.kind === 'youtube' && ytRef.current?.getDuration) {
+      if (track?.kind === 'youtube' && ytRef.current?.getDuration) {
         try {
           setDuration(ytRef.current.getDuration() || 0);
         } catch {
           /* ignore */
         }
-      } else if (trackRef.current && trackRef.current.kind !== 'youtube') {
+      } else if (track && track.kind !== 'youtube') {
         syncDurationFromAudio();
       }
       maybeAdvanceNearEnd();
       persistState({ playing: true, currentTime: t });
     }, 500);
     return () => window.clearInterval(id);
-  }, [getTime, maybeAdvanceNearEnd, persistState, playing, syncDurationFromAudio]);
+  }, [getTime, isAudioPlaybackStuck, maybeAdvanceNearEnd, persistState, playing, syncDurationFromAudio]);
 
   useEffect(() => {
-    const save = () => persistState({ playing, currentTime: getTime() });
+    const save = () => persistState({ currentTime: getTime() });
     window.addEventListener('beforeunload', save);
     window.addEventListener('pagehide', save);
     return () => {
       window.removeEventListener('beforeunload', save);
       window.removeEventListener('pagehide', save);
     };
-  }, [currentTime, getTime, persistState, playing]);
+  }, [getTime, persistState]);
 
   useEffect(() => {
     return () => {
@@ -1475,11 +1615,10 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       audioReadyAbortRef.current?.abort();
       try {
         audioRef.current?.pause();
-        audioRef.current?.removeAttribute('src');
-        audioRef.current?.load();
       } catch {
         /* ignore */
       }
+      /* Strict Mode 재마운트 시 src를 지우면 playing UI만 남는 먹통이 됨 — pause만 */
       try {
         ytRef.current?.stopVideo?.();
         ytRef.current?.destroy?.();
@@ -1487,16 +1626,6 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
       ytRef.current = null;
-      const box = document.getElementById('yt-container');
-      if (box) box.innerHTML = '';
-      // Strict Mode 재마운트 시 고아 iframe/audio 잔향 제거
-      document.querySelectorAll('#yt-container iframe, iframe#yt-iframe').forEach((el) => {
-        try {
-          el.remove();
-        } catch {
-          /* ignore */
-        }
-      });
     };
   }, []);
 
@@ -1528,6 +1657,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       resumePageBgmIfNeeded,
       playCharacterTheme,
       silenceMedia,
+      setPlaybackSuppressed,
     }),
     [
       playing,
@@ -1556,13 +1686,13 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       resumePageBgmIfNeeded,
       playCharacterTheme,
       silenceMedia,
+      setPlaybackSuppressed,
     ],
   );
 
   return (
     <BgmContext.Provider value={contextValue}>
       <audio ref={audioRef} preload="auto" style={{ display: 'none' }} />
-      <div id="yt-container" style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
       {children}
     </BgmContext.Provider>
   );

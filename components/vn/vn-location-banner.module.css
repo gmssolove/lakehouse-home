@@ -1,0 +1,312 @@
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 625;
+  pointer-events: none;
+}
+
+/* 나레이션(.narrationGlow)과 동일 타원 비네트 (박스 아님) */
+.glow,
+.glowSm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% + 5.5rem);
+  height: calc(100% + 3.6rem);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 78% 68% at 50% 50%,
+    rgba(0, 0, 0, 0.26) 0%,
+    rgba(0, 0, 0, 0.2) 35%,
+    rgba(0, 0, 0, 0.1) 62%,
+    rgba(0, 0, 0, 0.03) 82%,
+    transparent 96%
+  );
+  filter: blur(20px);
+}
+
+.glowSm {
+  width: calc(100% + 3.6rem);
+  height: calc(100% + 2.4rem);
+}
+
+/* —— 중앙 등장 —— */
+
+.center {
+  position: absolute;
+  top: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  opacity: 0;
+  z-index: 1;
+}
+
+.centerShow {
+  animation: lbCenterEnter 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.centerHide {
+  animation: lbCenterFadeOut 0.55s ease both;
+}
+
+.tag {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: rgba(240, 207, 173, 0.95);
+  opacity: 0;
+  animation: lbTextFade 0.55s ease 0.4s both;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 20px rgba(0, 0, 0, 0.4);
+}
+
+.name {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  color: #f8eede;
+  opacity: 0;
+  animation: lbTextFade 0.55s ease 0.4s both;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 20px rgba(0, 0, 0, 0.4);
+}
+
+.line {
+  position: relative;
+  z-index: 1;
+  width: clamp(40px, 9vw, 80px);
+  height: 1px;
+  transform: scaleX(0);
+  animation: lbLineGrow 0.85s cubic-bezier(0.65, 0, 0.2, 1) 0.85s both;
+}
+
+.lineLeft {
+  background: linear-gradient(90deg, rgba(215, 169, 130, 0.05), rgba(240, 207, 173, 0.9));
+  transform-origin: right;
+}
+
+.lineRight {
+  background: linear-gradient(90deg, rgba(240, 207, 173, 0.9), rgba(215, 169, 130, 0.05));
+  transform-origin: left;
+}
+
+.dot {
+  position: absolute;
+  top: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f5d6b6;
+  box-shadow: 0 0 9px rgba(245, 214, 182, 0.95);
+  opacity: 0;
+}
+
+.lineLeft .dot {
+  right: 0;
+  animation: lbDotRunLeft 0.85s cubic-bezier(0.65, 0, 0.2, 1) 0.85s both;
+}
+
+.lineRight .dot {
+  left: 0;
+  animation: lbDotRunRight 0.85s cubic-bezier(0.65, 0, 0.2, 1) 0.85s both;
+}
+
+@keyframes lbCenterEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lbCenterFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lbTextFade {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lbLineGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes lbDotRunLeft {
+  0% {
+    right: 0;
+    opacity: 1;
+  }
+  94% {
+    opacity: 1;
+  }
+  100% {
+    right: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes lbDotRunRight {
+  0% {
+    left: 0;
+    opacity: 1;
+  }
+  94% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+/* —— 좌상단 코너 (동일 구분선·등장 애니) —— */
+
+.corner {
+  position: absolute;
+  top: 26px;
+  left: 42px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.cornerShow {
+  animation: lbCornerEnter 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cornerShow .tagSm,
+.cornerShow .nameSm {
+  animation: lbTextFade 0.45s ease 0.2s both;
+}
+
+.cornerShow .lineSm {
+  animation: lbLineGrow 0.7s cubic-bezier(0.65, 0, 0.2, 1) 0.45s both;
+}
+
+.cornerShow .lineLeft .dotSm {
+  animation: lbDotRunLeft 0.7s cubic-bezier(0.65, 0, 0.2, 1) 0.45s both;
+}
+
+.cornerShow .lineRight .dotSm {
+  animation: lbDotRunRight 0.7s cubic-bezier(0.65, 0, 0.2, 1) 0.45s both;
+}
+
+.tagSm {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(240, 207, 173, 0.9);
+  opacity: 0;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 20px rgba(0, 0, 0, 0.4);
+}
+
+.nameSm {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  color: rgba(248, 238, 222, 0.95);
+  opacity: 0;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 20px rgba(0, 0, 0, 0.4);
+}
+
+.lineSm {
+  position: relative;
+  z-index: 1;
+  width: clamp(22px, 4.5vw, 36px);
+  height: 1px;
+  transform: scaleX(0);
+}
+
+.dotSm {
+  position: absolute;
+  top: -1.5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #f5d6b6;
+  box-shadow: 0 0 7px rgba(245, 214, 182, 0.9);
+  opacity: 0;
+}
+
+.lineLeft .dotSm {
+  right: 0;
+}
+
+.lineRight .dotSm {
+  left: 0;
+}
+
+@keyframes lbCornerEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .center,
+  .line,
+  .lineSm,
+  .dot,
+  .dotSm,
+  .tag,
+  .name,
+  .tagSm,
+  .nameSm,
+  .corner {
+    animation-duration: 0.01ms !important;
+  }
+}

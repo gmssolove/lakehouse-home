@@ -10,6 +10,14 @@ import type {
   TrpgScenario,
   TrpgSessionLog,
 } from '@/lib/types/site-content';
+import { isDialogueFx, isDialogueMotion } from '@/lib/vn/motions';
+import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage } from '@/lib/vn/parseCcfoliaLog';
+import { normalizeHandoutLayout } from '@/lib/vn/handoutLayout';
+import { normalizeMenuTheme } from '@/lib/vn/menuTheme';
+import {
+  normalizeStandPosBySlot,
+  normalizeStandPosField,
+} from '@/lib/vn/standPosBySlot';
 
 function normalizeImageFrameField(raw: unknown): ImageFrame | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -40,9 +48,24 @@ function normalizeQuoteAlign(raw: unknown): 'left' | 'center' | 'right' | undefi
   return undefined;
 }
 
+/** Firebase RTDB: 구멍 난 배열은 객체({0:…,2:…})로 돌아오므로 배열로 복원 */
+function coerceFirebaseList(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== 'object') return [];
+  const obj = raw as Record<string, unknown>;
+  const keys = Object.keys(obj);
+  if (!keys.length) return [];
+  if (keys.every((k) => /^\d+$/.test(k))) {
+    return keys
+      .map((k) => Number(k))
+      .sort((a, b) => a - b)
+      .map((i) => obj[String(i)]);
+  }
+  return Object.values(obj);
+}
+
 function asArray<T>(raw: unknown, map: (v: Record<string, unknown>) => T): T[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((item) => map((item ?? {}) as Record<string, unknown>));
+  return coerceFirebaseList(raw).map((item) => map((item ?? {}) as Record<string, unknown>));
 }
 
 function normalizeLog(raw: Record<string, unknown>): TrpgSessionLog {
@@ -178,6 +201,13 @@ function normalizePlayer(raw: Record<string, unknown>): TrpgPlayerProfile {
     items: normalizePlayerItems(raw.items),
     playerName: String(raw.playerName || '').trim() || undefined,
     ocId: String(raw.ocId || '').trim() || undefined,
+    handwritingNotes: (() => {
+      if (!Array.isArray(raw.handwritingNotes)) return undefined;
+      const notes = raw.handwritingNotes.map(String).map((u) => u.trim()).filter(Boolean);
+      return notes.length ? notes : undefined;
+    })(),
+    handwritingNoteSfx: String(raw.handwritingNoteSfx || '').trim() || undefined,
+    handwritingNoteCloseSfx: String(raw.handwritingNoteCloseSfx || '').trim() || undefined,
   };
 }
 
@@ -350,6 +380,362 @@ export function normalizeTrpgScenario(raw: Partial<TrpgScenario> & Record<string
           logLineHeight: l.logLineHeight ?? legacyLineHeight,
         }));
     })(),
+    vnEditable: normalizeVnEditable(raw.vnEditable ?? legacy.vnEditable),
+    vnScene: normalizeVnScene(raw.vnScene ?? legacy.vnScene, String(raw.id || '')),
+    vnPlayBtnColor: (() => {
+      const c = String(raw.vnPlayBtnColor || '').trim();
+      return /^#[0-9a-fA-F]{6}$/.test(c) ? c : undefined;
+    })(),
+  };
+}
+
+function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const row = raw as Record<string, unknown>;
+  const speakers = coerceFirebaseList(row.speakers);
+  const lines = coerceFirebaseList(row.lines);
+  if (!speakers.length && !lines.length) return undefined;
+  const maxRaw = row.maxOnStage;
+  return {
+    speakers: speakers.map((s) => {
+      const sp = (s ?? {}) as Record<string, unknown>;
+      const pos = String(sp.position || 'left');
+      return {
+        key: String(sp.key || '').trim(),
+        displayName: String(sp.displayName || sp.key || '').trim(),
+        color: String(sp.color || '').trim() || undefined,
+        position: (pos === 'center' || pos === 'right' ? pos : 'left') as 'left' | 'center' | 'right',
+        sprite: String(sp.sprite || '').trim() || undefined,
+        treatAsNarration: Boolean(sp.treatAsNarration),
+        standPos: (() => {
+          const bySlot = normalizeStandPosBySlot(
+            sp.standPosBySlot,
+            sp.standPos ?? sp.standPose,
+          );
+          return bySlot?.center ?? normalizeStandPosField(sp.standPos ?? sp.standPose);
+        })(),
+        standPosBySlot: normalizeStandPosBySlot(
+          sp.standPosBySlot,
+          sp.standPos ?? sp.standPose,
+        ),
+        standAnimation: (() => {
+          const a = String(sp.standAnimation || '');
+          if (
+            a === 'fade' ||
+            a === 'slide-left' ||
+            a === 'slide-right' ||
+            a === 'slide-up' ||
+            a === 'pop'
+          ) {
+            return a as import('@/lib/vn/parseCcfoliaLog').ScenarioVnStandAnim;
+          }
+          return undefined;
+        })(),
+      };
+    }).filter((s) => s.key),
+    lines: (() => {
+      const mapped = collapseStickyVignette(
+        lines
+          .map((l) => {
+      const line = (l ?? {}) as Record<string, unknown>;
+      const dice = line.diceRoll && typeof line.diceRoll === 'object'
+        ? (line.diceRoll as Record<string, unknown>)
+        : null;
+      const mu = line.missionUpdate && typeof line.missionUpdate === 'object'
+        ? (line.missionUpdate as Record<string, unknown>)
+        : null;
+      const isTitlecard = line.effect === 'titlecard';
+      return {
+        id: String(line.id || '').trim(),
+        speakerKey: String(line.speakerKey || '').trim(),
+        text: String(line.text || ''),
+        narrationOnly: line.narrationOnly ? true : undefined,
+        effect: isTitlecard
+          ? ('titlecard' as const)
+          : line.effect === 'diceRoll'
+            ? ('diceRoll' as const)
+            : undefined,
+        titleText: isTitlecard ? String(line.titleText || '').trim() || undefined : undefined,
+        titleSubtext: isTitlecard ? String(line.titleSubtext || '').trim() || undefined : undefined,
+        chapterLoadingBefore: isTitlecard && line.chapterLoadingBefore ? true : undefined,
+        chapterLoadingAfter: isTitlecard && line.chapterLoadingAfter ? true : undefined,
+        diceRoll: dice
+          ? {
+              actor: String(dice.actor || ''),
+              skill: String(dice.skill || ''),
+              target: Number(dice.target) || 0,
+              roll: Number(dice.roll) || 0,
+              result: String(dice.result || ''),
+              sfx: String(dice.sfx || '').trim() || undefined,
+              resultSfx: String(dice.resultSfx || '').trim() || undefined,
+            }
+          : undefined,
+        background: String(line.background || '').trim() || undefined,
+        bgm: (() => {
+          /* null 은 RTDB 에서 삭제됨 → handout 과 같이 'none' 으로 영속화 */
+          if (line.bgm === null || line.bgm === 'none' || line.bgm === '__none__') {
+            return 'none';
+          }
+          if (line.bgm === undefined || line.bgm === '') return undefined;
+          return String(line.bgm);
+        })(),
+        ambient: (() => {
+          if (
+            line.ambient === null ||
+            line.ambient === 'none' ||
+            line.ambient === '__none__'
+          ) {
+            return 'none';
+          }
+          if (line.ambient === undefined || line.ambient === '') return undefined;
+          return String(line.ambient);
+        })(),
+        handout: (() => {
+          /* null 은 Firebase RTDB 에서 키가 삭제됨 → 'none' 으로 영속화 */
+          if (
+            line.handout === null ||
+            line.handout === 'none' ||
+            line.handout === '__none__'
+          ) {
+            return 'none';
+          }
+          if (line.handout === undefined || line.handout === '') return undefined;
+          return String(line.handout);
+        })(),
+        sfx: String(line.sfx || '').trim() || undefined,
+        motion: isDialogueMotion(line.motion) ? line.motion : undefined,
+        fx: isDialogueFx(line.fx) ? line.fx : undefined,
+        expression: String(line.expression || '').trim() || undefined,
+        expressionPersist: (() => {
+          if (!String(line.expression || '').trim()) return undefined;
+          if (line.expressionPersist === false) return false;
+          return true;
+        })(),
+        expressionUntilLineId: (() => {
+          if (!String(line.expression || '').trim()) return undefined;
+          if (line.expressionPersist === false) return undefined;
+          const id = String(line.expressionUntilLineId || '').trim();
+          return id || undefined;
+        })(),
+        voice: String(line.voice || '').trim() || undefined,
+        location: String(line.location || '').trim() || undefined,
+        vignette: line.vignette === true ? true : line.vignette === false ? false : undefined,
+        visionBlur:
+          line.visionBlur === true ? true : line.visionBlur === false ? false : undefined,
+        hideStandings:
+          line.hideStandings === true
+            ? true
+            : line.hideStandings === false
+              ? false
+              : undefined,
+        maxOnStage: parseLineMaxOnStage(line.maxOnStage),
+        stageOrder: (() => {
+          if (!Array.isArray(line.stageOrder) || !line.stageOrder.length) return undefined;
+          const seen = new Set<string>();
+          const out = line.stageOrder.map((item) => {
+            const k = String(item || '').trim();
+            if (!k) return '';
+            if (seen.has(k)) return '';
+            seen.add(k);
+            return k;
+          });
+          return out.some((k) => k) ? out : undefined;
+        })(),
+        stageEnterOrder: (() => {
+          if (!Array.isArray(line.stageEnterOrder) || !line.stageEnterOrder.length) {
+            return undefined;
+          }
+          const seen = new Set<string>();
+          const out = line.stageEnterOrder.map((item) => {
+            const k = String(item || '').trim();
+            if (!k) return '';
+            if (seen.has(k)) return '';
+            seen.add(k);
+            return k;
+          });
+          return out.some((k) => k) ? out : undefined;
+        })(),
+        resetStage: line.resetStage === true ? true : undefined,
+        missionUpdate: mu?.id
+          ? {
+              id: String(mu.id),
+              title: String(mu.title || mu.id),
+              status: mu.status === 'complete' ? ('complete' as const) : ('start' as const),
+            }
+          : undefined,
+      };
+    })
+          .filter((l) => l.id),
+      );
+      return mapped.map((l, i) => {
+        const until = l.expressionUntilLineId;
+        if (!until) return l;
+        const sk = (l.speakerKey || '').trim();
+        const ok = mapped.slice(i + 1).some(
+          (x) =>
+            x.id === until &&
+            x.effect !== 'titlecard' &&
+            (x.speakerKey || '').trim() === sk &&
+            !x.narrationOnly,
+        );
+        return ok ? l : { ...l, expressionUntilLineId: undefined };
+      });
+    })(),
+    backgrounds: normalizeVnBackgrounds(row.backgrounds),
+    bgms: normalizeVnBgms(row.bgms),
+    ambients: normalizeVnAmbients(row.ambients),
+    handouts: normalizeVnHandouts(row.handouts),
+    diceSfxList: normalizeVnDiceSfxList(row.diceSfxList),
+    diceRollSfx: String(row.diceRollSfx || '').trim() || undefined,
+    diceResultSfx: String(row.diceResultSfx || '').trim() || undefined,
+    diceResultSfxByTone: normalizeVnDiceResultSfxByTone(row.diceResultSfxByTone),
+    maxOnStage: normalizeVnMaxOnStage(maxRaw),
+    tutorialSteps: normalizeTutorialSteps(row.tutorialSteps),
+    menuTheme: normalizeMenuTheme(row.menuTheme),
+    chapterLoading: Boolean(row.chapterLoading) || undefined,
+  };
+}
+
+function normalizeTutorialSteps(raw: unknown): import('@/components/vn/VnTutorial').VnTutorialStep[] | undefined {
+  const list = coerceFirebaseList(raw);
+  if (!list.length) return undefined;
+  const steps = list
+    .map((s, i) => {
+      const row = (s ?? {}) as Record<string, unknown>;
+      const id = String(row.id || `step-${i}`).trim();
+      const title = String(row.title || '').trim();
+      const body = String(row.body || '').trim();
+      if (!id || (!title && !body)) return null;
+      return {
+        id,
+        title,
+        body,
+        gifUrl: String(row.gifUrl || '').trim() || undefined,
+      };
+    })
+    .filter(Boolean) as import('@/components/vn/VnTutorial').VnTutorialStep[];
+  return steps.length ? steps : undefined;
+}
+
+function normalizeVnBackgrounds(raw: unknown): import('@/lib/vn/parseCcfoliaLog').ScenarioVnBackground[] {
+  return coerceFirebaseList(raw)
+    .map((b) => {
+      const row = (b ?? {}) as Record<string, unknown>;
+      const key = String(row.key || '').trim();
+      if (!key) return null;
+      return {
+        key,
+        label: String(row.label || '').trim(),
+        image: String(row.image || '').trim() || undefined,
+        /* false만 명시 저장 — true/미지정은 기본(배너 표시) */
+        announceLocation: row.announceLocation === false ? false : undefined,
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => Boolean(b));
+}
+
+function normalizeVnBgms(raw: unknown): import('@/lib/vn/parseCcfoliaLog').ScenarioVnBgm[] {
+  return coerceFirebaseList(raw)
+    .map((b) => {
+      const row = (b ?? {}) as Record<string, unknown>;
+      const key = String(row.key || '').trim();
+      if (!key) return null;
+      return {
+        key,
+        label: String(row.label || '').trim(),
+        audio: String(row.audio || '').trim() || undefined,
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => Boolean(b));
+}
+
+function normalizeVnAmbients(raw: unknown): import('@/lib/vn/parseCcfoliaLog').ScenarioVnAmbient[] {
+  return coerceFirebaseList(raw)
+    .map((b) => {
+      const row = (b ?? {}) as Record<string, unknown>;
+      const key = String(row.key || '').trim();
+      if (!key) return null;
+      return {
+        key,
+        label: String(row.label || '').trim(),
+        audio: String(row.audio || '').trim() || undefined,
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => Boolean(b));
+}
+
+function normalizeVnHandouts(raw: unknown): import('@/lib/vn/parseCcfoliaLog').ScenarioVnHandout[] {
+  return coerceFirebaseList(raw)
+    .map((b) => {
+      const row = (b ?? {}) as Record<string, unknown>;
+      const key = String(row.key || '').trim();
+      if (!key) return null;
+      const layout = normalizeHandoutLayout(row.layout);
+      return {
+        key,
+        label: String(row.label || '').trim(),
+        image: String(row.image || '').trim() || undefined,
+        layout: layout || undefined,
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => Boolean(b));
+}
+
+function normalizeVnDiceSfxList(
+  raw: unknown,
+): import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceSfx[] {
+  return coerceFirebaseList(raw)
+    .map((b) => {
+      const row = (b ?? {}) as Record<string, unknown>;
+      const key = String(row.key || '').trim();
+      if (!key) return null;
+      return {
+        key,
+        label: String(row.label || '').trim(),
+        audio: String(row.audio || '').trim() || undefined,
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => Boolean(b));
+}
+
+function normalizeVnDiceResultSfxByTone(
+  raw: unknown,
+): import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const row = raw as Record<string, unknown>;
+  const tones = ['extreme', 'great', 'ok', 'fail', 'fumble'] as const;
+  const out: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone = {};
+  let any = false;
+  for (const t of tones) {
+    const v = String(row[t] || '').trim();
+    if (v) {
+      out[t] = v;
+      any = true;
+    }
+  }
+  return any ? out : undefined;
+}
+
+function normalizeVnScene(raw: unknown, fallbackId: string): TrpgScenario['vnScene'] {
+  const editable = normalizeVnEditable(raw);
+  if (!editable) return undefined;
+  const row = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    id: String(row.id || fallbackId).trim() || fallbackId,
+    title: String(row.title || '').trim() || '시나리오 VN',
+    speakers: editable.speakers,
+    lines: editable.lines,
+    backgrounds: editable.backgrounds,
+    bgms: editable.bgms,
+    ambients: editable.ambients,
+    handouts: editable.handouts,
+    diceSfxList: editable.diceSfxList,
+    diceRollSfx: editable.diceRollSfx,
+    diceResultSfx: editable.diceResultSfx,
+    diceResultSfxByTone: editable.diceResultSfxByTone,
+    maxOnStage: normalizeVnMaxOnStage(row.maxOnStage ?? editable.maxOnStage),
+    menuTheme: editable.menuTheme,
+    chapterLoading: editable.chapterLoading ? true : undefined,
   };
 }
 

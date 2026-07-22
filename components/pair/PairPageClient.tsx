@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBgm } from '@/lib/contexts/BgmContext';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
@@ -29,18 +29,26 @@ import {
   unlockLakeItem,
   verifyLakeAccessPassword,
 } from '@/lib/lake/accessGate';
-import { clearLakeRouteClasses, isLakeRouteEnterLocked, lakeNavigate } from '@/lib/lake/routeTransition';
+import {
+  clearLakeRouteClasses,
+  consumePendingPairId,
+  isLakeRouteEnterLocked,
+  lakeNavigate,
+  peekPendingPairId,
+} from '@/lib/lake/routeTransition';
+import { setOcReturnPath } from '@/lib/lake/ocReturn';
 import type { OcCharacter, PairItem } from '@/lib/types/character';
 
 type SortMode = 'order' | 'name';
 
 export function PairPageClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { pairs, loaded, savePairs } = usePairData();
   const { characters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
   const { resumePageBgmIfNeeded } = useBgm();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, ready: authReady } = useAuth();
   const { confirm } = useLakeDialog();
   const [detail, setDetail] = useState<PairItem | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -304,7 +312,12 @@ export function PairPageClient() {
     };
   }, []);
 
-  useLakeBackNavigation(!!detail || !!entrySplash, handleDetailBack, 'pair-detail', routeGuard);
+  useLakeBackNavigation(
+    !!detail || !!entrySplash || detailLeaving,
+    handleDetailBack,
+    'pair-detail',
+    routeGuard,
+  );
   useLakeBackNavigation(editOpen, () => setEditOpen(false), 'pair-edit', routeGuard);
   useLakeBackGesture(leavePair, !detail && !editOpen && !entrySplash);
 
@@ -320,11 +333,11 @@ export function PairPageClient() {
     await persistPairs(next);
   }
 
-  function proceedOpenPair(p: PairItem) {
+  function proceedOpenPair(p: PairItem, opts?: { skipSplash?: boolean }) {
     setSidebarOpen(false);
     setLayoutMode(false);
     setQuoteMode(false);
-    if (normalizeEntrySplash(p.entrySplash).enabled) {
+    if (!opts?.skipSplash && normalizeEntrySplash(p.entrySplash).enabled) {
       splashPendingRef.current = p;
       setEntrySplash(p);
       setDetail(null);
@@ -335,13 +348,79 @@ export function PairPageClient() {
     setDetail(p);
   }
 
-  function openPair(p: PairItem) {
+  function openPair(p: PairItem, opts?: { skipSplash?: boolean }) {
     if (isAdmin || !p.secret || isLakeItemUnlocked('pair', p.id, resolveItemPassword('pair', p, accessSettings))) {
-      proceedOpenPair(p);
+      proceedOpenPair(p, opts);
       return;
     }
     setPasswordGate(p);
   }
+
+  /* 인증 확정 후 관리자면 잘못 뜬 비번 게이트 자동 해제 */
+  useEffect(() => {
+    if (!authReady || !isAdmin || !passwordGate) return;
+    const pending = passwordGate;
+    setPasswordGate(null);
+    proceedOpenPair(pending);
+  }, [authReady, isAdmin, passwordGate]);
+
+  const bootPairRef = useRef<string | null>(peekPendingPairId());
+  const [bootPairCover, setBootPairCover] = useState(() => Boolean(bootPairRef.current));
+  /** 같은 ?p= / boot id 로 상세를 다시 열지 않음 (닫기→재오픈 루프 방지) */
+  const autoOpenedPairRef = useRef<string | null>(null);
+
+  /* OC 등에서 ?p= 로 복귀 시 해당 페어 상세 즉시 오픈 */
+  useEffect(() => {
+    // 인증 확정 전엔 열지 않음 — 관리자가 isAdmin=false로 오판돼 비번 게이트가 뜸
+    if (!authReady) return;
+    if (!loaded || !pairs.length) return;
+    const fromUrl = searchParams.get('p')?.trim();
+    const fromStore = consumePendingPairId();
+    const pairId = fromUrl || fromStore || bootPairRef.current;
+    if (!pairId) return;
+
+    const clearBoot = () => {
+      bootPairRef.current = null;
+      setBootPairCover(false);
+    };
+
+    const scrubPairQuery = () => {
+      try {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has('p')) return;
+        url.searchParams.delete('p');
+        router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+      } catch {
+        /* ignore */
+      }
+    };
+
+    /* 이미 이 id 로 자동 오픈한 적 있고 사용자가 닫음 → 재오픈 금지 */
+    if (autoOpenedPairRef.current === pairId && !detail && !entrySplash) {
+      clearBoot();
+      scrubPairQuery();
+      return;
+    }
+
+    if (detail && String(detail.id) === pairId) {
+      autoOpenedPairRef.current = pairId;
+      clearBoot();
+      scrubPairQuery();
+      return;
+    }
+    if (detail || entrySplash || detailLeaving) return;
+    const found = pairs.find((p) => String(p.id) === pairId);
+    if (!found) {
+      clearBoot();
+      scrubPairQuery();
+      return;
+    }
+    autoOpenedPairRef.current = pairId;
+    clearBoot();
+    openPair(found, { skipSplash: true });
+    scrubPairQuery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from URL after auth
+  }, [authReady, loaded, pairs, searchParams, detail, entrySplash, detailLeaving, isAdmin]);
 
   const finishEntrySplash = useCallback(() => {
     const pending = splashPendingRef.current;
@@ -358,10 +437,19 @@ export function PairPageClient() {
   const detailTitle = liveDetail ? pairCardTitle(liveDetail) : '';
   const detailOrder = liveDetail ? pairOrderMeta(pairs, liveDetail.id) : null;
 
-  /** 페어 캐릭터 이름이 내 OC와 일치하면 해당 OC 프로필로 이동하는 링크를 만든다 (#16) */
+  /** 페어 캐릭터 → OC 프로필 (뒤로가기 시 이 페어로 복귀) */
   const ocProfileLinks = useMemo<[string | undefined, string | undefined]>(() => {
-    const linkFor = (oc?: OcCharacter): string | undefined =>
-      oc ? `/oc?c=${encodeURIComponent(String(oc.id))}&view=detail` : undefined;
+    const pairId = liveDetail?.id ? String(liveDetail.id) : '';
+    const linkFor = (oc?: OcCharacter): string | undefined => {
+      if (!oc) return undefined;
+      const q = new URLSearchParams({
+        c: String(oc.id),
+        view: 'detail',
+        from: 'pair',
+      });
+      if (pairId) q.set('pair', pairId);
+      return `/oc?${q.toString()}`;
+    };
     // 편집에서 명시 지정한 OC만 — 미선택이면 버튼도 표시하지 않는다.
     const resolve = (explicitId?: string): string | undefined => {
       if (explicitId == null || explicitId === '') return undefined;
@@ -377,7 +465,17 @@ export function PairPageClient() {
     () => normalizeTipToastSettings(ocSettings.tipToastPair),
     [ocSettings.tipToastPair],
   );
+
+  useEffect(() => {
+    for (const href of ocProfileLinks) {
+      if (href) router.prefetch(href);
+    }
+  }, [ocProfileLinks, router]);
+
   const showArchiveTip = !detail && !entrySplash;
+  /* URL / soft-nav pending — 목록이 먼저 보이는 깜빡임 차단 */
+  const urlPairPending =
+    (Boolean(searchParams.get('p')?.trim()) || bootPairCover) && !detail && !entrySplash;
 
   return (
     <>
@@ -385,7 +483,7 @@ export function PairPageClient() {
         title="Pair — Relationships"
         active="pair"
         back={
-          detail || entrySplash ? (
+          detail || entrySplash || urlPairPending ? (
             <button type="button" className="nav-back" onClick={handleDetailBack}>
               ← back
             </button>
@@ -397,7 +495,11 @@ export function PairPageClient() {
         }
       />
 
-      <div className={`layout oc-archive-layout${sidebarOpen ? ' is-sidebar-open' : ''}`}>
+      <div
+        className={`layout oc-archive-layout${sidebarOpen ? ' is-sidebar-open' : ''}${
+          detail || entrySplash || urlPairPending ? ' is-detail-cover' : ''
+        }`}
+      >
         <button
           type="button"
           className="oc-mobile-burger"
@@ -463,7 +565,7 @@ export function PairPageClient() {
 
       <div
         id="detail-screen"
-        className={`pair-detail-screen${detail || entrySplash || detailLeaving ? ' active' : ''}${
+        className={`pair-detail-screen${detail || entrySplash || detailLeaving || urlPairPending ? ' active' : ''}${
           detailLeaving ? ' is-ui-leaving' : ''
         }${editOpen ? ' is-pair-edit-open' : ''}`}
       >

@@ -554,7 +554,7 @@ export function DialogueNodesEditor({
                       }}
                     />
                     <p className="lh-dialogue-editor__hint" style={{ margin: '6px 0 0' }}>
-                      저장 후 캐릭터를 클릭해 대사창을 열면, 화자 이름 <strong>위</strong>에 나옵니다. 같은
+                      저장 후 캐릭터를 클릭해 대사창을 열면, 화면 중앙에 장소가 뜬 뒤 좌상단에 남습니다. 같은
                       장소가 이어지면 연출이 반복되지 않습니다.
                     </p>
                   </section>

@@ -12,7 +12,7 @@ import { LeftNav, type HomePageId } from '@/components/layout/LeftNav';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
-import { lakeBackClearAll, lakeBackConfigureGuard } from '@/lib/hooks/lakeBackStack';
+import { lakeBackClearAll, lakeBackConfigureGuard, lakeHistoryReplaceQuiet } from '@/lib/hooks/lakeBackStack';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
 import { lakeNavigate, clearLakeRouteClasses } from '@/lib/lake/routeTransition';
@@ -48,22 +48,34 @@ export function HomePageClient() {
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
   }, []);
 
+  useEffect(() => {
+    const on = adminPhase !== 'idle';
+    document.body.classList.toggle('lh-admin-open', on);
+    return () => document.body.classList.remove('lh-admin-open');
+  }, [adminPhase]);
+
   const requestCloseAdmin = useCallback(() => {
     setAdminPhase((p) => (p === 'open' ? 'closing' : p));
   }, []);
 
   const finishCloseAdmin = useCallback(() => {
     setAdminPhase('idle');
-    router.replace('/', { scroll: false });
-  }, [router]);
+    /* admin=1 쿼리만 네이티브 history 로 정리 — router.replace / 패치된 replaceState 금지 */
+    if (searchParams.get('admin') === '1') {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete('admin');
+      const q = next.toString();
+      lakeHistoryReplaceQuiet(q ? `/?${q}` : '/');
+    }
+  }, [searchParams]);
 
   const handlePageBack = useCallback(() => {
     setPage((prev) => {
       startPageTransition(prev, 'main');
       return 'main';
     });
-    router.replace('/', { scroll: false });
-  }, [router, startPageTransition]);
+    lakeHistoryReplaceQuiet('/');
+  }, [startPageTransition]);
 
   const routeGuard = { guardPath: '/', router };
 

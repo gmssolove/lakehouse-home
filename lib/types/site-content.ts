@@ -33,6 +33,12 @@ export type DiaryThread = {
   likedBy?: string[];
 };
 
+/** 일기 첨부 이미지 (다중) */
+export type DiaryImage = {
+  url: string;
+  spoiler?: boolean;
+};
+
 export type SitePost = WithSecret & {
   id: string;
   title: string;
@@ -42,9 +48,15 @@ export type SitePost = WithSecret & {
   weather?: string;
   /** @deprecated 기분 아이콘 — UI에서 제거됨 */
   mood?: string;
-  /** 첨부 이미지 */
+  /** 첨부 이미지들 (신규) */
+  images?: DiaryImage[];
+  /**
+   * @deprecated `images[0]` — 구 데이터 호환
+   */
   imageUrl?: string;
-  /** 이미지 스포일러(블러) */
+  /**
+   * @deprecated `images[0].spoiler` — 구 데이터 호환
+   */
   imageSpoiler?: boolean;
   /** 좋아요한 사용자 uid (1인 1회) */
   likedBy?: string[];
@@ -301,6 +313,32 @@ export type TrpgScenario = WithSecret & {
   /** OC 캐릭터 id (문자열) — 선택 연결 */
   characterIds?: string[];
   logs?: TrpgSessionLog[];
+  /** VN 편집 원본 (화자 설정 + 라인) — ScenarioVnEditor 재편집용 */
+  vnEditable?: {
+    speakers: import('@/lib/vn/parseCcfoliaLog').ScenarioVnSpeaker[];
+    lines: import('@/lib/vn/parseCcfoliaLog').ScenarioVnLine[];
+    backgrounds?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnBackground[];
+    bgms?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnBgm[];
+    ambients?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnAmbient[];
+    handouts?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnHandout[];
+    diceSfxList?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceSfx[];
+    diceRollSfx?: string;
+    diceResultSfx?: string;
+    diceResultSfxByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone;
+    maxOnStage?: number | 'all';
+    tutorialSteps?: import('@/components/vn/VnTutorial').VnTutorialStep[];
+    /** VN 타이틀(메인) 화면 배경·블러 */
+    menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;
+    /**
+     * @deprecated 줄별 chapterLoadingBefore/After 사용.
+     * true면 줄별 미지정 챕터에 before 로딩 적용 (구 데이터 호환).
+     */
+    chapterLoading?: boolean;
+  };
+  /** VN 재생용 씬 (speakers + lines) — /vn/[id] 에서 로드 */
+  vnScene?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnScene;
+  /** 「비주얼 노벨로 보기」 버튼 액센트 색 (#rrggbb) */
+  vnPlayBtnColor?: string;
 };
 
 export type UniverseEntryBgm = {

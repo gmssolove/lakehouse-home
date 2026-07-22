@@ -2,21 +2,60 @@
 
 import { useEffect, useRef } from 'react';
 import { playSafe, warnVnAudio } from '@/lib/vn/safeAudio';
+import { getBgmVolume, subscribeBgmVolume } from '@/lib/vn/vnAudioVolume';
 
 const CROSSFADE_MS = 1000;
 
+type FadeHandle = { cancelled: boolean };
+
+const fadeHandles = new WeakMap<HTMLAudioElement, FadeHandle>();
+
+function cancelFade(el: HTMLAudioElement | null | undefined) {
+  if (!el) return;
+  const h = fadeHandles.get(el);
+  if (h) h.cancelled = true;
+}
+
+function clamp(n: number) {
+  return Math.max(0, Math.min(1, n));
+}
+
+function applyVolumeNow(el: HTMLAudioElement | null | undefined, v: number) {
+  if (!el) return;
+  cancelFade(el);
+  try {
+    el.muted = false;
+    el.volume = clamp(v);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * BGM 키 변경 시 크로스페이드.
- * mp3 부재·404·autoplay 차단 시 console.warn만 하고 크래시하지 않음.
+ * ESC 음량 슬라이더는 페이드를 끊고 현재 재생 채널에 즉시 반영.
  */
 export function useVnBgm(bgmKey: string | null, resolveUrl: (key: string) => string | undefined) {
   const aRef = useRef<HTMLAudioElement | null>(null);
   const bRef = useRef<HTMLAudioElement | null>(null);
   const activeIsA = useRef(true);
   const curKey = useRef<string | null>(null);
+  const targetVol = useRef(getBgmVolume());
+
+  useEffect(() => {
+    targetVol.current = getBgmVolume();
+    return subscribeBgmVolume((v) => {
+      targetVol.current = v;
+      const active = activeIsA.current ? aRef.current : bRef.current;
+      /* 페이드 rAF가 volume을 다시 덮지 않도록 먼저 cancel */
+      applyVolumeNow(active, v);
+    });
+  }, []);
 
   useEffect(() => {
     return () => {
+      cancelFade(aRef.current);
+      cancelFade(bRef.current);
       aRef.current?.pause();
       bRef.current?.pause();
       aRef.current = null;
@@ -60,9 +99,10 @@ export function useVnBgm(bgmKey: string | null, resolveUrl: (key: string) => str
     try {
       incoming.src = nextUrl;
       incoming.loop = true;
+      incoming.muted = false;
       incoming.volume = 0;
       playSafe(incoming, 'bgm', nextUrl);
-      fadeVolume(incoming, 0, 0.55, CROSSFADE_MS);
+      fadeVolume(incoming, 0, () => targetVol.current, CROSSFADE_MS);
       if (outgoing && !outgoing.paused) {
         fadeVolume(outgoing, outgoing.volume, 0, CROSSFADE_MS, () => {
           try {
@@ -83,10 +123,15 @@ export function useVnBgm(bgmKey: string | null, resolveUrl: (key: string) => str
 function fadeVolume(
   el: HTMLAudioElement,
   from: number,
-  to: number,
+  to: number | (() => number),
   ms: number,
   onDone?: () => void,
 ) {
+  cancelFade(el);
+  const handle: FadeHandle = { cancelled: false };
+  fadeHandles.set(el, handle);
+
+  const getTo = typeof to === 'function' ? to : () => to;
   const start = performance.now();
   try {
     el.volume = clamp(from);
@@ -96,22 +141,20 @@ function fadeVolume(
   }
 
   function tick(now: number) {
+    if (handle.cancelled) return;
     const t = Math.min(1, (now - start) / ms);
+    const target = getTo();
     try {
-      el.volume = clamp(from + (to - from) * t);
+      el.volume = clamp(from + (target - from) * t);
     } catch {
       onDone?.();
       return;
     }
     if (t < 1) {
       requestAnimationFrame(tick);
-    } else {
+    } else if (!handle.cancelled) {
       onDone?.();
     }
   }
   requestAnimationFrame(tick);
-}
-
-function clamp(n: number) {
-  return Math.max(0, Math.min(1, n));
 }

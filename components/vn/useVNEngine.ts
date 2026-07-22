@@ -23,20 +23,28 @@ export type VNEngineState = {
   background: string | null;
   sprites: VNSpriteSlot[];
   bgm: string | null;
+  /** 현재 환경음(루프) 키 — 없으면 null */
+  ambient: string | null;
+  /** 현재 표시 중인 핸드아웃 키 (없으면 null) */
+  handout: string | null;
   sfx: string | null;
   missionsActive: string[];
   missionsCompleted: string[];
-  /** 방금 완료된 미션 id — 배너용 (수동 clear) */
-  missionBannerId: string | null;
+  /** 미션 id → 표시 제목 (시나리오에서 지정) */
+  missionTitles: Record<string, string>;
+  /** 방금 시작/완료된 미션 — 배너용 (수동 clear) */
+  missionBanner: {
+    id: string;
+    title: string;
+    status: 'start' | 'complete';
+  } | null;
   choices: NonNullable<VNLine['choices']>;
-  isTyping: boolean;
-  typedLen: number;
-  displayText: string;
+  /** 현재 줄 표시용 풀텍스트 (타자는 DialogueBox에서 처리) */
+  text: string;
   backgroundChanged: boolean;
   spritesChanged: boolean;
   atEnd: boolean;
   advance: () => void;
-  skipTyping: () => void;
   pickChoice: (nextSceneId: string) => void;
   reset: () => void;
   jumpTo: (
@@ -64,6 +72,19 @@ function normalizeBgm(v: string | null | undefined): string | null | undefined {
   return v;
 }
 
+/** BGM 과 동일 — undefined 유지, null/"none" 끄기 */
+function normalizeHandout(v: string | null | undefined): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v == null || v === '' || v === 'none' || v === '__none__') return null;
+  return v;
+}
+
+function normalizeAmbient(v: string | null | undefined): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v == null || v === '' || v === 'none') return null;
+  return v;
+}
+
 function foldMission(
   active: string[],
   completed: string[],
@@ -79,11 +100,13 @@ function foldMission(
   return { missionsActive: nextActive, missionsCompleted: nextCompleted };
 }
 
-/** 중간 라인부터 시작할 때 이전 배경·스프라이트·BGM·미션을 누적 반영 */
+/** 중간 라인부터 시작할 때 이전 배경·스프라이트·BGM·핸드아웃·미션을 누적 반영 */
 function hydrateThroughIndex(scene: VNScene, index: number) {
   let background: string | null = null;
   let sprites: VNSpriteSlot[] = [];
   let bgm: string | null = null;
+  let ambient: string | null = null;
+  let handout: string | null = null;
   let missionsActive: string[] = [];
   let missionsCompleted: string[] = [];
   const lines = scene.lines ?? [];
@@ -93,13 +116,17 @@ function hydrateThroughIndex(scene: VNScene, index: number) {
     if (l.sprites) sprites = l.sprites;
     const b = normalizeBgm(l.bgm);
     if (b !== undefined) bgm = b;
+    const a = normalizeAmbient(l.ambient);
+    if (a !== undefined) ambient = a;
+    const h = normalizeHandout(l.handout);
+    if (h !== undefined) handout = h;
     if (l.missionUpdate) {
       const m = foldMission(missionsActive, missionsCompleted, l.missionUpdate);
       missionsActive = m.missionsActive;
       missionsCompleted = m.missionsCompleted;
     }
   }
-  return { background, sprites, bgm, missionsActive, missionsCompleted };
+  return { background, sprites, bgm, ambient, handout, missionsActive, missionsCompleted };
 }
 
 export function useVNEngine({
@@ -116,28 +143,45 @@ export function useVNEngine({
 
   const [scene, setScene] = useState(initialScene);
   const [lineIndex, setLineIndex] = useState(bootIndex);
-  const [typedLen, setTypedLen] = useState(0);
   const [background, setBackground] = useState<string | null>(bootHydrate.background);
   const [sprites, setSprites] = useState<VNSpriteSlot[]>(bootHydrate.sprites);
   const [bgm, setBgm] = useState<string | null>(bootHydrate.bgm);
+  const [ambient, setAmbient] = useState<string | null>(bootHydrate.ambient);
+  const [handout, setHandout] = useState<string | null>(bootHydrate.handout);
   const [sfx, setSfx] = useState<string | null>(null);
   const [missionsActive, setMissionsActive] = useState<string[]>(bootHydrate.missionsActive);
   const [missionsCompleted, setMissionsCompleted] = useState<string[]>(
     bootHydrate.missionsCompleted,
   );
+  const [missionTitles, setMissionTitles] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const l of initialScene.lines ?? []) {
+      const mu = l.missionUpdate;
+      if (mu?.id && mu.title?.trim()) map[mu.id] = mu.title.trim();
+    }
+    return map;
+  });
   const missionsRef = useRef({
     active: bootHydrate.missionsActive,
     completed: bootHydrate.missionsCompleted,
   });
   missionsRef.current = { active: missionsActive, completed: missionsCompleted };
-  const [missionBannerId, setMissionBannerId] = useState<string | null>(null);
+  const [missionBanner, setMissionBanner] = useState<{
+    id: string;
+    title: string;
+    status: 'start' | 'complete';
+  } | null>(null);
   const [backgroundChanged, setBackgroundChanged] = useState(false);
   const [spritesChanged, setSpritesChanged] = useState(false);
 
   const fadeClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spriteSwapRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSpritesRef = useRef<VNSpriteSlot[] | null>(null);
   const prevBgRef = useRef<string | null>(bootHydrate.background);
   const prevSpritesRef = useRef(JSON.stringify(bootHydrate.sprites));
   const prevBgmRef = useRef<string | null>(bootHydrate.bgm);
+  const prevAmbientRef = useRef<string | null>(bootHydrate.ambient);
+  const prevHandoutRef = useRef<string | null>(bootHydrate.handout);
   const bootLineForMission = initialScene.lines?.[bootIndex];
   const bootMission = bootLineForMission?.missionUpdate;
   const missionAppliedRef = useRef(
@@ -156,9 +200,7 @@ export function useVNEngine({
   const line = lines[lineIndex] ?? null;
   const text = lineText(line);
   const choices = useMemo(() => line?.choices?.filter((c) => c.text?.trim()) ?? [], [line]);
-  const isTyping = typedLen < text.length;
-  const displayText = typedLen > 0 ? text.slice(0, typedLen) : '';
-  const atEnd = !choices.length && lineIndex >= lines.length - 1 && !isTyping;
+  const atEnd = !choices.length && lineIndex >= lines.length - 1;
 
   useEffect(() => {
     if (skipSceneReset.current) {
@@ -169,14 +211,23 @@ export function useVNEngine({
     const h = hydrateThroughIndex(initialScene, idx);
     setScene(initialScene);
     setLineIndex(idx);
-    setTypedLen(0);
     setBackground(h.background);
     setSprites(h.sprites);
     setBgm(h.bgm);
+    setAmbient(h.ambient);
+    setHandout(h.handout);
     setSfx(null);
     setMissionsActive(h.missionsActive);
     setMissionsCompleted(h.missionsCompleted);
-    setMissionBannerId(null);
+    setMissionTitles(() => {
+      const map: Record<string, string> = {};
+      for (const l of initialScene.lines ?? []) {
+        const m = l.missionUpdate;
+        if (m?.id && m.title?.trim()) map[m.id] = m.title.trim();
+      }
+      return map;
+    });
+    setMissionBanner(null);
     suppressBannerRef.current = true;
     const bootLine = initialScene.lines?.[idx];
     const mu = bootLine?.missionUpdate;
@@ -186,6 +237,8 @@ export function useVNEngine({
     prevBgRef.current = h.background;
     prevSpritesRef.current = JSON.stringify(h.sprites);
     prevBgmRef.current = h.bgm;
+    prevAmbientRef.current = h.ambient;
+    prevHandoutRef.current = h.handout;
   }, [initialScene.id, startLineId]);
 
   useEffect(() => {
@@ -193,19 +246,51 @@ export function useVNEngine({
 
     if (fadeClearRef.current) clearTimeout(fadeClearRef.current);
 
+    /* 이전 배경전환 대기분이 있으면 즉시 반영 후 새 줄 처리 */
+    if (spriteSwapRef.current) {
+      clearTimeout(spriteSwapRef.current);
+      spriteSwapRef.current = null;
+      if (pendingSpritesRef.current) {
+        const pending = pendingSpritesRef.current;
+        pendingSpritesRef.current = null;
+        prevSpritesRef.current = JSON.stringify(pending);
+        setSprites(pending);
+      }
+    }
+
     let bgFlag = false;
     let spFlag = false;
+    let bgSpriteExit = false;
 
     if (line.background != null && line.background !== prevBgRef.current) {
       prevBgRef.current = line.background;
       setBackground(line.background);
       bgFlag = true;
     }
-    if (line.sprites) {
-      const nextKey = JSON.stringify(line.sprites);
-      if (nextKey !== prevSpritesRef.current) {
+    /* sprites 키가 있으면(undefined 포함) 동기화 — hideStandings 는 undefined 로 클리어 */
+    if (Object.prototype.hasOwnProperty.call(line, 'sprites')) {
+      const nextSprites = line.sprites ?? [];
+      const nextKey = JSON.stringify(nextSprites);
+      const hadSprites = prevSpritesRef.current !== '[]' && prevSpritesRef.current.length > 2;
+      /* 배경만 바뀌어도 전원 퇴장 후 재등장 */
+      if (bgFlag && hadSprites && nextSprites.length > 0) {
+        bgSpriteExit = true;
+        prevSpritesRef.current = '[]';
+        setSprites([]);
+        spFlag = true;
+        pendingSpritesRef.current = nextSprites;
+        spriteSwapRef.current = setTimeout(() => {
+          spriteSwapRef.current = null;
+          const pending = pendingSpritesRef.current ?? nextSprites;
+          pendingSpritesRef.current = null;
+          prevSpritesRef.current = JSON.stringify(pending);
+          setSprites(pending);
+          setBackgroundChanged(false);
+          setSpritesChanged(false);
+        }, 420);
+      } else if (nextKey !== prevSpritesRef.current) {
         prevSpritesRef.current = nextKey;
-        setSprites(line.sprites);
+        setSprites(nextSprites);
         spFlag = true;
       }
     }
@@ -214,16 +299,28 @@ export function useVNEngine({
       prevBgmRef.current = nextBgm;
       setBgm(nextBgm);
     }
-    if (line.sfx) setSfx(line.sfx);
+    const nextAmbient = normalizeAmbient(line.ambient);
+    if (nextAmbient !== undefined && nextAmbient !== prevAmbientRef.current) {
+      prevAmbientRef.current = nextAmbient;
+      setAmbient(nextAmbient);
+    }
+    const nextHandout = normalizeHandout(line.handout);
+    if (nextHandout !== undefined && nextHandout !== prevHandoutRef.current) {
+      prevHandoutRef.current = nextHandout;
+      setHandout(nextHandout);
+    }
+    if (line.sfx && !line.missionUpdate && line.effect !== 'diceRoll') setSfx(line.sfx);
     else setSfx(null);
 
     setBackgroundChanged(bgFlag);
     setSpritesChanged(spFlag);
 
-    fadeClearRef.current = setTimeout(() => {
-      setBackgroundChanged(false);
-      setSpritesChanged(false);
-    }, 700);
+    if (!bgSpriteExit) {
+      fadeClearRef.current = setTimeout(() => {
+        setBackgroundChanged(false);
+        setSpritesChanged(false);
+      }, 700);
+    }
 
     return () => {
       if (fadeClearRef.current) clearTimeout(fadeClearRef.current);
@@ -247,28 +344,25 @@ export function useVNEngine({
     const folded = foldMission(prevA, prevC, mu);
     setMissionsActive(folded.missionsActive);
     setMissionsCompleted(folded.missionsCompleted);
+    if (mu.title?.trim()) {
+      setMissionTitles((prev) => ({ ...prev, [mu.id]: mu.title!.trim() }));
+    }
 
-    if (mu.status === 'complete' && !suppressBannerRef.current) {
-      setMissionBannerId(mu.id);
+    if (!suppressBannerRef.current) {
+      const banner = {
+        id: mu.id,
+        title: (mu.title || '').trim() || mu.id,
+        status: (mu.status === 'complete' ? 'complete' : 'start') as 'start' | 'complete',
+      };
+      /* 대사 도착 직후 살짝 기다렸다가 미션 배너 */
+      const t = window.setTimeout(() => {
+        setMissionBanner(banner);
+      }, 200);
+      suppressBannerRef.current = false;
+      return () => window.clearTimeout(t);
     }
     suppressBannerRef.current = false;
   }, [active, lineIndex, line, scene.id]);
-
-  useEffect(() => {
-    if (!active) return;
-    setTypedLen(0);
-  }, [active, lineIndex, text, scene.id]);
-
-  useEffect(() => {
-    if (!active || typedLen >= text.length) return;
-    const ms = line?.narrationOnly ? 105 : 58;
-    const t = window.setTimeout(() => setTypedLen((n) => n + 1), ms);
-    return () => window.clearTimeout(t);
-  }, [active, text, typedLen, line?.narrationOnly]);
-
-  const skipTyping = useCallback(() => {
-    setTypedLen(text.length);
-  }, [text]);
 
   const resolveScene = useCallback(
     async (sceneId: string): Promise<VNAnyScene | null> => {
@@ -301,14 +395,17 @@ export function useVNEngine({
       skipSceneReset.current = true;
       setScene(next);
       setLineIndex(0);
-      setTypedLen(0);
       setBackground(h.background);
       setSprites(h.sprites);
       setBgm(h.bgm);
+      setAmbient(h.ambient);
+      setHandout(h.handout);
       setSfx(null);
       prevBgRef.current = h.background;
       prevSpritesRef.current = JSON.stringify(h.sprites);
       prevBgmRef.current = h.bgm;
+      prevAmbientRef.current = h.ambient;
+      prevHandoutRef.current = h.handout;
     },
     [resolveScene],
   );
@@ -327,16 +424,17 @@ export function useVNEngine({
       suppressBannerRef.current = true;
       setScene(next);
       setLineIndex(idx);
-      setTypedLen(0);
       setBackground(h.background);
       setSprites(h.sprites);
       setBgm(h.bgm);
+      setAmbient(h.ambient);
+      setHandout(h.handout);
       setSfx(null);
       const activeM = missions?.missionsActive ?? h.missionsActive;
       const doneM = missions?.missionsCompleted ?? h.missionsCompleted;
       setMissionsActive(activeM);
       setMissionsCompleted(doneM);
-      setMissionBannerId(null);
+      setMissionBanner(null);
       const jumpLine = next.lines?.[idx];
       const mu = jumpLine?.missionUpdate;
       missionAppliedRef.current = mu
@@ -345,6 +443,8 @@ export function useVNEngine({
       prevBgRef.current = h.background;
       prevSpritesRef.current = JSON.stringify(h.sprites);
       prevBgmRef.current = h.bgm;
+      prevAmbientRef.current = h.ambient;
+      prevHandoutRef.current = h.handout;
       return true;
     },
     [resolveScene],
@@ -352,10 +452,6 @@ export function useVNEngine({
 
   const advance = useCallback(() => {
     if (!active) return;
-    if (isTyping) {
-      skipTyping();
-      return;
-    }
     if (choices.length) return;
     if (lineIndex >= lines.length - 1) {
       if (scene.nextSceneId) {
@@ -366,16 +462,7 @@ export function useVNEngine({
       return;
     }
     setLineIndex((i) => i + 1);
-  }, [
-    active,
-    choices.length,
-    isTyping,
-    lineIndex,
-    lines.length,
-    skipTyping,
-    scene.nextSceneId,
-    goScene,
-  ]);
+  }, [active, choices.length, lineIndex, lines.length, scene.nextSceneId, goScene]);
 
   const pickChoice = useCallback(
     (nextSceneId: string) => {
@@ -387,18 +474,20 @@ export function useVNEngine({
   const reset = useCallback(() => {
     setScene(initialScene);
     setLineIndex(0);
-    setTypedLen(0);
     setBackground(null);
     setSprites([]);
     setBgm(null);
+    setAmbient(null);
+    setHandout(null);
     setSfx(null);
     setMissionsActive([]);
     setMissionsCompleted([]);
-    setMissionBannerId(null);
+    setMissionTitles({});
+    setMissionBanner(null);
   }, [initialScene]);
 
   const clearMissionBanner = useCallback(() => {
-    setMissionBannerId(null);
+    setMissionBanner(null);
   }, []);
 
   return {
@@ -408,19 +497,19 @@ export function useVNEngine({
     background,
     sprites,
     bgm,
+    ambient,
+    handout,
     sfx,
     missionsActive,
     missionsCompleted,
-    missionBannerId,
+    missionTitles,
+    missionBanner,
     choices,
-    isTyping,
-    typedLen,
-    displayText,
+    text,
     backgroundChanged,
     spritesChanged,
     atEnd,
     advance,
-    skipTyping,
     pickChoice,
     reset,
     jumpTo,
