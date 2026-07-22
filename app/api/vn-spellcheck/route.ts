@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** 한 요청당 줄 수 — 클라이언트에서 청크로 나눠 호출 */
-export const SPELLCHECK_BATCH_MAX = 40;
+const SPELLCHECK_BATCH_MAX = 40;
 
 type Body = {
   lines?: { id: string; text: string }[];
