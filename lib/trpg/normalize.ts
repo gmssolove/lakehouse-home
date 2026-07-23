@@ -519,6 +519,12 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
         })(),
         voice: String(line.voice || '').trim() || undefined,
         location: String(line.location || '').trim() || undefined,
+        hideLocation:
+          line.hideLocation === true
+            ? true
+            : line.hideLocation === false
+              ? false
+              : undefined,
         vignette: line.vignette === true ? true : line.vignette === false ? false : undefined,
         visionBlur:
           line.visionBlur === true ? true : line.visionBlur === false ? false : undefined,

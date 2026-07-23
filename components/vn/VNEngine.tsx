@@ -299,8 +299,10 @@ export function VNEngine({
   const [log, setLog] = useState<VnLogEntry[]>([]);
   const loggedKeyRef = useRef<string>('');
   const stickyLocationRef = useRef('');
-  const [displayLocation, setDisplayLocation] = useState(
-    () => eng.line?.location?.trim() || eng.scene.location?.trim() || '',
+  const [displayLocation, setDisplayLocation] = useState(() =>
+    eng.line?.hideLocation
+      ? ''
+      : eng.line?.location?.trim() || eng.scene.location?.trim() || '',
   );
   const [locReady, setLocReady] = useState(true);
   const [vignetteOn, setVignetteOn] = useState(false);
@@ -429,18 +431,23 @@ export function VNEngine({
   useEffect(() => {
     const lineLoc = eng.line?.location?.trim() || '';
     const sceneLoc = eng.scene.location?.trim() || '';
-    if (lineLoc) {
-      stickyLocationRef.current = lineLoc;
-      setDisplayLocation(lineLoc);
+    if (lineLoc) stickyLocationRef.current = lineLoc;
+    else if (!stickyLocationRef.current && sceneLoc) {
+      stickyLocationRef.current = sceneLoc;
+    }
+
+    /* 숨김 중이면 배너만 끄고, 장소 문구 sticky는 유지 → 다시 표시 시 연출 */
+    if (eng.line?.hideLocation) {
+      setDisplayLocation('');
       return;
     }
+
     if (stickyLocationRef.current) {
       setDisplayLocation(stickyLocationRef.current);
       return;
     }
-    if (sceneLoc) stickyLocationRef.current = sceneLoc;
     setDisplayLocation(sceneLoc);
-  }, [eng.line?.id, eng.line?.location, eng.scene.location]);
+  }, [eng.line?.id, eng.line?.location, eng.line?.hideLocation, eng.scene.location]);
 
   /**
    * 장소가 바뀐 줄만 배너 연출 동안 대사 대기.

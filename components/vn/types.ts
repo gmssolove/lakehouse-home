@@ -74,6 +74,11 @@ export type VNLine = {
   /** 장소명 — 라인별. 없으면 씬 location 사용 */
   location?: string;
   /**
+   * 장소 배너 숨김 (sticky 해석 후 절대값).
+   * true면 배너·코너 숨김 · false/undefined면 표시
+   */
+  hideLocation?: boolean;
+  /**
    * 화면 가장자리 비네트.
    * true=켜기 · false=끄기 · undefined=이전 유지 (시작/끝만 지정)
    */

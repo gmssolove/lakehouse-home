@@ -109,6 +109,11 @@ export type ScenarioVnLine = {
   /** 장소명 — VnLocationBanner */
   location?: string;
   /**
+   * 장소 배너(코너 포함) 표시.
+   * undefined=이전 유지 · true=이 줄부터 숨김 · false=이 줄부터 다시 표시
+   */
+  hideLocation?: boolean;
+  /**
    * 화면 가장자리 비네트.
    * true=이 줄부터 켜기 · false=이 줄부터 끄기 · undefined=이전 유지
    */
@@ -524,6 +529,8 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   }
   /** sticky — true면 스탠딩 출력 숨김 (자리 기억은 유지) */
   let hideStandingsActive = false;
+  /** sticky — true면 장소 배너 숨김 */
+  let hideLocationActive = false;
   /** true면 화면 비네트 ON. 줄의 true/false 지정 시만 바뀌고, 미지정은 유지 */
   let vignetteActive = false;
   /** true면 시야 흐림 ON */
@@ -839,6 +846,9 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         if (l.hideStandings === true) hideStandingsActive = true;
         else if (l.hideStandings === false) hideStandingsActive = false;
 
+        if (l.hideLocation === true) hideLocationActive = true;
+        else if (l.hideLocation === false) hideLocationActive = false;
+
         if (l.vignette === true) vignetteActive = true;
         else if (l.vignette === false) vignetteActive = false;
 
@@ -865,6 +875,7 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
             chapterLoadingAfter: l.chapterLoadingAfter ? true : undefined,
             background: l.background,
             location,
+            hideLocation: hideLocationActive || undefined,
             vignette: vignetteActive,
             visionBlur: visionBlurActive,
             bgm: l.bgm,
@@ -951,6 +962,7 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
           sfx: l.sfx,
           voice: l.voice?.trim() || undefined,
           location,
+          hideLocation: hideLocationActive || undefined,
           vignette: vignetteActive,
           visionBlur: visionBlurActive,
           motion: isDialogueMotion(l.motion) ? l.motion : undefined,

@@ -2022,6 +2022,14 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                           {line.hideStandings === false && (
                             <span className="lh-dialogue-node__badge lh-dialogue-node__badge--loc">스탠딩표시</span>
                           )}
+                          {line.hideLocation === true && (
+                            <span className="lh-dialogue-node__badge">장소숨김</span>
+                          )}
+                          {line.hideLocation === false && (
+                            <span className="lh-dialogue-node__badge lh-dialogue-node__badge--loc">
+                              장소표시
+                            </span>
+                          )}
                           {line.maxOnStage != null && (
                             <span className="lh-dialogue-node__badge lh-dialogue-node__badge--loc">
                               {line.maxOnStage === 'all' ? '전원' : `${line.maxOnStage}명`}
@@ -2167,6 +2175,34 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                             />
                             이 줄에서 장소 배너 표시
                           </label>
+                          <div className="lh-dialogue-block__label" style={{ marginTop: 10 }}>
+                            장소 배너 유지
+                          </div>
+                          <select
+                            className="form-input"
+                            value={
+                              line.hideLocation === true
+                                ? 'hide'
+                                : line.hideLocation === false
+                                  ? 'show'
+                                  : ''
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              updateLine(line.id, {
+                                hideLocation:
+                                  v === 'hide' ? true : v === 'show' ? false : undefined,
+                              });
+                            }}
+                          >
+                            <option value="">이전과 동일</option>
+                            <option value="hide">이 줄부터 숨기기</option>
+                            <option value="show">이 줄부터 다시 띄우기</option>
+                          </select>
+                          <p className="lh-dialogue-editor__hint" style={{ margin: '6px 0 0' }}>
+                            한 번 숨기면 「다시 띄우기」를 고른 줄까지 코너 장소가 안 보입니다. 다시
+                            띄울 때 장소 연출이 한 번 더 재생됩니다.
+                          </p>
                           <div className="lh-dialogue-block__label" style={{ marginTop: 10 }}>
                             화면 비네트
                           </div>
