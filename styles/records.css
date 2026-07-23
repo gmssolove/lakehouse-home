@@ -1724,19 +1724,42 @@
   background: rgba(16, 14, 12, 0.6);
 }
 
-/* Masonry → responsive grid (고정 폭 잘림 방지) */
+/* Masonry — 높이 다른 카드가 여백 없이 위에서부터 채움 */
 .lh-scrap__masonry {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-  gap: 18px;
+  column-width: 300px;
+  column-gap: 18px;
   width: 100%;
-  columns: unset;
+  display: block;
 }
 .lh-scrap__masonry-item {
   break-inside: avoid;
-  margin-bottom: 0;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  margin: 0 0 18px;
+  width: 100%;
+  max-width: 100%;
   position: relative;
   min-width: 0;
+  display: block;
+}
+.lh-scrap__masonry > .lh-secret-lock {
+  break-inside: avoid;
+  margin: 0 0 18px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+@supports (grid-template-rows: masonry) {
+  .lh-scrap__masonry {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    grid-template-rows: masonry;
+    gap: 18px;
+    column-width: auto;
+  }
+  .lh-scrap__masonry-item {
+    margin-bottom: 0;
+  }
 }
 .lh-scrap__card {
   break-inside: avoid;
@@ -1745,6 +1768,9 @@
   background: #0d0c0b;
   overflow: hidden;
   color: #ece6da;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   transition:
     border-color 0.18s ease,
     background-color 0.18s ease,
@@ -1908,6 +1934,7 @@
 }
 .lh-scrap__oembed iframe {
   max-width: 100% !important;
+  width: 100% !important;
 }
 .lh-scrap__oembed-loading {
   margin: 0 14px 14px;

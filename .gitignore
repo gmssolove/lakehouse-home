@@ -91,3 +91,6 @@ dist/
 *.bak-*
 index.html.bak*
 .cursor/
+
+certificates
+.certs/
