@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   BannerItem,
   ClickerButton,
@@ -49,6 +49,7 @@ import {
   SliderField,
   TextAreaField,
 } from '@/components/ui/form';
+import { usePortalListReorder } from '@/components/ui/form/usePortalListReorder';
 import { TrpgInvestigatorInlineTab } from '@/components/trpg/TrpgInvestigatorInlineTab';
 import { TrpgThumbnailEditor } from '@/components/trpg/TrpgThumbnailEditor';
 import { useOcData } from '@/lib/hooks/useOcData';
@@ -2402,18 +2403,24 @@ export function BgmAdminPanel({ data, onSave }: BgmProps) {
     })),
   ];
 
-  function writeTracks(next: BgmTrackRow[]) {
+  const writeTracks = useCallback((next: BgmTrackRow[]) => {
     const safe = next.length ? next : [{ title: '', artist: '', fileUrl: '', url: '' }];
     const [main, ...rest] = safe;
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       title: main.title,
       artist: main.artist,
       fileUrl: main.fileUrl,
       url: main.url,
       playlist: rest,
-    });
-  }
+    }));
+  }, []);
+
+  const sort = usePortalListReorder({
+    items: tracks,
+    onReorder: writeTracks,
+    labelOf: (t, i) => t.title.trim() || `${i + 1}번 곡`,
+  });
 
   function updateTrack(index: number, patch: Partial<BgmTrackRow>) {
     writeTracks(tracks.map((t, i) => (i === index ? { ...t, ...patch } : t)));
@@ -2432,88 +2439,104 @@ export function BgmAdminPanel({ data, onSave }: BgmProps) {
 
   return (
     <AdminPanelShell title="BGM — 배경음악" onSave={() => onSave(form)}>
+      <div className="lh-bgm-admin">
       <p className="form-hint" style={{ marginBottom: '1rem', opacity: 0.72, fontSize: 13 }}>
         오디오 파일을 업로드해 등록하세요. 2곡 이상이면 순서대로 재생되고, 끝나면 다음 곡으로 넘어갑니다.
+        ⠿ 핸들로 순서를 바꿀 수 있습니다. 1번이 메인 곡입니다.
       </p>
 
       <RepeatableList
         addLabel="+ 곡 추가"
         onAdd={() => writeTracks([...tracks, { title: '', artist: '', fileUrl: '', url: '' }])}
       >
-        {tracks.map((track, index) => {
-          const audioValue = track.fileUrl || track.url;
-          const isMain = index === 0;
-          return (
-            <div
-              key={index}
-              style={{
-                marginBottom: 12,
-                paddingBottom: 12,
-                borderBottom: '1px solid rgba(215,169,130,0.12)',
-              }}
-            >
+        <div className={`lh-bgm-track-list${sort.dragFrom != null ? ' is-sorting' : ''}`}>
+          {tracks.map((track, index) => {
+            const audioValue = track.fileUrl || track.url;
+            const isMain = index === 0;
+            return (
               <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: 8,
-                  gap: 8,
-                }}
+                key={`${index}-${track.title}-${track.fileUrl || track.url}`}
+                ref={(el) => sort.setRowRef(index, el)}
+                className={`lh-bgm-track-row${sort.dragFrom === index ? ' is-dragging' : ''}${
+                  sort.dragOver === index && sort.dragFrom !== index ? ' is-drop-slot' : ''
+                }`}
               >
-                <span className="form-label" style={{ margin: 0, opacity: 0.9 }}>
-                  {index + 1}번 곡
-                  {isMain ? <span className="lh-bgm-main-badge">메인</span> : null}
-                </span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    type="button"
-                    className="btn-save"
-                    style={{ padding: '4px 10px' }}
-                    disabled={!audioValue.trim()}
-                    onClick={() => playPreview(track)}
+                <button
+                  type="button"
+                  className="lh-admin-sort-handle lh-bgm-track-row__handle"
+                  aria-label="순서 이동"
+                  title="드래그로 이동"
+                  {...sort.handleProps(index)}
+                >
+                  ⠿
+                </button>
+                <div className="lh-bgm-track-row__body">
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 8,
+                      gap: 8,
+                    }}
                   >
-                    ▶ 미리듣기
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-edit"
-                    disabled={isMain || tracks.length <= 1}
-                    onClick={() => writeTracks(tracks.filter((_, i) => i !== index))}
-                  >
-                    삭제
-                  </button>
+                    <span className="form-label" style={{ margin: 0, opacity: 0.9 }}>
+                      {index + 1}번 곡
+                      {isMain ? <span className="lh-bgm-main-badge">메인</span> : null}
+                    </span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        className="btn-save"
+                        style={{ padding: '4px 10px' }}
+                        disabled={!audioValue.trim()}
+                        onClick={() => playPreview(track)}
+                      >
+                        ▶ 미리듣기
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-edit"
+                        disabled={tracks.length <= 1}
+                        onClick={() => writeTracks(tracks.filter((_, i) => i !== index))}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">곡명</label>
+                    <input
+                      className="form-input"
+                      value={track.title}
+                      onChange={(e) => updateTrack(index, { title: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">아티스트</label>
+                    <input
+                      className="form-input"
+                      value={track.artist}
+                      onChange={(e) => updateTrack(index, { artist: e.target.value })}
+                    />
+                  </div>
+                  <FileUploadField
+                    label="오디오 파일"
+                    value={audioValue}
+                    onChange={(next) => updateTrack(index, { fileUrl: next, url: '' })}
+                    accept="audio"
+                    folder="site/bgm"
+                    emptyLabel="📁 오디오 파일 선택"
+                    changeLabel="파일 변경"
+                  />
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">곡명</label>
-                <input
-                  className="form-input"
-                  value={track.title}
-                  onChange={(e) => updateTrack(index, { title: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">아티스트</label>
-                <input
-                  className="form-input"
-                  value={track.artist}
-                  onChange={(e) => updateTrack(index, { artist: e.target.value })}
-                />
-              </div>
-              <FileUploadField
-                label="오디오 파일"
-                value={audioValue}
-                onChange={(next) => updateTrack(index, { fileUrl: next, url: '' })}
-                accept="audio"
-                folder="site/bgm"
-                emptyLabel="📁 오디오 파일 선택"
-                changeLabel="파일 변경"
-              />
-            </div>
-          );
-        })}
+            );
+          })}
+          {sort.ghostNode}
+        </div>
       </RepeatableList>
+      </div>
     </AdminPanelShell>
   );
 }

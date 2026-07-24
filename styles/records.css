@@ -3216,6 +3216,34 @@
   padding: 36px 0 40px;
   border-bottom: 0;
 }
+.lh-quote__pin {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  z-index: 1;
+  display: inline-flex;
+  color: rgba(240, 207, 173, 0.98);
+  transform: rotate(40deg);
+  line-height: 0;
+  filter: drop-shadow(0 0 4px rgba(215, 169, 130, 0.45));
+}
+.lh-quote__item.is-pinned .lh-quote__pin {
+  color: #f0cfad;
+  filter: drop-shadow(0 0 6px rgba(240, 207, 173, 0.55));
+}
+.lh-quote__item.is-pinned .lh-quote__mark {
+  opacity: 0.95;
+  text-shadow: 0 0 12px rgba(201, 161, 92, 0.32);
+}
+.lh-quote__item.is-pinned .lh-quote__text {
+  color: rgba(252, 246, 236, 0.97);
+  text-shadow:
+    0 0 8px rgba(235, 201, 168, 0.2),
+    0 0 18px rgba(201, 161, 92, 0.12);
+}
+.lh-quote__item.is-pinned .lh-quote__cite {
+  color: rgba(190, 176, 156, 0.88);
+}
 .lh-quote__item.is-in {
   animation: lhQuoteItemIn 0.48s cubic-bezier(0.22, 0.61, 0.36, 1) both;
   animation-delay: calc(var(--lh-qi, 0) * 55ms);
@@ -3329,11 +3357,16 @@
     text-shadow 0.28s ease;
 }
 .lh-quote__text.is-latin {
-  font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
-  font-style: italic;
-  font-weight: 400;
-  letter-spacing: 0.02em;
+  font-family: var(--font-im-fell), 'IM Fell English', 'Georgia', serif;
+  font-style: normal;
+  font-weight: 300;
+  font-size: 14.75px;
+  letter-spacing: 0.01em;
+  line-height: 1.95;
   word-break: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: rgba(230, 224, 214, 0.86);
 }
 .lh-quote__item:hover .lh-quote__mark {
   opacity: 1;

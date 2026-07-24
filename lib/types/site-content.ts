@@ -415,6 +415,8 @@ export type QuoteItem = WithSecret & {
   /** 개인 메모 */
   note?: string;
   date?: string;
+  /** 목록 상단 고정 */
+  pinned?: boolean;
 };
 
 export type GuestReply = {

@@ -61,6 +61,17 @@ function sameIds(a: QuoteItem[], b: QuoteItem[]) {
   return a.length === b.length && a.every((item, i) => item.id === b[i]?.id);
 }
 
+function IconPin({ size = 14 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden>
+      <path
+        fill="currentColor"
+        d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"
+      />
+    </svg>
+  );
+}
+
 export function QuoteTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
   const { quotes, saveQuotes } = useSiteContent();
   const { showSaveToast } = useSaveToast();
@@ -81,10 +92,16 @@ export function QuoteTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
   const listGen = useRef(0);
   const skipListOut = useRef(true);
 
-  const items = useMemo(
-    () => [...quotes].sort((a, b) => (b.date || '').localeCompare(a.date || '')),
-    [quotes],
-  );
+  const items = useMemo(() => {
+    return quotes
+      .map((q, i) => ({ q, i }))
+      .sort((a, b) => {
+        const pin = Number(!!b.q.pinned) - Number(!!a.q.pinned);
+        if (pin !== 0) return pin;
+        return a.i - b.i;
+      })
+      .map(({ q }) => q);
+  }, [quotes]);
 
   const filtered = useMemo(() => filterItems(items, filter), [items, filter]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -181,6 +198,7 @@ export function QuoteTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
     const t = text.trim();
     if (!t) return;
 
+    const existing = editingId ? quotes.find((q) => q.id === editingId) : undefined;
     const payload: QuoteItem = {
       id: editingId || newId(),
       text: t,
@@ -188,9 +206,8 @@ export function QuoteTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
       work: work.trim() || undefined,
       note: note.trim() || undefined,
       category,
-      date: editingId
-        ? quotes.find((q) => q.id === editingId)?.date || new Date().toISOString().slice(0, 10)
-        : new Date().toISOString().slice(0, 10),
+      pinned: existing?.pinned,
+      date: existing?.date || new Date().toISOString().slice(0, 10),
     };
 
     if (editingId) {
@@ -209,6 +226,12 @@ export function QuoteTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
     if (!(await confirm('이 필사를 삭제할까요?'))) return;
     await saveQuotes(quotes.filter((q) => q.id !== item.id));
     if (editingId === item.id) closeComposer();
+    showSaveToast();
+  }
+
+  async function togglePin(item: QuoteItem) {
+    if (!isAdmin) return;
+    await saveQuotes(quotes.map((q) => (q.id === item.id ? { ...q, pinned: !q.pinned } : q)));
     showSaveToast();
   }
 
@@ -303,11 +326,29 @@ export function QuoteTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
               onRequestLogin={onOpenAuth}
             >
               <article
-                className={`lh-quote__item${listPhase === 'in' ? ' is-in' : ' is-out'}`}
+                className={`lh-quote__item${listPhase === 'in' ? ' is-in' : ' is-out'}${
+                  item.pinned ? ' is-pinned' : ''
+                }`}
                 style={{ ['--lh-qi' as string]: String(Math.min(index, 8)) }}
               >
+                {item.pinned ? (
+                  <span className="lh-quote__pin" title="상단 고정" aria-label="상단 고정">
+                    <IconPin />
+                  </span>
+                ) : null}
                 {isAdmin ? (
                   <div className="lh-quote__tools">
+                    <button
+                      type="button"
+                      className="lh-quote__tool"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void togglePin(item);
+                      }}
+                    >
+                      {item.pinned ? '고정 해제' : '상단 고정'}
+                    </button>
                     <button
                       type="button"
                       className="lh-quote__tool"

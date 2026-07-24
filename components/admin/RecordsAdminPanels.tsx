@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   DEFAULT_REVIEW_CATEGORIES,
   DEFAULT_SCRAP_CATEGORIES,
@@ -25,6 +25,7 @@ import { LakeToggle } from '@/components/ui/LakeToggle';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { AdminListItem } from '@/components/ui/AdminListItem';
 import { AccordionSection } from '@/components/ui/form';
+import { usePortalListReorder } from '@/components/ui/form/usePortalListReorder';
 import { finalizeCommaList, splitCommaListLive } from '@/lib/ui/commaList';
 import { uploadMediaFile } from '@/lib/r2/client';
 import { normalizeUploadFile } from '@/lib/r2/mime';
@@ -512,6 +513,19 @@ export function QuoteAdminPanel({ items, onSave }: QuoteProps) {
   const [editId, setEditId] = useState<string | null>(null);
   const selected = items.find((i) => i.id === editId);
 
+  const onReorder = useCallback(
+    (next: QuoteItem[]) => {
+      void onSave(next).then(() => showSaveToast());
+    },
+    [onSave, showSaveToast],
+  );
+
+  const sort = usePortalListReorder({
+    items,
+    onReorder,
+    labelOf: (item) => item.text.slice(0, 40) || '(빈 인용)',
+  });
+
   function add() {
     const item: QuoteItem = {
       id: newId(),
@@ -533,22 +547,47 @@ export function QuoteAdminPanel({ items, onSave }: QuoteProps) {
         </button>
       </div>
       <div className="lh-admin-grid">
-        <div>
-          {items.map((item) => (
-            <AdminListItem
+        <div className={`lh-admin-sort-list${sort.dragFrom != null ? ' is-sorting' : ''}`}>
+          {items.map((item, i) => (
+            <div
               key={item.id}
-              title={item.text.slice(0, 40) || '(빈 인용)'}
-              subtitle={[
-                item.category === 'poem' ? '시' : item.category === 'lyrics' ? '가사' : item.category === 'sentence' ? '문장' : null,
-                item.author,
-                item.work,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-              selected={editId === item.id}
-              onClick={() => setEditId(item.id)}
-            />
+              ref={(el) => sort.setRowRef(i, el)}
+              className={`lh-admin-sort-row${sort.dragFrom === i ? ' is-dragging' : ''}${
+                sort.dragOver === i && sort.dragFrom !== i ? ' is-drop-slot' : ''
+              }`}
+            >
+              <button
+                type="button"
+                className="lh-admin-sort-handle"
+                aria-label="순서 이동"
+                title="드래그로 이동"
+                {...sort.handleProps(i)}
+              >
+                ⠿
+              </button>
+              <AdminListItem
+                className="lh-admin-sort-row__item"
+                title={item.text.slice(0, 40) || '(빈 인용)'}
+                subtitle={[
+                  item.pinned ? '고정' : null,
+                  item.category === 'poem'
+                    ? '시'
+                    : item.category === 'lyrics'
+                      ? '가사'
+                      : item.category === 'sentence'
+                        ? '문장'
+                        : null,
+                  item.author,
+                  item.work,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                selected={editId === item.id}
+                onClick={() => setEditId(item.id)}
+              />
+            </div>
           ))}
+          {sort.ghostNode}
         </div>
         <div className="lh-oc-admin-block">
           {selected ? (
