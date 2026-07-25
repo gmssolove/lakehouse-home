@@ -550,7 +550,8 @@ html:has(.layout--home):has(body.lh-route-enter) .rq-menu-panel {
   max-width: 100%;
 }
 
-.layout.layout--home #page-universe.content-block.active > * {
+/* 아코디언만 넓게 — heading/page-sub는 다른 메뉴와 동일 56rem */
+.layout.layout--home #page-universe.content-block.active > .uni-skew {
   width: min(64rem, 100%);
 }
 

@@ -195,8 +195,10 @@
 
 .layout.layout--home .content-block.active:not(#page-main) .page-sub {
   margin: 0 0 1.45rem 0 !important;
-  width: 100% !important;
-  max-width: none !important;
+  /* 스테이지 100%로 늘리면 heading(56rem)보다 왼쪽으로 삐져나감 */
+  width: min(56rem, 100%) !important;
+  max-width: 100% !important;
+  align-self: center;
   /* 예전 공지 정렬 실험의 잔재 규칙(translateX 이동)을 결정적으로 무효화 */
   transform: none !important;
   opacity: 0.72;

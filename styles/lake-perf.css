@@ -708,9 +708,9 @@ nav,
   contain: layout style;
 }
 
-/* OC/페어 카드: 레이아웃 격리만 (content-visibility는 썸네일 화질 저하) */
-.pair-card,
-.uni-skew__card {
+/* OC/페어 카드: 레이아웃 격리만 (content-visibility는 썸네일 화질 저하)
+   uni-skew는 width 애니로 슬롯이 늘어나야 해서 contain 제외 */
+.pair-card {
   contain: layout style;
 }
 
@@ -1109,7 +1109,6 @@ body.lh-route-enter .main-content.pair-main {
 }
 
 .pair-card,
-.uni-skew__card,
 .filter-btn,
 .btn,
 .rq-nav-item,
@@ -1117,8 +1116,7 @@ body.lh-route-enter .main-content.pair-main {
   will-change: auto !important;
 }
 
-.pair-card:hover,
-.uni-skew__card:hover {
+.pair-card:hover {
   filter: none !important;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.34) !important;
   transition:
@@ -1126,6 +1124,8 @@ body.lh-route-enter .main-content.pair-main {
     border-color 0.18s ease,
     box-shadow 0.18s ease !important;
 }
+
+/* uni-skew는 width 펼침 전환이 핵심 — hover transition 덮어쓰지 않음 */
 
 .pair-card:hover {
   transform: translateY(-2px) !important;

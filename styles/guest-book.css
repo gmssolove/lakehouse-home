@@ -47,7 +47,7 @@
 .guest-container > .page-sub {
   margin: 0 0 1.45rem !important;
   width: 100% !important;
-  max-width: none !important;
+  max-width: 100% !important;
   opacity: 0.72;
 }
 
@@ -673,8 +673,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 2px;
+  margin-top: 14px;
   gap: 12px;
+}
+
+/* 비밀글 토글 — 입력란에 가깝게, 남기기 버튼과 떨어뜨림 */
+.guest-composer .lh-secret-fields {
+  margin-top: 2px;
+  margin-bottom: 0;
 }
 
 .guest-composer__secret {

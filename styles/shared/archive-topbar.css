@@ -105,15 +105,18 @@ body .archive-layout .layout.oc-archive-layout .main-content {
   margin: 0 !important;
   padding: 0 !important;
   text-align: left !important;
-  font-family: var(--font-cormorant-upright), 'Cormorant Garamond', serif !important;
-  font-size: clamp(11px, 1.35vw, 14px) !important;
-  letter-spacing: 0.16em;
+  /* 좌측 메뉴(Pinyon/My Soul)와 동일 계열 */
+  font-family: var(--font-my-soul), 'My Soul', var(--font-pinyon), 'Pinyon Script', serif !important;
+  font-size: clamp(16px, 1.7vw, 22px) !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  letter-spacing: 0.02em;
   line-height: 1.2 !important;
-  text-transform: uppercase;
+  text-transform: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: rgba(240, 207, 173, 0.78) !important;
+  color: rgba(240, 207, 173, 0.88) !important;
 }
 
 .archive-layout > nav.oc-topbar.lh-archive-topbar > .nav-links,

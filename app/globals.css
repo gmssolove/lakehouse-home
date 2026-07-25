@@ -56,8 +56,7 @@
   --font-kb-jp: 'ChosunNm', var(--font-chosun-nm), Georgia, serif;
 }
 
-/* 한글 본문/UI — 예외(Cormorant/Cinzel/Jost/VT323/Press Start 2P) 제외하고 ChosunNm */
-.page-heading,
+/* 한글 본문/UI — 예외(Cormorant/Cinzel/Jost/VT323/Press Start 2P/메뉴 타이틀) 제외하고 ChosunNm */
 .page-sub,
 .page-coming,
 .world-card-name,
@@ -1493,14 +1492,14 @@ html.lake-custom-cursor [contenteditable='true'] {
   color: var(--lake-copper-soft, rgba(240, 207, 173, 0.94));
   border: 1px solid rgba(215, 169, 130, 0.42);
   border-radius: 8px;
-  font-family: var(--font-cormorant-upright), 'Cormorant Upright', 'Marcellus', var(--font-noto-sans-kr), 'Noto Sans KR', serif;
+  font-family: var(--lh-body-font, 'ChosunNm'), var(--font-chosun-nm), var(--font-im-fell),
+    'IM Fell English', Georgia, serif;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   font-style: normal;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   line-height: 1.25;
   text-shadow: 0 0 12px rgba(215, 169, 130, 0.14);
-  line-height: 1.2;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.42);
   transition:
     opacity 0.2s ease,

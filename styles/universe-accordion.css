@@ -120,8 +120,18 @@
   height: var(--uni-h);
   clip-path: var(--uni-clip);
   background: transparent;
-  transition: width var(--uni-dur) var(--uni-ease);
+  /* lake-perf hover 규칙보다 우선 — width 펼침이 끊기지 않게 */
+  transition: width var(--uni-dur) var(--uni-ease) !important;
   will-change: width;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.uni-skew__card:hover,
+.uni-skew__card.is-active {
+  box-shadow: none !important;
+  filter: none !important;
+  transition: width var(--uni-dur) var(--uni-ease) !important;
 }
 
 .uni-skew__card.has-tilt {
@@ -208,19 +218,20 @@
 .uni-skew__slot.is-first .uni-skew__card {
   clip-path: var(--uni-clip-first);
   border-radius: var(--uni-radius) 0 0 var(--uni-radius);
-  overflow: hidden;
+  /* overflow:hidden 이면 width 인 애니메이션이 모서리에서 끊겨 보임 */
+  overflow: visible;
 }
 
 .uni-skew__slot.is-last .uni-skew__card {
   clip-path: var(--uni-clip-last);
   border-radius: 0 var(--uni-radius) var(--uni-radius) 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .uni-skew__slot.is-first.is-last .uni-skew__card {
   clip-path: var(--uni-clip-only);
   border-radius: var(--uni-radius);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .uni-skew__card.is-active {
@@ -228,20 +239,27 @@
   z-index: 60 !important;
 }
 
-/* 둥근 모서리 금테 보강 — inset shadow는 border-radius를 따라감, 하단은 페이드 */
-.uni-skew__slot.is-first .uni-skew__card.is-active::after,
-.uni-skew__slot.is-last .uni-skew__card.is-active::after {
+/* 둥근 모서리 금테 보강 — 항상 두고 opacity로 페이드 (is-active 때 content 생성하면 뚝 끊김) */
+.uni-skew__slot.is-first .uni-skew__card::after,
+.uni-skew__slot.is-last .uni-skew__card::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 5;
   pointer-events: none;
   box-shadow: inset 0 0 0 var(--uni-line) var(--uni-gold);
+  opacity: 0;
+  transition: opacity var(--uni-dur) var(--uni-ease);
   -webkit-mask-image: var(--uni-mask-y);
   mask-image: var(--uni-mask-y);
 }
 
-.uni-skew__slot.is-first:not(.is-last) .uni-skew__card.is-active::after {
+.uni-skew__slot.is-first .uni-skew__card.is-active::after,
+.uni-skew__slot.is-last .uni-skew__card.is-active::after {
+  opacity: 1;
+}
+
+.uni-skew__slot.is-first:not(.is-last) .uni-skew__card::after {
   border-radius: var(--uni-radius) 0 0 var(--uni-radius);
   -webkit-mask-image:
     linear-gradient(90deg, #000 0%, #000 42%, transparent 72%),
@@ -253,7 +271,7 @@
   mask-composite: intersect;
 }
 
-.uni-skew__slot.is-last:not(.is-first) .uni-skew__card.is-active::after {
+.uni-skew__slot.is-last:not(.is-first) .uni-skew__card::after {
   border-radius: 0 var(--uni-radius) var(--uni-radius) 0;
   -webkit-mask-image:
     linear-gradient(270deg, #000 0%, #000 42%, transparent 72%),
@@ -265,7 +283,7 @@
   mask-composite: intersect;
 }
 
-.uni-skew__slot.is-first.is-last .uni-skew__card.is-active::after {
+.uni-skew__slot.is-first.is-last .uni-skew__card::after {
   border-radius: var(--uni-radius);
 }
 
@@ -276,7 +294,7 @@
   z-index: 1;
   background: var(--uni-gold);
   opacity: 0;
-  transition: opacity 0.28s ease;
+  transition: opacity var(--uni-dur) var(--uni-ease);
   pointer-events: none;
   -webkit-mask-image: var(--uni-mask-y);
   mask-image: var(--uni-mask-y);
@@ -466,7 +484,7 @@
     rgba(0, 0, 0, 0.55) 88%,
     transparent 100%
   );
-  transition: opacity 0.35s ease;
+  transition: opacity var(--uni-dur) var(--uni-ease);
 }
 
 .uni-skew__card.is-active .uni-skew__glow {
@@ -489,6 +507,11 @@
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
+}
+
+/* 첫 카드는 왼쪽이 평평 — slant 여백만큼 들여쓰면 제목이 어색하게 뜀 */
+.uni-skew__slot.is-first .uni-skew__label {
+  left: calc(var(--uni-line) + 10px);
 }
 
 .uni-skew__name-row {

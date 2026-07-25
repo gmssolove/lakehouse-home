@@ -40,7 +40,7 @@
 .lh-diary__titles .page-sub {
   margin: 0.75rem 0 1.35rem !important;
   width: 100% !important;
-  max-width: none !important;
+  max-width: 100% !important;
 }
 .lh-diary__write-btn {
   flex-shrink: 0;

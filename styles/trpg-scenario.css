@@ -117,10 +117,12 @@
 
 .trpg-scenario-page__system {
   margin: 0 0 12px;
-  font-size: 10px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: rgba(240, 207, 173, 0.52);
+  font-family: var(--font-my-soul), 'My Soul', var(--font-pinyon), 'Pinyon Script', serif;
+  font-size: clamp(16px, 1.8vw, 22px);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: rgba(240, 207, 173, 0.72);
 }
 
 .trpg-scenario-page__hero-wrap {
