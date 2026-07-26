@@ -184,6 +184,8 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
   const undoStackRef = useRef<string[]>([]);
   const redoStackRef = useRef<string[]>([]);
   const interactRef = useRef(false);
+  /** onChange로 보낸 최신값 — 부모 value가  lagged 일 때 paint로 되돌리지 않음 */
+  const pendingValueRef = useRef<string | null>(null);
   /** 드래그로 선택 중 — mouseup 전까지 버블 숨김 */
   const selectingRef = useRef(false);
   const bubbleLeaveTimer = useRef(0);
@@ -243,10 +245,10 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
     if (!el) return;
     const off = getPlainSelectionOffsets(el, { allowCollapsed: true });
     if (!off) return;
-    // 툴바 클릭 직후 selection이 caret로 접혀도, 기존 범위 선택을 덮어쓰지 않음
+    // 툴바 조작 중에만 범위 선택 유지. 에디터에서 caret이 바뀌면 갱신.
     if (off.start === off.end) {
       const saved = savedSelRef.current;
-      if (saved && saved.start !== saved.end) return;
+      if (saved && saved.start !== saved.end && interactRef.current) return;
     }
     savedSelRef.current = off;
   }, []);
@@ -318,6 +320,7 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
       }
 
       marksRef.current = normalized;
+      pendingValueRef.current = normalized;
       onChange(normalized);
       paint(normalized, restore ?? null);
     },
@@ -328,11 +331,23 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
     if (!hydratedRef.current) {
       paint(value);
       hydratedRef.current = true;
+      pendingValueRef.current = null;
       return;
     }
-    if (value !== marksRef.current) {
-      paint(value, savedSelRef.current);
+    if (value === marksRef.current) {
+      pendingValueRef.current = null;
+      return;
     }
+    /* 우리가 emit한 값이 아직 부모에 반영되기 전 — stale value로 줄바꿈/입력을 되돌리지 않음 */
+    if (
+      pendingValueRef.current !== null &&
+      marksRef.current === pendingValueRef.current &&
+      value !== pendingValueRef.current
+    ) {
+      return;
+    }
+    paint(value, savedSelRef.current);
+    pendingValueRef.current = null;
   }, [value, paint]);
 
   const syncBubble = useCallback(() => {
@@ -476,7 +491,10 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
     if (next === value && next === prev) return;
     if (next !== prev) pushHistory(prev);
     marksRef.current = next;
-    if (next !== value) onChange(next);
+    if (next !== value) {
+      pendingValueRef.current = next;
+      onChange(next);
+    }
   }, [ensureMarksSynced, onChange, pushHistory, value]);
 
   const undo = useCallback(() => {
@@ -484,6 +502,7 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
     if (prev === undefined) return;
     redoStackRef.current.push(marksRef.current);
     marksRef.current = prev;
+    pendingValueRef.current = prev;
     onChange(prev);
     paint(prev, savedSelRef.current);
     requestAnimationFrame(syncBubble);
@@ -494,6 +513,7 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
     if (nxt === undefined) return;
     undoStackRef.current.push(marksRef.current);
     marksRef.current = nxt;
+    pendingValueRef.current = nxt;
     onChange(nxt);
     paint(nxt, savedSelRef.current);
     requestAnimationFrame(syncBubble);
@@ -665,11 +685,24 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
           const marks = ensureMarksSynced();
           const live = getPlainSelectionOffsets(ed, { allowCollapsed: true });
           const plainLen = projectPlainOffsets(marks).plain.length;
-          let start = live?.start ?? savedSelRef.current?.start ?? plainLen;
-          let end = live?.end ?? savedSelRef.current?.end ?? start;
+          let start: number;
+          let end: number;
+          if (live) {
+            start = live.start;
+            end = live.end;
+          } else {
+            /* 포커스 손실·옛 범위 선택으로 윗줄이 지워지지 않게: 삽입점만 사용 */
+            const saved = savedSelRef.current;
+            const pos = saved ? Math.max(saved.start, saved.end) : plainLen;
+            start = end = pos;
+          }
           start = Math.max(0, Math.min(start, plainLen));
           end = Math.max(0, Math.min(end, plainLen));
           const inserted = insertPlainAt(marks, start, end, '\n');
+          savedSelRef.current = {
+            start: inserted.caretPlain,
+            end: inserted.caretPlain,
+          };
           commitMarks(inserted.next, {
             start: inserted.caretPlain,
             end: inserted.caretPlain,
@@ -708,8 +741,16 @@ export const StoryRichTextarea = forwardRef<StoryRichTextareaHandle, Props>(func
       const marks = ensureMarksSynced();
       const live = getPlainSelectionOffsets(ed, { allowCollapsed: true });
       const plainLen = projectPlainOffsets(marks).plain.length;
-      let start = live?.start ?? savedSelRef.current?.start ?? plainLen;
-      let end = live?.end ?? savedSelRef.current?.end ?? start;
+      let start: number;
+      let end: number;
+      if (live) {
+        start = live.start;
+        end = live.end;
+      } else {
+        const saved = savedSelRef.current;
+        const pos = saved ? Math.max(saved.start, saved.end) : plainLen;
+        start = end = pos;
+      }
       start = Math.max(0, Math.min(start, plainLen));
       end = Math.max(0, Math.min(end, plainLen));
 

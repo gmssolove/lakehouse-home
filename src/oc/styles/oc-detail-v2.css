@@ -1405,7 +1405,12 @@
 .oc-acc-etc-lead .oc-rich-p,
 .oc-acc-etc-lead.oc-acc-text,
 .oc-acc-etc-lead .oc-acc-text {
-  margin: 0;
+  margin: 0 0 0.18em;
+}
+
+.oc-acc-etc-lead .oc-rich-p:last-child,
+.oc-acc-etc-lead .oc-acc-text:last-child {
+  margin-bottom: 0;
 }
 
 .oc-acc-etc-row {
@@ -1476,14 +1481,24 @@
   font-family: var(--font-noto-serif-kr), 'Noto Serif KR', serif;
   font-size: 13px;
   font-weight: 300;
-  line-height: 1.75;
+  line-height: 1.55;
   color: rgba(232, 222, 211, 0.78);
   min-width: 0;
 }
 
 .oc-acc-etc-value .oc-rich-p {
-  margin: 0;
-  display: inline;
+  margin: 0 0 0.12em;
+  display: block;
+  line-height: 1.55;
+}
+
+.oc-acc-etc-value .oc-rich-p:last-child {
+  margin-bottom: 0;
+}
+
+.oc-acc-etc-value .oc-rich-p--blank {
+  margin: 0 0 0.08em;
+  min-height: 0.2em;
 }
 
 .oc-acc-etc p {

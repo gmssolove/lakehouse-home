@@ -321,23 +321,31 @@ export function OcEditForm({
   }, [tabNamePrompt]);
 
   function patchTasteItem(index: number, patch: Partial<TasteItem>) {
-    const next = [...(form.tasteItems ?? [])];
-    next[index] = { ...next[index], ...patch };
-    set('tasteItems', next);
+    setForm((f) => {
+      const next = [...(f.tasteItems ?? [])];
+      if (!next[index]) return f;
+      next[index] = { ...next[index], ...patch };
+      return { ...f, tasteItems: next };
+    });
   }
 
   function insertTasteAt(index: number, item: TasteItem) {
-    const next = [...(form.tasteItems ?? [])];
-    next.splice(index, 0, item);
-    set('tasteItems', next);
+    setForm((f) => {
+      const next = [...(f.tasteItems ?? [])];
+      next.splice(index, 0, item);
+      return { ...f, tasteItems: next };
+    });
   }
 
   function moveTasteItem(from: number, to: number) {
     if (from === to) return;
-    const next = [...(form.tasteItems ?? [])];
-    const [item] = next.splice(from, 1);
-    next.splice(to, 0, item);
-    set('tasteItems', next);
+    setForm((f) => {
+      const next = [...(f.tasteItems ?? [])];
+      const [item] = next.splice(from, 1);
+      if (!item) return f;
+      next.splice(to, 0, item);
+      return { ...f, tasteItems: next };
+    });
   }
 
   function onProfileSubChange(id: string) {
