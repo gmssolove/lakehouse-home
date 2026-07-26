@@ -1,7 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { usePairSlotLayoutDrag } from '@/components/pair/usePairSlotLayoutDrag';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { VnActionChoices } from '@/components/shared/VnActionChoices';
 import { VnAutoPlayButton } from '@/components/shared/VnAutoPlayButton';
 import { VnDialogueChoices } from '@/components/shared/VnDialogueChoices';
@@ -29,7 +36,7 @@ import {
 } from '@/lib/vn/motions';
 import { VnCharBloom, VnCharFx } from '@/components/shared/VnCharFx';
 import type { DialogueNode, PairItem, PairVnStandPose } from '@/lib/types/character';
-import type { ImageFrame } from '@/lib/shared/imageFrame';
+import { framedImageStyle, type ImageFrame } from '@/lib/shared/imageFrame';
 
 export type PairVnSpeakerSide = 'A' | 'B' | null;
 export type { PairVnSide };
@@ -40,15 +47,16 @@ type Props = {
   active: boolean;
   present: boolean;
   leaving: boolean;
-  /** 어느 쪽 전신을 눌렀는지 — A=왼쪽, B=오른쪽 */
   openSide: PairVnSide;
-  /** 열릴 때마다 증가 — 인 애니 재시작용 */
   session?: number;
   onClose: () => void;
-  /** 관리자: 스탠딩 위치 조절 가능(버튼으로 모드 ON) */
   standEditable?: boolean;
   onStandPoseChange?: (slot: 0 | 1, pose: PairVnStandPose) => void;
+  /** 위치 편집 중 — 부모에서 메인 전신을 보이게 */
+  onPoseEditingChange?: (editing: boolean) => void;
 };
+
+type AnchorBox = { top: number; left: number; width: number; height: number };
 
 function resolveSpeakerSide(pair: PairItem, speaker?: string): PairVnSpeakerSide {
   if (isNarrationSpeaker(speaker)) return null;
@@ -77,69 +85,129 @@ function nodeIndex(list: DialogueNode[], id: string | null, start?: string) {
   return idx >= 0 ? idx : 0;
 }
 
+/** 메인 .chara-body-wrapper[data-pair-stand] 박스 → VN 레이어 좌표 */
+function usePairStandAnchor(
+  side: 'A' | 'B',
+  active: boolean,
+  layoutKey: string,
+): AnchorBox | null {
+  const [box, setBox] = useState<AnchorBox | null>(null);
+
+  useLayoutEffect(() => {
+    if (!active) {
+      setBox(null);
+      return;
+    }
+
+    const read = () => {
+      const el = document.querySelector(
+        `.pair-detail-screen [data-pair-stand="${side}"]`,
+      ) as HTMLElement | null;
+      const layer = document.querySelector(
+        '.pair-detail-screen .pair-vn-layer',
+      ) as HTMLElement | null;
+      if (!el || !layer) return;
+      const er = el.getBoundingClientRect();
+      const lr = layer.getBoundingClientRect();
+      if (er.width < 2 || er.height < 2) return;
+      setBox({
+        top: er.top - lr.top,
+        left: er.left - lr.left,
+        width: er.width,
+        height: er.height,
+      });
+    };
+
+    read();
+    const el = document.querySelector(`.pair-detail-screen [data-pair-stand="${side}"]`);
+    const ro =
+      typeof ResizeObserver !== 'undefined' && el ? new ResizeObserver(() => read()) : null;
+    if (el && ro) ro.observe(el);
+    window.addEventListener('resize', read);
+    window.addEventListener('scroll', read, true);
+    const t1 = window.setTimeout(read, 32);
+    const t2 = window.setTimeout(read, 200);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', read);
+      window.removeEventListener('scroll', read, true);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [active, side, layoutKey]);
+
+  return box;
+}
+
+/**
+ * VN 스탠딩 — 연출(등장/화자 딤)은 유지하되,
+ * 박스는 메인 전신 wrapper 와 동일한 화면 좌표.
+ * (레이아웃 transform 은 메인에 이미 반영되어 있으므로 여기선 좌표만 맞춤)
+ */
 function StandFigure({
   src,
-  pose,
+  side,
+  bodyLayout,
+  bodyFrame,
   className,
   motion,
   fx,
-  editable,
-  onPoseChange,
+  present,
+  poseEditing,
 }: {
   src: string;
-  pose?: PairVnStandPose;
+  side: 'A' | 'B';
+  bodyLayout?: ImageFrame;
+  bodyFrame?: ImageFrame;
   className: string;
   motion?: DialogueMotion | null;
   fx?: DialogueFx | null;
-  editable?: boolean;
-  onPoseChange?: (pose: PairVnStandPose) => void;
+  present: boolean;
+  poseEditing?: boolean;
 }) {
-  const frame = useMemo<ImageFrame>(
-    () => ({
-      x: pose?.x ?? 0,
-      y: pose?.y ?? 0,
-      scale: pose?.scale ?? 1,
-      bottomBlur: pose?.bottomBlur ?? 0,
-    }),
-    [pose?.x, pose?.y, pose?.scale, pose?.bottomBlur],
-  );
-  const blur = Math.max(0, Math.min(100, frame.bottomBlur ?? 0));
-  const handlePoseChange = useCallback(
-    (next: ImageFrame) => {
-      onPoseChange?.({
-        x: next.x,
-        y: next.y,
-        scale: next.scale,
-        bottomBlur: blur,
-      });
-    },
-    [blur, onPoseChange],
-  );
-  const drag = usePairSlotLayoutDrag(
-    frame,
-    onPoseChange ? handlePoseChange : undefined,
-    Boolean(editable && onPoseChange),
-  );
+  const layoutKey = `${bodyLayout?.x ?? 0}:${bodyLayout?.y ?? 0}:${bodyLayout?.scale ?? 1}`;
+  const anchor = usePairStandAnchor(side, present && !poseEditing, layoutKey);
+  const blur = Math.max(0, Math.min(100, bodyFrame?.bottomBlur ?? bodyLayout?.bottomBlur ?? 22));
 
-  const layoutStyle: CSSProperties = {
-    ...drag.layoutStyle(),
-    transformOrigin: 'center bottom',
+  const bodyImgStyle = framedImageStyle(bodyFrame, {
+    fit: 'contain',
+    pos: 'center top',
+  });
+  /* wrapper 에 이미 transform 반영된 박스를 쓰므로 img 에는 fit 만 */
+  const { transform: _t, ...bodyImgStyleBase } = bodyImgStyle;
+
+  if (poseEditing) return null;
+  if (!anchor) return null;
+
+  const style: CSSProperties = {
+    position: 'absolute',
+    top: anchor.top,
+    left: anchor.left,
+    width: anchor.width,
+    height: anchor.height,
+    margin: 0,
+    transform: 'none',
+    transformOrigin: side === 'A' ? 'left top' : 'right top',
   };
 
   return (
-    <div
-      ref={drag.elRef}
-      className={`${className}${editable ? ' is-stand-editable' : ''}${drag.selected ? ' is-layout-selected' : ''}${drag.dragging ? ' is-dragging' : ''}`}
-      style={layoutStyle}
-      {...drag.handlers}
-    >
+    <div className={className} style={style}>
       <div className={`pair-vn-stand__motion${pairMotionClass(motion)}`}>
         {motion === 'pulse' ? <VnCharBloom src={src} /> : null}
         <div
           className={`pair-vn-stand__clip${blur > 0 ? ' has-bottom-blur' : ''}`}
           style={blur > 0 ? ({ '--img-bottom-blur': `${blur}%` } as CSSProperties) : undefined}
         >
-          <img src={src} alt="" referrerPolicy="no-referrer" draggable={false} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt=""
+            referrerPolicy="no-referrer"
+            decoding="async"
+            fetchPriority="high"
+            draggable={false}
+            style={bodyImgStyleBase}
+          />
         </div>
         <VnCharFx fx={fx} />
       </div>
@@ -157,6 +225,7 @@ export function PairVnDialogue({
   onClose,
   standEditable,
   onStandPoseChange,
+  onPoseEditingChange,
 }: Props) {
   const list = useMemo(() => buildPairSideDialogueList(pair, openSide), [pair, openSide]);
   const startKey = pairSideDialogueStart(pair, openSide);
@@ -174,7 +243,12 @@ export function PairVnDialogue({
   const motionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fxClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enterClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openedAtRef = useRef(0);
   const poseEditing = Boolean(standEditable && standPoseMode && !leaving);
+
+  useEffect(() => {
+    onPoseEditingChange?.(poseEditing);
+  }, [poseEditing, onPoseEditingChange]);
 
   const node = list[pos];
   const sourceText = (node?.text || '').trim() || '...';
@@ -222,7 +296,6 @@ export function PairVnDialogue({
     setStandPoseMode(false);
   }, [active, present, leaving, pair.id, openSide, startKey, list]);
 
-  /* 등장은 paint 전에 is-enter — useEffect면 첫 프레임이 스냅으로 보임 */
   useLayoutEffect(() => {
     if (!present || leaving) {
       setEnterAnim(false);
@@ -230,13 +303,14 @@ export function PairVnDialogue({
       return;
     }
     if (!active) return;
+    openedAtRef.current = Date.now();
     setEnterAnim(true);
     if (enterClearRef.current) clearTimeout(enterClearRef.current);
     enterClearRef.current = setTimeout(() => setEnterAnim(false), 1400);
     return () => {
       if (enterClearRef.current) clearTimeout(enterClearRef.current);
     };
-  }, [active, present, leaving, pair.id, openSide]);
+  }, [active, present, leaving, pair.id, openSide, session]);
 
   useEffect(() => {
     if (!active || leaving || !node) return;
@@ -248,8 +322,6 @@ export function PairVnDialogue({
     setMotionB(null);
     const m = normalizeMotion(node.motion);
     if (!m) return;
-    /* is-enter는 유지 — 감정 모션은 CSS !important로 stand-in을 덮음.
-       enterAnim을 끄면 딤·스탠딩 인 애니까 잘려 대사창이 툭 뜨는 느낌 */
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         if (speakerSide === 'A') setMotionA(m);
@@ -315,7 +387,7 @@ export function PairVnDialogue({
       typingDoneRef.current = true;
       return;
     }
-    const timer = window.setTimeout(() => setTypedLen((n) => n + 1), 68);
+    const timer = window.setTimeout(() => setTypedLen((n) => n + 1), 90);
     return () => window.clearTimeout(timer);
   }, [active, leaving, text, typedLen]);
 
@@ -323,7 +395,7 @@ export function PairVnDialogue({
     if (!active || leaving) return;
     setTypedLen(0);
     typingDoneRef.current = false;
-  }, [active, leaving, pos, text]);
+  }, [active, leaving, pos, sourceText]);
 
   const skipTyping = useCallback(() => {
     setTypedLen(text.length);
@@ -353,16 +425,23 @@ export function PairVnDialogue({
     setPos((p) => p + 1);
   }, [choices.length, isLastNode, list, node?.next, onClose]);
 
+  const canAdvanceInput = useCallback(() => {
+    if (Date.now() - openedAtRef.current < 500) return false;
+    return true;
+  }, []);
+
   const handleBoxClick = useCallback(() => {
+    if (!canAdvanceInput()) return;
     if (choices.length) return;
     if (isTyping) {
       skipTyping();
       return;
     }
     advance();
-  }, [advance, choices.length, isTyping, skipTyping]);
+  }, [advance, canAdvanceInput, choices.length, isTyping, skipTyping]);
 
   const handleSurfaceClick = useCallback(() => {
+    if (!canAdvanceInput()) return;
     if (choices.length) return;
     if (isTyping) {
       skipTyping();
@@ -373,7 +452,7 @@ export function PairVnDialogue({
       return;
     }
     advance();
-  }, [advance, atEnd, choices.length, isTyping, node?.next, onClose, skipTyping]);
+  }, [advance, atEnd, canAdvanceInput, choices.length, isTyping, node?.next, onClose, skipTyping]);
 
   const { autoPlay, toggleAutoPlay } = useVnAutoPlay({
     active: present && active,
@@ -381,7 +460,7 @@ export function PairVnDialogue({
     isTyping,
     hasChoices: choices.length > 0,
     lineKey: node?.id || pos,
-    textLength: text.length,
+    textLength: sourceText.length,
     onAdvance: advance,
     scope: 'detail',
   });
@@ -415,11 +494,14 @@ export function PairVnDialogue({
 
     function onDocClick(e: MouseEvent) {
       const t = e.target as HTMLElement;
-      if (t.closest('.lh-vn-choice, .lh-vn-action-choice, .lh-vn-close, .lh-vn-auto, .lh-vn-box, .btn-edit, .pair-vn-stand-pose-btn, .pair-edit-form, .archive-topbar')) {
+      if (
+        t.closest(
+          '.lh-vn-choice, .lh-vn-action-choice, .lh-vn-close, .lh-vn-auto, .lh-vn-box, .btn-edit, .pair-vn-stand-pose-btn, .pair-edit-form, .archive-topbar',
+        )
+      ) {
         return;
       }
-      /* 스탠딩 위치 조절 중에는 대사 진행 안 함 */
-      if (t.closest('.pair-vn-stand.is-stand-editable')) {
+      if (t.closest('.pair-vn-stand.is-stand-editable, .chara-body-wrapper.is-layout-editable')) {
         return;
       }
       if (t.closest('.pair-vn-layer, .pair-vn-stand, .chara-body-wrapper.is-vn-trigger')) {
@@ -441,12 +523,16 @@ export function PairVnDialogue({
       }
     }
     function blockSelect(e: Event) {
-      if ((e.target as HTMLElement | null)?.closest?.('#lh-vn, .lh-vn-action-choices, .lh-vn-choice, .lh-vn-action-choice')) {
+      if (
+        (e.target as HTMLElement | null)?.closest?.(
+          '#lh-vn, .lh-vn-action-choices, .lh-vn-choice, .lh-vn-action-choice',
+        )
+      ) {
         e.preventDefault();
       }
     }
-    function blockDrag(e: DragEvent) {
-      if ((e.target as HTMLElement | null)?.closest?.('#lh-vn, .lh-vn-action-choices')) {
+    function blockDrag(e: Event) {
+      if ((e.target as HTMLElement | null)?.closest?.('#lh-vn')) {
         e.preventDefault();
       }
     }
@@ -491,17 +577,19 @@ export function PairVnDialogue({
         ) : null}
         {poseEditing ? (
           <p className="pair-vn-stand-hint" role="status">
-            스탠딩을 클릭해 선택한 뒤 드래그·휠로 위치·크기 조절
+            전신을 클릭해 선택한 뒤 드래그·휠로 위치·크기 조절
           </p>
         ) : null}
         {standA ? (
           <StandFigure
             src={standA}
-            pose={pair.vnStandPos?.[0]}
-            editable={poseEditing}
+            side="A"
+            bodyLayout={pair.charBodyLayout?.[0]}
+            bodyFrame={pair.charBodyImgFrames?.[0]}
+            present={present}
+            poseEditing={poseEditing}
             motion={motionA}
             fx={fxA}
-            onPoseChange={onStandPoseChange ? (pose) => onStandPoseChange(0, pose) : undefined}
             className={[
               'pair-vn-stand',
               'pair-vn-stand--a',
@@ -515,11 +603,13 @@ export function PairVnDialogue({
         {standB ? (
           <StandFigure
             src={standB}
-            pose={pair.vnStandPos?.[1]}
-            editable={poseEditing}
+            side="B"
+            bodyLayout={pair.charBodyLayout?.[1]}
+            bodyFrame={pair.charBodyImgFrames?.[1]}
+            present={present}
+            poseEditing={poseEditing}
             motion={motionB}
             fx={fxB}
-            onPoseChange={onStandPoseChange ? (pose) => onStandPoseChange(1, pose) : undefined}
             className={[
               'pair-vn-stand',
               'pair-vn-stand--b',
@@ -571,11 +661,7 @@ export function PairVnDialogue({
           <div className={`lh-vn-speaker${isNarration || !speaker ? ' is-empty' : ''}`} id="lh-vn-speaker">
             {isNarration || !speaker ? '\u00A0' : speaker}
           </div>
-          <div
-            ref={textRef}
-            className={`lh-vn-text${isTyping ? ' lh-typing' : ''}`}
-            id="lh-vn-text"
-          >
+          <div ref={textRef} className={`lh-vn-text${isTyping ? ' lh-typing' : ''}`} id="lh-vn-text">
             {display}
           </div>
           {lineChoices.length > 0 && !isTyping && (

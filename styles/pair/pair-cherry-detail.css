@@ -726,10 +726,22 @@
   filter: none !important;
 }
 
-.pair-detail-screen .pair-cherry-root.vn-active .chara-item .chara-body-wrapper {
+/* VN 중 메인 전신은 숨기고(앵커만 유지) — 위치 편집 시에만 다시 보임 */
+.pair-detail-screen .pair-cherry-root.vn-active:not(.is-layout-edit) .chara-item .chara-body-wrapper {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.18s ease;
+}
+
+.pair-detail-screen .pair-cherry-root.vn-active.is-layout-edit {
+  position: relative;
+  z-index: 610;
+}
+
+.pair-detail-screen .pair-cherry-root.vn-active.is-layout-edit .chara-item .chara-body-wrapper {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 25;
 }
 
 .pair-detail-screen .pair-cherry-root.vn-active .pair-bg__haze,
@@ -2060,19 +2072,18 @@
   overscroll-behavior: none;
 }
 
-/* 상단 네비 — 전신·위치 드래그가 이 박스 위로 올라오지 않게 */
+/* 상단 네비 — 펼침 시 박스. 접힘 투명·풀블리드는 admin-topbar-autohide */
 .pair-detail-screen > .detail-nav {
   position: sticky;
   top: 0;
   z-index: 450;
   height: 52px;
   flex-shrink: 0;
-  background: rgba(10, 12, 10, 0.97);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  /* 상단바 접힌 높이(~52px) 아래 골드 라인이 경계처럼 보여 완화 */
-  border-bottom: 1px solid rgba(215, 169, 130, 0.1);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  background: #0b0d0c;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid rgba(215, 169, 130, 0.08);
+  box-shadow: none;
   isolation: isolate;
 }
 
@@ -2083,6 +2094,11 @@
 
 .pair-detail-screen.pair-vn-playing .detail-nav {
   z-index: 650;
+  /* 펼침 배경은 admin-topbar-autohide :hover 가 담당 */
+  border-bottom-color: rgba(215, 169, 130, 0.06);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* —— Pair VN: 페어창 전체 위 (딤 + 스탠딩 + OC 대사창) —— */
@@ -2106,8 +2122,8 @@
   outline-offset: 4px;
   z-index: 8;
   user-select: none;
-  /* 드래그 중에도 네비(450) 아래 */
-  max-height: calc(100vh - 52px - 72px);
+  /* max-height를 편집 때만 다르게 두면 translate(%) 기준 박스 높이가 달라
+     저장 후·나갔다 들어올 때 스탠딩이 튀어 보임 — 평소와 동일 박스 유지 */
   cursor: pointer;
 }
 
@@ -2137,6 +2153,13 @@
   animation: none;
 }
 
+/* 상세 레이아웃이 아니라 화면 전체를 덮어 상단 네비 뒤까지 동일 톤 */
+.pair-detail-screen.pair-vn-playing .pair-vn-layer {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 600 !important;
+}
+
 .pair-detail-screen .pair-vn-layer.is-leaving {
   pointer-events: none !important;
 }
@@ -2149,26 +2172,12 @@
   z-index: 0;
 }
 
-/* 장소 배너보다 스탠딩이 앞에 — 배너는 상단이라 겹침 적음.
- * 대사창(overlay z:20)보다는 뒤에 두어 스탠딩이 대사를 가리지 않게 함.
- * 위치 편집 중에는 스테이지를 앞으로 올려 드래그가 대사창에 먹히지 않게. */
+/* 메인 전신 박스를 앵커로 absolute 배치 — flex 배치 안 씀 */
 .pair-detail-screen .pair-vn-stage {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 40px;
-  bottom: 0; /* 화면 맨 아래까지 — 대사창 뒤로 겹침 */
-  transform: none;
-  width: auto;
-  height: auto;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0;
+  inset: 0;
   pointer-events: none;
   z-index: 10;
-  padding: 0;
-  box-sizing: border-box;
 }
 
 .pair-detail-screen .pair-vn-stage:has(.pair-vn-stand.is-stand-editable) {
@@ -2176,51 +2185,45 @@
 }
 
 .pair-detail-screen .pair-vn-stand {
-  flex: 1 1 0;
-  max-width: 58%;
-  min-width: 0;
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  transition: filter 0.35s ease, opacity 0.35s ease;
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  display: block;
+  overflow: hidden;
   pointer-events: auto;
-  transform-origin: center bottom;
+  transition: filter 0.35s ease, opacity 0.35s ease;
   will-change: auto;
 }
 
 .pair-detail-screen .pair-vn-stand--a {
-  justify-content: flex-end;
-  margin-right: -4%;
+  transform-origin: left top;
 }
 
 .pair-detail-screen .pair-vn-stand--b {
-  justify-content: flex-start;
-  margin-left: -4%;
+  transform-origin: right top;
 }
 
 .pair-detail-screen .pair-vn-stand__clip {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  overflow: visible;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  overflow: hidden;
+  display: block;
+  line-height: 0;
 }
 
 .pair-detail-screen .pair-vn-stand__clip img {
   display: block;
-  width: auto;
+  width: 100%;
   max-width: none;
   height: 100%;
   max-height: none;
   object-fit: contain;
-  object-position: center bottom;
-  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.45));
+  object-position: center top;
+  filter: none;
   user-select: none;
   pointer-events: none;
-  align-self: flex-end;
 }
 
 /* 전신·VN 스탠딩: 크기 유지(contain) + 하단만 투명 페이드로 경계 제거 */
@@ -2324,10 +2327,10 @@
 }
 
 .pair-detail-screen .pair-vn-stand-pose-btn {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 6;
+  position: fixed;
+  top: 58px;
+  right: 16px;
+  z-index: 640;
   padding: 5px 14px;
   font-family: var(--pair-sans);
   font-size: 10px;
@@ -2382,6 +2385,7 @@
 }
 
 .pair-detail-screen .pair-vn-stand__motion {
+  position: relative;
   width: 100%;
   height: 100%;
   transform-origin: center bottom;
@@ -2493,17 +2497,6 @@
 }
 
 @media (max-width: 768px) {
-  .pair-detail-screen .pair-vn-stage {
-    top: 48px;
-    bottom: 0;
-    gap: 0;
-    padding: 0;
-  }
-
-  .pair-detail-screen .pair-vn-stand {
-    max-width: 55%;
-  }
-
   .pair-detail-screen .pair-vn-layer .lh-vn-overlay {
     bottom: 72px !important;
     width: calc(100vw - 20px) !important;
@@ -3627,7 +3620,7 @@
 /* 전환용 mist + spark */
 .pair-detail-screen .pair-glide {
   position: fixed;
-  inset: 52px 0 0 0;
+  inset: 0;
   z-index: 200;
   pointer-events: none;
   opacity: 0;

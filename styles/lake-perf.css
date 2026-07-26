@@ -1003,9 +1003,7 @@ body.lh-route-leaving .lh-fx-tear,
   display: none !important;
 }
 
-.pair-detail-screen .pair-cherry-root.is-fx-paused:not(.vn-active) .chara-ghost-soft:not(.is-blur-off) {
-  filter: none !important;
-}
+/* 고스트 soft blur는 진입 직후(is-fx-paused)에도 유지 — 늦게 블러 켜지던 깜빡임 방지 */
 
 /* VN 중에도 고스트 soft blur·투명도 유지 (대사창 꺼졌을 때와 동일) */
 .pair-detail-screen .pair-cherry-root.vn-active .chara-item .chara-ghost-soft:not(.is-blur-off),

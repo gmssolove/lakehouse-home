@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  preloadHandNoteImage,
+  preloadHandNoteImages,
+  takeHandNoteSfx,
+  warmHandNoteSfx,
+} from '@/lib/oc/handNotePreload';
 import { playSafe } from '@/lib/vn/safeAudio';
 
 type Props = {
@@ -22,7 +28,7 @@ const SFX_DELAY_MS = 120;
 
 /**
  * 4단 접힌 쪽지 펼침.
- * 비율은 미리 측정한 뒤 마운트 → 열릴 때 리사이즈로 애니가 씹히지 않음.
+ * 이미지 로드·decode·비율을 확보한 뒤에만 펼침 — 로딩 중 뚝/비율 점프 방지.
  */
 export function HandwritingNoteFlap({
   open,
@@ -45,6 +51,7 @@ export function HandwritingNoteFlap({
   const leavingRef = useRef(false);
 
   const src = urls[index] || urls[0] || '';
+  const urlsKey = urls.join('\0');
 
   const stopSfx = useCallback(() => {
     window.clearTimeout(sfxTimer.current);
@@ -62,7 +69,8 @@ export function HandwritingNoteFlap({
         sfxRef.current.pause();
         sfxRef.current = null;
       }
-      const el = new Audio(trimmed);
+      const el = takeHandNoteSfx(trimmed);
+      if (!el) return;
       el.volume = 0.62;
       sfxRef.current = el;
       playSafe(el, 'sfx', trimmed);
@@ -84,48 +92,42 @@ export function HandwritingNoteFlap({
       stopSfx();
       return;
     }
+
     let cancelled = false;
     setLeaving(false);
     leavingRef.current = false;
+    setReady(false);
 
-    /* 클릭 즉시 화면 표시 — 이미지 로드를 기다리지 않음 (딜레이 원인) */
-    setAspect((prev) => prev || '3 / 4');
-    setAnimKey((k) => k + 1);
-    setReady(true);
+    /* 이웃 장도 미리 받아 페이지 넘김 뚝 완화 */
+    preloadHandNoteImages(urlsKey.split('\0'));
 
-    const img = new window.Image();
-    img.decoding = 'async';
-    const applySize = () => {
+    void (async () => {
+      const dim = await preloadHandNoteImage(src);
       if (cancelled) return;
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
-      if (w > 0 && h > 0) setAspect(`${w} / ${h}`);
-    };
-    img.onload = applySize;
-    img.onerror = () => {
-      if (!cancelled) setAspect((prev) => prev || '3 / 4');
-    };
-    img.src = src;
-    if (img.complete) applySize();
+      setAspect(dim ? `${dim.width} / ${dim.height}` : '3 / 4');
+      setAnimKey((k) => k + 1);
+      setReady(true);
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [open, src, stopSfx]);
+  }, [open, src, stopSfx, urlsKey]);
 
-  /* 펼침 애니와 타이밍 맞춤 — ready 직후가 아니라 살짝 딜레이 */
+  /* 펼침음 — 이미지 ready를 기다리지 않음(첫 로딩 때 효과음만 늦어지던 원인) */
   useEffect(() => {
-    if (!open || !ready || leaving) return;
+    if (!open || leaving) return;
     const url = (sfxUrl || '').trim();
     if (!url || sfxPlayedRef.current) return;
     sfxPlayedRef.current = true;
+    warmHandNoteSfx([url, closeSfxUrl]);
     window.clearTimeout(sfxTimer.current);
     sfxTimer.current = window.setTimeout(() => {
       if (!open || leavingRef.current) return;
       playSfx(url);
     }, SFX_DELAY_MS);
     return () => window.clearTimeout(sfxTimer.current);
-  }, [leaving, open, playSfx, ready, sfxUrl]);
+  }, [closeSfxUrl, leaving, open, playSfx, sfxUrl]);
 
   useEffect(
     () => () => {
@@ -148,10 +150,12 @@ export function HandwritingNoteFlap({
     const closeUrl = (closeSfxUrl || '').trim();
     if (closeUrl) {
       try {
-        const el = new Audio(closeUrl);
-        el.volume = 0.62;
-        playSafe(el, 'sfx', closeUrl);
-        /* sfxRef에 넣지 않음 — open=false cleanup이 닫기음을 끊지 않음 */
+        const el = takeHandNoteSfx(closeUrl);
+        if (el) {
+          el.volume = 0.62;
+          playSafe(el, 'sfx', closeUrl);
+          /* sfxRef에 넣지 않음 — open=false cleanup이 닫기음을 끊지 않음 */
+        }
       } catch {
         /* ignore */
       }
@@ -217,6 +221,8 @@ export function HandwritingNoteFlap({
                     alt=""
                     referrerPolicy="no-referrer"
                     draggable={false}
+                    decoding="async"
+                    fetchPriority="high"
                     style={{
                       height: `${FOLDS * 100}%`,
                       top: `${-i * 100}%`,

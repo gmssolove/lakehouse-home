@@ -550,9 +550,43 @@ html:has(.layout--home):has(body.lh-route-enter) .rq-menu-panel {
   max-width: 100%;
 }
 
-/* 아코디언만 넓게 — heading/page-sub는 다른 메뉴와 동일 56rem */
+/* Universe — 본문은 스테이지 중앙 유지, 구분선만 본문(uni-skew) 폭에 맞춤 */
+.layout.layout--home #page-universe.content-block.active {
+  align-items: center !important;
+}
+
 .layout.layout--home #page-universe.content-block.active > .uni-skew {
   width: min(64rem, 100%);
+}
+
+.layout.layout--home #page-universe.content-block.active > .page-heading,
+.layout.layout--home #page-universe.content-block.active > .page-sub {
+  width: min(64rem, 100%) !important;
+  max-width: 100% !important;
+  align-self: center !important;
+}
+
+/*
+ * TRPG / Banner — 타이틀·구분선 위치(왼쪽 정렬)는 유지, 구분선(page-sub) 길이만 짧게
+ */
+.layout.layout--home #page-trpg.content-block.active,
+.layout.layout--home #page-banner.content-block.active {
+  align-items: flex-start !important;
+}
+
+.layout.layout--home #page-trpg.content-block.active > .page-heading,
+.layout.layout--home #page-banner.content-block.active > .page-heading {
+  width: min(56rem, 100%) !important;
+  max-width: 100% !important;
+  align-self: flex-start !important;
+}
+
+.layout.layout--home #page-trpg.content-block.active > .page-sub,
+.layout.layout--home #page-banner.content-block.active > .page-sub {
+  /* 오른쪽에도 왼쪽 메뉴(--lh-menu-safe)만큼 여백 */
+  width: calc(100% - var(--lh-menu-safe, 200px)) !important;
+  max-width: 100% !important;
+  align-self: flex-start !important;
 }
 
 /* ── 공지: 화면 세로 중앙 + 텍스트 가운데 + 헤더·본문 간격 확대 ──

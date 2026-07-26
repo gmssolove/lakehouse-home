@@ -21,7 +21,7 @@
 
 .layout.layout--home #page-trpg .page-sub {
   margin: 0 0 1rem !important;
-  width: min(56rem, 100%) !important;
+  width: calc(100% - var(--lh-menu-safe, 200px)) !important;
   max-width: 100% !important;
   opacity: 0.7;
 }

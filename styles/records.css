@@ -3453,8 +3453,7 @@
 .layout.layout--home #page-gallery.content-block.active,
 .layout.layout--home #page-quote.content-block.active,
 .layout.layout--home #page-guest.content-block.active,
-.layout.layout--home #page-notice.content-block.active,
-.layout.layout--home #page-banner.content-block.active {
+.layout.layout--home #page-notice.content-block.active {
   left: var(--lh-menu-safe, 200px) !important;
   right: 0 !important;
   width: auto !important;
@@ -3462,6 +3461,20 @@
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
+  padding: 0.25rem clamp(1rem, 4vw, 2.5rem) 2.5rem !important;
+  box-sizing: border-box !important;
+  scrollbar-gutter: stable;
+}
+
+/* Banner — 타이틀 위치는 flex-start 유지, 구분선 길이는 home-menu-renew */
+.layout.layout--home #page-banner.content-block.active {
+  left: var(--lh-menu-safe, 200px) !important;
+  right: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
   padding: 0.25rem clamp(1rem, 4vw, 2.5rem) 2.5rem !important;
   box-sizing: border-box !important;
   scrollbar-gutter: stable;

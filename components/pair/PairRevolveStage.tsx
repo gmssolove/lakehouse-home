@@ -3,6 +3,7 @@
 import type { CSSProperties } from 'react';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { pairCardSub, pairCardTitle, pairCover } from '@/lib/oc/pairCover';
+import { preloadPairStandImages } from '@/lib/oc/pairStandPreload';
 import type { PairItem } from '@/lib/types/character';
 
 type Props = {
@@ -49,6 +50,8 @@ export function PairRevolveStage({ pairs, onOpen }: Props) {
             role="button"
             tabIndex={0}
             onClick={() => onOpen(pair)}
+            onPointerEnter={() => preloadPairStandImages(pair)}
+            onFocus={() => preloadPairStandImages(pair)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();

@@ -48,6 +48,10 @@ function isNear(value: number, target: number, threshold: number) {
   return Math.abs(value - target) <= threshold;
 }
 
+function frameEqual(a: Required<ImageFrame>, b: Required<ImageFrame>) {
+  return a.x === b.x && a.y === b.y && a.scale === b.scale && a.bottomBlur === b.bottomBlur;
+}
+
 /** 전신 래퍼용: 드래그 이동 + 휠 확대 (TRPG 스탠딩과 동일 감각) */
 export function usePairSlotLayoutDrag(
   value: ImageFrame | undefined,
@@ -64,7 +68,8 @@ export function usePairSlotLayoutDrag(
   const nudgeStep = options?.nudgeStep ?? 0.35;
   const frame = normalizeImageFrame(value);
   const frameRef = useRef(frame);
-  frameRef.current = frame;
+  /* 로컬 커밋 직후 stale props가 frameRef·화면 transform을 되돌리지 않게 */
+  const suppressPropSyncRef = useRef(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const dragRef = useRef<DragState | null>(null);
@@ -76,6 +81,20 @@ export function usePairSlotLayoutDrag(
   const [snap, setSnap] = useState({ x: false, y: false });
 
   const canManipulate = enabled && (!requireSelect || selected);
+
+  const valueX = value?.x ?? 0;
+  const valueY = value?.y ?? 0;
+  const valueScale = value?.scale ?? 1;
+  const valueBlur = value?.bottomBlur ?? 0;
+
+  /* props → ref. 드래그 중·로컬 커밋 대기 중엔 stale 값으로 덮지 않음 */
+  if (!dragRef.current) {
+    if (suppressPropSyncRef.current) {
+      if (frameEqual(frame, frameRef.current)) suppressPropSyncRef.current = false;
+    } else if (!frameEqual(frame, frameRef.current)) {
+      frameRef.current = frame;
+    }
+  }
 
   /* 드래그 중에는 React 상태를 건드리지 않고 elRef의 transform만 직접 갱신 →
      매 프레임 부모 리렌더 제거(뚝뚝 끊김 해결). 놓을 때 한 번만 커밋한다. */
@@ -102,6 +121,8 @@ export function usePairSlotLayoutDrag(
         });
       }
       frameRef.current = next;
+      suppressPropSyncRef.current = true;
+      writeLiveTransform(next);
       const guideThr = thr != null && thr > 0 ? Math.max(thr, 1.1) : 0;
       setSnap({
         x: guideThr > 0 ? isNear(next.x, 0, guideThr) : next.x === 0,
@@ -109,13 +130,8 @@ export function usePairSlotLayoutDrag(
       });
       onChangeRef.current?.(next);
     },
-    [snapThreshold],
+    [snapThreshold, writeLiveTransform],
   );
-
-  const valueX = value?.x ?? 0;
-  const valueY = value?.y ?? 0;
-  const valueScale = value?.scale ?? 1;
-  const valueBlur = value?.bottomBlur ?? 0;
 
   useEffect(() => {
     if (!enabled) {
@@ -255,7 +271,8 @@ export function usePairSlotLayoutDrag(
 
   const layoutStyle = (baseTransform?: string): CSSProperties => {
     baseTransformRef.current = baseTransform;
-    const { x, y, scale } = frame;
+    /* 드래그·로컬 커밋 직후에는 props(frame)가 stale → frameRef가 진실 */
+    const { x, y, scale } = frameRef.current;
     const layout =
       x !== 0 || y !== 0 || scale !== 1 ? `translate(${x}%, ${y}%) scale(${scale})` : '';
     const transform = [baseTransform, layout].filter(Boolean).join(' ');

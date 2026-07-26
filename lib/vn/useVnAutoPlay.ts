@@ -1,10 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const STORAGE_KEY = 'lh_vn_autoplay';
-/** OC/Pair 상세 대사창 — 시나리오 VN AUTO와 분리 (시나리오에서 켠 값이 새지 않게) */
-const DETAIL_STORAGE_KEY = 'lh_vn_autoplay_detail';
 
 function readStored(key: string): boolean {
   try {
@@ -39,8 +37,8 @@ type Options = {
   textLength: number;
   onAdvance: () => void;
   /**
-   * 'scenario' — 시나리오 VN (기본, lh_vn_autoplay)
-   * 'detail' — OC/Pair 대사창 (별도 키, 기본 OFF)
+   * 'scenario' — 시나리오 VN (localStorage 유지)
+   * 'detail' — OC/Pair 대사창 (세션만, 기본 OFF — 저장된 AUTO가 새지 않음)
    */
   scope?: 'scenario' | 'detail';
 };
@@ -59,29 +57,57 @@ export function useVnAutoPlay({
   onAdvance,
   scope = 'scenario',
 }: Options) {
-  const storageKey = scope === 'detail' ? DETAIL_STORAGE_KEY : STORAGE_KEY;
   const [autoPlay, setAutoPlay] = useState(false);
+  const autoPlayRef = useRef(false);
+  const onAdvanceRef = useRef(onAdvance);
+  onAdvanceRef.current = onAdvance;
+  autoPlayRef.current = autoPlay;
 
   useEffect(() => {
-    setAutoPlay(readStored(storageKey));
-  }, [storageKey]);
+    if (scope === 'detail') {
+      /* OC/Pair: 저장된 AUTO 절대 복원 안 함. 예전 키도 지움 */
+      try {
+        localStorage.removeItem('lh_vn_autoplay_detail');
+      } catch {
+        /* ignore */
+      }
+      setAutoPlay(false);
+      autoPlayRef.current = false;
+      return;
+    }
+    const stored = readStored(STORAGE_KEY);
+    setAutoPlay(stored);
+    autoPlayRef.current = stored;
+  }, [scope]);
+
+  /* 대사창이 닫히면 detail AUTO도 끔 — 다시 열 때 자동 넘김 방지 */
+  useEffect(() => {
+    if (scope !== 'detail') return;
+    if (!active || leaving) {
+      setAutoPlay(false);
+      autoPlayRef.current = false;
+    }
+  }, [scope, active, leaving]);
 
   const toggleAutoPlay = useCallback(() => {
     setAutoPlay((prev) => {
       const next = !prev;
-      writeStored(storageKey, next);
+      autoPlayRef.current = next;
+      if (scope === 'scenario') writeStored(STORAGE_KEY, next);
       return next;
     });
-  }, [storageKey]);
+  }, [scope]);
 
   useEffect(() => {
     if (!autoPlay || !active || leaving || isTyping || hasChoices) return;
     const delay = vnAutoHoldMs(textLength);
     const t = window.setTimeout(() => {
-      onAdvance();
+      /* 타이머 동안 사용자가 AUTO를 끈 경우 무시 */
+      if (!autoPlayRef.current) return;
+      onAdvanceRef.current();
     }, delay);
     return () => window.clearTimeout(t);
-  }, [autoPlay, active, leaving, isTyping, hasChoices, lineKey, textLength, onAdvance]);
+  }, [autoPlay, active, leaving, isTyping, hasChoices, lineKey, textLength]);
 
   return { autoPlay, toggleAutoPlay };
 }

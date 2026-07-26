@@ -28,10 +28,42 @@
     transform: translateY(-41px);
   }
 
-  /* Pair: OC와 통일 — 슬라이드바(.detail-nav)만 접히고 화면(콘텐츠)은 움직이지
-     않는다. sticky 라 접혀도 콘텐츠 흐름 위치는 그대로 유지된다. */
+  /* Pair: 슬라이드바만 접힘. 접힘 시 배경 투명 → 손잡이만 남고 색 띠 없음.
+     콘텐츠는 끌어올리지 않음(스탠딩/고스트 위치 유지). */
+  #detail-screen.pair-detail-screen > .detail-nav {
+    transition:
+      transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 0.22s ease,
+      border-bottom-color 0.22s ease,
+      box-shadow 0.22s ease;
+  }
   #detail-screen.pair-detail-screen > .detail-nav:not(:hover) {
     transform: translateY(-39px);
+    /* 접힘 잔여 스트립이 플랫 잉크 밴드로 보이던 원인 — 손잡이만 남김 */
+    background: transparent !important;
+    border-bottom-color: transparent !important;
+    box-shadow: none !important;
+  }
+  #detail-screen.pair-detail-screen.pair-vn-playing > .detail-nav:not(:hover) {
+    background: transparent !important;
+    border-bottom-color: transparent !important;
+    box-shadow: none !important;
+  }
+  #detail-screen.pair-detail-screen > .detail-nav:hover,
+  #detail-screen.pair-detail-screen > .detail-nav:focus-within {
+    background: #0b0d0c !important;
+    border-bottom-color: rgba(215, 169, 130, 0.08) !important;
+    box-shadow: none !important;
+  }
+  #detail-screen.pair-detail-screen.pair-vn-playing > .detail-nav:hover,
+  #detail-screen.pair-detail-screen.pair-vn-playing > .detail-nav:focus-within {
+    background: #020403 !important;
+    border-bottom-color: rgba(215, 169, 130, 0.06) !important;
+  }
+
+  /* 접힌 슬라이드 슬롯(52px)만 pair-bg로 채움 — 스탠딩·레이아웃은 그대로, 색 단차만 제거 */
+  #detail-screen.pair-detail-screen .pair-cherry-root > .pair-bg {
+    top: -52px;
   }
 
   /* 접힘 상태에선 내부 컨트롤을 페이드아웃 — 손잡이만 깔끔하게 남는다. */

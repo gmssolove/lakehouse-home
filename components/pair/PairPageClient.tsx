@@ -38,6 +38,7 @@ import {
 } from '@/lib/lake/routeTransition';
 import { setOcReturnPath } from '@/lib/lake/ocReturn';
 import type { OcCharacter, PairItem } from '@/lib/types/character';
+import { preloadPairStandImages } from '@/lib/oc/pairStandPreload';
 
 type SortMode = 'order' | 'name';
 
@@ -194,7 +195,22 @@ export function PairPageClient() {
           floatingQuotesBySide: next.floatingQuotesBySide,
         };
       });
-      pendingLayoutRef.current = next;
+      /* 연속 패치가 서로 다른 필드만 갖고 와도 pending에 누적 */
+      const prevPending = pendingLayoutRef.current;
+      pendingLayoutRef.current =
+        prevPending && prevPending.id === next.id
+          ? {
+              ...prevPending,
+              charBodyLayout: next.charBodyLayout ?? prevPending.charBodyLayout,
+              charGhostLayout: next.charGhostLayout ?? prevPending.charGhostLayout,
+              charHeadLayout: next.charHeadLayout ?? prevPending.charHeadLayout,
+              vnStandPos: next.vnStandPos ?? prevPending.vnStandPos,
+              panelViews: next.panelViews ?? prevPending.panelViews,
+              floatingQuotes: next.floatingQuotes ?? prevPending.floatingQuotes,
+              floatingQuotesBySide:
+                next.floatingQuotesBySide ?? prevPending.floatingQuotesBySide,
+            }
+          : next;
       if (layoutSaveTimer.current) clearTimeout(layoutSaveTimer.current);
       layoutSaveTimer.current = setTimeout(() => {
         layoutSaveTimer.current = null;
@@ -350,15 +366,18 @@ export function PairPageClient() {
     setSidebarOpen(false);
     setLayoutMode(false);
     setQuoteMode(false);
-    if (!opts?.skipSplash && normalizeEntrySplash(p.entrySplash).enabled) {
-      splashPendingRef.current = p;
-      setEntrySplash(p);
+    /* 카드 스냅샷 대신 최신 pairs(방금 저장한 스탠딩 위치)로 연다 */
+    const latest = pairsRef.current.find((x) => x.id === p.id) ?? p;
+    preloadPairStandImages(latest);
+    if (!opts?.skipSplash && normalizeEntrySplash(latest.entrySplash).enabled) {
+      splashPendingRef.current = latest;
+      setEntrySplash(latest);
       setDetail(null);
       return;
     }
     splashPendingRef.current = null;
     setEntrySplash(null);
-    setDetail(p);
+    setDetail(latest);
   }
 
   function openPair(p: PairItem, opts?: { skipSplash?: boolean }) {

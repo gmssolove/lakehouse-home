@@ -37,6 +37,7 @@ import { StoryReader } from '@/components/shared/StoryReader';
 import { PreviewCarousel } from '@/components/shared/PreviewCarousel';
 import { OcStatHoverPanel } from '@/components/oc/OcStatHoverPanel';
 import { HandwritingNoteFlap } from '@/components/pair/HandwritingNoteFlap';
+import { preloadHandNoteImages, unlockHandNoteSfx, warmHandNoteSfx } from '@/lib/oc/handNotePreload';
 import { hydrateOcStories } from '@/lib/oc/storyEntries';
 import { layoutTasteRows, resolveTasteItems } from '@/lib/oc/tasteItems';
 import { normalizeTouchHoverStyle, normalizeTouchZones } from '@/lib/pair/touchZones';
@@ -286,6 +287,15 @@ export function OcCharacterDetail({
     if (auLeaveClearRef.current) clearTimeout(auLeaveClearRef.current);
     if (auEnterClearRef.current) clearTimeout(auEnterClearRef.current);
   }, [character.id]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on character switch only
+
+  useEffect(() => {
+    preloadHandNoteImages(character.handwritingNotes);
+    warmHandNoteSfx([character.handwritingNoteSfx, character.handwritingNoteCloseSfx]);
+  }, [
+    character.handwritingNoteCloseSfx,
+    character.handwritingNoteSfx,
+    character.handwritingNotes,
+  ]);
 
   useEffect(() => {
     if (ghostLayoutMode) return;
@@ -2014,6 +2024,20 @@ export function OcCharacterDetail({
                     type="button"
                     className="lh-handnote-btn"
                     aria-label={`${character.name} 손글씨 쪽지`}
+                    onPointerEnter={() => {
+                      preloadHandNoteImages(character.handwritingNotes);
+                      warmHandNoteSfx([
+                        character.handwritingNoteSfx,
+                        character.handwritingNoteCloseSfx,
+                      ]);
+                    }}
+                    onFocus={() => {
+                      preloadHandNoteImages(character.handwritingNotes);
+                      warmHandNoteSfx([
+                        character.handwritingNoteSfx,
+                        character.handwritingNoteCloseSfx,
+                      ]);
+                    }}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -2021,6 +2045,11 @@ export function OcCharacterDetail({
                         .map((u) => u.trim())
                         .filter(Boolean);
                       if (!urls.length) return;
+                      preloadHandNoteImages(urls);
+                      unlockHandNoteSfx([
+                        character.handwritingNoteSfx,
+                        character.handwritingNoteCloseSfx,
+                      ]);
                       setHandNoteLb({
                         urls,
                         title: character.name || '쪽지',

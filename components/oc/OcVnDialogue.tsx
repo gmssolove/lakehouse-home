@@ -65,6 +65,8 @@ export function OcVnDialogue({
   const typingDoneRef = useRef(true);
   const motionKeyRef = useRef('');
   const fxKeyRef = useRef('');
+  /** 캐릭터 클릭으로 연 직후 같은 클릭이 대사 진행으로 안 넘어가게 */
+  const openedAtRef = useRef(0);
 
   const node = list[pos];
   const sourceText = (node?.text || '').trim() || '...';
@@ -97,6 +99,7 @@ export function OcVnDialogue({
     const start = nodeIndex(list, character.dialogueStart || null, character.dialogueStart);
     setPos(start);
     setTypedLen(0);
+    openedAtRef.current = Date.now();
   }, [active, present, leaving, character.id, character.dialogueStart, list, onExpression, onMotion, onFx]);
 
   useEffect(() => {
@@ -138,14 +141,14 @@ export function OcVnDialogue({
     if (!active || leaving) return;
     setTypedLen(0);
     typingDoneRef.current = false;
-  }, [active, leaving, pos, text]);
+  }, [active, leaving, pos, sourceText]);
 
   useEffect(() => {
     if (!active || leaving || typedLen >= text.length) {
       typingDoneRef.current = true;
       return;
     }
-    const t = window.setTimeout(() => setTypedLen((n) => n + 1), 68);
+    const t = window.setTimeout(() => setTypedLen((n) => n + 1), 90);
     return () => window.clearTimeout(t);
   }, [active, leaving, text, typedLen]);
 
@@ -156,7 +159,7 @@ export function OcVnDialogue({
 
   const advance = useCallback(() => {
     if (choices.length) return;
-      const nextId = node?.next?.trim();
+    const nextId = node?.next?.trim();
     if (nextId === '__end__') {
       onClose();
       return;
@@ -178,6 +181,7 @@ export function OcVnDialogue({
   }, [choices.length, isLastNode, list, node?.next, onClose]);
 
   const handleBoxClick = useCallback(() => {
+    if (Date.now() - openedAtRef.current < 500) return;
     if (choices.length) return;
     if (isTyping) {
       skipTyping();
@@ -187,6 +191,7 @@ export function OcVnDialogue({
   }, [advance, choices.length, isTyping, skipTyping]);
 
   const handleSurfaceClick = useCallback(() => {
+    if (Date.now() - openedAtRef.current < 500) return;
     if (choices.length) return;
     if (isTyping) {
       skipTyping();
@@ -205,7 +210,7 @@ export function OcVnDialogue({
     isTyping,
     hasChoices: choices.length > 0,
     lineKey: node?.id || pos,
-    textLength: text.length,
+    textLength: sourceText.length,
     onAdvance: advance,
     scope: 'detail',
   });

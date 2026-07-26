@@ -16,6 +16,11 @@ import {
   TextAreaField,
 } from '@/components/ui/form';
 import { HandwritingNoteFlap } from '@/components/pair/HandwritingNoteFlap';
+import {
+  preloadHandNoteImages,
+  unlockHandNoteSfx,
+  warmHandNoteSfx,
+} from '@/lib/oc/handNotePreload';
 import { InvestigatorCardImage, normalizePortraitKind } from '@/components/trpg/TrpgInvestigatorImage';
 import { TrpgInvestigatorDetail } from '@/components/trpg/TrpgInvestigatorDetail';
 import { LikeHateView } from '@/components/trpg/TrpgInvestigatorLikeHate';
@@ -460,6 +465,11 @@ export function TrpgInvestigatorBoard({
                           .map((u) => u.trim())
                           .filter(Boolean);
                         if (!urls.length) return;
+                        preloadHandNoteImages(urls);
+                        unlockHandNoteSfx([
+                          view.handwritingNoteSfx,
+                          view.handwritingNoteCloseSfx,
+                        ]);
                         setHandNoteLb({
                           urls,
                           title: view.name || '쪽지',

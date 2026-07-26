@@ -102,10 +102,22 @@ body {
   top: 0 !important;
   z-index: 450 !important;
   height: 52px !important;
-  background: rgba(10, 12, 10, 0.97) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* 펼침(hover) 기본색 — 접힘 투명은 admin-topbar-autohide 가 덮어씀 */
+  background: #0b0d0c !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: 1px solid rgba(215, 169, 130, 0.08) !important;
+  border-bottom-color: rgba(215, 169, 130, 0.08) !important;
+  box-shadow: none !important;
   pointer-events: auto !important;
+}
+
+#detail-screen.pair-detail-screen.pair-vn-playing > .detail-nav {
+  /* 펼침 색은 :hover/:focus-within · 접힘 투명은 admin-topbar-autohide */
+  border-bottom-color: rgba(215, 169, 130, 0.06) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .pair-detail-screen .pair-detail-layout--archive {

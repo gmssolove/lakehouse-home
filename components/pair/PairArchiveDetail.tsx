@@ -25,6 +25,14 @@ import { pairSideHasDialogue, type PairVnSide } from '@/lib/pair/dialogue';
 import { usePairSlotLayoutDrag } from '@/components/pair/usePairSlotLayoutDrag';
 import { PairPanelStage, PairReveal } from '@/components/pair/PairPanelStage';
 import { pairCardTitle } from '@/lib/oc/pairCover';
+import { preloadPairStandImages } from '@/lib/oc/pairStandPreload';
+import {
+  collectPairHandNoteUrls,
+  collectPairHandNoteSfx,
+  preloadHandNoteImages,
+  unlockHandNoteSfx,
+  warmHandNoteSfx,
+} from '@/lib/oc/handNotePreload';
 import {
   getPanelView,
   normalizePanelView,
@@ -187,6 +195,8 @@ function CharaSide({
   onBodyLayoutChange,
   onGhostLayoutChange,
   ghostBlur = true,
+  standSlot,
+  vnPoseEditing = false,
 }: {
   side: 'left' | 'right';
   name: string;
@@ -221,13 +231,22 @@ function CharaSide({
   onGhostLayoutChange?: (next: ImageFrame) => void;
   /** 고스트 soft blur (기본 on) */
   ghostBlur?: boolean;
+  /** VN 스탠딩 앵커용 A/B */
+  standSlot?: 'A' | 'B';
+  /** VN 위치 편집 중 — 메인 전신 드래그 */
+  vnPoseEditing?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const hasBody = Boolean(body?.trim());
   const resolvedGhost = ghostLayout ?? defaultPairGhostLayout(side);
-  const bodyDrag = usePairSlotLayoutDrag(bodyLayout, onBodyLayoutChange, Boolean(layoutEditable && hasBody && !quoteEditable));
-  const ghostDrag = usePairSlotLayoutDrag(resolvedGhost, onGhostLayoutChange, Boolean(layoutEditable && hasBody && !quoteEditable));
+  const bodyEditable = Boolean((layoutEditable || vnPoseEditing) && hasBody && !quoteEditable);
+  const bodyDrag = usePairSlotLayoutDrag(bodyLayout, onBodyLayoutChange, bodyEditable);
+  const ghostDrag = usePairSlotLayoutDrag(
+    resolvedGhost,
+    onGhostLayoutChange,
+    Boolean(layoutEditable && hasBody && !quoteEditable),
+  );
 
   const bodyImgStyle = framedImageStyle(bodyFrame, {
     fit: 'contain',
@@ -249,9 +268,15 @@ function CharaSide({
         type="button"
         className="chara-note-btn"
         aria-label={`${name} 손글씨 쪽지`}
+        onPointerEnter={() => {
+          preloadHandNoteImages(handwritingNotes);
+          /* sfx는 부모가 pair 단위로 warm — 여기선 이미지 우선 */
+        }}
+        onFocus={() => preloadHandNoteImages(handwritingNotes)}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          preloadHandNoteImages(handwritingNotes);
           onOpenHandwriting();
         }}
       >
@@ -297,13 +322,14 @@ function CharaSide({
   const bodyEl = hasBody ? (
     <div
       ref={bodyDrag.elRef}
-      className={`chara-body-wrapper${canStartVn && !layoutEditable && !quoteEditable ? ' is-vn-trigger' : ''}${layoutEditable ? ' is-layout-editable' : ''}${bodyDrag.selected ? ' is-layout-selected' : ''}${bodyDrag.dragging ? ' is-dragging' : ''}`}
-      role={canStartVn && !layoutEditable && !quoteEditable ? 'button' : undefined}
-      tabIndex={canStartVn && !layoutEditable && !quoteEditable ? 0 : undefined}
+      data-pair-stand={standSlot}
+      className={`chara-body-wrapper${canStartVn && !layoutEditable && !quoteEditable && !vnPoseEditing ? ' is-vn-trigger' : ''}${bodyEditable ? ' is-layout-editable' : ''}${bodyDrag.selected ? ' is-layout-selected' : ''}${bodyDrag.dragging ? ' is-dragging' : ''}`}
+      role={canStartVn && !layoutEditable && !quoteEditable && !vnPoseEditing ? 'button' : undefined}
+      tabIndex={canStartVn && !layoutEditable && !quoteEditable && !vnPoseEditing ? 0 : undefined}
       style={bodyLayoutStyle}
       {...bodyDrag.handlers}
       onClick={
-        canStartVn && !layoutEditable && !quoteEditable
+        canStartVn && !layoutEditable && !quoteEditable && !vnPoseEditing
           ? (e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -312,7 +338,7 @@ function CharaSide({
           : undefined
       }
       onKeyDown={
-        canStartVn && !layoutEditable && !quoteEditable
+        canStartVn && !layoutEditable && !quoteEditable && !vnPoseEditing
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -333,6 +359,8 @@ function CharaSide({
           src={body}
           alt=""
           referrerPolicy="no-referrer"
+          decoding="async"
+          fetchPriority="high"
           style={bodyImgStyleBase}
           draggable={false}
         />
@@ -681,6 +709,7 @@ export function PairArchiveDetail({
   const hasVnA = pairSideHasDialogue(pair, 'A');
   const hasVnB = pairSideHasDialogue(pair, 'B');
   const vn = usePairVnDialogue();
+  const [vnPoseEditing, setVnPoseEditing] = useState(false);
   const docVisible = useDocumentVisible();
   const [heroInView, setHeroInView] = useState(true);
   const [enterSettled, setEnterSettled] = useState(false);
@@ -691,6 +720,13 @@ export function PairArchiveDetail({
     const t = window.setTimeout(() => setEnterSettled(true), 1500);
     return () => window.clearTimeout(t);
   }, [enterKey]);
+
+  /* 전신·쪽지 프리로드 — 진입 직후 / 펼침 시 로딩·첫 효과음 지연 완화 */
+  useEffect(() => {
+    preloadPairStandImages(pair);
+    preloadHandNoteImages(collectPairHandNoteUrls(pair));
+    warmHandNoteSfx(collectPairHandNoteSfx(pair));
+  }, [pair]);
 
   /* 히어로가 뷰포트에 있을 때만 스테이지 FX */
   useEffect(() => {
@@ -1286,12 +1322,24 @@ export function PairArchiveDetail({
 
   const selectedQuote = floatingQuotes.find((q) => q.id === selectedQuoteId) || floatingQuotes[0];
 
+  /* 좌·우 연속 드래그 시 pair prop 반영 전 호출이 상대 슬롯을 덮어쓰지 않게 ref로 최신 유지.
+     render마다 pair로 덮지 않음 — optimistic patch가 stale prop에 짓밟히지 않게 effect로만 동기화 */
+  const bodyLayoutRef = useRef(pair.charBodyLayout);
+  const ghostLayoutRef = useRef(pair.charGhostLayout);
+  useEffect(() => {
+    bodyLayoutRef.current = pair.charBodyLayout;
+  }, [pair.charBodyLayout]);
+  useEffect(() => {
+    ghostLayoutRef.current = pair.charGhostLayout;
+  }, [pair.charGhostLayout]);
+
   const patchSlotLayout = useCallback(
     (slot: 0 | 1, next: ImageFrame) => {
       if (!onLayoutChange) return;
-      const cur = pair.charBodyLayout ?? [{}, {}];
+      const cur = bodyLayoutRef.current ?? [{}, {}];
       const layouts: [ImageFrame, ImageFrame] = [{ ...(cur[0] ?? {}) }, { ...(cur[1] ?? {}) }];
       layouts[slot] = next;
+      bodyLayoutRef.current = layouts;
       onLayoutChange({ ...pair, charBodyLayout: layouts });
     },
     [onLayoutChange, pair],
@@ -1301,10 +1349,11 @@ export function PairArchiveDetail({
     (slot: 0 | 1, next: ImageFrame) => {
       if (!onLayoutChange) return;
       const layouts: [ImageFrame, ImageFrame] = [
-        { ...(pair.charGhostLayout?.[0] ?? defaultPairGhostLayout('left')) },
-        { ...(pair.charGhostLayout?.[1] ?? defaultPairGhostLayout('right')) },
+        { ...(ghostLayoutRef.current?.[0] ?? defaultPairGhostLayout('left')) },
+        { ...(ghostLayoutRef.current?.[1] ?? defaultPairGhostLayout('right')) },
       ];
       layouts[slot] = next;
+      ghostLayoutRef.current = layouts;
       onLayoutChange({ ...pair, charGhostLayout: layouts });
     },
     [onLayoutChange, pair],
@@ -1658,10 +1707,18 @@ export function PairArchiveDetail({
   const patchStandPose = useCallback(
     (slot: 0 | 1, pose: PairVnStandPose) => {
       if (!onLayoutChange) return;
-      const cur = pair.vnStandPos ?? [{}, {}];
-      const poses: [PairVnStandPose, PairVnStandPose] = [{ ...(cur[0] ?? {}) }, { ...(cur[1] ?? {}) }];
-      poses[slot] = pose;
-      onLayoutChange({ ...pair, vnStandPos: poses });
+      /* VN 「위치」= 메인 전신 charBodyLayout 과 동일 */
+      const cur = bodyLayoutRef.current ?? [{}, {}];
+      const layouts: [ImageFrame, ImageFrame] = [{ ...(cur[0] ?? {}) }, { ...(cur[1] ?? {}) }];
+      layouts[slot] = {
+        ...layouts[slot],
+        x: pose.x,
+        y: pose.y,
+        scale: pose.scale,
+        bottomBlur: pose.bottomBlur ?? layouts[slot].bottomBlur,
+      };
+      bodyLayoutRef.current = layouts;
+      onLayoutChange({ ...pair, charBodyLayout: layouts });
     },
     [onLayoutChange, pair],
   );
@@ -1686,7 +1743,7 @@ export function PairArchiveDetail({
     <>
     <div
       className={`pair-cherry-root${introPlay ? ' is-enter' : ''}${vn.present ? ' vn-active' : ''}${
-        layoutEditable ? ' is-layout-edit' : ''
+        layoutEditable || vnPoseEditing ? ' is-layout-edit' : ''
       }${quoteEditable ? ' is-quote-edit' : ''}${transit === 'diving' ? ' is-diving' : ''}${transit === 'returning' ? ' is-returning' : ''}${
         transit === 'landed' || panelReveal ? ' is-landed' : ''
       }${!stageFxLive ? ' is-fx-paused' : ''}${creepyFxClass(pair.creepyFx)}`}
@@ -1777,6 +1834,7 @@ export function PairArchiveDetail({
               const sfxUrl = pair.charNotes?.[0]?.handwritingNoteSfx?.trim() || undefined;
               const closeSfxUrl =
                 pair.charNotes?.[0]?.handwritingNoteCloseSfx?.trim() || undefined;
+              unlockHandNoteSfx([sfxUrl, closeSfxUrl]);
               setHandNoteLb({ urls, title: nameA, index: 0, sfxUrl, closeSfxUrl });
             }}
             canStartVn={hasVnA}
@@ -1792,6 +1850,8 @@ export function PairArchiveDetail({
             onBodyLayoutChange={(next) => patchSlotLayout(0, next)}
             onGhostLayoutChange={(next) => patchGhostLayout(0, next)}
             ghostBlur={pair.charGhostBlur !== false}
+            standSlot="A"
+            vnPoseEditing={vnPoseEditing}
           />
 
           <div className="pair-info">
@@ -1965,6 +2025,7 @@ export function PairArchiveDetail({
               const sfxUrl = pair.charNotes?.[1]?.handwritingNoteSfx?.trim() || undefined;
               const closeSfxUrl =
                 pair.charNotes?.[1]?.handwritingNoteCloseSfx?.trim() || undefined;
+              unlockHandNoteSfx([sfxUrl, closeSfxUrl]);
               setHandNoteLb({ urls, title: nameB, index: 0, sfxUrl, closeSfxUrl });
             }}
             canStartVn={hasVnB}
@@ -1980,6 +2041,8 @@ export function PairArchiveDetail({
             onBodyLayoutChange={(next) => patchSlotLayout(1, next)}
             onGhostLayoutChange={(next) => patchGhostLayout(1, next)}
             ghostBlur={pair.charGhostBlur !== false}
+            standSlot="B"
+            vnPoseEditing={vnPoseEditing}
           />
         </div>
       </div>
@@ -2243,6 +2306,7 @@ export function PairArchiveDetail({
         onClose={vn.close}
         standEditable={standEditable}
         onStandPoseChange={standEditable ? patchStandPose : undefined}
+        onPoseEditingChange={setVnPoseEditing}
       />
     </>
   );
