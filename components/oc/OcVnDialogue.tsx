@@ -207,6 +207,7 @@ export function OcVnDialogue({
     lineKey: node?.id || pos,
     textLength: text.length,
     onAdvance: advance,
+    scope: 'detail',
   });
 
   const goTo = useCallback(

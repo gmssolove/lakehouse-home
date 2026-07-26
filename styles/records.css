@@ -3368,19 +3368,12 @@
   -moz-osx-font-smoothing: grayscale;
   color: rgba(230, 224, 214, 0.86);
 }
-.lh-quote__item:hover .lh-quote__mark {
-  opacity: 1;
-  text-shadow: 0 0 18px rgba(201, 161, 92, 0.5);
-}
-.lh-quote__item:hover .lh-quote__text {
+.lh-quote__text:hover {
   color: #fdf8f0;
   text-shadow:
     0 0 12px rgba(235, 201, 168, 0.28),
     0 0 28px rgba(201, 161, 92, 0.2),
     0 0 48px rgba(201, 161, 92, 0.1);
-}
-.lh-quote__item:hover .lh-quote__cite {
-  color: rgba(200, 188, 170, 0.95);
 }
 .lh-quote__cite {
   display: flex;

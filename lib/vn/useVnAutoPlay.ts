@@ -3,18 +3,20 @@
 import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'lh_vn_autoplay';
+/** OC/Pair 상세 대사창 — 시나리오 VN AUTO와 분리 (시나리오에서 켠 값이 새지 않게) */
+const DETAIL_STORAGE_KEY = 'lh_vn_autoplay_detail';
 
-function readStored(): boolean {
+function readStored(key: string): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === '1';
+    return localStorage.getItem(key) === '1';
   } catch {
     return false;
   }
 }
 
-function writeStored(on: boolean) {
+function writeStored(key: string, on: boolean) {
   try {
-    localStorage.setItem(STORAGE_KEY, on ? '1' : '0');
+    localStorage.setItem(key, on ? '1' : '0');
   } catch {
     /* ignore */
   }
@@ -36,10 +38,15 @@ type Options = {
   lineKey: string | number;
   textLength: number;
   onAdvance: () => void;
+  /**
+   * 'scenario' — 시나리오 VN (기본, lh_vn_autoplay)
+   * 'detail' — OC/Pair 대사창 (별도 키, 기본 OFF)
+   */
+  scope?: 'scenario' | 'detail';
 };
 
 /**
- * OC / Pair 대사창 자동 재생.
+ * OC / Pair / 시나리오 대사창 자동 재생.
  * 타자 완료 후 잠시 대기 → 다음 대사. 선택지에서는 대기.
  */
 export function useVnAutoPlay({
@@ -50,20 +57,22 @@ export function useVnAutoPlay({
   lineKey,
   textLength,
   onAdvance,
+  scope = 'scenario',
 }: Options) {
+  const storageKey = scope === 'detail' ? DETAIL_STORAGE_KEY : STORAGE_KEY;
   const [autoPlay, setAutoPlay] = useState(false);
 
   useEffect(() => {
-    setAutoPlay(readStored());
-  }, []);
+    setAutoPlay(readStored(storageKey));
+  }, [storageKey]);
 
   const toggleAutoPlay = useCallback(() => {
     setAutoPlay((prev) => {
       const next = !prev;
-      writeStored(next);
+      writeStored(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   useEffect(() => {
     if (!autoPlay || !active || leaving || isTyping || hasChoices) return;

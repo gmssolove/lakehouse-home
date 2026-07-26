@@ -2149,13 +2149,15 @@
   z-index: 0;
 }
 
-/* 장소 배너보다 스탠딩이 앞에 — 배너는 상단이라 겹침 적음 */
+/* 장소 배너보다 스탠딩이 앞에 — 배너는 상단이라 겹침 적음.
+ * 대사창(overlay z:20)보다는 뒤에 두어 스탠딩이 대사를 가리지 않게 함.
+ * 위치 편집 중에는 스테이지를 앞으로 올려 드래그가 대사창에 먹히지 않게. */
 .pair-detail-screen .pair-vn-stage {
   position: absolute;
   left: 0;
   right: 0;
   top: 40px;
-  bottom: 0; /* 화면 맨 아래까지 — 대사창 뒤로 겹쳐도 됨 */
+  bottom: 0; /* 화면 맨 아래까지 — 대사창 뒤로 겹침 */
   transform: none;
   width: auto;
   height: auto;
@@ -2164,9 +2166,13 @@
   justify-content: center;
   gap: 0;
   pointer-events: none;
-  z-index: 630;
+  z-index: 10;
   padding: 0;
   box-sizing: border-box;
+}
+
+.pair-detail-screen .pair-vn-stage:has(.pair-vn-stand.is-stand-editable) {
+  z-index: 25;
 }
 
 .pair-detail-screen .pair-vn-stand {
