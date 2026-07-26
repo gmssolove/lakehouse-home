@@ -14,17 +14,17 @@
   filter: blur(0);
   pointer-events: auto;
   transition:
-    opacity 0.2s ease,
-    filter 0.2s ease;
+    opacity 0.28s ease,
+    filter 0.28s ease;
 }
 
 .pair-note-flap-lb.is-leaving {
   opacity: 0;
-  filter: blur(8px);
+  filter: blur(10px);
   pointer-events: none;
   transition:
-    opacity 0.28s ease,
-    filter 0.28s ease;
+    opacity 0.42s ease,
+    filter 0.42s ease;
 }
 
 .pair-note-flap-lb__close {
@@ -91,8 +91,8 @@
   backface-visibility: hidden;
   transform: rotateX(-92deg);
   opacity: 0.35;
-  animation: pair-note-fold-open 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  animation-delay: calc(var(--fold, 0) * 0.055s + 0.02s);
+  animation: pair-note-fold-open 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--fold, 0) * 0.16s + 0.04s);
   will-change: transform, opacity;
 }
 
@@ -118,8 +118,8 @@
     transparent
   );
   opacity: 0;
-  animation: pair-note-crease-in 0.2s ease forwards;
-  animation-delay: calc(var(--fold, 0) * 0.055s + 0.18s);
+  animation: pair-note-crease-in 0.35s ease forwards;
+  animation-delay: calc(var(--fold, 0) * 0.16s + 0.4s);
   pointer-events: none;
   z-index: 2;
 }

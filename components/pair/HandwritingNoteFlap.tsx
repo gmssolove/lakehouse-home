@@ -16,11 +16,9 @@ type Props = {
 };
 
 const FOLDS = 4;
-const CLOSE_MS = 280;
-/** 펼침 애니와 맞추기 — 첫 단이 열리기 시작하는 직후 */
-const SFX_DELAY_MS = 40;
-/** 이미지 onload가 안 와도 오버레이는 보이게 */
-const READY_FALLBACK_MS = 900;
+const CLOSE_MS = 420;
+/** 펼침 애니와 맞추기 — fold 시작(0.04s) 후 첫 단이 어느 정도 열린 시점 */
+const SFX_DELAY_MS = 120;
 
 /**
  * 4단 접힌 쪽지 펼침.
@@ -87,37 +85,31 @@ export function HandwritingNoteFlap({
       return;
     }
     let cancelled = false;
-    let done = false;
-    let fallbackTimer = 0;
-    setReady(false);
     setLeaving(false);
     leavingRef.current = false;
 
-    const finish = (w: number, h: number) => {
-      if (cancelled || done) return;
-      done = true;
-      if (w > 0 && h > 0) setAspect(`${w} / ${h}`);
-      else setAspect('3 / 4');
-      setAnimKey((k) => k + 1);
-      setReady(true);
-      window.clearTimeout(fallbackTimer);
-    };
+    /* 클릭 즉시 화면 표시 — 이미지 로드를 기다리지 않음 (딜레이 원인) */
+    setAspect((prev) => prev || '3 / 4');
+    setAnimKey((k) => k + 1);
+    setReady(true);
 
     const img = new window.Image();
     img.decoding = 'async';
-    img.onload = () => finish(img.naturalWidth, img.naturalHeight);
-    img.onerror = () => finish(0, 0);
+    const applySize = () => {
+      if (cancelled) return;
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (w > 0 && h > 0) setAspect(`${w} / ${h}`);
+    };
+    img.onload = applySize;
+    img.onerror = () => {
+      if (!cancelled) setAspect((prev) => prev || '3 / 4');
+    };
     img.src = src;
-    /* 캐시 hit 시 onload가 안 뜨는 브라우저 대비 */
-    if (img.complete) {
-      finish(img.naturalWidth, img.naturalHeight);
-    } else {
-      fallbackTimer = window.setTimeout(() => finish(0, 0), READY_FALLBACK_MS);
-    }
+    if (img.complete) applySize();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(fallbackTimer);
     };
   }, [open, src, stopSfx]);
 
