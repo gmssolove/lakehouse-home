@@ -10,6 +10,7 @@ import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { scrollPanelToTop } from '@/lib/lake/scrollPanelToTop';
 import { uploadImageFile } from '@/lib/r2/client';
 import { normalizeUploadFile } from '@/lib/r2/mime';
 import { newId, type DiaryImage, type DiaryThread, type SitePost } from '@/lib/types/site-content';
@@ -608,6 +609,12 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
     if (page !== safePage) setPage(safePage);
   }, [page, safePage]);
 
+  function changePage(next: number) {
+    if (next === safePage) return;
+    setPage(next);
+    scrollPanelToTop();
+  }
+
   useEffect(() => {
     if (!composerOpen || composerLeaving) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1180,7 +1187,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
               type="button"
               className={`lh-diary__pager-btn${n === safePage ? ' is-current' : ''}`}
               aria-current={n === safePage ? 'page' : undefined}
-              onClick={() => setPage(n)}
+              onClick={() => changePage(n)}
             >
               {n}
             </button>
@@ -1190,7 +1197,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
             className="lh-diary__pager-btn lh-diary__pager-btn--nav"
             aria-label="다음 페이지"
             disabled={safePage >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => changePage(Math.min(totalPages, safePage + 1))}
           >
             ›
           </button>
@@ -1199,7 +1206,7 @@ export function RecordsDiaryPanel({ items, user, isAdmin, onOpenAuth, onSave, ac
             className="lh-diary__pager-btn lh-diary__pager-btn--nav"
             aria-label="마지막 페이지"
             disabled={safePage >= totalPages}
-            onClick={() => setPage(totalPages)}
+            onClick={() => changePage(totalPages)}
           >
             »
           </button>

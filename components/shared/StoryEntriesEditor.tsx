@@ -16,6 +16,7 @@ import { AccordionSection } from '@/components/ui/form';
 import { StoryRichTextarea } from '@/components/shared/StoryRichTextarea';
 import { StoryPostBody } from '@/components/shared/StoryPostBody';
 import { extractPdfWithLayout } from '@/lib/oc/pdfText';
+import { scrollPanelToTop } from '@/lib/lake/scrollPanelToTop';
 import { uploadImageFile, uploadMediaFile } from '@/lib/r2/client';
 import type {
   StoryBgAccentMode,
@@ -442,7 +443,10 @@ export function StoryEntriesEditor({
             type="button"
             className="lh-story-pager__nav"
             disabled={safeEditorPage <= 0}
-            onClick={() => setEditorPage((p) => Math.max(0, p - 1))}
+            onClick={(e) => {
+              setEditorPage((p) => Math.max(0, p - 1));
+              scrollPanelToTop(e.currentTarget);
+            }}
             aria-label="이전"
           >
             ‹
@@ -452,7 +456,10 @@ export function StoryEntriesEditor({
               key={i}
               type="button"
               className={`lh-story-pager__dot${i === safeEditorPage ? ' is-active' : ''}`}
-              onClick={() => setEditorPage(i)}
+              onClick={(e) => {
+                setEditorPage(i);
+                scrollPanelToTop(e.currentTarget);
+              }}
               aria-label={`${i + 1}페이지`}
               aria-current={i === safeEditorPage ? 'page' : undefined}
             >
@@ -463,7 +470,10 @@ export function StoryEntriesEditor({
             type="button"
             className="lh-story-pager__nav"
             disabled={safeEditorPage >= editorPages - 1}
-            onClick={() => setEditorPage((p) => Math.min(editorPages - 1, p + 1))}
+            onClick={(e) => {
+              setEditorPage((p) => Math.min(editorPages - 1, p + 1));
+              scrollPanelToTop(e.currentTarget);
+            }}
             aria-label="다음"
           >
             ›

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" fill="none">
+  <rect x="28" y="28" width="1144" height="644" rx="4" stroke="rgba(232,220,190,0.55)" stroke-width="1.2"/>
+  <!-- corner flourishes -->
+  <path stroke="rgba(232,220,190,0.7)" stroke-width="1.1" d="M48 52 C60 40 78 36 96 38 M48 52 C40 64 36 82 38 100"/>
+  <path stroke="rgba(232,220,190,0.55)" stroke-width="0.9" d="M58 48 C68 42 82 40 94 42"/>
+  <path stroke="rgba(232,220,190,0.7)" stroke-width="1.1" d="M1152 52 C1140 40 1122 36 1104 38 M1152 52 C1160 64 1164 82 1162 100"/>
+  <path stroke="rgba(232,220,190,0.55)" stroke-width="0.9" d="M1142 48 C1132 42 1118 40 1106 42"/>
+  <path stroke="rgba(232,220,190,0.7)" stroke-width="1.1" d="M48 648 C60 660 78 664 96 662 M48 648 C40 636 36 618 38 600"/>
+  <path stroke="rgba(232,220,190,0.55)" stroke-width="0.9" d="M58 652 C68 658 82 660 94 658"/>
+  <path stroke="rgba(232,220,190,0.7)" stroke-width="1.1" d="M1152 648 C1140 660 1122 664 1104 662 M1152 648 C1160 636 1164 618 1162 600"/>
+  <path stroke="rgba(232,220,190,0.55)" stroke-width="0.9" d="M1142 652 C1132 658 1118 660 1106 658"/>
+</svg>

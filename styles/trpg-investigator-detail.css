@@ -893,15 +893,29 @@ body.trpg-inv-detail-open {
   min-width: 0;
 }
 
-/* 이름 오른쪽 · OC·Pair 정도의 여백 */
+/* 이름 오른쪽 · OC·Pair 정도의 여백 — 아이콘이 잘리거나 뒤로 깔리지 않게 */
 .trpg-inv-detail__identity .lh-handnote-btn {
   margin: 0.2rem 0 0.02rem 0.12rem;
   padding: 0.25rem 0.2rem;
   transform: translate(0.05rem, 0.06rem);
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
 }
 
 .trpg-inv-detail__identity .lh-handnote-btn:hover {
   transform: translate(0.05rem, -0.02rem);
+}
+
+.trpg-inv-detail__identity .lh-handnote-btn:hover .lh-handnote-btn__icon {
+  filter: brightness(1.55) contrast(1.15) drop-shadow(0 0 6px rgba(240, 207, 173, 0.45));
+}
+
+.trpg-inv-detail__identity .lh-handnote-btn__icon {
+  /* screen 블렌드가 패널 배경에서 거의 안 보이는 경우 대비 */
+  mix-blend-mode: normal;
+  filter: brightness(1.35) contrast(1.1) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
+  opacity: 0.92;
 }
 
 .trpg-inv-detail__oc-link {

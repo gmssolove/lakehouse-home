@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Cormorant_Garamond } from 'next/font/google';
 import '@/styles/verse.css';
+import '@/styles/game-lobby-tw.css';
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
@@ -11,8 +12,8 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: '如月高校 — Portal',
-  description: 'Kisaragi Universe Portal',
+  title: '如月高校',
+  description: 'Kisaragi Universe Official',
 };
 
 export default function VerseLayout({ children }: { children: React.ReactNode }) {

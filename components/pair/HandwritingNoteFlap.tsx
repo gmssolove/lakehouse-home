@@ -16,9 +16,11 @@ type Props = {
 };
 
 const FOLDS = 4;
-const CLOSE_MS = 420;
-/** 펼침 애니와 맞추기 — fold 시작(0.04s) 후 첫 단이 어느 정도 열린 시점 */
-const SFX_DELAY_MS = 120;
+const CLOSE_MS = 280;
+/** 펼침 애니와 맞추기 — 첫 단이 열리기 시작하는 직후 */
+const SFX_DELAY_MS = 40;
+/** 이미지 onload가 안 와도 오버레이는 보이게 */
+const READY_FALLBACK_MS = 900;
 
 /**
  * 4단 접힌 쪽지 펼침.
@@ -41,6 +43,8 @@ export function HandwritingNoteFlap({
   const sfxRef = useRef<HTMLAudioElement | null>(null);
   const sfxTimer = useRef(0);
   const sfxPlayedRef = useRef(false);
+  /** state보다 먼저 막아 더블클릭·버블링으로 닫기음이 끊기지 않게 */
+  const leavingRef = useRef(false);
 
   const src = urls[index] || urls[0] || '';
 
@@ -75,34 +79,45 @@ export function HandwritingNoteFlap({
       setReady(false);
       setAspect(null);
       setLeaving(false);
+      leavingRef.current = false;
       sfxPlayedRef.current = false;
       window.clearTimeout(closeTimer.current);
+      /* 닫기음은 requestClose에서 ref를 떼 두고 재생 유지 — 여기선 펼침음만 정리 */
       stopSfx();
       return;
     }
     let cancelled = false;
+    let done = false;
+    let fallbackTimer = 0;
     setReady(false);
     setLeaving(false);
-    const img = new window.Image();
-    img.decoding = 'async';
-    img.onload = () => {
-      if (cancelled) return;
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
+    leavingRef.current = false;
+
+    const finish = (w: number, h: number) => {
+      if (cancelled || done) return;
+      done = true;
       if (w > 0 && h > 0) setAspect(`${w} / ${h}`);
       else setAspect('3 / 4');
       setAnimKey((k) => k + 1);
       setReady(true);
+      window.clearTimeout(fallbackTimer);
     };
-    img.onerror = () => {
-      if (cancelled) return;
-      setAspect('3 / 4');
-      setAnimKey((k) => k + 1);
-      setReady(true);
-    };
+
+    const img = new window.Image();
+    img.decoding = 'async';
+    img.onload = () => finish(img.naturalWidth, img.naturalHeight);
+    img.onerror = () => finish(0, 0);
     img.src = src;
+    /* 캐시 hit 시 onload가 안 뜨는 브라우저 대비 */
+    if (img.complete) {
+      finish(img.naturalWidth, img.naturalHeight);
+    } else {
+      fallbackTimer = window.setTimeout(() => finish(0, 0), READY_FALLBACK_MS);
+    }
+
     return () => {
       cancelled = true;
+      window.clearTimeout(fallbackTimer);
     };
   }, [open, src, stopSfx]);
 
@@ -114,7 +129,7 @@ export function HandwritingNoteFlap({
     sfxPlayedRef.current = true;
     window.clearTimeout(sfxTimer.current);
     sfxTimer.current = window.setTimeout(() => {
-      if (!open) return;
+      if (!open || leavingRef.current) return;
       playSfx(url);
     }, SFX_DELAY_MS);
     return () => window.clearTimeout(sfxTimer.current);
@@ -129,21 +144,50 @@ export function HandwritingNoteFlap({
   );
 
   const requestClose = useCallback(() => {
-    if (leaving) return;
+    if (leavingRef.current) return;
+    leavingRef.current = true;
     setLeaving(true);
-    stopSfx();
-    playSfx(closeSfxUrl || '');
+    window.clearTimeout(sfxTimer.current);
+    /* 펼침음만 끊고, 닫기음은 언마운트 stop에 안 걸리게 ref에서 분리 */
+    if (sfxRef.current) {
+      sfxRef.current.pause();
+      sfxRef.current = null;
+    }
+    const closeUrl = (closeSfxUrl || '').trim();
+    if (closeUrl) {
+      try {
+        const el = new Audio(closeUrl);
+        el.volume = 0.62;
+        playSafe(el, 'sfx', closeUrl);
+        /* sfxRef에 넣지 않음 — open=false cleanup이 닫기음을 끊지 않음 */
+      } catch {
+        /* ignore */
+      }
+    }
     window.clearTimeout(closeTimer.current);
     closeTimer.current = window.setTimeout(() => {
       onClose();
     }, CLOSE_MS);
-  }, [closeSfxUrl, leaving, onClose, playSfx, stopSfx]);
+  }, [closeSfxUrl, onClose]);
+
+  /* 쪽지가 열려 있으면 Escape는 쪽지만 닫고, 뒤 상세는 유지 */
+  useEffect(() => {
+    if (!open || leaving) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      requestClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [leaving, open, requestClose]);
 
   if (!open) return null;
 
   const overlay = (
     <div
-      className={`pair-note-flap-lb${leaving ? ' is-leaving' : ''}${ready ? ' is-ready' : ''}`}
+      className={`pair-note-flap-lb${leaving ? ' is-leaving' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={`${title} 손글씨 쪽지`}
@@ -152,7 +196,10 @@ export function HandwritingNoteFlap({
       <button
         type="button"
         className="pair-note-flap-lb__close"
-        onClick={requestClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          requestClose();
+        }}
         aria-label="닫기"
       >
         ✕

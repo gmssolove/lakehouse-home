@@ -51,6 +51,7 @@ import { visibleRiskStages } from '@/lib/oc/riskStages';
 import { useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { lakeNavigate } from '@/lib/lake/routeTransition';
 import { setOcReturnPath } from '@/lib/lake/ocReturn';
+import { scrollPanelToTop } from '@/lib/lake/scrollPanelToTop';
 import {
   resolveScopePassword,
   unlockLakeItem,
@@ -1410,7 +1411,10 @@ export function PairArchiveDetail({
           type="button"
           className="lh-diary__pager-btn lh-diary__pager-btn--nav"
           disabled={page <= 0}
-          onClick={() => setPage(Math.max(0, page - 1))}
+          onClick={(e) => {
+            setPage(Math.max(0, page - 1));
+            scrollPanelToTop(e.currentTarget);
+          }}
           aria-label="이전 페이지"
         >
           ‹
@@ -1420,7 +1424,10 @@ export function PairArchiveDetail({
             key={i}
             type="button"
             className={`lh-diary__pager-btn${i === page ? ' is-current' : ''}`}
-            onClick={() => setPage(i)}
+            onClick={(e) => {
+              setPage(i);
+              scrollPanelToTop(e.currentTarget);
+            }}
             aria-label={`${i + 1}페이지`}
             aria-current={i === page ? 'page' : undefined}
           >
@@ -1431,7 +1438,10 @@ export function PairArchiveDetail({
           type="button"
           className="lh-diary__pager-btn lh-diary__pager-btn--nav"
           disabled={page >= pages - 1}
-          onClick={() => setPage(Math.min(pages - 1, page + 1))}
+          onClick={(e) => {
+            setPage(Math.min(pages - 1, page + 1));
+            scrollPanelToTop(e.currentTarget);
+          }}
           aria-label="다음 페이지"
         >
           ›

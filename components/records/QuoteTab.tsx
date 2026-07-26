@@ -7,6 +7,7 @@ import { RecordsWriteShell, useRecordsComposer } from '@/components/records/Reco
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { scrollPanelToTop } from '@/lib/lake/scrollPanelToTop';
 import { newId, type QuoteCategory, type QuoteItem } from '@/lib/types/site-content';
 
 type Props = {
@@ -186,11 +187,13 @@ export function QuoteTab({ user, isAdmin, onOpenAuth, active = true }: Props) {
     if (next === filter || listPhase === 'out') return;
     setFilter(next);
     setPage(1);
+    scrollPanelToTop();
   }
 
   function changePage(next: number) {
     if (next === safePage || listPhase === 'out') return;
     setPage(next);
+    scrollPanelToTop();
   }
 
   async function submit() {

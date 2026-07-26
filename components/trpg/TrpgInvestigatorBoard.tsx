@@ -179,6 +179,7 @@ export function TrpgInvestigatorBoard({
     setEditing(false);
     setDraft(null);
     setExpressionId('default');
+    setHandNoteLb(null);
   }, []);
 
   /* 상세 닫힌 뒤 body 잠금 잔여만 제거 (open 클래스는 Detail이 소유) */

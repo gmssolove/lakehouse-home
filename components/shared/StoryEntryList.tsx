@@ -5,6 +5,7 @@ import { LakeSearchField } from '@/components/ui/LakeSearchField';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { formatStoryMeta, mergeStoryCategories, storySecretItemId, storyCategoryTagStyle } from '@/lib/oc/storyEntries';
 import { isLakeItemUnlocked, resolveScopePassword } from '@/lib/lake/accessGate';
+import { scrollPanelToTop } from '@/lib/lake/scrollPanelToTop';
 import { SecretLockIcon } from '@/components/ui/SecretLockBadge';
 import type { SiteAccessSettings } from '@/lib/types/secret-content';
 import type { StoryEntry } from '@/lib/types/character';
@@ -430,9 +431,10 @@ export function StoryEntryList({
             type="button"
             className="lh-story-pager__nav"
             disabled={safePage <= 0}
-            onClick={() => {
+            onClick={(e) => {
               setOpenId(null);
               setPage((p) => Math.max(0, p - 1));
+              scrollPanelToTop(e.currentTarget);
             }}
             aria-label="이전"
           >
@@ -443,9 +445,10 @@ export function StoryEntryList({
               key={i}
               type="button"
               className={`lh-story-pager__dot${i === safePage ? ' is-active' : ''}`}
-              onClick={() => {
+              onClick={(e) => {
                 setOpenId(null);
                 setPage(i);
+                scrollPanelToTop(e.currentTarget);
               }}
               aria-label={`${i + 1}페이지`}
               aria-current={i === safePage ? 'page' : undefined}
@@ -457,9 +460,10 @@ export function StoryEntryList({
             type="button"
             className="lh-story-pager__nav"
             disabled={safePage >= pages - 1}
-            onClick={() => {
+            onClick={(e) => {
               setOpenId(null);
               setPage((p) => Math.min(pages - 1, p + 1));
+              scrollPanelToTop(e.currentTarget);
             }}
             aria-label="다음"
           >
