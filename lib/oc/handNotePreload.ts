@@ -50,10 +50,12 @@ export function preloadHandNoteImage(src: string): Promise<NoteDim | null> {
   return loadNoteImage(src);
 }
 
-export function preloadHandNoteImages(urls: Array<string | undefined | null>) {
+export function preloadHandNoteImages(
+  urls: Array<string | undefined | null> | undefined | null,
+) {
   if (typeof window === 'undefined') return;
   const list = Array.from(
-    new Set(urls.map((u) => (u || '').trim()).filter(Boolean)),
+    new Set((urls ?? []).map((u) => (u || '').trim()).filter(Boolean)),
   );
   list.forEach((src) => {
     void loadNoteImage(src);
