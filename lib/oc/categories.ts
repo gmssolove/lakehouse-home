@@ -6,10 +6,15 @@ export const LEGACY_CATEGORY_ALIASES: Record<string, string> = {
   'TRPG OC': 'TRPG OC',
   '일반 OC': 'OC',
   OC: 'OC',
+  Guest: 'GUEST',
+  guest: 'GUEST',
+  GUEST: 'GUEST',
+  게스트: 'GUEST',
+  '지인 자캐': 'GUEST',
 };
 
 /** 저장·필터용 정규 카테고리 (표시 순서) */
-export const DEFAULT_CATEGORIES = ['OC', 'Universe OC', 'TRPG OC'];
+export const DEFAULT_CATEGORIES = ['OC', 'Universe OC', 'TRPG OC', 'GUEST'];
 
 export function normalizeCategory(cat?: string): string {
   const text = (cat ?? '').trim();
