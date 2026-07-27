@@ -456,21 +456,52 @@ export type OcChatProactiveResult = {
   delay: OcChatDelayKind;
 };
 
+function parseOcChatApiErrorField(rawBody: string): string | null {
+  const trimmed = rawBody.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (typeof parsed === 'string' && parsed.trim()) return parsed.trim();
+    if (parsed && typeof parsed === 'object') {
+      const err = (parsed as { error?: unknown }).error;
+      if (typeof err === 'string' && err.trim()) return err.trim();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function looksLikeCloudflareBlock(status: number, rawBody: string): boolean {
   const body = rawBody.trim();
-  if (!body) return status === 403 || status === 503;
+  if (!body) return false;
+  if (parseOcChatApiErrorField(body) != null) return false;
+  if (body.startsWith('{') || body.startsWith('[')) {
+    try {
+      JSON.parse(body);
+      return false;
+    } catch {
+      /* non-JSON payload */
+    }
+  }
   if (/^request not allowed\.?$/i.test(body)) return true;
   if (/request not allowed/i.test(body.slice(0, 200))) return true;
   return (
-    /<html[\s>]/i.test(body) ||
     /just a moment/i.test(body) ||
     /cf-browser-verification/i.test(body) ||
     /cdn-cgi\/challenge/i.test(body) ||
-    /cloudflare/i.test(body.slice(0, 400))
+    /checking your browser/i.test(body)
   );
 }
 
 function ocChatHttpErrorMessage(status: number, rawBody: string): string {
+  const apiError = parseOcChatApiErrorField(rawBody);
+  if (apiError) {
+    if (/request not allowed/i.test(apiError)) {
+      return `채팅 요청이 보안망에서 차단되었습니다 (${status}). 잠시 후 다시 시도해 주세요.`;
+    }
+    return apiError;
+  }
   if (looksLikeCloudflareBlock(status, rawBody)) {
     return `채팅 요청이 보안망에서 차단되었습니다 (${status}). VPN·광고 차단·시크릿 모드를 바꿔 보거나, 잠시 후 페이지를 새로고침해 주세요.`;
   }
