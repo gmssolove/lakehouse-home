@@ -5,19 +5,16 @@ import type { RefObject } from 'react';
 
 /**
  * 기괴 연출 — 랜덤 텍스트 효과.
- * - glyph(기호 잠식): 글자가 잠깐 이상한 기호(人☍的◇事 …)로 바뀌었다 복원.
- * - glitch(텍스트 글리치): 개별 요소에 순간 찢김/색어긋남 클래스를 입힘.
- * CSS로는 문자 삽입이 불가해 JS로 DOM 텍스트를 순간 치환한다. 항상 원본으로 복원하므로
- * React 가상 DOM과 최종 상태가 일치한다. 두 효과 모두 "모든 요소에 산발적·랜덤"으로 적용된다.
+ * - glyph(기호 잠식): 글자가 잠깐 이상한 기호로 바뀌었다 복원.
+ * - glitch(텍스트 글리치): 개별 요소에 순간 찢김 클래스.
+ * cleanup 시 진행 중 치환도 반드시 원문으로 되돌린다.
  */
 
 const GLYPHS = [
   ...'人☍的◇事⸸卂⛧卍☓⧫Ψ҂ʬΩ๛乂彡鬼死怨呪蟲闇의＃！？◆◈▓░凶厄魂',
 ];
 
-// 대상 — 정보 포함 대부분의 텍스트 요소(자식 없는 leaf만 실제 치환)
 const SELECTOR = [
-  // OC
   '.oc-identity-name',
   '.oc-identity-sub',
   '.oc-attr-value',
@@ -32,11 +29,9 @@ const SELECTOR = [
   '.oc-left-content-body li',
   '.oc-rich-text',
   '.oc-quote-line',
-  // VN
   '.lh-vn-speaker',
   '.lh-vn-text',
   '.lh-vn-location__text',
-  // 페어 중앙
   '.pair-name',
   '.pair-sub',
   '.pair-plate__title',
@@ -51,7 +46,6 @@ const SELECTOR = [
   '.pair-calls__who',
   '.pair-calls__what',
   '.pair-calls__cap',
-  // 페어 개별
   '.chara-name',
   '.chara-quote',
   '.chara-sub',
@@ -62,15 +56,16 @@ const SELECTOR = [
   '.pair-attr-label',
 ].join(', ');
 
+const ORIG_ATTR = 'data-lh-glyph-orig';
+
 function pickGlyph() {
-  return GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+  return GLYPHS[Math.floor(Math.random() * GLYPHS.length)]!;
 }
 
 type Options = {
   glyph?: boolean;
   glitch?: boolean;
   intensity?: number;
-  /** false면 타이머 정지 (탭 숨김·오프스크린) */
   active?: boolean;
 };
 
@@ -89,10 +84,31 @@ export function useCreepyGlyphScramble(
     let tickTimer = 0;
     const timers = new Set<number>();
     const busy = new WeakSet<HTMLElement>();
+    /** 진행 중 치환 — cleanup에서 원문 복원 */
+    const pending = new Map<HTMLElement, string>();
+
+    const restoreEl = (el: HTMLElement) => {
+      const orig = pending.get(el) ?? el.getAttribute(ORIG_ATTR);
+      if (orig != null) {
+        if (el.isConnected) el.textContent = orig;
+        el.removeAttribute(ORIG_ATTR);
+      }
+      pending.delete(el);
+      busy.delete(el);
+    };
+
+    const restoreAll = () => {
+      for (const el of Array.from(pending.keys())) restoreEl(el);
+      root.querySelectorAll<HTMLElement>(`[${ORIG_ATTR}]`).forEach((el) => {
+        const orig = el.getAttribute(ORIG_ATTR);
+        if (orig != null && el.isConnected) el.textContent = orig;
+        el.removeAttribute(ORIG_ATTR);
+      });
+    };
 
     function scramble(el: HTMLElement) {
       if (busy.has(el) || el.children.length > 0) return;
-      const orig = el.textContent ?? '';
+      const orig = el.getAttribute(ORIG_ATTR) || el.textContent || '';
       const chars = [...orig];
       const letterIdx = chars
         .map((c, idx) => (c.trim() ? idx : -1))
@@ -100,27 +116,26 @@ export function useCreepyGlyphScramble(
       if (letterIdx.length === 0 || chars.length > 140) return;
 
       busy.add(el);
+      pending.set(el, orig);
+      el.setAttribute(ORIG_ATTR, orig);
       const swaps = Math.max(1, Math.round(letterIdx.length * (0.12 + i * 0.3)));
 
       const render = () => {
+        if (!pending.has(el)) return;
         const arr = [...chars];
         for (let s = 0; s < swaps; s++) {
-          const idx = letterIdx[Math.floor(Math.random() * letterIdx.length)];
+          const idx = letterIdx[Math.floor(Math.random() * letterIdx.length)]!;
           arr[idx] = pickGlyph();
         }
         el.textContent = arr.join('');
       };
 
-      const restore = () => {
-        el.textContent = orig;
-        busy.delete(el);
-      };
-
       const flickers = 2 + Math.floor(Math.random() * 3);
       let step = 0;
       const run = () => {
+        if (!pending.has(el)) return;
         if (step >= flickers) {
-          const t = window.setTimeout(restore, 40);
+          const t = window.setTimeout(() => restoreEl(el), 40);
           timers.add(t);
           return;
         }
@@ -133,7 +148,6 @@ export function useCreepyGlyphScramble(
     }
 
     function tear(el: HTMLElement) {
-      // 순간 찢김/색어긋남 — CSS .lh-fx-tear 원샷 애니메이션
       el.classList.add('lh-fx-tear');
       const t = window.setTimeout(
         () => el.classList.remove('lh-fx-tear'),
@@ -146,29 +160,40 @@ export function useCreepyGlyphScramble(
       const scope = rootRef.current;
       if (!scope) return;
       const els = Array.from(scope.querySelectorAll<HTMLElement>(SELECTOR)).filter(
-        (el) => el.offsetParent !== null && (el.textContent ?? '').trim(),
+        (el) =>
+          el.offsetParent !== null &&
+          (el.textContent ?? '').trim() &&
+          !pending.has(el) &&
+          !el.hasAttribute(ORIG_ATTR),
       );
       if (els.length) {
-        // 한 번에 1~2개만 — 동시에 우르르 말고 산발적으로
         const count = 1 + Math.floor(Math.random() * (i > 0.6 ? 2 : 1));
         for (let c = 0; c < count; c++) {
           const el = els[Math.floor(Math.random() * els.length)];
           if (!el) continue;
-          // 글리치는 자식이 있어도 가능, 기호 잠식은 leaf만
           if (glitch && Math.random() < 0.7) tear(el);
           if (glyph && el.children.length === 0) scramble(el);
         }
       }
-      // 텀 (0.9s ~ 3.5s) — 강도 높을수록 조금 더 자주
       tickTimer = window.setTimeout(tick, 900 + Math.random() * (2600 - i * 1200));
     }
 
     tickTimer = window.setTimeout(tick, 1000);
 
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') restoreAll();
+    };
+    document.addEventListener('visibilitychange', onVis);
+
     return () => {
+      document.removeEventListener('visibilitychange', onVis);
       window.clearTimeout(tickTimer);
       timers.forEach((t) => window.clearTimeout(t));
-      rootRef.current?.querySelectorAll('.lh-fx-tear').forEach((el) => el.classList.remove('lh-fx-tear'));
+      timers.clear();
+      restoreAll();
+      rootRef.current
+        ?.querySelectorAll('.lh-fx-tear')
+        .forEach((el) => el.classList.remove('lh-fx-tear'));
     };
   }, [glyph, glitch, intensity, rootRef, active]);
 }
