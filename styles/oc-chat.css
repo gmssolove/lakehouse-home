@@ -363,6 +363,7 @@
 
 .oc-chat-row.is-me {
   justify-content: flex-end;
+  gap: 6px;
 }
 
 .oc-chat-bubble-wrap {
@@ -392,6 +393,10 @@
 
 .oc-chat-row.is-me .oc-chat-meta {
   align-items: flex-end;
+  /* 내 메시지: 읽음·시간과 말풍선 사이 여유 (이전 간격) */
+  gap: 2px;
+  padding: 0 6px 2px 2px;
+  margin-right: 0;
 }
 
 .oc-chat-row.is-other .oc-chat-meta {
@@ -432,10 +437,6 @@
 
 .oc-chat-row.is-other .oc-chat-meta {
   margin-left: -2px;
-}
-
-.oc-chat-row.is-me .oc-chat-meta {
-  margin-right: -2px;
 }
 
 .oc-chat-row__avatar.is-spacer {
