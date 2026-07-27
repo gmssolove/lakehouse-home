@@ -370,6 +370,9 @@
   flex-direction: column;
   align-items: flex-start;
   max-width: 72%;
+  width: fit-content;
+  flex: 0 1 auto;
+  min-width: 0;
   gap: 0;
 }
 
@@ -382,8 +385,8 @@
   flex-direction: column;
   justify-content: flex-end;
   gap: 1px;
-  padding: 0 5px 1px;
-  flex-shrink: 0;
+  padding: 0 2px 1px;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -424,7 +427,15 @@
 
 .oc-chat-row.is-other {
   justify-content: flex-start;
-  gap: 8px;
+  gap: 6px;
+}
+
+.oc-chat-row.is-other .oc-chat-meta {
+  margin-left: -2px;
+}
+
+.oc-chat-row.is-me .oc-chat-meta {
+  margin-right: -2px;
 }
 
 .oc-chat-row__avatar.is-spacer {
