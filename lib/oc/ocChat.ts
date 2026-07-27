@@ -472,7 +472,12 @@ function parseOcChatApiErrorField(rawBody: string): string | null {
   return null;
 }
 
+function isLiteralEdgeRequestNotAllowed(rawBody: string): boolean {
+  return /^request not allowed\.?$/i.test(rawBody.trim());
+}
+
 function looksLikeCloudflareBlock(status: number, rawBody: string): boolean {
+  if (status === 502) return false;
   const body = rawBody.trim();
   if (!body) return false;
   if (parseOcChatApiErrorField(body) != null) return false;
@@ -484,8 +489,7 @@ function looksLikeCloudflareBlock(status: number, rawBody: string): boolean {
       /* non-JSON payload */
     }
   }
-  if (/^request not allowed\.?$/i.test(body)) return true;
-  if (/request not allowed/i.test(body.slice(0, 200))) return true;
+  if (isLiteralEdgeRequestNotAllowed(body)) return true;
   return (
     /just a moment/i.test(body) ||
     /cf-browser-verification/i.test(body) ||
@@ -497,10 +501,13 @@ function looksLikeCloudflareBlock(status: number, rawBody: string): boolean {
 function ocChatHttpErrorMessage(status: number, rawBody: string): string {
   const apiError = parseOcChatApiErrorField(rawBody);
   if (apiError) {
-    if (/request not allowed/i.test(apiError)) {
-      return `채팅 요청이 보안망에서 차단되었습니다 (${status}). 잠시 후 다시 시도해 주세요.`;
+    if (status === 502) {
+      return `서버 오류: ${apiError}`;
     }
     return apiError;
+  }
+  if (status === 502 && isLiteralEdgeRequestNotAllowed(rawBody)) {
+    return `채팅 요청이 보안망에서 차단되었습니다 (${status}). 잠시 후 다시 시도해 주세요.`;
   }
   if (looksLikeCloudflareBlock(status, rawBody)) {
     return `채팅 요청이 보안망에서 차단되었습니다 (${status}). VPN·광고 차단·시크릿 모드를 바꿔 보거나, 잠시 후 페이지를 새로고침해 주세요.`;
@@ -512,16 +519,16 @@ function ocChatHttpErrorMessage(status: number, rawBody: string): string {
     parsed = null;
   }
   if (typeof parsed === 'string' && parsed.trim()) {
-    if (/request not allowed/i.test(parsed)) {
-      return `채팅 요청이 보안망에서 차단되었습니다 (${status}). 잠시 후 다시 시도해 주세요.`;
+    if (status === 502) {
+      return `서버 오류: ${parsed.trim()}`;
     }
     return parsed.trim();
   }
   if (parsed && typeof parsed === 'object') {
     const err = (parsed as { error?: unknown }).error;
     if (typeof err === 'string' && err.trim()) {
-      if (/request not allowed/i.test(err)) {
-        return `채팅 요청이 보안망에서 차단되었습니다 (${status}). 잠시 후 다시 시도해 주세요.`;
+      if (status === 502) {
+        return `서버 오류: ${err.trim()}`;
       }
       return err.trim();
     }

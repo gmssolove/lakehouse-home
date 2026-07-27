@@ -495,7 +495,21 @@ export async function POST(req: Request) {
       deltaReason: behavior.deltaReason,
     });
   } catch (err) {
+    let provider: Provider | 'unknown' = 'unknown';
+    try {
+      provider = resolveProvider();
+    } catch {
+      /* keys not configured */
+    }
     const message = err instanceof Error ? err.message : '채팅 실패';
+    console.error('[oc-chat] request failed', {
+      provider,
+      characterId,
+      visitorId,
+      mode,
+      message,
+      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 6).join('\n') : undefined,
+    });
     const status =
       /API_KEY|키가 없/i.test(message) ? 503 : /할당량|결제|billing|quota/i.test(message) ? 429 : 502;
     return NextResponse.json({ error: message }, { status });
