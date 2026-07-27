@@ -1,7 +1,9 @@
 import { get, onValue, ref, remove, set, type Unsubscribe } from 'firebase/database';
 import {
   clampAffection,
+  isChatClosedNow,
   needsStoryMode,
+  nextClosedUntil,
   todayKeyLocal,
 } from '@/lib/oc/ocChatAffinity';
 import {
@@ -73,6 +75,8 @@ export type OcChatThread = {
   turnsDate?: string;
   closedForToday?: boolean;
   closedDate?: string;
+  /** end_for_today 후 이 시각까지 응답 잠금 (닫힌 시각 + 1~2h 랜덤) */
+  closedUntil?: number;
   lastProactiveDate?: string;
   pendingBehavior?: OcChatPendingBehavior;
   /** 최근 호감 사유 (반복 감쇠용, 비표시) */
@@ -202,6 +206,11 @@ export function chatMinuteKey(at: number): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}-${d.getMinutes()}`;
 }
 
+export function chatDayKey(at: number): string {
+  const d = new Date(at);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
 export function isChatClusterMate(a: OcChatMessage, b: OcChatMessage): boolean {
   if (a.role !== b.role) return false;
   if (a.kind === 'narration' || b.kind === 'narration') return false;
@@ -216,6 +225,22 @@ export function formatChatClock(at: number): string {
   const period = h24 < 12 ? '오전' : '오후';
   const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
   return `${period} ${h12}:${String(m).padStart(2, '0')}`;
+}
+
+const CHAT_WEEKDAYS = [
+  '일요일',
+  '월요일',
+  '화요일',
+  '수요일',
+  '목요일',
+  '금요일',
+  '토요일',
+] as const;
+
+/** 날짜 구분 — "7월 28일 화요일" (연도 없음) */
+export function formatChatDayLabel(at: number): string {
+  const d = new Date(at);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${CHAT_WEEKDAYS[d.getDay()]}`;
 }
 
 /** 연속 메시지 모아 응답 — 대기 ms */
@@ -328,6 +353,19 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
       ? Math.max(0, o.turnsToday)
       : 0;
   const closedDate = String(o.closedDate || '').trim() || undefined;
+  const closedUntilRaw =
+    typeof o.closedUntil === 'number' && Number.isFinite(o.closedUntil)
+      ? o.closedUntil
+      : undefined;
+  let closedUntil: number | undefined;
+  if (closedUntilRaw != null) {
+    closedUntil = isChatClosedNow(closedUntilRaw) ? closedUntilRaw : undefined;
+  } else if (closedDate === today && o.closedForToday === true) {
+    /* 예전: 당일 잠금 → 다음날 자정까지로 이관 */
+    const until = nextLocalMidnightMs();
+    closedUntil = isChatClosedNow(until) ? until : undefined;
+  }
+  const closedForToday = isChatClosedNow(closedUntil);
   const moodDate = String(o.moodDate || '').trim() || undefined;
   const lastSeenAt =
     typeof o.lastSeenAt === 'number' && Number.isFinite(o.lastSeenAt)
@@ -384,8 +422,9 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     moodDate: moodDate === today ? moodDate : undefined,
     turnsToday: turnsDate === today ? turnsToday : 0,
     turnsDate: turnsDate === today ? turnsDate : undefined,
-    closedForToday: closedDate === today && o.closedForToday === true,
-    closedDate: closedDate === today ? closedDate : undefined,
+    closedForToday,
+    closedDate: undefined,
+    closedUntil,
     lastProactiveDate: String(o.lastProactiveDate || '').trim() || undefined,
     pendingBehavior: normalizePending(o.pendingBehavior),
     recentDeltaReasons,
@@ -435,6 +474,7 @@ export async function saveOcChatThread(
     turnsDate: thread.turnsDate,
     closedForToday: thread.closedForToday,
     closedDate: thread.closedDate,
+    closedUntil: thread.closedUntil,
     lastProactiveDate: thread.lastProactiveDate,
     pendingBehavior: thread.pendingBehavior,
     recentDeltaReasons: thread.recentDeltaReasons,
@@ -821,8 +861,14 @@ export async function tryDeliverPendingChat(params: {
     moodDate: pending.moodNote ? today : thread.moodDate,
     presence: 'online',
     presenceUpdatedAt: Date.now(),
-    closedForToday: action === 'end_for_today' ? true : thread.closedForToday,
-    closedDate: action === 'end_for_today' ? today : thread.closedDate,
+    closedForToday: action === 'end_for_today' ? true : isChatClosedNow(thread.closedUntil),
+    closedDate: undefined,
+    closedUntil:
+      action === 'end_for_today'
+        ? nextClosedUntil()
+        : isChatClosedNow(thread.closedUntil)
+          ? thread.closedUntil
+          : undefined,
     updatedAt: Date.now(),
     lastSeenAt: thread.lastSeenAt,
     lastInteractionAt: Date.now(),

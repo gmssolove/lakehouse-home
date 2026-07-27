@@ -518,7 +518,7 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
         호감 구간
       </h4>
       <p style={{ fontSize: 10, opacity: 0.5, margin: '0 0 8px' }}>
-        자유 대화 톤에 반영됩니다. 비우면 기본 3단(낯선/익숙한/가까운).
+        구간 라벨·관계 설명은 하트 모달에, AI 톤 메모는 프롬프트에만 쓰입니다. 비우면 기본 3단.
       </p>
       {tiers.map((t, i) => (
         <div
@@ -555,11 +555,19 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
               placeholder="라벨"
             />
           </div>
+          <textarea
+            className="form-input"
+            rows={2}
+            value={t.relationNote || ''}
+            onChange={(e) => setTier(i, { ...t, relationNote: e.target.value })}
+            placeholder="관계 카드에 보일 설명 (방문자용)"
+            style={{ marginBottom: 6, resize: 'vertical' }}
+          />
           <input
             className="form-input"
             value={t.toneNote || ''}
             onChange={(e) => setTier(i, { ...t, toneNote: e.target.value })}
-            placeholder="이 구간일 때 AI 톤 메모"
+            placeholder="이 구간일 때 AI 톤 메모 (프롬프트용)"
           />
         </div>
       ))}
@@ -571,7 +579,7 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
           patch({
             affinityTiers: [
               ...tiers,
-              { min: 0, max: 20, label: '새 구간', toneNote: '' },
+              { min: 0, max: 20, label: '새 구간', relationNote: '', toneNote: '' },
             ],
           })
         }

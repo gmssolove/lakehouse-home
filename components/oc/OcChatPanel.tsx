@@ -1,16 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import {
-  affectionToastMessage,
   clampAffection,
   computeNeglectDecay,
   episodeStartSceneId,
   findEpisodeScene,
   needsStoryMode,
-  resolveAffinityDots,
+  isChatClosedNow,
+  nextClosedUntil,
+  resolveAffinityTier,
   resolveStartEpisode,
   todayKeyLocal,
 } from '@/lib/oc/ocChatAffinity';
@@ -33,7 +34,9 @@ import {
   behaviorToPending,
   computePendingApplyAt,
   createChatMessage,
+  chatDayKey,
   formatChatClock,
+  formatChatDayLabel,
   getOrCreateChatVisitorId,
   isChatClusterMate,
   lastMessageAt,
@@ -71,6 +74,8 @@ type MetaState = {
   moodNote?: string;
   turnsToday: number;
   closedForToday: boolean;
+  /** 이 시각까지 응답 잠금 */
+  closedUntil?: number;
   pendingBehavior?: OcChatPendingBehavior;
   lastProactiveDate?: string;
   freeLossToday: number;
@@ -82,6 +87,34 @@ type MetaState = {
   recentActions: OcChatRecentAction[];
 };
 
+function withEndForTodayLock(meta: MetaState): MetaState {
+  const closedUntil = nextClosedUntil();
+  return {
+    ...meta,
+    closedForToday: true,
+    closedUntil,
+  };
+}
+
+function withChatUnlocked(meta: MetaState): MetaState {
+  return {
+    ...meta,
+    closedForToday: false,
+    closedUntil: undefined,
+  };
+}
+
+function closedFieldsFromUntil(closedUntil?: number | null): Pick<
+  MetaState,
+  'closedForToday' | 'closedUntil'
+> {
+  const until = isChatClosedNow(closedUntil) ? Number(closedUntil) : undefined;
+  return {
+    closedUntil: until,
+    closedForToday: Boolean(until),
+  };
+}
+
 function resolveSceneReadAction(
   scene: NonNullable<ReturnType<typeof findEpisodeScene>>,
 ): 'keepUnread' | 'markRead' {
@@ -90,6 +123,16 @@ function resolveSceneReadAction(
   }
   if (scene.speaker === 'char' && scene.text.trim()) return 'markRead';
   return 'keepUnread';
+}
+
+function chatRelationTitle(name: string) {
+  const n = name.trim() || '캐릭터';
+  const code = n.charCodeAt(n.length - 1);
+  if (code >= 0xac00 && code <= 0xd7a3) {
+    const batchim = (code - 0xac00) % 28 !== 0;
+    return `${n}${batchim ? '과의' : '와의'} 관계`;
+  }
+  return `${n}와의 관계`;
 }
 
 export function OcChatPanel({ open, character, onClose }: Props) {
@@ -103,6 +146,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const [meta, setMeta] = useState<MetaState>({
     turnsToday: 0,
     closedForToday: false,
+    closedUntil: undefined,
     freeLossToday: 0,
     recentDeltaReasons: [],
     presence: 'offline',
@@ -114,10 +158,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const [loadingThread, setLoadingThread] = useState(false);
   const [awaitingChoice, setAwaitingChoice] = useState(false);
   const [error, setError] = useState('');
-  const [affToast, setAffToast] = useState<{ text: string; up: boolean } | null>(null);
+  const [affToast, setAffToast] = useState<{ delta: number } | null>(null);
   const [panelAnim, setPanelAnim] = useState<'in' | 'out' | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [relationAnim, setRelationAnim] = useState<'in' | 'out' | null>(null);
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
   const affToastTimer = useRef(0);
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -140,6 +185,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     meta: {
       turnsToday: 0,
       closedForToday: false,
+      closedUntil: undefined,
       freeLossToday: 0,
       recentDeltaReasons: [],
       presence: 'offline' as OcChatPresence,
@@ -161,9 +207,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   };
 
   const flashAffectionToast = useCallback((delta: number) => {
-    const text = affectionToastMessage(delta);
-    if (!text) return;
-    setAffToast({ text, up: delta > 0 });
+    if (!delta) return;
+    setAffToast({ delta });
     window.clearTimeout(affToastTimer.current);
     affToastTimer.current = window.setTimeout(() => setAffToast(null), 2000);
   }, []);
@@ -173,7 +218,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     [character.chatbot],
   );
   const inStory = needsStoryMode(character, story?.completedEpisodeIds);
-  const affinityDots = resolveAffinityDots(affection, character.chatbot);
+  const affinityTier = resolveAffinityTier(affection, character.chatbot);
   const activeEpisode: OcChatEpisode | null =
     inStory && startEpisode ? startEpisode : null;
   const activeScene =
@@ -221,6 +266,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       const emptyMeta: MetaState = {
         turnsToday: 0,
         closedForToday: false,
+        closedUntil: undefined,
         freeLossToday: 0,
         recentDeltaReasons: [],
         presence: rollAmbientPresence(),
@@ -238,6 +284,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       setWaitingRead(false);
       setBusy(false);
       setInput('');
+      setRelationAnim(null);
 
       const ep = resolveStartEpisode(character.chatbot);
       let nextMessages: OcChatMessage[] = [];
@@ -257,20 +304,32 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         }
       }
       setMessages(nextMessages);
-      if (nextMessages.length || nextStory) {
-        await saveOcChatThread(charId, vid, {
-          messages: nextMessages,
-          updatedAt: Date.now(),
-          affection: 0,
-          story: nextStory,
-          freeGainDate: todayKeyLocal(),
-          freeGainToday: 0,
-          freeLossToday: 0,
-          presence: emptyMeta.presence,
-          presenceUpdatedAt: emptyMeta.presenceUpdatedAt,
-          recentActions: [],
-        });
-      }
+      stateRef.current = {
+        messages: nextMessages,
+        affection: 0,
+        story: nextStory,
+        freeGainToday: 0,
+        freeGainDate: todayKeyLocal(),
+        lastSeenAt: 0,
+        meta: emptyMeta,
+      };
+      await saveOcChatThread(charId, vid, {
+        messages: nextMessages,
+        updatedAt: Date.now(),
+        affection: 0,
+        story: nextStory,
+        freeGainDate: todayKeyLocal(),
+        freeGainToday: 0,
+        freeLossToday: 0,
+        closedForToday: false,
+        closedDate: undefined,
+        closedUntil: undefined,
+        presence: emptyMeta.presence,
+        presenceUpdatedAt: emptyMeta.presenceUpdatedAt,
+        recentActions: [],
+        lastInteractionAt: undefined,
+        pendingBehavior: undefined,
+      });
       await alert('채팅을 초기화했습니다.', '완료');
       focusComposer();
     } catch (e) {
@@ -292,18 +351,45 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   ]);
 
   useEffect(() => {
-    if (!open) setMenuOpen(false);
+    if (!open) {
+      setMenuOpen(false);
+      setRelationAnim(null);
+    }
   }, [open]);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (relationAnim !== 'out') return;
+    const t = window.setTimeout(() => setRelationAnim(null), 220);
+    return () => window.clearTimeout(t);
+  }, [relationAnim]);
+
+  const openRelation = useCallback(() => {
+    setMenuOpen(false);
+    setRelationAnim('out');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setRelationAnim('in'));
+    });
+  }, []);
+
+  const closeRelation = useCallback(() => {
+    setRelationAnim((cur) => (cur === 'in' ? 'out' : cur));
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen && relationAnim !== 'in') return;
     const onDoc = (e: MouseEvent) => {
+      if (!menuOpen) return;
       const el = menuWrapRef.current;
       if (!el) return;
       if (e.target instanceof Node && !el.contains(e.target)) setMenuOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
+      if (e.key !== 'Escape') return;
+      if (relationAnim === 'in') {
+        closeRelation();
+        return;
+      }
+      if (menuOpen) setMenuOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -311,7 +397,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [menuOpen]);
+  }, [closeRelation, menuOpen, relationAnim]);
 
   const persistSnapshot = useCallback(
     async (snap: {
@@ -340,6 +426,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         ...snap.meta,
       };
       if (snap.meta) setMeta(mergedMeta);
+      const closed = closedFieldsFromUntil(mergedMeta.closedUntil);
       const next: OcChatThread = {
         messages: snap.messages,
         updatedAt: Date.now(),
@@ -353,8 +440,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         moodDate: mergedMeta.moodNote ? today : undefined,
         turnsToday: mergedMeta.turnsToday,
         turnsDate: today,
-        closedForToday: mergedMeta.closedForToday,
-        closedDate: mergedMeta.closedForToday ? today : undefined,
+        closedForToday: closed.closedForToday,
+        closedDate: undefined,
+        closedUntil: closed.closedUntil,
         lastProactiveDate: mergedMeta.lastProactiveDate,
         pendingBehavior: mergedMeta.pendingBehavior,
         recentDeltaReasons: mergedMeta.recentDeltaReasons,
@@ -514,7 +602,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             pendingBehavior: fresh.pendingBehavior,
             presence: fresh.presence || nextMeta.presence,
             presenceUpdatedAt: fresh.presenceUpdatedAt,
-            closedForToday: Boolean(fresh.closedForToday),
+            ...closedFieldsFromUntil(fresh.closedUntil),
             moodNote: fresh.moodNote || nextMeta.moodNote,
             recentActions: fresh.recentActions || nextMeta.recentActions,
           });
@@ -593,7 +681,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               ...nextMeta,
               pendingBehavior: undefined,
               presence: fresh.presence || 'online',
-              closedForToday: Boolean(fresh.closedForToday),
+              ...closedFieldsFromUntil(fresh.closedUntil),
             };
             setMeta(nextMeta);
             return;
@@ -676,12 +764,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
         if (!lines.length && !sticker) {
           pushRecent(behavior.action, nextMeta.presence, behavior.moodNote);
-          nextMeta = {
-            ...nextMeta,
-            closedForToday:
-              behavior.action === 'end_for_today' ? true : nextMeta.closedForToday,
-            pendingBehavior: undefined,
-          };
+          nextMeta =
+            behavior.action === 'end_for_today'
+              ? { ...withEndForTodayLock(nextMeta), pendingBehavior: undefined }
+              : { ...nextMeta, pendingBehavior: undefined };
           setMeta(nextMeta);
           await persistSnapshot({
             messages: msgs,
@@ -697,14 +783,22 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         }
 
         pushRecent(behavior.action, 'online', behavior.moodNote);
-        nextMeta = {
-          ...nextMeta,
-          presence: 'online',
-          presenceUpdatedAt: Date.now(),
-          closedForToday:
-            behavior.action === 'end_for_today' ? true : nextMeta.closedForToday,
-          pendingBehavior: undefined,
-        };
+        nextMeta =
+          behavior.action === 'end_for_today'
+            ? {
+                ...withEndForTodayLock({
+                  ...nextMeta,
+                  presence: 'online',
+                  presenceUpdatedAt: Date.now(),
+                }),
+                pendingBehavior: undefined,
+              }
+            : {
+                ...nextMeta,
+                presence: 'online',
+                presenceUpdatedAt: Date.now(),
+                pendingBehavior: undefined,
+              };
         setMeta(nextMeta);
         await persistSnapshot({
           messages: msgs,
@@ -745,7 +839,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         let nextMeta: MetaState = {
           moodNote: thread.moodNote,
           turnsToday: thread.turnsToday || 0,
-          closedForToday: Boolean(thread.closedForToday),
+          ...closedFieldsFromUntil(thread.closedUntil),
           pendingBehavior: thread.pendingBehavior,
           lastProactiveDate: thread.lastProactiveDate,
           freeLossToday: thread.freeLossToday || 0,
@@ -824,7 +918,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             pendingBehavior: fresh.pendingBehavior,
             presence: fresh.presence || nextMeta.presence,
             presenceUpdatedAt: fresh.presenceUpdatedAt,
-            closedForToday: Boolean(fresh.closedForToday),
+            ...closedFieldsFromUntil(fresh.closedUntil),
             moodNote: fresh.moodNote || nextMeta.moodNote,
             recentActions: fresh.recentActions || nextMeta.recentActions,
           };
@@ -852,7 +946,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           turnsToday: nextMeta.turnsToday,
           turnsDate: todayKeyLocal(),
           closedForToday: nextMeta.closedForToday,
-          closedDate: nextMeta.closedForToday ? todayKeyLocal() : undefined,
+          closedDate: undefined,
+          closedUntil: nextMeta.closedUntil,
           lastProactiveDate: nextMeta.lastProactiveDate,
           pendingBehavior: pending,
           recentDeltaReasons: nextMeta.recentDeltaReasons,
@@ -886,6 +981,36 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     };
   }, [charId, character, flashAffectionToast, focusComposer, open, scrollToEnd]);
 
+  /* end_for_today 쿨다운 만료 시 구분선 해제 */
+  useEffect(() => {
+    if (!open || loadingThread) return;
+    const until = meta.closedUntil;
+    if (!until) {
+      if (meta.closedForToday) setMeta((m) => withChatUnlocked(m));
+      return;
+    }
+    const left = until - Date.now();
+    const unlock = () => {
+      const unlocked = withChatUnlocked(stateRef.current.meta);
+      stateRef.current.meta = unlocked;
+      setMeta(unlocked);
+      void persistSnapshot({
+        messages: stateRef.current.messages,
+        affection: stateRef.current.affection,
+        story: stateRef.current.story,
+        freeGainToday: stateRef.current.freeGainToday,
+        freeGainDate: stateRef.current.freeGainDate,
+        meta: unlocked,
+      });
+    };
+    if (left <= 0) {
+      unlock();
+      return;
+    }
+    const t = window.setTimeout(unlock, left + 40);
+    return () => window.clearTimeout(t);
+  }, [open, loadingThread, meta.closedUntil, meta.closedForToday, persistSnapshot]);
+
   /* 앰비언트 온라인/오프라인 — 답장 연출 중이 아닐 때만 */
   useEffect(() => {
     if (!open || loadingThread || inStory) return;
@@ -914,7 +1039,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         turnsToday: patched.turnsToday,
         turnsDate: todayKeyLocal(),
         closedForToday: patched.closedForToday,
-        closedDate: patched.closedForToday ? todayKeyLocal() : undefined,
+        closedDate: undefined,
+        closedUntil: patched.closedUntil,
         lastProactiveDate: patched.lastProactiveDate,
         pendingBehavior: patched.pendingBehavior,
         recentDeltaReasons: patched.recentDeltaReasons,
@@ -1155,7 +1281,12 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       return;
     }
     if (inStory || loadingThread) return;
-    if (stateRef.current.meta.closedForToday) return;
+    if (isChatClosedNow(stateRef.current.meta.closedUntil)) return;
+    if (stateRef.current.meta.closedForToday || stateRef.current.meta.closedUntil) {
+      const unlocked = withChatUnlocked(stateRef.current.meta);
+      stateRef.current.meta = unlocked;
+      setMeta(unlocked);
+    }
 
     const withUser = stateRef.current.messages;
     const last = withUser[withUser.length - 1];
@@ -1330,12 +1461,17 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       });
       focusComposer();
 
-      if (stateRef.current.meta.closedForToday) {
+      if (isChatClosedNow(stateRef.current.meta.closedUntil)) {
         setWaitingRead(true);
         await sleepMs(delayKindToMs('long'));
         setWaitingRead(false);
         focusComposer();
         return;
+      }
+      if (stateRef.current.meta.closedForToday || stateRef.current.meta.closedUntil) {
+        const unlocked = withChatUnlocked(stateRef.current.meta);
+        stateRef.current.meta = unlocked;
+        setMeta(unlocked);
       }
 
       /* 이미 AI 응답 중이면 큐에 넣고, 끝나면 flush */
@@ -1414,15 +1550,13 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const isOnline = meta.presence === 'online';
   const statusLabel = inStory
     ? activeEpisode?.title || '스토리'
-    : meta.closedForToday
-      ? '오늘은 여기까지'
-      : waitingRead
-        ? isOnline
-          ? '온라인'
-          : '…'
-        : isOnline
-          ? '온라인'
-          : '오프라인';
+    : waitingRead
+      ? isOnline
+        ? '온라인'
+        : '…'
+      : isOnline
+        ? '온라인'
+        : '오프라인';
 
   const overlay = (
     <div
@@ -1431,15 +1565,60 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       aria-modal="true"
       aria-label={`${character.name} 채팅`}
     >
-      <button type="button" className="oc-chat-lb__backdrop" aria-label="닫기" onClick={onClose} />
+      <button
+        type="button"
+        className="oc-chat-lb__backdrop"
+        aria-label="닫기"
+        onClick={() => {
+          if (relationAnim === 'in') {
+            closeRelation();
+            return;
+          }
+          if (relationAnim === 'out') return;
+          onClose();
+        }}
+      />
       <div className="oc-chat-phone" style={chatPointStyle as CSSProperties}>
         {affToast ? (
           <div
-            className={`oc-chat-aff-toast${affToast.up ? ' is-up' : ' is-down'}`}
+            className={`oc-chat-aff-toast${affToast.delta > 0 ? ' is-up' : ' is-down'}`}
             role="status"
             aria-live="polite"
+            aria-label={
+              affToast.delta > 0
+                ? `호감 +${affToast.delta}`
+                : `호감 ${affToast.delta}`
+            }
           >
-            {affToast.text}
+            {affToast.delta > 0 ? (
+              <svg className="oc-chat-aff-toast__icon" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.85"
+                  strokeLinejoin="round"
+                  d="M12 20.4S5.2 15.6 5.2 10.2A3.9 3.9 0 0 1 12 7.6a3.9 3.9 0 0 1 6.8 2.6c0 5.4-6.8 10.2-6.8 10.2z"
+                />
+              </svg>
+            ) : (
+              <svg className="oc-chat-aff-toast__icon" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  fill="currentColor"
+                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                />
+                <path
+                  fill="none"
+                  stroke="rgba(48,28,28,0.95)"
+                  strokeWidth="1.65"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 7.2l-1.35 2.2 1.7 1.55-1.45 2.15 1.6 1.4-1.15 1.85"
+                />
+              </svg>
+            )}
+            <span className="oc-chat-aff-toast__delta">
+              {affToast.delta > 0 ? `+${affToast.delta}` : String(affToast.delta)}
+            </span>
           </div>
         ) : null}
         <header className="oc-chat-phone__head">
@@ -1456,17 +1635,20 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             <div className="oc-chat-phone__name">{character.name || '채팅'}</div>
             <div className="oc-chat-phone__status">{statusLabel}</div>
           </div>
-          <div className="oc-chat-affinity" title={affinityDots.label}>
-            <span className="oc-chat-affinity__label">{affinityDots.label}</span>
-            <div className="oc-chat-affinity__dots" aria-hidden>
-              {Array.from({ length: affinityDots.total }, (_, i) => (
-                <i
-                  key={i}
-                  className={i < affinityDots.lit ? 'is-on' : undefined}
-                />
-              ))}
-            </div>
-          </div>
+          <button
+            type="button"
+            className="oc-chat-heart"
+            aria-label="관계 정보"
+            aria-expanded={relationAnim === 'in'}
+            onClick={openRelation}
+          >
+            <svg className="oc-chat-heart__icon" viewBox="0 0 24 24" aria-hidden>
+              <path
+                className="oc-chat-heart__path"
+                d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+              />
+            </svg>
+          </button>
           <div className="oc-chat-phone__menu" ref={menuWrapRef}>
             <button
               type="button"
@@ -1505,28 +1687,73 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             messages.map((m, i) => {
               const prev = i > 0 ? messages[i - 1] : null;
               const next = i < messages.length - 1 ? messages[i + 1] : null;
+              const showDaySep = !prev || chatDayKey(prev.at) !== chatDayKey(m.at);
               const clusterCont = Boolean(prev && isChatClusterMate(prev, m));
               const clusterEnd = !next || !isChatClusterMate(m, next);
               const showAvatar =
                 m.role === 'assistant' && m.kind !== 'narration' && !clusterCont;
-              const showMeta = clusterEnd && m.kind !== 'narration';
+              const showUnread =
+                m.role === 'user' && m.kind !== 'narration' && !m.readAt;
+              const showReadLabel =
+                m.role === 'user' &&
+                m.kind !== 'narration' &&
+                Boolean(m.readAt) &&
+                clusterEnd;
+              const showTime = clusterEnd && m.kind !== 'narration';
+              const showMeta = showUnread || showReadLabel || showTime;
               const isEnter =
                 enterCutoffRef.current > 0 && m.at >= enterCutoffRef.current - 80;
               const meta = showMeta ? (
                 <div className="oc-chat-meta" aria-hidden>
-                  {m.role === 'user' ? (
+                  {showUnread || showReadLabel ? (
                     <span
-                      className={`oc-chat-meta__read${m.readAt ? ' is-read' : ' is-unread'}`}
+                      className={`oc-chat-meta__read${
+                        showUnread ? ' is-unread' : ' is-read'
+                      }`}
                     >
-                      {m.readAt ? '읽음' : '1'}
+                      {showUnread ? '1' : '읽음'}
                     </span>
                   ) : null}
-                  <span className="oc-chat-meta__time">{formatChatClock(m.at)}</span>
+                  {showTime ? (
+                    <span className="oc-chat-meta__time">{formatChatClock(m.at)}</span>
+                  ) : null}
                 </div>
               ) : null;
               return (
+              <Fragment key={m.id}>
+              {showDaySep ? (
+                <div className="oc-chat-day-sep" role="separator">
+                  <span className="oc-chat-day-sep__pill">
+                    <svg
+                      className="oc-chat-day-sep__icon"
+                      viewBox="0 0 16 16"
+                      width="12"
+                      height="12"
+                      aria-hidden
+                    >
+                      <rect
+                        x="2.25"
+                        y="3.5"
+                        width="11.5"
+                        height="10"
+                        rx="1.6"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                      />
+                      <path
+                        d="M2.25 6.4h11.5M5.2 2.2v2.4M10.8 2.2v2.4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    {formatChatDayLabel(m.at)}
+                  </span>
+                </div>
+              ) : null}
               <div
-                key={m.id}
                 className={`oc-chat-row${m.role === 'user' ? ' is-me' : ' is-other'}${
                   m.kind === 'narration' ? ' is-narration' : ''
                 }${m.kind === 'sticker' ? ' is-sticker' : ''}${
@@ -1554,6 +1781,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
                 </div>
                 {m.role === 'assistant' && m.kind !== 'narration' ? meta : null}
               </div>
+              </Fragment>
               );
             })
           )}
@@ -1567,6 +1795,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
                 <span />
                 <span />
               </div>
+            </div>
+          ) : null}
+          {!loadingThread && meta.closedForToday ? (
+            <div className="oc-chat-day-end" role="separator" aria-hidden>
+              <span className="oc-chat-day-end__line" />
             </div>
           ) : null}
           {error ? <div className="oc-chat-phone__error">{error}</div> : null}
@@ -1613,6 +1846,33 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           </form>
         )}
       </div>
+      {relationAnim != null ? (
+        <div
+          className={`oc-chat-relation${relationAnim === 'in' ? ' is-open' : ' is-closing'}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label={chatRelationTitle(character.name || '캐릭터')}
+        >
+          <button
+            type="button"
+            className="oc-chat-relation__backdrop"
+            aria-label="관계 정보 닫기"
+            onClick={closeRelation}
+          />
+          <div className="oc-chat-relation__card">
+            <div className="oc-chat-relation__eyebrow">
+              {chatRelationTitle(character.name || '캐릭터')}
+            </div>
+            <div className="oc-chat-relation__headline">
+              <span className="oc-chat-relation__label">{affinityTier.label}</span>
+              <span className="oc-chat-relation__score">· {affection}</span>
+            </div>
+            {affinityTier.relationNote ? (
+              <p className="oc-chat-relation__note">{affinityTier.relationNote}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 

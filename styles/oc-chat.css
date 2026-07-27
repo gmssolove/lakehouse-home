@@ -77,25 +77,40 @@
   top: 58px;
   left: 50%;
   z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   transform: translateX(-50%) translateY(-4px);
   padding: 8px 16px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   pointer-events: none;
   animation: ocChatAffToast 2s ease both;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+.oc-chat-aff-toast__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.oc-chat-aff-toast__delta {
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 .oc-chat-aff-toast.is-up {
-  color: rgba(40, 28, 18, 0.92);
+  color: #7cb82e;
   background: linear-gradient(135deg, rgba(240, 207, 173, 0.95), rgba(215, 169, 130, 0.92));
   border: 1px solid rgba(255, 230, 190, 0.55);
 }
 
 .oc-chat-aff-toast.is-down {
-  color: rgba(236, 220, 214, 0.92);
+  color: #e8a090;
   background: rgba(48, 28, 28, 0.92);
   border: 1px solid rgba(180, 100, 90, 0.4);
 }
@@ -211,39 +226,208 @@
   min-width: 0;
 }
 
-.oc-chat-affinity {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
+.oc-chat-heart {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   margin-right: 4px;
-  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #e8a0b5;
+  cursor: pointer;
+  line-height: 0;
 }
 
-.oc-chat-affinity__label {
-  font-size: 11px;
-  letter-spacing: -0.01em;
-  color: rgba(236, 232, 224, 0.72);
-  white-space: nowrap;
-  font-weight: 500;
+.oc-chat-heart__icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  overflow: visible;
+  transition: transform 0.18s ease;
 }
 
-.oc-chat-affinity__dots {
+.oc-chat-heart__path {
+  fill: rgba(232, 160, 181, 0.14);
+  stroke: #e8a0b5;
+  stroke-width: 1.35;
+  stroke-linejoin: round;
+  transition:
+    fill 0.18s ease,
+    stroke 0.18s ease,
+    filter 0.18s ease;
+  filter: drop-shadow(0 0 0 transparent);
+}
+
+.oc-chat-heart:hover .oc-chat-heart__icon {
+  transform: scale(1.1);
+}
+
+.oc-chat-heart:hover .oc-chat-heart__path {
+  fill: rgba(244, 176, 196, 0.55);
+  stroke: #f4b8c8;
+  filter: drop-shadow(0 0 5px rgba(232, 160, 181, 0.55));
+}
+
+.oc-chat-heart:active .oc-chat-heart__icon {
+  transform: scale(0.94);
+}
+
+.oc-chat-heart:focus-visible .oc-chat-heart__path {
+  stroke: #f7c4d2;
+  filter: drop-shadow(0 0 4px rgba(232, 160, 181, 0.65));
+}
+
+.oc-chat-relation {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
+  justify-content: center;
+  padding: 24px 20px;
+  pointer-events: none;
 }
 
-.oc-chat-affinity__dots i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.16);
+.oc-chat-relation.is-open,
+.oc-chat-relation.is-closing {
+  pointer-events: auto;
 }
 
-.oc-chat-affinity__dots i.is-on {
-  background: rgba(220, 220, 220, 0.78);
+.oc-chat-relation__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  background: rgba(4, 5, 5, 0);
+  transition: background 0.22s ease;
+}
+
+.oc-chat-relation.is-open .oc-chat-relation__backdrop {
+  background: rgba(4, 5, 5, 0.48);
+}
+
+.oc-chat-relation.is-closing .oc-chat-relation__backdrop {
+  background: rgba(4, 5, 5, 0);
+  transition: background 0.18s ease;
+}
+
+.oc-chat-relation__card {
+  position: relative;
+  z-index: 1;
+  width: min(280px, calc(94vw - 48px));
+  padding: 22px 22px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  background: linear-gradient(165deg, rgba(28, 30, 28, 0.98), rgba(16, 18, 16, 0.98));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
+  transform: translate3d(0, 10px, 0) scale(0.96);
+  opacity: 0;
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+
+.oc-chat-relation.is-open .oc-chat-relation__card {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+}
+
+.oc-chat-relation.is-closing .oc-chat-relation__card {
+  transform: translate3d(0, 8px, 0) scale(0.97);
+  opacity: 0;
+  transition:
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.16s ease;
+}
+
+.oc-chat-relation__eyebrow {
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  color: rgba(190, 186, 178, 0.72);
+  margin-bottom: 10px;
+}
+
+.oc-chat-relation__headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.oc-chat-relation__label {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: rgba(248, 244, 236, 0.96);
+  line-height: 1.25;
+}
+
+.oc-chat-relation__score {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(190, 186, 178, 0.62);
+}
+
+.oc-chat-relation__note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(190, 186, 178, 0.72);
+}
+
+.oc-chat-day-sep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 16px 10px;
+}
+
+.oc-chat-day-sep__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 12px 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(210, 206, 198, 0.78);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.oc-chat-day-sep__icon {
+  flex-shrink: 0;
+  opacity: 0.72;
+}
+
+.oc-chat-day-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 28px 10px;
+}
+
+.oc-chat-day-end__line {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(215, 169, 130, 0.28) 18%,
+    rgba(215, 169, 130, 0.28) 82%,
+    transparent 100%
+  );
 }
 
 .oc-chat-row.is-narration {

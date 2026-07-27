@@ -48,6 +48,7 @@ export function resolveAffinityTiers(cfg?: OcChatbotConfig | null): OcChatAffini
         max: Number(t.max) || 0,
         label: String(t.label || '').trim() || '…',
         toneNote: t.toneNote?.trim() || undefined,
+        relationNote: t.relationNote?.trim() || undefined,
       }))
       .filter((t) => t.max >= t.min)
       .sort((a, b) => a.min - b.min);
@@ -119,6 +120,32 @@ export function todayKeyLocal(): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/** end_for_today 후 재개까지 — 최소 1시간 */
+export const CLOSE_COOLDOWN_MIN_MS = 60 * 60 * 1000;
+/** end_for_today 후 재개까지 — 최대 2시간 */
+export const CLOSE_COOLDOWN_MAX_MS = 2 * 60 * 60 * 1000;
+
+/** 닫힐 때마다 1~2시간 사이 랜덤 */
+export function rollCloseCooldownMs(): number {
+  const span = CLOSE_COOLDOWN_MAX_MS - CLOSE_COOLDOWN_MIN_MS;
+  return CLOSE_COOLDOWN_MIN_MS + Math.floor(Math.random() * (span + 1));
+}
+
+export function nextClosedUntil(now = Date.now()): number {
+  return now + rollCloseCooldownMs();
+}
+
+export function isChatClosedNow(
+  closedUntil?: number | null,
+  now = Date.now(),
+): boolean {
+  return (
+    typeof closedUntil === 'number' &&
+    Number.isFinite(closedUntil) &&
+    closedUntil > now
+  );
 }
 
 function normalizeReasonKey(reason: string): string {
@@ -244,13 +271,7 @@ export function stripAffinityTag(raw: string): { text: string; proposed: number 
 }
 
 export function affectionToastMessage(delta: number): string | null {
-  if (delta > 0) {
-    if (delta >= 3) return `호감 +${delta}`;
-    if (delta === 2) return '호감 +2';
-    return '호감 +1';
-  }
-  if (delta < 0) {
-    return delta <= -2 ? `호감 ${delta}` : '호감 -1';
-  }
+  if (delta > 0) return `+${delta}`;
+  if (delta < 0) return String(delta);
   return null;
 }

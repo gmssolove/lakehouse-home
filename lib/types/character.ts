@@ -558,7 +558,10 @@ export type OcChatAffinityTier = {
   min: number;
   max: number;
   label: string;
+  /** AI 프롬프트용 톤 지시 */
   toneNote?: string;
+  /** 채팅 UI 관계 카드에 보여줄 설명 (방문자용) */
+  relationNote?: string;
 };
 
 export type OcChatEpisodeChoice = {
