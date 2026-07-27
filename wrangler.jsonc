@@ -6,6 +6,11 @@
   "compatibility_date": "2025-06-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": true,
+  /* Anthropic은 HKG 등 일부 엣지 출구 IP를 403 Request not allowed 로 막음.
+     한국 접속 시 Worker가 홍콩으로 붙는 경우가 있어 US 리전에 고정. */
+  "placement": {
+    "region": "aws:us-east-1"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"

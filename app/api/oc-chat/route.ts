@@ -198,7 +198,9 @@ async function callClaude(
   }
 
   throw new OcChatUpstreamError(
-    `Anthropic ${lastStatus}: ${lastDetail}`,
+    lastStatus === 403 && /request not allowed|forbidden/i.test(lastDetail)
+      ? `Anthropic ${lastStatus}: ${lastDetail} (Worker 출구 지역이 Anthropic 미지원일 수 있음 — 관리자에게 문의)`
+      : `Anthropic ${lastStatus}: ${lastDetail}`,
     lastStatus,
     lastBody,
   );
