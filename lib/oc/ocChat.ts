@@ -501,41 +501,19 @@ function looksLikeCloudflareBlock(status: number, rawBody: string): boolean {
 function ocChatHttpErrorMessage(status: number, rawBody: string): string {
   const apiError = parseOcChatApiErrorField(rawBody);
   if (apiError) {
-    if (status === 502) {
-      return `서버 오류: ${apiError}`;
-    }
-    return apiError;
+    return status >= 500 ? `서버 오류: ${apiError}` : apiError;
   }
-  if (status === 502 && isLiteralEdgeRequestNotAllowed(rawBody)) {
-    return `채팅 요청이 보안망에서 차단되었습니다 (${status}). 잠시 후 다시 시도해 주세요.`;
+  const trimmed = rawBody.trim();
+  /* 엣지 plain text — 보안망 단정하지 말고 원문 표시 */
+  if (/^request not allowed\.?$/i.test(trimmed)) {
+    return `서버가 요청을 거절했습니다 (Request not allowed, ${status}). 새로고침 후 다시 시도해 주세요.`;
   }
   if (looksLikeCloudflareBlock(status, rawBody)) {
-    return `채팅 요청이 보안망에서 차단되었습니다 (${status}). VPN·광고 차단·시크릿 모드를 바꿔 보거나, 잠시 후 페이지를 새로고침해 주세요.`;
+    return `브라우저 보안 확인이 가로막았습니다 (${status}). 일반 창에서 새로고침 후 다시 시도해 주세요.`;
   }
-  let parsed: unknown = null;
-  try {
-    parsed = rawBody.trim() ? JSON.parse(rawBody) : null;
-  } catch {
-    parsed = null;
-  }
-  if (typeof parsed === 'string' && parsed.trim()) {
-    if (status === 502) {
-      return `서버 오류: ${parsed.trim()}`;
-    }
-    return parsed.trim();
-  }
-  if (parsed && typeof parsed === 'object') {
-    const err = (parsed as { error?: unknown }).error;
-    if (typeof err === 'string' && err.trim()) {
-      if (status === 502) {
-        return `서버 오류: ${err.trim()}`;
-      }
-      return err.trim();
-    }
-  }
-  const snippet = rawBody.trim().slice(0, 120);
+  const snippet = trimmed.slice(0, 160);
   if (snippet && !snippet.startsWith('<')) {
-    return `${snippet}${rawBody.length > 120 ? '…' : ''} (${status})`;
+    return `${snippet}${rawBody.length > 160 ? '…' : ''} (${status})`;
   }
   if (status === 429) {
     return '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.';

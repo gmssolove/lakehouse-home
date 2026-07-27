@@ -190,30 +190,33 @@ async function callGroq(system: string, messages: { role: string; content: strin
 async function callClaude(
   system: string | OcChatSystemPromptParts,
   messages: { role: string; content: string }[],
+  opts?: { useCache?: boolean },
 ) {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다');
   const model = (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim();
+  const useCache = opts?.useCache !== false;
 
-  const systemBlocks =
-    typeof system === 'string'
-      ? [
-          {
-            type: 'text' as const,
-            text: system,
-            cache_control: { type: 'ephemeral' as const },
-          },
-        ]
-      : [
-          {
-            type: 'text' as const,
-            text: system.staticText,
-            cache_control: { type: 'ephemeral' as const },
-          },
-          ...(system.dynamicText.trim()
-            ? [{ type: 'text' as const, text: system.dynamicText }]
-            : []),
-        ];
+  const systemBlocks = (() => {
+    if (typeof system === 'string') {
+      return useCache
+        ? [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }]
+        : [{ type: 'text' as const, text: system }];
+    }
+    const staticBlock = useCache
+      ? {
+          type: 'text' as const,
+          text: system.staticText,
+          cache_control: { type: 'ephemeral' as const },
+        }
+      : { type: 'text' as const, text: system.staticText };
+    return [
+      staticBlock,
+      ...(system.dynamicText.trim()
+        ? [{ type: 'text' as const, text: system.dynamicText }]
+        : []),
+    ];
+  })();
 
   const maxAttempts = 3;
   let lastErr = '';
@@ -238,10 +241,16 @@ async function callClaude(
         ),
       }),
     });
-    const data = (await res.json().catch(() => ({}))) as {
-      error?: { message?: string };
+    const rawText = await res.text();
+    let data: {
+      error?: { message?: string; type?: string };
       content?: Array<{ type?: string; text?: string }>;
-    };
+    } = {};
+    try {
+      data = rawText ? (JSON.parse(rawText) as typeof data) : {};
+    } catch {
+      data = {};
+    }
     if (res.ok) {
       const text = (data.content || [])
         .filter((b) => b.type === 'text')
@@ -252,7 +261,12 @@ async function callClaude(
       return text;
     }
 
-    const raw = data.error?.message || `Anthropic HTTP ${res.status}`;
+    const raw =
+      data.error?.message ||
+      (rawText.trim() && !rawText.trim().startsWith('{')
+        ? rawText.trim().slice(0, 240)
+        : '') ||
+      `Anthropic HTTP ${res.status}`;
     lastErr = raw;
     if (/credit|billing|quota|rate.?limit|exceeded/i.test(raw)) {
       throw new Error(
@@ -283,7 +297,29 @@ async function callChatModel(
     typeof system === 'string' ? system : joinOcChatSystemPrompt(system);
   if (provider === 'gemini') return callGemini(flat, prepared);
   if (provider === 'groq') return callGroq(flat, prepared);
-  return callClaude(system, prepared);
+
+  try {
+    return await callClaude(system, prepared, { useCache: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    /* 캐시/일시 오류 시 캐시 없이 1회 재시도 */
+    if (!/결제|billing|credit|키가 없/i.test(msg)) {
+      try {
+        return await callClaude(system, prepared, { useCache: false });
+      } catch {
+        /* fall through to gemini */
+      }
+    }
+    if (process.env.GEMINI_API_KEY?.trim() && !/결제|billing|credit|키가 없/i.test(msg)) {
+      try {
+        return await callGemini(flat, prepared);
+      } catch (gemErr) {
+        const g = gemErr instanceof Error ? gemErr.message : String(gemErr);
+        throw new Error(`Claude 실패: ${msg} / Gemini 실패: ${g}`);
+      }
+    }
+    throw err instanceof Error ? err : new Error(msg);
+  }
 }
 
 export async function POST(req: Request) {
