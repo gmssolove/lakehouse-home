@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import { useLakeDialog } from '@/components/ui/LakeDialog';
 import {
   affectionToastMessage,
   clampAffection,
@@ -40,6 +41,7 @@ import {
   markUserMessagesRead,
   OC_CHAT_SEND_DEBOUNCE_MS,
   postOcChat,
+  resetOcChatThreadForVisitor,
   saveOcChatThread,
   sleepMs,
   tryDeliverPendingChat,
@@ -91,6 +93,7 @@ function resolveSceneReadAction(
 }
 
 export function OcChatPanel({ open, character, onClose }: Props) {
+  const { confirm, alert } = useLakeDialog();
   const [messages, setMessages] = useState<OcChatMessage[]>([]);
   const [affection, setAffection] = useState(0);
   const [story, setStory] = useState<OcChatStoryState | undefined>();
@@ -113,6 +116,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const [error, setError] = useState('');
   const [affToast, setAffToast] = useState<{ text: string; up: boolean } | null>(null);
   const [panelAnim, setPanelAnim] = useState<'in' | 'out' | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const menuWrapRef = useRef<HTMLDivElement | null>(null);
   const affToastTimer = useRef(0);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -190,6 +196,122 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       inputRef.current?.focus({ preventScroll: true });
     });
   }, []);
+
+  const resetMyChat = useCallback(async () => {
+    if (resetting || busy || waitingRead) return;
+    setMenuOpen(false);
+    const who = (character.name || '').trim() || '이 캐릭터';
+    const ok = await confirm(
+      `${who}와의 내 채팅 기록·호감·스토리 진행을 삭제합니다.\n다른 사람 대화에는 영향 없습니다.\n되돌릴 수 없습니다.`,
+      '채팅 초기화',
+    );
+    if (!ok) return;
+    setResetting(true);
+    setError('');
+    try {
+      const vid = visitorRef.current || getOrCreateChatVisitorId();
+      visitorRef.current = vid;
+      window.clearTimeout(debounceTimer.current);
+      debounceTimer.current = 0;
+      window.clearTimeout(storyTimer.current);
+      replyLockRef.current = false;
+      flushLockRef.current = false;
+      await resetOcChatThreadForVisitor(charId, vid);
+
+      const emptyMeta: MetaState = {
+        turnsToday: 0,
+        closedForToday: false,
+        freeLossToday: 0,
+        recentDeltaReasons: [],
+        presence: rollAmbientPresence(),
+        presenceUpdatedAt: Date.now(),
+        recentActions: [],
+      };
+      revealedRef.current = new Set();
+      setAffection(0);
+      setStory(undefined);
+      setFreeGainToday(0);
+      setFreeGainDate(todayKeyLocal());
+      setLastSeenAt(0);
+      setMeta(emptyMeta);
+      setAwaitingChoice(false);
+      setWaitingRead(false);
+      setBusy(false);
+      setInput('');
+
+      const ep = resolveStartEpisode(character.chatbot);
+      let nextMessages: OcChatMessage[] = [];
+      let nextStory: OcChatStoryState | undefined;
+      if (ep && needsStoryMode(character, [])) {
+        const startId = episodeStartSceneId(ep);
+        nextStory = {
+          episodeId: ep.id,
+          sceneId: startId || '',
+          completedEpisodeIds: [],
+        };
+        setStory(nextStory);
+      } else {
+        const greeting = defaultChatGreeting(character);
+        if (greeting) {
+          nextMessages = [createChatMessage('assistant', greeting, 'chat')];
+        }
+      }
+      setMessages(nextMessages);
+      if (nextMessages.length || nextStory) {
+        await saveOcChatThread(charId, vid, {
+          messages: nextMessages,
+          updatedAt: Date.now(),
+          affection: 0,
+          story: nextStory,
+          freeGainDate: todayKeyLocal(),
+          freeGainToday: 0,
+          freeLossToday: 0,
+          presence: emptyMeta.presence,
+          presenceUpdatedAt: emptyMeta.presenceUpdatedAt,
+          recentActions: [],
+        });
+      }
+      await alert('채팅을 초기화했습니다.', '완료');
+      focusComposer();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '초기화에 실패했습니다';
+      setError(msg);
+      await alert(msg, '오류');
+    } finally {
+      setResetting(false);
+    }
+  }, [
+    alert,
+    busy,
+    character,
+    charId,
+    confirm,
+    focusComposer,
+    resetting,
+    waitingRead,
+  ]);
+
+  useEffect(() => {
+    if (!open) setMenuOpen(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const el = menuWrapRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   const persistSnapshot = useCallback(
     async (snap: {
@@ -1344,6 +1466,32 @@ export function OcChatPanel({ open, character, onClose }: Props) {
                 />
               ))}
             </div>
+          </div>
+          <div className="oc-chat-phone__menu" ref={menuWrapRef}>
+            <button
+              type="button"
+              className="oc-chat-phone__more"
+              aria-label="채팅 메뉴"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              disabled={resetting}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <span aria-hidden>⋮</span>
+            </button>
+            {menuOpen ? (
+              <div className="oc-chat-phone__menu-pop" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="oc-chat-phone__menu-item is-danger"
+                  disabled={resetting || busy || waitingRead}
+                  onClick={() => void resetMyChat()}
+                >
+                  {resetting ? '초기화 중…' : '대화 초기화'}
+                </button>
+              </div>
+            ) : null}
           </div>
           <button type="button" className="oc-chat-phone__close" onClick={onClose} aria-label="닫기">
             ✕

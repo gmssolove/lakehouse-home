@@ -320,6 +320,79 @@
   background: rgba(215, 169, 130, 0.1);
 }
 
+.oc-chat-phone__menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.oc-chat-phone__more {
+  width: 28px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(220, 216, 208, 0.55);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.oc-chat-phone__more:hover,
+.oc-chat-phone__more[aria-expanded='true'] {
+  color: rgba(240, 207, 173, 0.9);
+  background: rgba(215, 169, 130, 0.1);
+}
+
+.oc-chat-phone__more:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.oc-chat-phone__menu-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 8;
+  min-width: 118px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(215, 169, 130, 0.22);
+  background: rgba(18, 20, 18, 0.98);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.oc-chat-phone__menu-item {
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(236, 232, 224, 0.88);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-align: left;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+
+.oc-chat-phone__menu-item:hover:not(:disabled) {
+  background: rgba(215, 169, 130, 0.12);
+}
+
+.oc-chat-phone__menu-item.is-danger {
+  color: rgba(220, 150, 130, 0.92);
+}
+
+.oc-chat-phone__menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .oc-chat-phone__thread {
   flex: 1;
   overflow-y: auto;

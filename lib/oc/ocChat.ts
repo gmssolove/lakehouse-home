@@ -98,12 +98,25 @@ function characterThreadsPath(characterId: string) {
   return `lhdata/oc_chat_threads/${characterId}`;
 }
 
-/** 해당 OC의 채팅 스레드만 삭제 (다른 OC 영향 없음) */
+/** 해당 OC의 채팅 스레드만 삭제 (다른 OC 영향 없음) — 관리자용, 전 방문자 */
 export async function resetOcChatForCharacter(characterId: string): Promise<void> {
   const id = String(characterId || '').trim();
   if (!id) throw new Error('캐릭터 ID가 없습니다');
   if (/[./\[\]]/.test(id)) throw new Error('잘못된 캐릭터 ID');
   await remove(ref(db, characterThreadsPath(id)));
+}
+
+/** 이 방문자↔이 OC 스레드만 삭제 (다른 사람 대화 유지) */
+export async function resetOcChatThreadForVisitor(
+  characterId: string,
+  visitorId: string,
+): Promise<void> {
+  const id = String(characterId || '').trim();
+  const vid = String(visitorId || '').trim();
+  if (!id) throw new Error('캐릭터 ID가 없습니다');
+  if (!vid) throw new Error('방문자 ID가 없습니다');
+  if (/[./\[\]]/.test(id) || /[./\[\]]/.test(vid)) throw new Error('잘못된 ID');
+  await remove(ref(db, threadPath(id, vid)));
 }
 
 export function getOrCreateChatVisitorId(): string {

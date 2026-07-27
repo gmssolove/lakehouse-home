@@ -84,7 +84,9 @@ export function LakeDialogProvider({ children }: { children: ReactNode }) {
         >
           <div className="lh-dialog-box" role="dialog" aria-modal="true">
             {dialog.title ? <div className="lh-dialog-title">{dialog.title}</div> : null}
-            <div className="lh-dialog-message">{dialog.message}</div>
+            <div className="lh-dialog-message" style={{ whiteSpace: 'pre-line' }}>
+              {dialog.message}
+            </div>
             <div className="lh-dialog-actions">
               {buttons.map((btn) => (
                 <button
