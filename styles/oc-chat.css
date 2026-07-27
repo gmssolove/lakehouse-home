@@ -658,9 +658,6 @@
     transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.28s ease;
   pointer-events: none;
-  /* filter 대신 그림자 — transform 중 재필터 비용 제거 */
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42);
-  contain: layout paint;
 }
 
 .oc-chat-phone-peek.is-ready .oc-chat-phone-peek__visual {
@@ -679,17 +676,7 @@
   height: auto;
   pointer-events: none;
   user-select: none;
-  /* 다중 CSS filter 제거 → 오버레이로 톤만 맞춤 */
-  opacity: 0.88;
-}
-
-.oc-chat-phone-peek__visual::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: rgba(42, 38, 28, 0.38);
-  mix-blend-mode: multiply;
+  opacity: 0.82;
 }
 
 .oc-chat-phone-peek__badge {
