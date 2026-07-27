@@ -379,6 +379,21 @@ export async function POST(req: Request) {
       messages,
     );
 
+    console.info('[oc-chat] inbound', {
+      characterId,
+      visitorId: visitorId.slice(0, 8),
+      mode: 'chat',
+      msgCount: messages.length,
+      recentActionsRawCount: recentActionsRaw.length,
+      recentActionsCount: recentActions.length,
+      recentActions: recentActions.map((a) => ({
+        at: a.at,
+        action: a.action,
+        presence: a.presence,
+        note: a.note ? String(a.note).slice(0, 40) : undefined,
+      })),
+    });
+
     const prior = messages.slice(0, -1);
     const lastBefore = [...prior]
       .reverse()
@@ -416,6 +431,12 @@ export async function POST(req: Request) {
         stickerUrl: m.stickerUrl,
       })),
     );
+    console.info('[oc-chat] model raw', {
+      characterId,
+      visitorId: visitorId.slice(0, 8),
+      rawLen: rawReply.length,
+      rawPreview: rawReply.slice(0, 1200),
+    });
     const behavior = parseOcChatBehavior(rawReply);
     const userText = messages[messages.length - 1]?.content || '';
 

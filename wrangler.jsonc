@@ -11,6 +11,10 @@
   "placement": {
     "region": "aws:us-east-1"
   },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
