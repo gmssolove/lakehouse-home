@@ -8,6 +8,8 @@ import {
   computeNeglectDecay,
   episodeStartSceneId,
   findEpisodeScene,
+  FREE_DAILY_GAIN_CAP,
+  FREE_DAILY_LOSS_CAP,
   needsStoryMode,
   isChatClosedNow,
   nextClosedUntil,
@@ -53,6 +55,7 @@ import {
   type OcChatThread,
 } from '@/lib/oc/ocChat';
 import {
+  appendRecentAction,
   rollAmbientPresence,
   type OcChatPresence,
   type OcChatRecentAction,
@@ -486,7 +489,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         };
         nextMeta = {
           ...nextMeta,
-          recentActions: [...(nextMeta.recentActions || []), entry].slice(-8),
+          recentActions: appendRecentAction(nextMeta.recentActions, entry),
         };
       };
 
@@ -1232,17 +1235,44 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       setError('');
       const delta = Number(choice.affinityDelta) || 0;
       const nextAffection = clampAffection(stateRef.current.affection + delta);
+      /* 점수 바닥/천장에 막혀도 의도 델타는 토스트·일일 카운트에 반영 */
+      const today = todayKeyLocal();
+      const gainBase =
+        stateRef.current.freeGainDate === today ? stateRef.current.freeGainToday : 0;
+      const lossBase =
+        stateRef.current.freeGainDate === today
+          ? stateRef.current.meta.freeLossToday || 0
+          : 0;
+      const counted =
+        delta === 0
+          ? 0
+          : delta > 0
+            ? Math.min(delta, Math.max(0, FREE_DAILY_GAIN_CAP - gainBase))
+            : -Math.min(-delta, Math.max(0, FREE_DAILY_LOSS_CAP - lossBase));
       const userLine = createChatMessage('user', choice.text.trim(), 'choice');
       const withUser = [...stateRef.current.messages, userLine];
       setMessages(withUser);
       setAffection(nextAffection);
-      if (delta !== 0) flashAffectionToast(delta);
+      if (counted !== 0) {
+        if (counted > 0) {
+          setFreeGainToday(gainBase + counted);
+          setFreeGainDate(today);
+        } else {
+          setFreeGainDate(today);
+          setMeta((m) => ({
+            ...m,
+            freeLossToday: lossBase + -counted,
+          }));
+        }
+        flashAffectionToast(counted);
+      }
 
       const nextSceneId =
         choice.next === undefined || choice.next === null ? null : String(choice.next);
 
       const touchMeta: Partial<MetaState> = {
         lastInteractionAt: Date.now(),
+        ...(counted < 0 ? { freeLossToday: lossBase + -counted } : null),
       };
 
       if (!nextSceneId) {
@@ -1258,6 +1288,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           messages: withUser,
           affection: nextAffection,
           story: doneStory,
+          freeGainToday: counted > 0 ? gainBase + counted : gainBase,
+          freeGainDate: today,
           meta: touchMeta,
         });
         return;
@@ -1269,6 +1301,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         messages: withUser,
         affection: nextAffection,
         story: nextStory,
+        freeGainToday: counted > 0 ? gainBase + counted : gainBase,
+        freeGainDate: today,
         meta: touchMeta,
       });
     },

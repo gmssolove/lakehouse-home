@@ -22,8 +22,11 @@ import {
   type OcChatDelayKind,
   type OcChatPendingBehavior,
 } from '@/lib/oc/ocChatBehavior';
+import type { OcChatRecentAction } from '@/lib/oc/ocChatPresence';
 import {
+  appendRecentAction,
   presenceComeOnlineMs,
+  resolveRecentActionsForPrompt,
   resolveResponseDelaySeconds,
 } from '@/lib/oc/ocChatPresence';
 import { resolveSticker } from '@/lib/oc/ocChatStickers';
@@ -407,7 +410,7 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
           };
         })
         .filter(Boolean)
-        .slice(-8) as OcChatThread['recentActions']
+        .slice(-10) as OcChatThread['recentActions']
     : undefined;
 
   return {
@@ -637,7 +640,10 @@ export async function postOcChat(params: {
       closedForToday: params.closedForToday,
       recentDeltaReasons: params.recentDeltaReasons,
       presence: params.presence,
-      recentActions: params.recentActions,
+      recentActions: resolveRecentActionsForPrompt(
+        params.recentActions as OcChatRecentAction[] | undefined,
+        params.messages,
+      ),
     }),
   });
   const rawBody = await res.text();
@@ -807,6 +813,17 @@ export async function tryDeliverPendingChat(params: {
       moodDate: pending.moodNote ? today : thread.moodDate,
       presence: pending.presenceState || thread.presence,
       presenceUpdatedAt: Date.now(),
+      recentActions: appendRecentAction(thread.recentActions, {
+        at: Date.now(),
+        action: 'ignore',
+        presence:
+          pending.presenceState === 'online' || pending.presenceState === 'offline'
+            ? pending.presenceState
+            : thread.presence === 'online'
+              ? 'online'
+              : 'offline',
+        note: pending.moodNote,
+      }),
       updatedAt: Date.now(),
       lastSeenAt: thread.lastSeenAt,
     });
@@ -827,6 +844,12 @@ export async function tryDeliverPendingChat(params: {
       moodDate: pending.moodNote ? today : thread.moodDate,
       presence: 'online',
       presenceUpdatedAt: Date.now(),
+      recentActions: appendRecentAction(thread.recentActions, {
+        at: Date.now(),
+        action: 'read_only',
+        presence: 'online',
+        note: pending.moodNote,
+      }),
       updatedAt: Date.now(),
       lastSeenAt: thread.lastSeenAt,
     });
@@ -870,6 +893,12 @@ export async function tryDeliverPendingChat(params: {
         : isChatClosedNow(thread.closedUntil)
           ? thread.closedUntil
           : undefined,
+    recentActions: appendRecentAction(thread.recentActions, {
+      at: Date.now(),
+      action,
+      presence: 'online',
+      note: pending.moodNote,
+    }),
     updatedAt: Date.now(),
     lastSeenAt: thread.lastSeenAt,
     lastInteractionAt: Date.now(),

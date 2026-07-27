@@ -9,6 +9,104 @@ export type OcChatRecentAction = {
   note?: string;
 };
 
+export const OC_CHAT_RECENT_ACTIONS_MAX = 10;
+
+export function appendRecentAction(
+  list: OcChatRecentAction[] | undefined,
+  entry: OcChatRecentAction,
+  max = OC_CHAT_RECENT_ACTIONS_MAX,
+): OcChatRecentAction[] {
+  return [...(list || []), entry].slice(-max);
+}
+
+type MsgLike = { at?: number; role?: string; kind?: string };
+
+/**
+ * recentActions가 비었을 때 대화 이력으로 최근 행동 추정.
+ * user→assistant = respond, user→user(중간 응답 없음) = ignore.
+ * read_only는 메시지에 안 남아 추정 불가.
+ */
+export function synthesizeRecentActionsFromMessages(
+  messages: MsgLike[] | undefined,
+  max = OC_CHAT_RECENT_ACTIONS_MAX,
+): OcChatRecentAction[] {
+  const msgs = (messages || []).filter(
+    (m) => (m.kind || 'chat') !== 'narration' && (m.role === 'user' || m.role === 'assistant'),
+  );
+  if (msgs.length < 2) return [];
+
+  type Burst = { role: 'user' | 'assistant'; at: number; endAt: number };
+  const bursts: Burst[] = [];
+  for (const m of msgs) {
+    const role = m.role === 'user' ? 'user' : 'assistant';
+    const at = typeof m.at === 'number' && m.at > 0 ? m.at : 0;
+    if (!at) continue;
+    const last = bursts[bursts.length - 1];
+    if (last && last.role === role) {
+      last.endAt = at;
+      continue;
+    }
+    bursts.push({ role, at, endAt: at });
+  }
+
+  const out: OcChatRecentAction[] = [];
+  for (let i = 0; i < bursts.length; i++) {
+    const cur = bursts[i]!;
+    if (cur.role !== 'user') continue;
+    const next = bursts[i + 1];
+    if (next?.role === 'assistant') {
+      out.push({
+        at: next.at,
+        action: 'respond',
+        presence: 'online',
+      });
+      continue;
+    }
+    if (next?.role === 'user') {
+      /* 유저가 또 말함 = 직전 턴에 답이 없었음 */
+      out.push({
+        at: next.at,
+        action: 'ignore',
+        presence: 'offline',
+        note: '응답 없이 유저가 이어서 말함',
+      });
+    }
+  }
+  return out.slice(-max);
+}
+
+/** 저장된 로그 우선, 부족하면 메시지에서 보강 */
+export function resolveRecentActionsForPrompt(
+  stored: OcChatRecentAction[] | undefined,
+  messages: MsgLike[] | undefined,
+  max = OC_CHAT_RECENT_ACTIONS_MAX,
+): OcChatRecentAction[] {
+  const fromStore = (stored || [])
+    .filter(
+      (a) =>
+        a &&
+        typeof a.at === 'number' &&
+        a.at > 0 &&
+        a.action &&
+        (a.presence === 'online' || a.presence === 'offline'),
+    )
+    .slice(-max);
+  if (fromStore.length >= 3) return fromStore;
+
+  const synthesized = synthesizeRecentActionsFromMessages(messages, max);
+  if (!fromStore.length) return synthesized;
+
+  const keys = new Set(fromStore.map((a) => `${a.at}:${a.action}`));
+  const merged = [...fromStore];
+  for (const a of synthesized) {
+    const k = `${a.at}:${a.action}`;
+    if (keys.has(k)) continue;
+    keys.add(k);
+    merged.push(a);
+  }
+  return merged.sort((a, b) => a.at - b.at).slice(-max);
+}
+
 /** KST 시(0–23) — 온라인일 확률 (0~1). 살짝 랜덤은 호출부에서. */
 const HOUR_ONLINE_WEIGHT: number[] = [
   0.08, 0.05, 0.04, 0.05, 0.08, 0.15, // 0–5 새벽
@@ -74,16 +172,24 @@ export function formatRecentActionsForPrompt(
   recent: OcChatRecentAction[] | undefined,
   now = Date.now(),
 ): string[] {
-  const list = (recent || []).slice(-6);
+  const list = (recent || []).slice(-OC_CHAT_RECENT_ACTIONS_MAX);
   if (!list.length) return [];
   const lines = list.map((a) => {
     const mins = Math.max(0, Math.round((now - a.at) / 60_000));
     const when = mins < 1 ? '방금' : mins < 60 ? `${mins}분 전` : `${Math.round(mins / 60)}시간 전`;
     const note = a.note ? ` (판단: ${a.note})` : '';
+    const actionKo =
+      a.action === 'ignore'
+        ? '무시'
+        : a.action === 'read_only'
+          ? '읽씹'
+          : a.action === 'respond' || a.action === 'end_for_today'
+            ? '응답'
+            : a.action;
     if (a.action === 'ignore' || a.action === 'read_only') {
-      return `- ${when}: ${a.presence} 상태였지만 응답하지 않음${note}`;
+      return `- ${when}: ${actionKo} / ${a.presence} 상태였지만 응답하지 않음${note}`;
     }
-    return `- ${when}: ${a.action} / ${a.presence}${note}`;
+    return `- ${when}: ${actionKo} / ${a.presence}${note}`;
   });
   return ['[최근 자기 행동 기록]', ...lines];
 }

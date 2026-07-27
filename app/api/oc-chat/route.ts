@@ -12,6 +12,7 @@ import {
 import { buildOcChatLiveContext } from '@/lib/oc/ocChatContext';
 import { checkChatBanned, chatBanUserMessage } from '@/lib/oc/ocChatSafety';
 import type { OcChatRecentAction } from '@/lib/oc/ocChatPresence';
+import { resolveRecentActionsForPrompt } from '@/lib/oc/ocChatPresence';
 import { buildWorldContextPromptLines, loadOcWorldData } from '@/lib/oc/ocChatWorld';
 import {
   buildOcChatProactivePromptParts,
@@ -357,7 +358,7 @@ export async function POST(req: Request) {
     const presenceRaw = String(body.presence || '').trim().toLowerCase();
     const presence =
       presenceRaw === 'online' || presenceRaw === 'offline' ? presenceRaw : undefined;
-    const recentActions = Array.isArray(body.recentActions)
+    const recentActionsRaw = Array.isArray(body.recentActions)
       ? body.recentActions
           .map((a) => {
             const at = typeof a?.at === 'number' ? a.at : 0;
@@ -372,8 +373,11 @@ export async function POST(req: Request) {
             };
           })
           .filter(Boolean)
-          .slice(-8)
       : [];
+    const recentActions = resolveRecentActionsForPrompt(
+      recentActionsRaw as OcChatRecentAction[],
+      messages,
+    );
 
     const prior = messages.slice(0, -1);
     const lastBefore = [...prior]
@@ -429,6 +433,7 @@ export async function POST(req: Request) {
     });
     behavior.affinityDelta = delta;
     const affection = clampAffection(affectionIn + delta);
+    /* delta는 점수 바닥(0)에 막혀도 일일 손실·토스트용으로 그대로 반환 */
     const replyText = behavior.messages.join('\n') || '';
 
     return NextResponse.json({

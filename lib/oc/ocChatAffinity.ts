@@ -10,10 +10,10 @@ export const AFFECTION_MAX = 100;
 /** 품질 기반 — 결정적 순간까지 허용 */
 export const FREE_DELTA_MIN = -3;
 export const FREE_DELTA_MAX = 5;
-/** 하루 상승 상한 (그라인딩 방지) */
-export const FREE_DAILY_GAIN_CAP = 6;
+/** 하루 상승 상한 (그라인딩 방지) — 너무 안 오른다는 피드백으로 완화 */
+export const FREE_DAILY_GAIN_CAP = 12;
 /** 하루 하락 상한 (실수 한 번에 무너지지 않게) */
-export const FREE_DAILY_LOSS_CAP = 2;
+export const FREE_DAILY_LOSS_CAP = 4;
 /** 무응답 방치 시 3일마다 -1 */
 export const NEGLECT_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
 export const NEGLECT_MAX_HITS = 5;
@@ -212,19 +212,25 @@ function reasonsSimilar(a: string, b: string): boolean {
   return x.includes(y) || y.includes(x);
 }
 
-/** ±0 또는 ±1 미세 랜덤 (0 델타는 올리지 않음) */
+/** ±0 또는 ±1 미세 랜덤 (0 델타는 올리지 않음, +1을 0으로 깎지 않음) */
 function applyMicroJitter(delta: number): number {
   if (delta === 0) return 0;
   const r = Math.random();
-  if (r < 0.22) return clampFreeDelta(delta + (delta > 0 ? 1 : -1));
-  if (r < 0.44) return clampFreeDelta(delta + (delta > 0 ? -1 : 1));
+  if (delta > 0) {
+    if (r < 0.18) return clampFreeDelta(delta + 1);
+    if (r < 0.32 && delta > 1) return clampFreeDelta(delta - 1);
+    return delta;
+  }
+  if (r < 0.22) return clampFreeDelta(delta - 1);
+  if (r < 0.4) return clampFreeDelta(delta + 1);
   return delta;
 }
 
 /**
  * 대화 품질 기반 호감 델타.
- * - 기본은 0 (잡담으로는 거의 안 오름)
- * - 모델 제안 + 휴리스틱 + 반복 감쇠 + 일일 상한 + 미세 랜덤
+ * - 평범한 성의 있는 대화는 +1이 기본(모델 제안 존중, 서버는 억제만 완화)
+ * - 의미 없는 반복만 0
+ * - 점수 바닥(0)에서도 하락 델타는 일일 손실·토스트용으로 그대로 카운트
  */
 export function computeFreeChatAffinityDelta(opts: {
   proposed?: number | null;
@@ -239,21 +245,18 @@ export function computeFreeChatAffinityDelta(opts: {
   );
   const t = opts.userText.trim();
 
-  /* 성의 없는 짧은 말 — 상승 불가, 무례 추정 시 소폭 하락만 허용 */
+  /* 성의 없는 한 글자·기계적 타자 — 상승만 막음 (하락은 유지) */
   if (t.length <= 1 || /^(ㅇㅇ|ㅋㅋ|ㅎㅎ|ㄱㄱ|ㄴㄴ|\.+|…+)$/i.test(t)) {
     delta = Math.min(delta, 0);
-  }
-  /* 인사·잡담 짧은 한 줄은 상승 억제 */
-  if (t.length <= 6 && /^(안녕|하이|헬로|ㅎㅇ|잘\s*자|굿모닝)/i.test(t) && delta > 0) {
-    delta = 0;
   }
 
   const reason = (opts.deltaReason || '').trim();
   if (delta > 0 && reason) {
     const recent = opts.recentReasons || [];
     const repeats = recent.filter((r) => reasonsSimilar(r, reason)).length;
-    if (repeats >= 1) delta = Math.max(0, Math.floor(delta / 2));
-    if (repeats >= 3) delta = 0;
+    /* 같은 패턴 반복 → 절반. 화제(이유)가 바뀌면 정상 */
+    if (repeats >= 1) delta = Math.max(1, Math.floor(delta / 2));
+    if (repeats >= 4) delta = Math.min(delta, 1);
   }
 
   delta = applyMicroJitter(delta);
@@ -269,6 +272,7 @@ export function computeFreeChatAffinityDelta(opts: {
 
   const dailyGainNext =
     delta > 0 ? opts.dailyGainSoFar + delta : opts.dailyGainSoFar;
+  /* 점수 0에서 더 못 내려가도 손실 카운트는 delta 기준으로 쌓음 */
   const dailyLossNext = delta < 0 ? lossSoFar + -delta : lossSoFar;
   return { delta, dailyGainNext, dailyLossNext };
 }
