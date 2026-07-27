@@ -676,7 +676,14 @@
   height: auto;
   pointer-events: none;
   user-select: none;
-  opacity: 0.82;
+  opacity: 0.78;
+  /* 이미지에만 적용 — 컨테이너 오버레이/그림자는 사각 박스 생김 */
+  filter:
+    brightness(0.82)
+    contrast(0.9)
+    sepia(0.42)
+    hue-rotate(8deg)
+    saturate(0.38);
 }
 
 .oc-chat-phone-peek__badge {
