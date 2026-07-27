@@ -185,6 +185,7 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
         <ImageUploadCrop
           label=""
           value={cfg.chatAvatarUrl || ''}
+          folder="oc/chat-avatars"
           onChange={(url) => patch({ chatAvatarUrl: url || undefined })}
           showClear
         />
