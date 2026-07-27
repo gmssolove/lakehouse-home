@@ -63,6 +63,10 @@
   transition:
     transform 0.58s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.48s ease;
+  /* 기본 = 이브/기본 퍼스널 톤. 캐릭터 personalColor로 덮어씀 */
+  --oc-chat-point: #d7a982;
+  --oc-chat-point-rgb: 215, 169, 130;
+  --oc-chat-point-fg: rgba(248, 244, 236, 0.96);
 }
 
 .oc-chat-lb.is-open .oc-chat-phone {
@@ -409,7 +413,7 @@
 }
 
 .oc-chat-meta__read.is-unread {
-  color: rgba(240, 207, 173, 0.88);
+  color: rgba(var(--oc-chat-point-rgb), 0.88);
 }
 
 .oc-chat-meta__read.is-read {
@@ -483,9 +487,9 @@
 }
 
 .oc-chat-row.is-me .oc-chat-bubble {
-  background: rgba(215, 169, 130, 0.22);
-  color: rgba(248, 244, 236, 0.96);
-  border: 1px solid rgba(215, 169, 130, 0.35);
+  background: rgba(var(--oc-chat-point-rgb), 0.28);
+  color: var(--oc-chat-point-fg);
+  border: 1px solid rgba(var(--oc-chat-point-rgb), 0.42);
   border-bottom-right-radius: 4px;
 }
 
@@ -562,7 +566,7 @@
 }
 
 .oc-chat-phone__form input:focus {
-  border-color: rgba(215, 169, 130, 0.42);
+  border-color: rgba(var(--oc-chat-point-rgb), 0.55);
 }
 
 .oc-chat-phone__form input::placeholder {
@@ -575,8 +579,8 @@
   flex-shrink: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(215, 169, 130, 0.28);
-  color: rgba(248, 244, 236, 0.95);
+  background: rgba(var(--oc-chat-point-rgb), 0.42);
+  color: var(--oc-chat-point-fg);
   cursor: pointer;
   font-size: 14px;
   display: flex;
@@ -635,8 +639,8 @@
   left: clamp(0.85rem, 2vw, 1.55rem);
   bottom: 0;
   z-index: 1180;
-  width: min(300px, 34vw);
-  height: 148px;
+  width: min(360px, 28vw);
+  height: 172px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -656,7 +660,7 @@
   position: relative;
   width: 100%;
   /* 초기: 더 아래(숨김) → is-ready 시 기본 깊이로 */
-  transform: translate3d(0, 148px, 0);
+  transform: translate3d(0, 172px, 0);
   opacity: 0;
   transition:
     transform 0.72s cubic-bezier(0.22, 1, 0.36, 1),
@@ -666,13 +670,13 @@
 }
 
 .oc-chat-phone-peek.is-ready .oc-chat-phone-peek__visual {
-  transform: translate3d(0, 98px, 0);
+  transform: translate3d(0, 112px, 0);
   opacity: 1;
 }
 
 .oc-chat-phone-peek.is-ready:hover .oc-chat-phone-peek__visual,
 .oc-chat-phone-peek.is-ready:focus-visible .oc-chat-phone-peek__visual {
-  transform: translate3d(0, 36px, 0);
+  transform: translate3d(0, 40px, 0);
 }
 
 .oc-chat-phone-peek__img {

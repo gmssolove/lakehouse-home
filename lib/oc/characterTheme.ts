@@ -77,6 +77,23 @@ function darken(hex: string, amount: number): string {
   return mixHex(hex, '#000000', amount);
 }
 
+/** 채팅 포인트 컬러 CSS 변수 — 말풍선(나)/전송/포커스만 */
+export function resolveOcChatPointStyle(personalColor?: string): Record<string, string> {
+  const hex = normalizeHex(personalColor) || DEFAULT_CHARACTER_THEME.personalColor;
+  const rgb = hexToRgb(hex) || { r: 215, g: 169, b: 130 };
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const fg = L > 0.52 ? 'rgba(28, 24, 20, 0.92)' : 'rgba(248, 244, 236, 0.96)';
+  return {
+    '--oc-chat-point': hex,
+    '--oc-chat-point-rgb': `${rgb.r}, ${rgb.g}, ${rgb.b}`,
+    '--oc-chat-point-fg': fg,
+  };
+}
+
 export function deriveAccentFromPersonalColor(
   personalColor: string,
 ): Pick<ResolvedCharacterTheme, 'personalColor' | 'accentColor' | 'accentSoft' | 'borderColor' | 'vnColor'> {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
   affectionToastMessage,
@@ -27,6 +27,7 @@ import {
   checkChatBanned,
   chatBanUserMessage,
 } from '@/lib/oc/ocChatSafety';
+import { resolveOcChatPointStyle } from '@/lib/oc/characterTheme';
 import {
   behaviorToPending,
   computePendingApplyAt,
@@ -1278,6 +1279,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     return () => window.clearTimeout(t);
   }, [open, panelAnim]);
 
+  const chatPointStyle = useMemo(
+    () => resolveOcChatPointStyle(character.personalColor),
+    [character.personalColor],
+  );
+
   if (!open && panelAnim == null) return null;
 
   const isOnline = meta.presence === 'online';
@@ -1301,7 +1307,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       aria-label={`${character.name} 채팅`}
     >
       <button type="button" className="oc-chat-lb__backdrop" aria-label="닫기" onClick={onClose} />
-      <div className="oc-chat-phone">
+      <div className="oc-chat-phone" style={chatPointStyle as CSSProperties}>
         {affToast ? (
           <div
             className={`oc-chat-aff-toast${affToast.up ? ' is-up' : ' is-down'}`}
