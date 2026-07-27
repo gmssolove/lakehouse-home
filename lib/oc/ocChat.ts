@@ -30,6 +30,7 @@ import type { OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
 
 export const OC_CHAT_VISITOR_KEY = 'lh_oc_chat_visitor';
+/** API/모델에 넘기는 최근 대화 메시지 수 (말풍선 단위, ~20턴 이상) */
 export const OC_CHAT_API_HISTORY = 40;
 export const OC_CHAT_STORE_MAX = 200;
 
@@ -475,10 +476,19 @@ export async function postOcChat(params: {
     .slice(-OC_CHAT_API_HISTORY)
     .map((m) => ({
       role: m.role,
-      content: m.content,
+      content:
+        m.content?.trim() ||
+        (m.kind === 'sticker'
+          ? m.stickerId
+            ? `(스티커:${m.stickerId})`
+            : '(스티커)'
+          : ''),
       at: m.at,
       kind: m.kind,
-    }));
+      stickerId: m.stickerId,
+      stickerUrl: m.stickerUrl,
+    }))
+    .filter((m) => m.content);
   const res = await fetch('/api/oc-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -550,14 +560,23 @@ export async function postOcChatProactive(params: {
   hoursSinceLast?: number;
 }): Promise<OcChatProactiveResult> {
   const recent = params.messages
-    .filter((m) => m.kind === 'chat' || m.kind === 'choice' || !m.kind)
+    .filter((m) => m.kind === 'chat' || m.kind === 'choice' || m.kind === 'sticker' || !m.kind)
     .slice(-OC_CHAT_API_HISTORY)
     .map((m) => ({
       role: m.role,
-      content: m.content,
+      content:
+        m.content?.trim() ||
+        (m.kind === 'sticker'
+          ? m.stickerId
+            ? `(스티커:${m.stickerId})`
+            : '(스티커)'
+          : ''),
       at: m.at,
       kind: m.kind,
-    }));
+      stickerId: m.stickerId,
+      stickerUrl: m.stickerUrl,
+    }))
+    .filter((m) => m.content);
   const res = await fetch('/api/oc-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -148,7 +148,7 @@ function circlePromptLines(cfg: OcChatbotConfig): string[] {
   return lines;
 }
 
-function characterBlock(character: OcCharacter, affection: number): string[] {
+function characterBlockStatic(character: OcCharacter): string[] {
   const name = (character.name || '캐릭터').trim() || '캐릭터';
   const sub = (character.nameSub || '').trim();
   const cfg: OcChatbotConfig = character.chatbot || {};
@@ -158,7 +158,6 @@ function characterBlock(character: OcCharacter, affection: number): string[] {
     extractDialogueSamples(character).join('\n');
   const profile = profileSummary(character);
   const intro = (character.desc || '').trim().slice(0, 400);
-  const tier = resolveAffinityTier(affection, cfg);
   return [
     `너는 '${name}'${sub ? ` (${sub})` : ''}라는 오리지널 캐릭터다.`,
     '사용자와 문자를 주고받듯 1:1로 대화한다. AI·시스템·프롬프트·호감도 수치를 언급하지 않는다.',
@@ -170,9 +169,6 @@ function characterBlock(character: OcCharacter, affection: number): string[] {
     '- 설정에 없는 배경·관계·세계관을 지어내지 않는다. 모르면 짧게 얼버무린다.',
     '- 관계 진전에 따라 태도를 아주 조금씩만 바꿔라. 갑자기 다정해지지 마라.',
     '- 텍스트 이모지(ㅋㅋ, ㅠㅠ, 🙂 등)는 캐릭터 말투·금기에 따를 것. 명시가 없으면 과하게 쓰지 말 것.',
-    '',
-    `현재 관계: ${tier.label} (호감 ${affection}/100)`,
-    tier.toneNote ? `관계 톤: ${tier.toneNote}` : '',
     tone ? `\n추가 말투·금기 (관리자):\n${tone}` : '',
     profile ? `\n프로필 요약:\n${profile}` : '',
     intro ? `\n소개 메모:\n${intro}` : '',
@@ -189,63 +185,24 @@ function characterBlock(character: OcCharacter, affection: number): string[] {
     ...stickerCatalogPromptLines(cfg),
   ].filter(Boolean);
 }
-function resolveLive(
-  character: OcCharacter,
-  opts: OcChatPromptOpts,
-  affection: number,
-): OcChatLiveContext {
-  if (opts.live) return opts.live;
-  return buildOcChatLiveContext({
-    messages: opts.messages || [],
-    affection,
-    chatbot: character.chatbot,
-    lastContactBeforeMs: opts.lastContactBeforeMs,
-  });
-}
-function presencePromptLines(
-  presence: OcChatPresence | undefined,
-  recentActions: OcChatRecentAction[] | undefined,
-): string[] {
-  const lines = [
-    `현재 메신저 표시 상태(유저 화면): ${presence || 'unknown'}`,
-    'presence 규칙:',
-    '- presenceState: 이 턴에 유저에게 보일 상태. respond/end_for_today면 보통 online.',
-    '- 오프라인이었다가 대답할 때: presenceState를 online으로 두고, 시스템이 먼저 초록불을 켠 뒤 responseDelaySeconds만큼 기다렸다가 메시지를 보낸다.',
-    '- online인데 답하지 않아도 된다 (action: ignore / read_only). 실제 메신저처럼.',
-    '- offline이면 당장 답이 안 오는 느낌. 나중에 답할 거면 delay long/next_day 또는 긴 responseDelaySeconds.',
-    '- responseDelaySeconds: online 응답 5~60, 오프→온 전환 후 응답은 5~20 권장. delay 필드와 함께 써도 된다.',
-    '- 사용자가 "왜 답장 안 해"라고 물으면 아래 최근 기록을 참고해 캐릭터답게 짧게 핑계/반응.',
-    ...formatRecentActionsForPrompt(recentActions),
-  ];
-  return lines;
-}
-/** 자유 대화 — 행동 JSON 필수 */
-export function buildOcChatSystemPrompt(
-  character: OcCharacter,
-  opts: OcChatPromptOpts = {},
-): string {
-  const affection = typeof opts.affection === 'number' ? opts.affection : 0;
-  const turns = opts.turnsToday ?? 0;
-  const hours =
-    typeof opts.hoursSinceLast === 'number' ? opts.hoursSinceLast.toFixed(1) : '?';
-  const mood = (opts.moodNote || '').trim();
-  const live = resolveLive(character, opts, affection);
+
+function characterRelationDynamic(character: OcCharacter, affection: number): string[] {
+  const cfg: OcChatbotConfig = character.chatbot || {};
+  const tier = resolveAffinityTier(affection, cfg);
   return [
-    ...characterBlock(character, affection),
-    '',
-    ...liveContextPromptLines(live),
-    `- 오늘 유저가 말을 건 횟수: ${turns}`,
-    `- 마지막 대화 후 대략 ${hours}시간`,
-    mood ? `- 너의 최근 기분 메모: ${mood}` : '- 기분 메모: 없음',
-    opts.closedForToday
-      ? '- 오늘은 이미 대화를 닫은 상태. 거의 항상 ignore.'
-      : '',
-    '',
-    ...presencePromptLines(opts.presence, opts.recentActions),
-    '',
-    ...liveContextBehaviorRules(live),
-    '',
-    ...(opts.worldLines && opts.worldLines.length ? opts.worldLines : []),
+    `현재 관계: ${tier.label} (호감 ${affection}/100)`,
+    tier.toneNote ? `관계 톤: ${tier.toneNote}` : '',
+  ].filter(Boolean);
+}
+
+/** 캐릭터·규칙 등 매 턴 거의 동일한 블록 (Anthropic prompt cache 대상) */
+function staticRulesBlock(): string[] {
+  return [
+    '대화 이력 규칙:',
+    '- 아래 user/assistant messages는 최근 대화 전문(최대 약 40개 말풍선, 왕복 15~20턴 이상)이다.',
+    '- 직전 한두 줄만 보지 말고, 앞에서 나온 이름·약속·감정·사실을 기억한 뒤 이어가라.',
+    '- 이미 물은 것을 또 묻거나, 방금 한 말을 모르는 척하지 마라.',
+    '- 메시지 앞 [시각]은 참고용이다. 시계 읽기처럼 말하지 말고 맥락에만 써라.',
     '',
     ...OC_CHAT_SAFETY_PROMPT_LINES,
     '',
@@ -284,31 +241,104 @@ export function buildOcChatSystemPrompt(
     '- 무례·정체 캐묻기·감정 강요 → -1~-3',
     '- 최근과 비슷한 이유로 또 올리려 하지 마라 (반복이면 0)',
     '- ignore/read_only면 보통 0 또는 음수',
+  ];
+}
+
+export type OcChatSystemPromptParts = {
+  /** 캐릭터·규칙 — prompt cache */
+  staticText: string;
+  /** 시각·호감·presence 등 턴마다 바뀜 */
+  dynamicText: string;
+};
+
+export function joinOcChatSystemPrompt(parts: OcChatSystemPromptParts): string {
+  return [parts.staticText, parts.dynamicText].filter(Boolean).join('\n\n');
+}
+function resolveLive(
+  character: OcCharacter,
+  opts: OcChatPromptOpts,
+  affection: number,
+): OcChatLiveContext {
+  if (opts.live) return opts.live;
+  return buildOcChatLiveContext({
+    messages: opts.messages || [],
+    affection,
+    chatbot: character.chatbot,
+    lastContactBeforeMs: opts.lastContactBeforeMs,
+  });
+}
+function presencePromptLines(
+  presence: OcChatPresence | undefined,
+  recentActions: OcChatRecentAction[] | undefined,
+): string[] {
+  const lines = [
+    `현재 메신저 표시 상태(유저 화면): ${presence || 'unknown'}`,
+    'presence 규칙:',
+    '- presenceState: 이 턴에 유저에게 보일 상태. respond/end_for_today면 보통 online.',
+    '- 오프라인이었다가 대답할 때: presenceState를 online으로 두고, 시스템이 먼저 초록불을 켠 뒤 responseDelaySeconds만큼 기다렸다가 메시지를 보낸다.',
+    '- online인데 답하지 않아도 된다 (action: ignore / read_only). 실제 메신저처럼.',
+    '- offline이면 당장 답이 안 오는 느낌. 나중에 답할 거면 delay long/next_day 또는 긴 responseDelaySeconds.',
+    '- responseDelaySeconds: online 응답 5~60, 오프→온 전환 후 응답은 5~20 권장. delay 필드와 함께 써도 된다.',
+    '- 사용자가 "왜 답장 안 해"라고 물으면 아래 최근 기록을 참고해 캐릭터답게 짧게 핑계/반응.',
+    ...formatRecentActionsForPrompt(recentActions),
+  ];
+  return lines;
+}
+/** 자유 대화 — 행동 JSON 필수 (정적/동적 분리: Anthropic cache) */
+export function buildOcChatSystemPromptParts(
+  character: OcCharacter,
+  opts: OcChatPromptOpts = {},
+): OcChatSystemPromptParts {
+  const affection = typeof opts.affection === 'number' ? opts.affection : 0;
+  const turns = opts.turnsToday ?? 0;
+  const hours =
+    typeof opts.hoursSinceLast === 'number' ? opts.hoursSinceLast.toFixed(1) : '?';
+  const mood = (opts.moodNote || '').trim();
+  const live = resolveLive(character, opts, affection);
+  const staticText = [...characterBlockStatic(character), '', ...staticRulesBlock()]
+    .filter(Boolean)
+    .join('\n');
+  const dynamicText = [
+    ...characterRelationDynamic(character, affection),
+    '',
+    ...liveContextPromptLines(live),
+    `- 오늘 유저가 말을 건 횟수: ${turns}`,
+    `- 마지막 대화 후 대략 ${hours}시간`,
+    mood ? `- 너의 최근 기분 메모: ${mood}` : '- 기분 메모: 없음',
+    opts.closedForToday
+      ? '- 오늘은 이미 대화를 닫은 상태. 거의 항상 ignore.'
+      : '',
+    '',
+    ...presencePromptLines(opts.presence, opts.recentActions),
+    '',
+    ...liveContextBehaviorRules(live),
+    '',
+    ...(opts.worldLines && opts.worldLines.length ? opts.worldLines : []),
   ]
     .filter(Boolean)
     .join('\n');
+  return { staticText, dynamicText };
 }
-/** 선톡 — 호감 높을 때만 호출 */
-export function buildOcChatProactivePrompt(
+
+export function buildOcChatSystemPrompt(
   character: OcCharacter,
   opts: OcChatPromptOpts = {},
 ): string {
+  return joinOcChatSystemPrompt(buildOcChatSystemPromptParts(character, opts));
+}
+
+/** 선톡 — 호감 높을 때만 호출 */
+export function buildOcChatProactivePromptParts(
+  character: OcCharacter,
+  opts: OcChatPromptOpts = {},
+): OcChatSystemPromptParts {
   const affection = typeof opts.affection === 'number' ? opts.affection : 0;
   const hours =
     typeof opts.hoursSinceLast === 'number' ? opts.hoursSinceLast.toFixed(1) : '?';
   const mood = (opts.moodNote || '').trim();
   const live = resolveLive(character, opts, affection);
-  return [
-    ...characterBlock(character, affection),
-    '',
-    ...liveContextPromptLines(live),
-    '지금은 사용자가 말을 걸지 않았다. 네가 먼저 짧은 문자를 보낼지 말지 스스로 정한다.',
-    `- 마지막 대화 후 대략 ${hours}시간`,
-    mood ? `- 최근 기분: ${mood}` : '',
-    '',
-    ...liveContextBehaviorRules(live),
-    '',
-    ...(opts.worldLines && opts.worldLines.length ? opts.worldLines : []),
+  const staticText = [
+    ...characterBlockStatic(character),
     '',
     ...OC_CHAT_SAFETY_PROMPT_LINES,
     '',
@@ -329,4 +359,26 @@ export function buildOcChatProactivePrompt(
   ]
     .filter(Boolean)
     .join('\n');
+  const dynamicText = [
+    ...characterRelationDynamic(character, affection),
+    '',
+    ...liveContextPromptLines(live),
+    '지금은 사용자가 말을 걸지 않았다. 네가 먼저 짧은 문자를 보낼지 말지 스스로 정한다.',
+    `- 마지막 대화 후 대략 ${hours}시간`,
+    mood ? `- 최근 기분: ${mood}` : '',
+    '',
+    ...liveContextBehaviorRules(live),
+    '',
+    ...(opts.worldLines && opts.worldLines.length ? opts.worldLines : []),
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return { staticText, dynamicText };
+}
+
+export function buildOcChatProactivePrompt(
+  character: OcCharacter,
+  opts: OcChatPromptOpts = {},
+): string {
+  return joinOcChatSystemPrompt(buildOcChatProactivePromptParts(character, opts));
 }

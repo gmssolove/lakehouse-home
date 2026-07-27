@@ -14,9 +14,12 @@ import { checkChatBanned, chatBanUserMessage } from '@/lib/oc/ocChatSafety';
 import type { OcChatRecentAction } from '@/lib/oc/ocChatPresence';
 import { buildWorldContextPromptLines, loadOcWorldData } from '@/lib/oc/ocChatWorld';
 import {
-  buildOcChatProactivePrompt,
-  buildOcChatSystemPrompt,
+  buildOcChatProactivePromptParts,
+  buildOcChatSystemPromptParts,
+  joinOcChatSystemPrompt,
+  type OcChatSystemPromptParts,
 } from '@/lib/oc/ocChatPrompt';
+import { prepareOcChatModelMessages } from '@/lib/oc/ocChatModelMessages';
 import type { OcCharacter } from '@/lib/types/character';
 
 export const runtime = 'nodejs';
@@ -27,10 +30,18 @@ const RTDB_CHARS_URL =
 
 const RATE_WINDOW_MS = 60_000;
 const RATE_MAX = 24;
+/** 말풍선 단위. 유저↔캐릭 왕복 ~20턴 이상 */
 const HISTORY_MAX = 40;
 const CONTENT_MAX = 2000;
 
-type ChatIn = { role?: string; content?: string; at?: number; kind?: string };
+type ChatIn = {
+  role?: string;
+  content?: string;
+  at?: number;
+  kind?: string;
+  stickerId?: string;
+  stickerUrl?: string;
+};
 type Provider = 'gemini' | 'groq' | 'anthropic';
 
 type Body = {
@@ -176,10 +187,33 @@ async function callGroq(system: string, messages: { role: string; content: strin
   return text;
 }
 
-async function callClaude(system: string, messages: { role: string; content: string }[]) {
+async function callClaude(
+  system: string | OcChatSystemPromptParts,
+  messages: { role: string; content: string }[],
+) {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다');
-  const model = (process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5').trim();
+  const model = (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim();
+
+  const systemBlocks =
+    typeof system === 'string'
+      ? [
+          {
+            type: 'text' as const,
+            text: system,
+            cache_control: { type: 'ephemeral' as const },
+          },
+        ]
+      : [
+          {
+            type: 'text' as const,
+            text: system.staticText,
+            cache_control: { type: 'ephemeral' as const },
+          },
+          ...(system.dynamicText.trim()
+            ? [{ type: 'text' as const, text: system.dynamicText }]
+            : []),
+        ];
 
   const maxAttempts = 3;
   let lastErr = '';
@@ -193,9 +227,9 @@ async function callClaude(system: string, messages: { role: string; content: str
       },
       body: JSON.stringify({
         model,
-        max_tokens: 512,
+        max_tokens: 768,
         temperature: 0.85,
-        system,
+        system: systemBlocks,
         messages: (messages.length ? messages : [{ role: 'user', content: '판단해.' }]).map(
           (m) => ({
             role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -232,11 +266,24 @@ async function callClaude(system: string, messages: { role: string; content: str
   throw new Error(lastErr || 'Anthropic 요청 실패');
 }
 
-async function callChatModel(system: string, messages: { role: string; content: string }[]) {
+async function callChatModel(
+  system: string | OcChatSystemPromptParts,
+  messages: Array<{
+    role: string;
+    content: string;
+    at?: number;
+    kind?: string;
+    stickerId?: string;
+    stickerUrl?: string;
+  }>,
+) {
+  const prepared = prepareOcChatModelMessages(messages, { max: HISTORY_MAX, withClock: true });
   const provider = resolveProvider();
-  if (provider === 'gemini') return callGemini(system, messages);
-  if (provider === 'groq') return callGroq(system, messages);
-  return callClaude(system, messages);
+  const flat =
+    typeof system === 'string' ? system : joinOcChatSystemPrompt(system);
+  if (provider === 'gemini') return callGemini(flat, prepared);
+  if (provider === 'groq') return callGroq(flat, prepared);
+  return callClaude(system, prepared);
 }
 
 export async function POST(req: Request) {
@@ -267,6 +314,8 @@ export async function POST(req: Request) {
       content: String(m.content || '').trim().slice(0, CONTENT_MAX),
       at: typeof m.at === 'number' && Number.isFinite(m.at) ? m.at : undefined,
       kind: typeof m.kind === 'string' ? m.kind : undefined,
+      stickerId: typeof (m as ChatIn).stickerId === 'string' ? (m as ChatIn).stickerId : undefined,
+      stickerUrl: typeof (m as ChatIn).stickerUrl === 'string' ? (m as ChatIn).stickerUrl : undefined,
     }))
     .filter((m) => m.content);
 
@@ -303,7 +352,7 @@ export async function POST(req: Request) {
       });
       const world = await loadOcWorldData();
       const worldLines = buildWorldContextPromptLines({ character, world });
-      const system = buildOcChatProactivePrompt(character, {
+      const system = buildOcChatProactivePromptParts(character, {
         affection: affectionIn,
         moodNote,
         hoursSinceLast,
@@ -313,7 +362,14 @@ export async function POST(req: Request) {
       });
       const raw = await callChatModel(
         system,
-        messages.slice(-12).map((m) => ({ role: m.role, content: m.content })),
+        messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          at: m.at,
+          kind: m.kind,
+          stickerId: m.stickerId,
+          stickerUrl: m.stickerUrl,
+        })),
       );
       const decision = parseOcChatProactive(raw);
       return NextResponse.json(decision);
@@ -385,7 +441,7 @@ export async function POST(req: Request) {
     const world = await loadOcWorldData();
     const worldLines = buildWorldContextPromptLines({ character, world });
 
-    const system = buildOcChatSystemPrompt(character, {
+    const system = buildOcChatSystemPromptParts(character, {
       affection: affectionIn,
       moodNote,
       turnsToday,
@@ -400,7 +456,14 @@ export async function POST(req: Request) {
     });
     const rawReply = await callChatModel(
       system,
-      messages.map((m) => ({ role: m.role, content: m.content })),
+      messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        at: m.at,
+        kind: m.kind,
+        stickerId: m.stickerId,
+        stickerUrl: m.stickerUrl,
+      })),
     );
     const behavior = parseOcChatBehavior(rawReply);
     const userText = messages[messages.length - 1]?.content || '';
