@@ -363,7 +363,7 @@
 
 .oc-chat-row.is-me {
   justify-content: flex-end;
-  gap: 6px;
+  gap: 3px;
 }
 
 .oc-chat-bubble-wrap {
@@ -371,8 +371,8 @@
   flex-direction: column;
   align-items: flex-start;
   max-width: 72%;
-  width: fit-content;
-  flex: 0 1 auto;
+  width: max-content;
+  flex: 0 0 auto;
   min-width: 0;
   gap: 0;
 }
@@ -393,10 +393,10 @@
 
 .oc-chat-row.is-me .oc-chat-meta {
   align-items: flex-end;
-  /* 내 메시지: 읽음·시간과 말풍선 사이 여유 (이전 간격) */
+  /* 세로(1·시간)만 살짝, 가로(말풍선)는 카톡처럼 바짝 */
   gap: 2px;
-  padding: 0 6px 2px 2px;
-  margin-right: 0;
+  padding: 0 3px 1px 0;
+  margin: 0;
 }
 
 .oc-chat-row.is-other .oc-chat-meta {
