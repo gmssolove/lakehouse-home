@@ -42,7 +42,6 @@ type ChatIn = {
   stickerId?: string;
   stickerUrl?: string;
 };
-type Provider = 'gemini' | 'groq' | 'anthropic';
 
 type Body = {
   mode?: string;
@@ -63,6 +62,19 @@ type Body = {
 
 type RateBucket = { count: number; resetAt: number };
 const rateMap = new Map<string, RateBucket>();
+
+class OcChatUpstreamError extends Error {
+  readonly provider = 'anthropic' as const;
+  readonly upstreamStatus: number;
+  readonly upstreamBody: string;
+
+  constructor(message: string, upstreamStatus: number, upstreamBody: string) {
+    super(message);
+    this.name = 'OcChatUpstreamError';
+    this.upstreamStatus = upstreamStatus;
+    this.upstreamBody = upstreamBody;
+  }
+}
 
 function clientIp(req: Request): string {
   const xf = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || '';
@@ -97,129 +109,37 @@ async function loadCharacter(characterId: string): Promise<OcCharacter | null> {
   return list.find((c) => String(c?.id) === id) || null;
 }
 
-function resolveProvider(): Provider {
+function resolveProvider(): 'anthropic' {
   const forced = (process.env.OC_CHAT_PROVIDER || '').trim().toLowerCase();
-  if (forced === 'gemini' || forced === 'groq' || forced === 'anthropic') return forced;
-  if (process.env.GEMINI_API_KEY?.trim()) return 'gemini';
-  if (process.env.GROQ_API_KEY?.trim()) return 'groq';
-  if (process.env.ANTHROPIC_API_KEY?.trim()) return 'anthropic';
-  throw new Error(
-    'API 키가 없습니다. .env.local에 GEMINI_API_KEY, GROQ_API_KEY 또는 ANTHROPIC_API_KEY를 넣어 주세요.',
-  );
+  if (forced && forced !== 'anthropic') {
+    throw new Error(
+      `OC_CHAT_PROVIDER=${forced}는 지원하지 않습니다. anthropic(Claude Sonnet)만 사용합니다.`,
+    );
+  }
+  if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+    throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
+  }
+  return 'anthropic';
 }
 
-async function callGemini(system: string, messages: { role: string; content: string }[]) {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다');
-  const model = (process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: messages.length
-        ? messages.map((m) => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }],
-          }))
-        : [{ role: 'user', parts: [{ text: '판단해.' }] }],
-      generationConfig: {
-        maxOutputTokens: 512,
-        temperature: 0.85,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
-  const data = (await res.json().catch(() => ({}))) as {
-    error?: { message?: string };
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  if (!res.ok) {
-    const raw = data.error?.message || `Gemini HTTP ${res.status}`;
-    if (/quota|rate.?limit|exceeded|limit:\s*0/i.test(raw)) {
-      throw new Error(
-        `Gemini 무료 할당량 초과/불가 (${model}). GROQ_API_KEY를 쓰거나 Google AI Studio 쿼터를 확인하세요.`,
-      );
-    }
-    throw new Error(raw);
-  }
-  const text = (data.candidates?.[0]?.content?.parts || [])
-    .map((p) => p.text || '')
-    .join('')
-    .trim();
-  if (!text) throw new Error('모델이 빈 응답을 반환했습니다');
-  return text;
-}
-
-async function callGroq(system: string, messages: { role: string; content: string }[]) {
-  const apiKey = process.env.GROQ_API_KEY?.trim();
-  if (!apiKey) throw new Error('GROQ_API_KEY가 설정되지 않았습니다');
-  const model = (process.env.GROQ_MODEL || 'llama-3.3-70b-versatile').trim();
-
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.85,
-      max_tokens: 512,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: system },
-        ...(messages.length ? messages : [{ role: 'user', content: '판단해.' }]),
-      ],
-    }),
-  });
-  const data = (await res.json().catch(() => ({}))) as {
-    error?: { message?: string };
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  if (!res.ok) {
-    throw new Error(data.error?.message || `Groq HTTP ${res.status}`);
-  }
-  const text = (data.choices?.[0]?.message?.content || '').trim();
-  if (!text) throw new Error('모델이 빈 응답을 반환했습니다');
-  return text;
+function ocChatSystemText(system: string | OcChatSystemPromptParts): string {
+  return typeof system === 'string' ? system : joinOcChatSystemPrompt(system);
 }
 
 async function callClaude(
   system: string | OcChatSystemPromptParts,
   messages: { role: string; content: string }[],
-  opts?: { useCache?: boolean },
 ) {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다');
   const model = (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim();
-  const useCache = opts?.useCache !== false;
-
-  const systemBlocks = (() => {
-    if (typeof system === 'string') {
-      return useCache
-        ? [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }]
-        : [{ type: 'text' as const, text: system }];
-    }
-    const staticBlock = useCache
-      ? {
-          type: 'text' as const,
-          text: system.staticText,
-          cache_control: { type: 'ephemeral' as const },
-        }
-      : { type: 'text' as const, text: system.staticText };
-    return [
-      staticBlock,
-      ...(system.dynamicText.trim()
-        ? [{ type: 'text' as const, text: system.dynamicText }]
-        : []),
-    ];
-  })();
+  const systemText = ocChatSystemText(system);
 
   const maxAttempts = 3;
-  let lastErr = '';
+  let lastStatus = 0;
+  let lastBody = '';
+  let lastDetail = '';
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -232,7 +152,7 @@ async function callClaude(
         model,
         max_tokens: 768,
         temperature: 0.85,
-        system: systemBlocks,
+        system: systemText,
         messages: (messages.length ? messages : [{ role: 'user', content: '판단해.' }]).map(
           (m) => ({
             role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -261,23 +181,27 @@ async function callClaude(
       return text;
     }
 
-    const raw =
-      data.error?.message ||
-      (rawText.trim() && !rawText.trim().startsWith('{')
-        ? rawText.trim().slice(0, 240)
-        : '') ||
-      `Anthropic HTTP ${res.status}`;
-    lastErr = raw;
-    if (/credit|billing|quota|rate.?limit|exceeded/i.test(raw)) {
-      throw new Error(
-        `Claude API는 별도 결제가 필요합니다 (${model}). 무료로 쓰려면 GEMINI/GROQ를 사용하세요.`,
-      );
-    }
+    lastStatus = res.status;
+    lastBody = rawText;
+    const errType = data.error?.type?.trim();
+    const errMsg = data.error?.message?.trim();
+    lastDetail =
+      errType && errMsg
+        ? `${errType}: ${errMsg}`
+        : rawText.trim() && !rawText.trim().startsWith('{')
+          ? rawText.trim().slice(0, 500)
+          : rawText.trim().slice(0, 500) || `HTTP ${res.status}`;
+
     const retryable = res.status === 408 || res.status === 429 || res.status >= 500;
     if (!retryable || attempt === maxAttempts) break;
     await new Promise((r) => setTimeout(r, 450 * attempt + Math.floor(Math.random() * 200)));
   }
-  throw new Error(lastErr || 'Anthropic 요청 실패');
+
+  throw new OcChatUpstreamError(
+    `Anthropic ${lastStatus}: ${lastDetail}`,
+    lastStatus,
+    lastBody,
+  );
 }
 
 async function callChatModel(
@@ -292,34 +216,19 @@ async function callChatModel(
   }>,
 ) {
   const prepared = prepareOcChatModelMessages(messages, { max: HISTORY_MAX, withClock: true });
-  const provider = resolveProvider();
-  const flat =
-    typeof system === 'string' ? system : joinOcChatSystemPrompt(system);
-  if (provider === 'gemini') return callGemini(flat, prepared);
-  if (provider === 'groq') return callGroq(flat, prepared);
+  resolveProvider();
+  return callClaude(system, prepared);
+}
 
-  try {
-    return await callClaude(system, prepared, { useCache: true });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    /* 캐시/일시 오류 시 캐시 없이 1회 재시도 */
-    if (!/결제|billing|credit|키가 없/i.test(msg)) {
-      try {
-        return await callClaude(system, prepared, { useCache: false });
-      } catch {
-        /* fall through to gemini */
-      }
-    }
-    if (process.env.GEMINI_API_KEY?.trim() && !/결제|billing|credit|키가 없/i.test(msg)) {
-      try {
-        return await callGemini(flat, prepared);
-      } catch (gemErr) {
-        const g = gemErr instanceof Error ? gemErr.message : String(gemErr);
-        throw new Error(`Claude 실패: ${msg} / Gemini 실패: ${g}`);
-      }
-    }
-    throw err instanceof Error ? err : new Error(msg);
+function httpStatusForChatError(err: unknown, message: string): number {
+  if (err instanceof OcChatUpstreamError) {
+    if (err.upstreamStatus === 429) return 429;
+    if (/API_KEY|키가 없/i.test(message)) return 503;
+    return 502;
   }
+  if (/API_KEY|키가 없/i.test(message)) return 503;
+  if (/할당량|결제|billing|quota/i.test(message)) return 429;
+  return 502;
 }
 
 export async function POST(req: Request) {
@@ -531,23 +440,37 @@ export async function POST(req: Request) {
       deltaReason: behavior.deltaReason,
     });
   } catch (err) {
-    let provider: Provider | 'unknown' = 'unknown';
+    let provider: 'anthropic' | 'unknown' = 'unknown';
     try {
       provider = resolveProvider();
     } catch {
       /* keys not configured */
     }
     const message = err instanceof Error ? err.message : '채팅 실패';
+    const status = httpStatusForChatError(err, message);
+    const payload: Record<string, unknown> = {
+      error: message,
+      code: 'OC_CHAT_UPSTREAM',
+      provider,
+    };
+    if (err instanceof OcChatUpstreamError) {
+      payload.upstreamStatus = err.upstreamStatus;
+      payload.upstreamBody = err.upstreamBody.slice(0, 8000);
+    }
     console.error('[oc-chat] request failed', {
       provider,
       characterId,
       visitorId,
       mode,
       message,
+      upstreamStatus: err instanceof OcChatUpstreamError ? err.upstreamStatus : undefined,
+      upstreamBodyPreview:
+        err instanceof OcChatUpstreamError ? err.upstreamBody.slice(0, 400) : undefined,
       stack: err instanceof Error ? err.stack?.split('\n').slice(0, 6).join('\n') : undefined,
     });
-    const status =
-      /API_KEY|키가 없/i.test(message) ? 503 : /할당량|결제|billing|quota/i.test(message) ? 429 : 502;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(payload, {
+      status,
+      headers: { 'Cache-Control': 'no-store' },
+    });
   }
 }
