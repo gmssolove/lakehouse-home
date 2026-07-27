@@ -19,15 +19,63 @@ export const NEGLECT_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
 export const NEGLECT_MAX_HITS = 5;
 
 export const DEFAULT_AFFINITY_TIERS: OcChatAffinityTier[] = [
-  { min: 0, max: 20, label: '낯선 사이', toneNote: '더 무심하고 거리감 있게. 말을 아끼고 쉽게 마음을 열지 않는다.' },
-  { min: 21, max: 60, label: '익숙한 사이', toneNote: '기본 톤. 상대를 알 정도는 되지만 과하게 다정하지 않다.' },
   {
-    min: 61,
-    max: 100,
-    label: '가까운 사이',
+    min: 0,
+    max: 20,
+    label: '낯선 사이',
+    toneNote: '더 무심하고 거리감 있게. 말을 아끼고 쉽게 마음을 열지 않는다.',
+  },
+  {
+    min: 21,
+    max: 50,
+    label: '아는 사람',
+    toneNote: '얼굴은 아는 정도. 과하게 다정하지 않고 필요한 말만 짧게.',
+  },
+  {
+    min: 51,
+    max: 70,
+    label: '편한 사이',
+    toneNote: '조금 더 편하게 받아주지만, 갑자기 다정해지지는 않는다.',
+  },
+  {
+    min: 71,
+    max: 99,
+    label: '신경 쓰이는 사람',
     toneNote: '가끔 여린 면이나 짧은 관심이 드러날 수 있다. 그래도 캐릭터 말투는 유지한다.',
   },
+  {
+    min: 100,
+    max: 100,
+    label: '가까운 사이',
+    toneNote: '가까워진 티는 나되 과한 애정 표현은 피한다. 캐릭터답게.',
+  },
 ];
+
+/** 선톡 후보 — 이 점수 미만은 시도 자체 없음 */
+export const PROACTIVE_AFFECTION_MIN = 51;
+
+/**
+ * 하루 1회 시도 기회 안에서 실제 발송 여부.
+ * 51–70: 15–20% / 71–99: 30–40% / 100: 50–75%
+ */
+export function rollProactiveSend(affection: number): boolean {
+  const a = clampAffection(affection);
+  if (a < PROACTIVE_AFFECTION_MIN) return false;
+  let lo = 0;
+  let hi = 0;
+  if (a <= 70) {
+    lo = 0.15;
+    hi = 0.2;
+  } else if (a <= 99) {
+    lo = 0.3;
+    hi = 0.4;
+  } else {
+    lo = 0.5;
+    hi = 0.75;
+  }
+  const p = lo + Math.random() * (hi - lo);
+  return Math.random() < p;
+}
 
 export function clampAffection(n: number): number {
   if (!Number.isFinite(n)) return AFFECTION_MIN;

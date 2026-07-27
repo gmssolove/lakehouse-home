@@ -57,8 +57,6 @@ const DELAYS = new Set<OcChatDelayKind>([
   'next_day',
 ]);
 
-/** 가까운 사이(기본 61+)부터 선톡 후보 */
-export const PROACTIVE_AFFECTION_MIN = 61;
 /** 마지막 메시지 이후 최소 유휴(ms) — 선톡 */
 export const PROACTIVE_IDLE_MS = 90 * 60 * 1000;
 

@@ -4,6 +4,10 @@ import type { OcChatbotConfig } from '@/lib/types/character';
 export type OcChatLiveContext = {
   currentDateTimeKST: string;
   timeOfDayLabel: string;
+  /** KST 시(0–23) */
+  hourKst: number;
+  /** 대략 0시~6시 — 심야·새벽 */
+  isLateNight: boolean;
   daysSinceFirstContact: number;
   totalMessageCount: number;
   daysSinceLastContact: number;
@@ -114,12 +118,16 @@ export function buildOcChatLiveContext(opts: {
 
   const { hour } = kstParts(now);
   const tier = resolveAffinityTier(opts.affection, opts.chatbot);
+  const isLateNight = hour < 7;
+  /* 첫날 + 메시지가 매우 적을 때 초면 분위기 */
   const isFirstMeetingVibe =
-    daysSinceFirstContact <= 0 && totalMessageCount < 8;
+    daysSinceFirstContact <= 0 && totalMessageCount < 5;
 
   return {
     currentDateTimeKST: formatKstNaturalDateTime(now),
     timeOfDayLabel: timeOfDayLabelKst(hour),
+    hourKst: hour,
+    isLateNight,
     daysSinceFirstContact,
     totalMessageCount,
     daysSinceLastContact,
@@ -140,18 +148,30 @@ export function liveContextPromptLines(ctx: OcChatLiveContext): string[] {
     ctx.isFirstMeetingVibe
       ? '- 지금 분위기: 거의 초면/초반. 누군지 잘 모름. 경계 있음.'
       : '',
+    ctx.isLateNight && ctx.affectionScore <= 50
+      ? '- 심야·새벽 + 호감 낮음: 폰을 보고 있을 개연성 낮음 → 오프라인/무응답·다음날 답 쪽 경향(절대 금지 아님).'
+      : '',
   ].filter(Boolean);
 }
 
 export function liveContextBehaviorRules(ctx: OcChatLiveContext): string[] {
   const early =
+    ctx.daysSinceFirstContact <= 0 || ctx.totalMessageCount < 5;
+  const earlyish =
     ctx.daysSinceFirstContact <= 1 && ctx.totalMessageCount < 12;
-  const spammyEarly = early && ctx.totalMessageCount >= 3;
+  const spammyEarly = earlyish && ctx.totalMessageCount >= 3;
+  const lowAff = ctx.affectionScore <= 50;
+  const midPlus = ctx.affectionScore >= 51;
+
   return [
     '시간·관계 반응 규칙:',
-    '- 시각을 시계처럼 읽어주지 말고, 어색할 때만 자연스럽게 되물어라. 예: 새벽에 "학교야?" → "...새벽 두 시인데?"',
-    '- 새벽·늦은 밤이면 더 짧고 귀찮게, 또는 왜 안 자고 연락하냐는 식으로.',
-    '- 아침·수업 시간대면 바쁜 티만 짧게. 장황한 일과 설명 금지.',
+    '- 시각을 시계처럼 읽어주지 마라. 숫자가 아니라 반응에만 녹여라.',
+    '- 질문이 현재 시각과 논리적으로 모순될 때만 담담히 되물어라. 예: 새벽에 "학교야?" → "...새벽인데" / "이 시간에?".',
+    '- 그 되물음은 탓·다그침이 아니다. "새벽에 왜 이래"처럼 상대를 나무라지 마라.',
+    '- "언제 잘 거야?"처럼 그 시간에 자연스러운 질문에는 시간 지적 없이 그냥 짧게 답하라.',
+    ctx.isLateNight
+      ? '- 심야·새벽: 평소보다 단답 비중↑, responseDelaySeconds를 더 길게, delay는 long/next_day 비중↑(피곤·잠).'
+      : '- 아침·수업·바쁜 시간대면 바쁜 티만 짧게. 일과를 구구절절 설명하지 마라.',
     early
       ? '- 초면/초반: 친절하게 맞이하지 마라. "누구?", "왜 말 걸어" 같은 거리감이 기본.'
       : '- 어느 정도 안 사이라도 갑자기 다정해지지 마라.',
@@ -161,5 +181,12 @@ export function liveContextBehaviorRules(ctx: OcChatLiveContext): string[] {
     ctx.daysSinceLastContact >= 3
       ? '- 며칠 만이면 데면데면하게. "갑자기 왜" 정도의 거리감.'
       : '',
+    ctx.isLateNight && lowAff
+      ? '- 호감 0~50 + 심야/새벽(0~7시): presenceState offline + ignore/read_only + delay next_day/long 쪽으로 크게 치우쳐라. 100%는 아니다.'
+      : '',
+    ctx.isLateNight && midPlus
+      ? '- 호감 51+ 심야: 오프라인 경향은 약해짐. 가끔은 느릿하게라도 답해도 된다.'
+      : '',
+    '- ㅜㅜ·진지한 부탁·짧은 간격 연타 등 대화를 정말 원하는 신호면, 심야 오프라인 경향보다 우선해 짧게라도 respond(졸린 한두 마디 OK). 완전 무응답만 반복하지 마라.',
   ].filter(Boolean);
 }

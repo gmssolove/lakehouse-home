@@ -518,7 +518,8 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
         호감 구간
       </h4>
       <p style={{ fontSize: 10, opacity: 0.5, margin: '0 0 8px' }}>
-        구간 라벨·관계 설명은 하트 모달에, AI 톤 메모는 프롬프트에만 쓰입니다. 비우면 기본 3단.
+        구간 라벨·관계 설명은 하트 모달에, AI 톤 메모는 프롬프트에만 쓰입니다. 비우면 기본
+        5단(낯선/아는/편한/신경 쓰이는/가까운). 선톡은 51점부터 구간 확률.
       </p>
       {tiers.map((t, i) => (
         <div

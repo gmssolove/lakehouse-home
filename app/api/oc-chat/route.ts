@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import {
   clampAffection,
   computeFreeChatAffinityDelta,
+  PROACTIVE_AFFECTION_MIN,
   todayKeyLocal,
 } from '@/lib/oc/ocChatAffinity';
 import {
   parseOcChatBehavior,
   parseOcChatProactive,
-  PROACTIVE_AFFECTION_MIN,
 } from '@/lib/oc/ocChatBehavior';
 import { buildOcChatLiveContext } from '@/lib/oc/ocChatContext';
 import { checkChatBanned, chatBanUserMessage } from '@/lib/oc/ocChatSafety';

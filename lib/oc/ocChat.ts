@@ -4,6 +4,8 @@ import {
   isChatClosedNow,
   needsStoryMode,
   nextClosedUntil,
+  PROACTIVE_AFFECTION_MIN,
+  rollProactiveSend,
   todayKeyLocal,
 } from '@/lib/oc/ocChatAffinity';
 import {
@@ -13,7 +15,6 @@ import {
   nextLocalMidnightMs,
   parseOcChatBehavior,
   parseOcChatProactive,
-  PROACTIVE_AFFECTION_MIN,
   PROACTIVE_IDLE_MS,
   splitBubbleGapMs,
   type OcChatAction,
@@ -896,6 +897,17 @@ export async function tryDeliverProactiveChat(params: {
   if (!lastAt || Date.now() - lastAt < PROACTIVE_IDLE_MS) return 0;
   if (!thread.messages.some((m) => m.role === 'user')) return 0;
 
+  const today = todayKeyLocal();
+  /* 하루 1회 시도 기회 — 구간별 확률로 실제 발송 여부 결정 */
+  if (!rollProactiveSend(thread.affection)) {
+    await saveOcChatThread(params.characterId, params.visitorId, {
+      ...thread,
+      lastProactiveDate: today,
+      updatedAt: Date.now(),
+    });
+    return 0;
+  }
+
   const decision = await postOcChatProactive({
     characterId: params.characterId,
     visitorId: params.visitorId,
@@ -905,7 +917,6 @@ export async function tryDeliverProactiveChat(params: {
     hoursSinceLast: hoursSince(lastAt),
   });
 
-  const today = todayKeyLocal();
   if (!decision.reachOut || !decision.messages.length) {
     await saveOcChatThread(params.characterId, params.visitorId, {
       ...thread,
