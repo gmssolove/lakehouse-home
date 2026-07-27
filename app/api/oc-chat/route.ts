@@ -93,7 +93,7 @@ function resolveProvider(): Provider {
   if (process.env.GROQ_API_KEY?.trim()) return 'groq';
   if (process.env.ANTHROPIC_API_KEY?.trim()) return 'anthropic';
   throw new Error(
-    'API 키가 없습니다. .env.local에 GEMINI_API_KEY 또는 GROQ_API_KEY를 넣어 주세요.',
+    'API 키가 없습니다. .env.local에 GEMINI_API_KEY, GROQ_API_KEY 또는 ANTHROPIC_API_KEY를 넣어 주세요.',
   );
 }
 

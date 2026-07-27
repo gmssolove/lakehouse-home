@@ -29,6 +29,7 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintRef = useRef<HTMLSpanElement | null>(null);
   const lastPos = useRef({ x: 0, y: 0 });
+  const moveRaf = useRef(0);
   const label = chatInviteLabel(characterName);
 
   const clearLeave = useCallback(() => {
@@ -38,23 +39,39 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
     }
   }, []);
 
-  const moveHint = useCallback((x: number, y: number) => {
-    lastPos.current = { x, y };
+  const flushHintPos = useCallback(() => {
+    moveRaf.current = 0;
     const el = hintRef.current;
     if (!el) return;
+    const { x, y } = lastPos.current;
     el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, calc(-100% - 16px))`;
   }, []);
+
+  const moveHint = useCallback(
+    (x: number, y: number) => {
+      lastPos.current = { x, y };
+      if (moveRaf.current) return;
+      moveRaf.current = window.requestAnimationFrame(flushHintPos);
+    },
+    [flushHintPos],
+  );
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => () => clearLeave(), [clearLeave]);
+  useEffect(
+    () => () => {
+      clearLeave();
+      if (moveRaf.current) window.cancelAnimationFrame(moveRaf.current);
+    },
+    [clearLeave],
+  );
 
   useLayoutEffect(() => {
     if (!hintOn) return;
-    moveHint(lastPos.current.x, lastPos.current.y);
-  }, [hintOn, moveHint]);
+    flushHintPos();
+  }, [hintOn, flushHintPos]);
 
   useEffect(() => {
     if (hidden) {
@@ -65,7 +82,7 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
       clearLeave();
       return;
     }
-    const t = window.setTimeout(() => setShow(true), 220);
+    const t = window.setTimeout(() => setShow(true), 160);
     return () => window.clearTimeout(t);
   }, [hidden, clearLeave]);
 
@@ -110,7 +127,7 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
           leaveTimer.current = setTimeout(() => {
             setHintOn(false);
             setHintOut(false);
-          }, 180);
+          }, 140);
         }}
       >
         <span className="oc-chat-phone-peek__visual" aria-hidden>
@@ -119,6 +136,7 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
             src="/oc/chat-phone-peek.png?v=3"
             alt=""
             draggable={false}
+            decoding="async"
           />
           {unread > 0 ? (
             <span className="oc-chat-phone-peek__badge" aria-hidden>

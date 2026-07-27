@@ -22,28 +22,17 @@
   margin: 0;
   cursor: pointer;
   background: rgba(4, 5, 5, 0);
-  -webkit-backdrop-filter: blur(0px);
-  backdrop-filter: blur(0px);
-  transition:
-    background 0.55s ease,
-    -webkit-backdrop-filter 0.62s ease,
-    backdrop-filter 0.62s ease;
+  /* blur 애니메는 GPU 비용이 커서 배경 fade만 사용 */
+  transition: background 0.28s ease;
 }
 
 .oc-chat-lb.is-open .oc-chat-lb__backdrop {
-  background: rgba(4, 5, 5, 0.58);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background: rgba(4, 5, 5, 0.62);
 }
 
 .oc-chat-lb.is-closing .oc-chat-lb__backdrop {
   background: rgba(4, 5, 5, 0);
-  -webkit-backdrop-filter: blur(0px);
-  backdrop-filter: blur(0px);
-  transition:
-    background 0.38s ease,
-    -webkit-backdrop-filter 0.4s ease,
-    backdrop-filter 0.4s ease;
+  transition: background 0.22s ease;
 }
 
 .oc-chat-phone {
@@ -58,11 +47,12 @@
   border: 1px solid rgba(215, 169, 130, 0.28);
   background: linear-gradient(165deg, rgba(22, 24, 22, 0.98), rgba(10, 11, 10, 0.98));
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.48);
-  transform: translateY(42px) scale(0.985);
+  transform: translate3d(0, 36px, 0);
   opacity: 0;
   transition:
-    transform 0.58s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.48s ease;
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.26s ease;
+  contain: layout style paint;
   /* 기본 = 이브/기본 퍼스널 톤. 캐릭터 personalColor로 덮어씀 */
   --oc-chat-point: #d7a982;
   --oc-chat-point-rgb: 215, 169, 130;
@@ -70,16 +60,16 @@
 }
 
 .oc-chat-lb.is-open .oc-chat-phone {
-  transform: translateY(0) scale(1);
+  transform: translate3d(0, 0, 0);
   opacity: 1;
 }
 
 .oc-chat-lb.is-closing .oc-chat-phone {
-  transform: translateY(36px) scale(0.985);
+  transform: translate3d(0, 28px, 0);
   opacity: 0;
   transition:
-    transform 0.42s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.36s ease;
+    transform 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease;
 }
 
 .oc-chat-aff-toast {
@@ -337,6 +327,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  contain: content;
+  overscroll-behavior: contain;
 }
 
 .oc-chat-phone__hint,
@@ -449,7 +441,12 @@
   border-radius: 16px;
   word-break: break-word;
   white-space: pre-wrap;
-  animation: ocChatPop 0.18s ease both;
+}
+
+/* 새 메시지만 가벼운 fade — 전체 히스토리 scale 애니 제거 */
+.oc-chat-row.is-enter .oc-chat-bubble,
+.oc-chat-row.is-enter .oc-chat-sticker {
+  animation: ocChatPop 0.14s ease both;
 }
 
 /* 같은 분 묶음 — 카톡처럼 모서리만 살짝 다르게 */
@@ -524,22 +521,18 @@
   80%,
   100% {
     opacity: 0.3;
-    transform: scale(0.8);
   }
   40% {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
 @keyframes ocChatPop {
   from {
     opacity: 0;
-    transform: scale(0.94);
   }
   to {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
@@ -648,7 +641,6 @@
   cursor: pointer;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
-  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.42));
 }
 
 .oc-chat-phone-peek:focus-visible {
@@ -663,10 +655,12 @@
   transform: translate3d(0, 172px, 0);
   opacity: 0;
   transition:
-    transform 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.5s ease;
-  will-change: transform, opacity;
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.28s ease;
   pointer-events: none;
+  /* filter 대신 그림자 — transform 중 재필터 비용 제거 */
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42);
+  contain: layout paint;
 }
 
 .oc-chat-phone-peek.is-ready .oc-chat-phone-peek__visual {
@@ -685,14 +679,17 @@
   height: auto;
   pointer-events: none;
   user-select: none;
-  /* 쨍한 화이트 라인 → lakehouse 구리/올리브 톤으로 낮춤 */
-  opacity: 0.78;
-  filter:
-    brightness(0.82)
-    contrast(0.9)
-    sepia(0.42)
-    hue-rotate(8deg)
-    saturate(0.38);
+  /* 다중 CSS filter 제거 → 오버레이로 톤만 맞춤 */
+  opacity: 0.88;
+}
+
+.oc-chat-phone-peek__visual::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(42, 38, 28, 0.38);
+  mix-blend-mode: multiply;
 }
 
 .oc-chat-phone-peek__badge {
@@ -732,50 +729,18 @@
   line-height: 1.2;
   letter-spacing: 0.02em;
   color: rgba(232, 214, 190, 0.88);
-  text-shadow:
-    0 0 1px rgba(0, 0, 0, 0.75),
-    0 1px 0 rgba(0, 0, 0, 0.55),
-    0 2px 10px rgba(0, 0, 0, 0.65);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
   white-space: nowrap;
-  will-change: transform, opacity;
-}
-
-@keyframes ocChatPeekHintIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes ocChatPeekHintOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes ocChatPeekHintFloat {
-  0%,
-  100% {
-    translate: 0 0;
-  }
-  50% {
-    translate: 0 -4px;
-  }
+  opacity: 0;
+  transition: opacity 0.14s ease;
 }
 
 .oc-chat-phone-peek__hint.is-in {
-  animation:
-    ocChatPeekHintIn 0.22s ease-out both,
-    ocChatPeekHintFloat 2.8s ease-in-out 0.22s infinite;
+  opacity: 1;
 }
 
 .oc-chat-phone-peek__hint.is-out {
-  animation: ocChatPeekHintOut 0.18s ease-in both;
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -784,13 +749,19 @@
   .oc-chat-phone,
   .oc-chat-phone-peek,
   .oc-chat-phone-peek__visual,
-  .oc-chat-phone-peek__img {
+  .oc-chat-phone-peek__img,
+  .oc-chat-phone-peek__hint {
     transition: none !important;
   }
 
   .oc-chat-phone-peek__hint.is-in,
   .oc-chat-phone-peek__hint.is-out {
-    animation: none !important;
     opacity: 1;
+  }
+
+  .oc-chat-row.is-enter .oc-chat-bubble,
+  .oc-chat-row.is-enter .oc-chat-sticker,
+  .oc-chat-typing span {
+    animation: none !important;
   }
 }

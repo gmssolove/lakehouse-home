@@ -179,13 +179,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const scrollToEnd = useCallback(() => {
     const el = threadRef.current;
     if (!el) return;
-    const pin = () => {
-      el.scrollTop = el.scrollHeight;
-    };
-    pin();
+    el.scrollTop = el.scrollHeight;
     requestAnimationFrame(() => {
-      pin();
-      requestAnimationFrame(pin);
+      el.scrollTop = el.scrollHeight;
     });
   }, []);
 
@@ -1275,7 +1271,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
   useEffect(() => {
     if (open || panelAnim !== 'out') return;
-    const t = window.setTimeout(() => setPanelAnim(null), 520);
+    const t = window.setTimeout(() => setPanelAnim(null), 280);
     return () => window.clearTimeout(t);
   }, [open, panelAnim]);
 
@@ -1283,6 +1279,13 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     () => resolveOcChatPointStyle(character.personalColor),
     [character.personalColor],
   );
+  const enterCutoffRef = useRef(0);
+  if (open && panelAnim === 'in' && enterCutoffRef.current === 0) {
+    enterCutoffRef.current = Date.now();
+  }
+  if (!open && panelAnim == null) {
+    enterCutoffRef.current = 0;
+  }
 
   if (!open && panelAnim == null) return null;
 
@@ -1359,6 +1362,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               const showAvatar =
                 m.role === 'assistant' && m.kind !== 'narration' && !clusterCont;
               const showMeta = clusterEnd && m.kind !== 'narration';
+              const isEnter =
+                enterCutoffRef.current > 0 && m.at >= enterCutoffRef.current - 80;
               const meta = showMeta ? (
                 <div className="oc-chat-meta" aria-hidden>
                   {m.role === 'user' ? (
@@ -1378,7 +1383,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
                   m.kind === 'narration' ? ' is-narration' : ''
                 }${m.kind === 'sticker' ? ' is-sticker' : ''}${
                   clusterCont ? ' is-cluster-cont' : ' is-cluster-start'
-                }${clusterEnd ? ' is-cluster-end' : ''}`}
+                }${clusterEnd ? ' is-cluster-end' : ''}${isEnter ? ' is-enter' : ''}`}
               >
                 {m.role === 'assistant' && m.kind !== 'narration' ? (
                   showAvatar ? (
