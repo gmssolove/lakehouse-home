@@ -191,5 +191,9 @@ export function formatRecentActionsForPrompt(
     }
     return `- ${when}: ${actionKo} / ${a.presence}${note}`;
   });
-  return ['[최근 자기 행동 기록]', ...lines];
+  return [
+    '[최근 자기 행동 기록]',
+    '- 연속 ignore/read_only 카운트용. 직전 무시·읽씹이 이미 2회면 이번엔 반드시 respond.',
+    ...lines,
+  ];
 }

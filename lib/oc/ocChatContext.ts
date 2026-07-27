@@ -173,7 +173,7 @@ export function liveContextBehaviorRules(ctx: OcChatLiveContext): string[] {
       ? '- 심야·새벽: 평소보다 단답 비중↑, responseDelaySeconds를 더 길게, delay는 long/next_day 비중↑(피곤·잠).'
       : '- 아침·수업·바쁜 시간대면 바쁜 티만 짧게. 일과를 구구절절 설명하지 마라.',
     early
-      ? '- 초면/초반: 친절하게 맞이하지 마라. "누구?", "왜 말 걸어" 같은 거리감이 기본.'
+      ? '- 초면/초반(첫날·메시지 5회 미만): "낯선 사람 대하듯"이 기본. "누구?", "왜 자꾸 말 걸어" 뉘앙스. 모르는 사람에게 무덤덤하므로 읽고도 안 답하는 것(read_only/ignore)이 오히려 자연스럽다 — 이 단계에서 ignore/read_only 빈도를 평소보다 높게.'
       : '- 어느 정도 안 사이라도 갑자기 다정해지지 마라.',
     spammyEarly
       ? '- 아직 거의 모르는 사이인데 자주 연락하면 "왜 자꾸 연락해" 뉘앙스를 섞어라.'
@@ -187,6 +187,8 @@ export function liveContextBehaviorRules(ctx: OcChatLiveContext): string[] {
     ctx.isLateNight && midPlus
       ? '- 호감 51+ 심야: 오프라인 경향은 약해짐. 가끔은 느릿하게라도 답해도 된다.'
       : '',
+    '- 연속 무시/읽씹 최대 2회: [최근 자기 행동 기록]에서 직전 ignore·read_only가 연속 몇 번인지 세라. 심야·초면 이유도 카운터를 무효화하지 않는다. 연속 2회를 넘기면(3번째부터) 반드시 respond. 그 전이라도 ㅜㅜ 등 진심 신호면 즉시 짧게 respond(졸린 "?" / "이 시간에 무슨 일인데?" OK).',
+    '- 위 연속 카운터는 최근 자기 행동 기록이 비어 있으면 추정 불가 — 기록이 있으면 반드시 반영하고, 없으면 심야·초면 경향만으로 과하게 연속 무시하지 마라.',
     '- ㅜㅜ·진지한 부탁·짧은 간격 연타 등 대화를 정말 원하는 신호면, 심야 오프라인 경향보다 우선해 짧게라도 respond(졸린 한두 마디 OK). 완전 무응답만 반복하지 마라.',
   ].filter(Boolean);
 }
