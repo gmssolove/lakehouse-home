@@ -456,6 +456,67 @@ export type OcChatProactiveResult = {
   delay: OcChatDelayKind;
 };
 
+function looksLikeCloudflareBlock(status: number, rawBody: string): boolean {
+  const body = rawBody.trim();
+  if (!body) return status === 403 || status === 503;
+  if (/^request not allowed\.?$/i.test(body)) return true;
+  if (/request not allowed/i.test(body.slice(0, 200))) return true;
+  return (
+    /<html[\s>]/i.test(body) ||
+    /just a moment/i.test(body) ||
+    /cf-browser-verification/i.test(body) ||
+    /cdn-cgi\/challenge/i.test(body) ||
+    /cloudflare/i.test(body.slice(0, 400))
+  );
+}
+
+function ocChatHttpErrorMessage(status: number, rawBody: string): string {
+  if (looksLikeCloudflareBlock(status, rawBody)) {
+    return `채팅 요청이 보안망에서 차단되었습니다 (${status}). VPN·광고 차단·시크릿 모드를 바꿔 보거나, 잠시 후 페이지를 새로고침해 주세요.`;
+  }
+  let parsed: unknown = null;
+  try {
+    parsed = rawBody.trim() ? JSON.parse(rawBody) : null;
+  } catch {
+    parsed = null;
+  }
+  if (typeof parsed === 'string' && parsed.trim()) {
+    if (/request not allowed/i.test(parsed)) {
+      return `채팅 요청이 보안망에서 차단되었습니다 (${status}). 잠시 후 다시 시도해 주세요.`;
+    }
+    return parsed.trim();
+  }
+  if (parsed && typeof parsed === 'object') {
+    const err = (parsed as { error?: unknown }).error;
+    if (typeof err === 'string' && err.trim()) {
+      if (/request not allowed/i.test(err)) {
+        return `채팅 요청이 보안망에서 차단되었습니다 (${status}). 잠시 후 다시 시도해 주세요.`;
+      }
+      return err.trim();
+    }
+  }
+  const snippet = rawBody.trim().slice(0, 120);
+  if (snippet && !snippet.startsWith('<')) {
+    return `${snippet}${rawBody.length > 120 ? '…' : ''} (${status})`;
+  }
+  if (status === 429) {
+    return '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  return `채팅 요청 실패 (${status})`;
+}
+
+function parseOcChatJsonBody<T extends object>(rawBody: string, status: number): T {
+  const trimmed = rawBody.trim();
+  if (!trimmed) {
+    throw new Error(ocChatHttpErrorMessage(status, rawBody));
+  }
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    throw new Error(ocChatHttpErrorMessage(status, rawBody));
+  }
+}
+
 export async function postOcChat(params: {
   characterId: string;
   visitorId: string;
@@ -509,7 +570,8 @@ export async function postOcChat(params: {
       recentActions: params.recentActions,
     }),
   });
-  const data = (await res.json().catch(() => ({}))) as {
+  const rawBody = await res.text();
+  type OcChatPostJson = {
     behavior?: OcChatBehavior;
     reply?: string;
     affinityDelta?: number;
@@ -521,8 +583,9 @@ export async function postOcChat(params: {
     error?: string;
   };
   if (!res.ok) {
-    throw new Error(data.error || `요청 실패 (${res.status})`);
+    throw new Error(ocChatHttpErrorMessage(res.status, rawBody));
   }
+  const data = parseOcChatJsonBody<OcChatPostJson>(rawBody, res.status);
   const behavior =
     data.behavior ||
     parseOcChatBehavior('', data.reply || '');
@@ -590,12 +653,14 @@ export async function postOcChatProactive(params: {
       hoursSinceLast: params.hoursSinceLast,
     }),
   });
-  const data = (await res.json().catch(() => ({}))) as OcChatProactiveResult & {
-    error?: string;
-  };
+  const rawBody = await res.text();
   if (!res.ok) {
-    throw new Error(data.error || `요청 실패 (${res.status})`);
+    throw new Error(ocChatHttpErrorMessage(res.status, rawBody));
   }
+  const data = parseOcChatJsonBody<OcChatProactiveResult & { error?: string }>(
+    rawBody,
+    res.status,
+  );
   if (data.reachOut != null) {
     return {
       reachOut: Boolean(data.reachOut) && (data.messages || []).length > 0,
