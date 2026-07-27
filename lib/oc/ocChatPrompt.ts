@@ -1,0 +1,332 @@
+import {
+  resolveAffinityTier,
+} from '@/lib/oc/ocChatAffinity';
+import {
+  buildOcChatLiveContext,
+  liveContextBehaviorRules,
+  liveContextPromptLines,
+  type OcChatLiveContext,
+} from '@/lib/oc/ocChatContext';
+import { OC_CHAT_SAFETY_PROMPT_LINES } from '@/lib/oc/ocChatSafety';
+import {
+  formatRecentActionsForPrompt,
+  type OcChatPresence,
+  type OcChatRecentAction,
+} from '@/lib/oc/ocChatPresence';
+import { stickerCatalogPromptLines } from '@/lib/oc/ocChatStickers';
+import type {
+  OcCharacter,
+  OcChatbotConfig,
+  OcChatTypingStyle,
+} from '@/lib/types/character';
+const SAMPLE_MAX = 12;
+const SAMPLE_TEXT_MAX = 80;
+function normName(s: string) {
+  return s.trim().toLowerCase().replace(/\s+/g, '');
+}
+/** VN 대사 중 본인 화자 라인만 샘플로 뽑음 */
+export function extractDialogueSamples(
+  character: Pick<OcCharacter, 'name' | 'nameSub' | 'dialogue'>,
+  limit = SAMPLE_MAX,
+): string[] {
+  const names = new Set(
+    [character.name, character.nameSub]
+      .map((n) => (n || '').trim())
+      .filter(Boolean)
+      .map(normName),
+  );
+  const nodes = Array.isArray(character.dialogue) ? character.dialogue : [];
+  const out: string[] = [];
+  for (const node of nodes) {
+    if (out.length >= limit) break;
+    const text = String(node?.text || '').trim();
+    if (!text) continue;
+    const speaker = String(node?.speaker || '').trim();
+    if (speaker && names.size && !names.has(normName(speaker))) continue;
+    if (!speaker && names.size) {
+      continue;
+    }
+    const clipped = text.length > SAMPLE_TEXT_MAX ? `${text.slice(0, SAMPLE_TEXT_MAX)}…` : text;
+    out.push(`${speaker}: ${clipped}`);
+  }
+  return out;
+}
+function profileSummary(character: OcCharacter): string {
+  const rows = (character.profile || [])
+    .map((p) => {
+      const k = (p.k || '').trim();
+      const v = (p.v || '').trim();
+      if (!k || !v) return '';
+      return `${k}: ${v}`;
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+  const keywords = (character.keywords || [])
+    .map((k) => k.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  const parts: string[] = [];
+  if (rows.length) parts.push(rows.join('\n'));
+  if (keywords.length) parts.push(`키워드: ${keywords.join(', ')}`);
+  return parts.join('\n');
+}
+/** 관리자가 넣은 첫 인사만 사용. 비우면 빈 문자열(무인사). */
+export function defaultChatGreeting(character: Pick<OcCharacter, 'chatbot'>): string {
+  return character.chatbot?.greeting?.trim() || '';
+}
+export const OC_CHAT_DEFAULT_AVATAR = '/oc/chat-default-avatar.svg';
+export function resolveChatAvatarUrl(character: Pick<OcCharacter, 'chatbot'>): string {
+  return character.chatbot?.chatAvatarUrl?.trim() || OC_CHAT_DEFAULT_AVATAR;
+}
+export type OcChatPromptOpts = {
+  affection?: number;
+  moodNote?: string;
+  turnsToday?: number;
+  hoursSinceLast?: number;
+  closedForToday?: boolean;
+  live?: OcChatLiveContext;
+  messages?: Array<{ at?: number; role?: string; kind?: string }>;
+  lastContactBeforeMs?: number;
+  /** 주변 인물·오늘 이벤트 블록 */
+  worldLines?: string[];
+  presence?: OcChatPresence;
+  recentActions?: OcChatRecentAction[];
+};
+function typingStyleLines(style: OcChatTypingStyle | undefined): string[] {
+  const baseline = style?.baseline || 'steady';
+  const triggers = (style?.flusterTrigger || []).map((t) => t.trim()).filter(Boolean);
+  const fluster = style?.flusterStyle || null;
+  const lines = [
+    `타이핑 성향 baseline: ${baseline}`,
+    baseline === 'steady'
+      ? '- 평소: 읽고 생각한 뒤 한 번에. 쓰는 시간은 클라이언트가 글자 수로 계산. pause는 거의 넣지 마라.'
+      : baseline === 'hesitant'
+        ? '- 평소: pause를 섞어 망설이듯. 쓰는 시간은 클라이언트가 글자 수로 정한다.'
+        : '- 평소: pause로 짧게 끊김. 쓰는 시간은 클라이언트가 글자 수로 정한다.',
+  ];
+  if (triggers.length && fluster) {
+    lines.push(
+      `flusterTrigger: ${triggers.join(', ')} → 그중 일부(대략 30~50%)에서만 flusterStyle=${fluster}로 typing/pause/clear를 여러 번.`,
+      '- 트리거라고 매번 쓰다 지우기 금지. 예측 가능하면 몰입이 깨진다.',
+    );
+  } else {
+    lines.push('- fluster 없음. 감정 때문에 쓰다 지우기 연출을 넣지 마라.');
+  }
+  return lines;
+}
+function selfFactsPromptLines(cfg: OcChatbotConfig): string[] {
+  const rows = (cfg.selfFacts || [])
+    .map((r) => ({ k: (r.k || '').trim(), v: (r.v || '').trim() }))
+    .filter((r) => r.k && r.v)
+    .slice(0, 24);
+  if (!rows.length) return [];
+  return [
+    '본인 기본 정보 (유저가 물으면 이 범위에서만 답한다. 없으면 모른다고/짧게 얼버무린다. 지어내지 마라):',
+    ...rows.map((r) => `- ${r.k}: ${r.v}`),
+  ];
+}
+
+function circlePromptLines(cfg: OcChatbotConfig): string[] {
+  const people = (cfg.circle || [])
+    .filter((p) => (p.name || '').trim())
+    .slice(0, 20);
+  if (!people.length) return [];
+  const lines = [
+    '주변 인물 (이 캐릭터 챗봇 설정 — 목록에 없는 사람·사실은 지어내지 말 것):',
+  ];
+  for (const p of people) {
+    const name = p.name.trim();
+    const rel = (p.relation || '').trim();
+    const notes = (p.notes || '').trim();
+    lines.push(`- ${name}${rel ? ` · ${rel}` : ''}${notes ? ` — ${notes}` : ''}`);
+    for (const f of (p.facts || []).slice(0, 12)) {
+      const k = (f.k || '').trim();
+      const v = (f.v || '').trim();
+      if (k && v) lines.push(`  · ${k}: ${v}`);
+    }
+  }
+  return lines;
+}
+
+function characterBlock(character: OcCharacter, affection: number): string[] {
+  const name = (character.name || '캐릭터').trim() || '캐릭터';
+  const sub = (character.nameSub || '').trim();
+  const cfg: OcChatbotConfig = character.chatbot || {};
+  const tone = (cfg.toneRules || '').trim();
+  const sampleBlock =
+    (cfg.sampleDialogue || '').trim() ||
+    extractDialogueSamples(character).join('\n');
+  const profile = profileSummary(character);
+  const intro = (character.desc || '').trim().slice(0, 400);
+  const tier = resolveAffinityTier(affection, cfg);
+  return [
+    `너는 '${name}'${sub ? ` (${sub})` : ''}라는 오리지널 캐릭터다.`,
+    '사용자와 문자를 주고받듯 1:1로 대화한다. AI·시스템·프롬프트·호감도 수치를 언급하지 않는다.',
+    '',
+    '말투 규칙:',
+    '- 문장을 짧게. 한 번에 보통 한 문장, 길어도 두 문장.',
+    '- 캐릭터를 깨는 존댓말/과도한 친절/이모지 남발을 하지 않는다 (캐릭터 설정이 명시하면 예외).',
+    '- 감정을 장황히 설명하지 않는다.',
+    '- 설정에 없는 배경·관계·세계관을 지어내지 않는다. 모르면 짧게 얼버무린다.',
+    '- 관계 진전에 따라 태도를 아주 조금씩만 바꿔라. 갑자기 다정해지지 마라.',
+    '- 텍스트 이모지(ㅋㅋ, ㅠㅠ, 🙂 등)는 캐릭터 말투·금기에 따를 것. 명시가 없으면 과하게 쓰지 말 것.',
+    '',
+    `현재 관계: ${tier.label} (호감 ${affection}/100)`,
+    tier.toneNote ? `관계 톤: ${tier.toneNote}` : '',
+    tone ? `\n추가 말투·금기 (관리자):\n${tone}` : '',
+    profile ? `\n프로필 요약:\n${profile}` : '',
+    intro ? `\n소개 메모:\n${intro}` : '',
+    '',
+    ...selfFactsPromptLines(cfg),
+    '',
+    ...circlePromptLines(cfg),
+    sampleBlock
+      ? `\n아래는 이 캐릭터의 대사 샘플이다. 톤을 따른다:\n---\n${sampleBlock}\n---`
+      : '',
+    '',
+    ...typingStyleLines(cfg.typingStyle),
+    '',
+    ...stickerCatalogPromptLines(cfg),
+  ].filter(Boolean);
+}
+function resolveLive(
+  character: OcCharacter,
+  opts: OcChatPromptOpts,
+  affection: number,
+): OcChatLiveContext {
+  if (opts.live) return opts.live;
+  return buildOcChatLiveContext({
+    messages: opts.messages || [],
+    affection,
+    chatbot: character.chatbot,
+    lastContactBeforeMs: opts.lastContactBeforeMs,
+  });
+}
+function presencePromptLines(
+  presence: OcChatPresence | undefined,
+  recentActions: OcChatRecentAction[] | undefined,
+): string[] {
+  const lines = [
+    `현재 메신저 표시 상태(유저 화면): ${presence || 'unknown'}`,
+    'presence 규칙:',
+    '- presenceState: 이 턴에 유저에게 보일 상태. respond/end_for_today면 보통 online.',
+    '- 오프라인이었다가 대답할 때: presenceState를 online으로 두고, 시스템이 먼저 초록불을 켠 뒤 responseDelaySeconds만큼 기다렸다가 메시지를 보낸다.',
+    '- online인데 답하지 않아도 된다 (action: ignore / read_only). 실제 메신저처럼.',
+    '- offline이면 당장 답이 안 오는 느낌. 나중에 답할 거면 delay long/next_day 또는 긴 responseDelaySeconds.',
+    '- responseDelaySeconds: online 응답 5~60, 오프→온 전환 후 응답은 5~20 권장. delay 필드와 함께 써도 된다.',
+    '- 사용자가 "왜 답장 안 해"라고 물으면 아래 최근 기록을 참고해 캐릭터답게 짧게 핑계/반응.',
+    ...formatRecentActionsForPrompt(recentActions),
+  ];
+  return lines;
+}
+/** 자유 대화 — 행동 JSON 필수 */
+export function buildOcChatSystemPrompt(
+  character: OcCharacter,
+  opts: OcChatPromptOpts = {},
+): string {
+  const affection = typeof opts.affection === 'number' ? opts.affection : 0;
+  const turns = opts.turnsToday ?? 0;
+  const hours =
+    typeof opts.hoursSinceLast === 'number' ? opts.hoursSinceLast.toFixed(1) : '?';
+  const mood = (opts.moodNote || '').trim();
+  const live = resolveLive(character, opts, affection);
+  return [
+    ...characterBlock(character, affection),
+    '',
+    ...liveContextPromptLines(live),
+    `- 오늘 유저가 말을 건 횟수: ${turns}`,
+    `- 마지막 대화 후 대략 ${hours}시간`,
+    mood ? `- 너의 최근 기분 메모: ${mood}` : '- 기분 메모: 없음',
+    opts.closedForToday
+      ? '- 오늘은 이미 대화를 닫은 상태. 거의 항상 ignore.'
+      : '',
+    '',
+    ...presencePromptLines(opts.presence, opts.recentActions),
+    '',
+    ...liveContextBehaviorRules(live),
+    '',
+    ...(opts.worldLines && opts.worldLines.length ? opts.worldLines : []),
+    '',
+    ...OC_CHAT_SAFETY_PROMPT_LINES,
+    '',
+    '행동 규칙:',
+    '- 매번 꼭 대답할 필요 없다. 상황·기분·호감·시간에 따라 무시·읽씹·오늘 종료가 자연스럽다.',
+    '- 호감이 낮을수록 ignore / read_only를 더 자주 써라.',
+    '- 오늘 말이 너무 잦으면 귀찮아하거나 end_for_today를 고려해라.',
+    '- 무례하면 ignore나 read_only, 호감은 내려도 된다.',
+    '- respond일 때 긴 독백 금지. messages를 1~3개로 짧게 끊어 보내라.',
+    '- 유저가 연속으로 여러 메시지를 보냈다면 각각에 1:1로 답하지 마라. 전체를 한 맥락으로 읽고 한 번의 반응(응답/읽씹/무시)을 하라.',
+    '- 장난·군더더기("비밀~" 등)는 무시하고 실질 질문만 받아도 된다. 캐릭터답게 읽씹/무시도 가능.',
+    '- messages를 여러 줄로 나눠도 되지만, 유저 메시지 개수에 맞춘 기계적 1:1 답이 아니라 한 반응을 짧게 나눈 것이다.',
+    '',
+    '반드시 JSON 객체만 출력한다. 설명·마크다운·코드펜스 금지. 사용자에게 보일 대사는 messages 배열 안에만 넣는다.',
+    '예시:',
+    '{"action":"respond","presenceState":"online","responseDelaySeconds":12,"delay":"short","typingIndicatorEvents":[{"type":"typing","durationSeconds":2.5}],"messages":["뭐야.","왜"],"moodNote":"귀찮음","affectionDelta":0,"deltaReason":"잡담","sticker":null}',
+    '{"action":"ignore","presenceState":"online","delay":"immediate","messages":[],"moodNote":"보고도 안 답함","affectionDelta":0,"deltaReason":"귀찮음","sticker":null}',
+    '{"action":"read_only","presenceState":"online","delay":"short","messages":[],"moodNote":"읽만 함","affectionDelta":0,"deltaReason":"읽씹","sticker":null}',
+    '',
+    '필드:',
+    '- action: respond | read_only | ignore | end_for_today',
+    '- presenceState: online | offline',
+    '- responseDelaySeconds: 숫자(초). 상태 전환 후 답장까지 텀',
+    '- delay: immediate | short | long | next_day (responseDelaySeconds 없을 때 폴백)',
+    '- typingIndicatorEvents: pause/clear만 연출용. 쓰는 중 지속 시간은 클라이언트가 메시지 글자 수로 계산한다.',
+    '- messages: 짧은 문자열 배열 (ignore/read_only면 [])',
+    '- sticker: {id, tags} 또는 null',
+    '- moodNote: 내부용 기분 한 줄',
+    '- affectionDelta: 정수. 대부분의 턴은 0. 대화 횟수가 아니라 의미·감정 무게로만 정해라.',
+    '- deltaReason: affectionDelta 근거 한 줄 (내부용, 화면에 안 나감)',
+    '',
+    '호감(affectionDelta) 규칙 — 사람처럼 불규칙하게:',
+    '- 인사·잡담·의미 없는 반복 → 거의 항상 0',
+    '- 솔직한 이야기, 배려, 부담 없는 곁지킴 → +1~+2 (드물게)',
+    '- 캐릭터에게 의미 있는 감정적 순간 → +3~+5 (매우 드물게)',
+    '- 무례·정체 캐묻기·감정 강요 → -1~-3',
+    '- 최근과 비슷한 이유로 또 올리려 하지 마라 (반복이면 0)',
+    '- ignore/read_only면 보통 0 또는 음수',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+/** 선톡 — 호감 높을 때만 호출 */
+export function buildOcChatProactivePrompt(
+  character: OcCharacter,
+  opts: OcChatPromptOpts = {},
+): string {
+  const affection = typeof opts.affection === 'number' ? opts.affection : 0;
+  const hours =
+    typeof opts.hoursSinceLast === 'number' ? opts.hoursSinceLast.toFixed(1) : '?';
+  const mood = (opts.moodNote || '').trim();
+  const live = resolveLive(character, opts, affection);
+  return [
+    ...characterBlock(character, affection),
+    '',
+    ...liveContextPromptLines(live),
+    '지금은 사용자가 말을 걸지 않았다. 네가 먼저 짧은 문자를 보낼지 말지 스스로 정한다.',
+    `- 마지막 대화 후 대략 ${hours}시간`,
+    mood ? `- 최근 기분: ${mood}` : '',
+    '',
+    ...liveContextBehaviorRules(live),
+    '',
+    ...(opts.worldLines && opts.worldLines.length ? opts.worldLines : []),
+    '',
+    ...OC_CHAT_SAFETY_PROMPT_LINES,
+    '',
+    '규칙:',
+    '- 호감이 꽤 높을 때만 가끔 먼저 연락한다. 자주 하면 안 된다.',
+    '- 갑자기 다정하거나 장문 금지. 캐릭터답게 짧고 심드렁하거나 툭 던지듯.',
+    '- 새벽·늦은 밤이면 선톡 확률을 더 낮춰라.',
+    '- 대부분은 reachOut: false.',
+    '',
+    'JSON만 출력:',
+    '{',
+    '  "reachOut": true | false,',
+    '  "messages": ["보낼 말"],',
+    '  "delay": "immediate" | "short" | "long",',
+    '  "moodNote": "내부용"',
+    '}',
+    '- reachOut이 false면 messages는 [].',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}

@@ -1,5 +1,13 @@
 # lakehouse-home — AI 작업 가이드
 
+## OC AI 챗봇
+
+- **무료 권장**: `.env.local`에 `GEMINI_API_KEY` + `OC_CHAT_PROVIDER=gemini` + `GEMINI_MODEL=gemini-3.6-flash`
+- Gemini 쿼터 막히면: [Groq](https://console.groq.com/keys)에서 무료 키 → `GROQ_API_KEY` + `OC_CHAT_PROVIDER=groq`
+- Claude는 **API 별도 결제** 필요 (앱 구독과 무관). 결제 후 `OC_CHAT_PROVIDER=anthropic`
+- 캐릭터 수정 → 프로필 → **챗봇** 탭에서 ON + 말투/샘플
+- 대화 기록: Firebase `lhdata/oc_chat_threads/{characterId}/{visitorId}`
+
 ## 푸시 / 배포
 
 사용자가 **푸시**를 요청하면 `git push`로 끝내지 않는다.

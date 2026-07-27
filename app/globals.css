@@ -34,6 +34,7 @@
 @import '../styles/shared/creepy-fx.css';
 @import '../styles/shared/dust-atmosphere.css';
 @import '../styles/grain-overlay.css';
+@import '../styles/oc-chat.css';
 
 /* next/font는 hashed family명을 쓰므로, 하드코딩 'ChosunNm' 참조용 별칭 */
 @font-face {

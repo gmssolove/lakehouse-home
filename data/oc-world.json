@@ -1,0 +1,56 @@
+{
+  "worldCharacters": [
+    {
+      "id": "omuro",
+      "name": "오무로 히지타카",
+      "identity": "동아리 부장, 괴이에 집착",
+      "routine": "방과 후엔 대부분 동아리방/자료실",
+      "traits": ["자료 뒤지기", "집착"],
+      "relationHint": "주변과 티격태격하기 쉬움",
+      "publicFacts": { "소속": "동아리", "역할": "부장" },
+      "privateFacts": {},
+      "privacyThreshold": "familiar"
+    },
+    {
+      "id": "endo_izumi",
+      "name": "엔도 이즈미",
+      "identity": "능글맞고 위험한 인물",
+      "routine": "돌아다니는 편이라 위치 예측이 어려움",
+      "traits": ["농담", "위험"],
+      "relationHint": "쉽게 친해지지 않음",
+      "publicFacts": { "학년": "2학년" },
+      "privateFacts": { "형제자매": "남동생 있음" },
+      "privacyThreshold": "close"
+    },
+    {
+      "id": "endo_toya",
+      "name": "엔도 토야",
+      "identity": "말수 적고 이질적",
+      "routine": "잘 눈에 안 띔",
+      "traits": ["과묵"],
+      "relationHint": "깊게 안 엮이는 편",
+      "publicFacts": {},
+      "privateFacts": {},
+      "privacyThreshold": "close"
+    },
+    {
+      "id": "myako",
+      "name": "먀코",
+      "identity": "네코마타, 특정 인물을 따름",
+      "routine": "대체로 따르는 사람 근처에 있음",
+      "traits": ["고양이", "따라다님"],
+      "relationHint": "친한 사람 곁을 맴돎",
+      "publicFacts": { "종": "네코마타" },
+      "privateFacts": {},
+      "privacyThreshold": "familiar"
+    }
+  ],
+  "dailyEvents": [
+    { "id": "e1", "involves": ["omuro"], "text": "오무로가 아침부터 창고 자료를 뒤지고 있었다" },
+    { "id": "e2", "involves": ["endo_izumi"], "text": "이즈미가 또 실없는 농담을 걸어왔다" },
+    { "id": "e3", "involves": ["myako"], "text": "먀코가 하루 종일 옆을 맴돌았다" },
+    { "id": "e4", "involves": ["omuro", "myako"], "text": "오무로가 먀코를 쫓아내려다 실패했다" },
+    { "id": "e5", "involves": ["endo_toya"], "text": "토야가 복도 끝에서 잠깐 보였다" },
+    { "id": "e6", "involves": ["endo_izumi", "omuro"], "text": "이즈미와 오무로가 자료실 앞에서 티격태격했다" }
+  ]
+}

@@ -231,11 +231,17 @@ export type PreviewItem = {
 
 export const DEFAULT_STORY_CATEGORIES = ['본편', 'AU', 'IF', '기타'] as const;
 
+export type OcRelationCloseness = 'close' | 'familiar' | 'wary' | 'distant';
+
 export type CharacterRelation = {
   id: string;
   name: string;
   relation: string;
   note?: string;
+  /** 공통 worldCharacters id */
+  worldCharacterId?: string;
+  /** 이 OC 시점의 친밀도 (언급량·팩트 공개에 사용) */
+  closeness?: OcRelationCloseness;
 };
 
 /** #16 기괴 연출 — 공포/괴이 컨셉 캐릭터용. 선택형·기본 꺼짐 */
@@ -483,6 +489,109 @@ export type OcCharacter = WithSecret & {
   handwritingNoteSfx?: string;
   /** 쪽지 닫힘 효과음 (오디오 URL) */
   handwritingNoteCloseSfx?: string;
+  /** AI 문자 챗봇 (공개 OC 상세) */
+  chatbot?: OcChatbotConfig;
+};
+
+/** 채팅 타이핑 성향 — 쓰다 지우기 연출 */
+export type OcChatTypingBaseline = 'steady' | 'hesitant' | 'burst';
+export type OcChatTypingStyle = {
+  /** steady: 읽고 한 번에 / hesitant: 자주 멈춤 / burst: 짧게 끊김 */
+  baseline?: OcChatTypingBaseline;
+  /** 흔들림 트리거 키워드 (칭찬받음 등) */
+  flusterTrigger?: string[];
+  flusterStyle?: OcChatTypingBaseline | null;
+};
+
+export type OcChatStickerFrequency = 'rare' | 'medium' | 'often';
+export type OcChatStickerStyle = {
+  usesStickers?: boolean;
+  frequency?: OcChatStickerFrequency | null;
+  allowedPackIds?: string[];
+};
+
+/** 챗봇용 키·값 팩트 (학년, 외동 여부 등) */
+export type OcChatFactRow = {
+  k: string;
+  v: string;
+};
+
+/** 이 OC 시점의 주변 인물 (챗봇 전용) */
+export type OcChatCirclePerson = {
+  id: string;
+  name: string;
+  /** 예: 동급생, 동아리 선배 */
+  relation?: string;
+  /** 자유 메모 */
+  notes?: string;
+  facts?: OcChatFactRow[];
+};
+
+/** OC AI 챗봇 설정 — 프롬프트는 서버에서 조립 */
+export type OcChatbotConfig = {
+  enabled?: boolean;
+  /** 첫 인사 (비우면 무인사로 시작) — 스토리 없을 때만 */
+  greeting?: string;
+  /** 말투·금기 등 관리자 자유 서술 */
+  toneRules?: string;
+  /** 샘플 대사 블록 (비우면 VN dialogue에서 추출) */
+  sampleDialogue?: string;
+  /** 채팅 헤더·말풍선용 프로필 (비우면 기본 실루엣) */
+  chatAvatarUrl?: string;
+  /** 챗봇용 본인 기본 정보 (학년·가족 등 — 질문에 답할 근거) */
+  selfFacts?: OcChatFactRow[];
+  /** 챗봇용 주변 인물 */
+  circle?: OcChatCirclePerson[];
+  /** 타이핑 연출 성향 */
+  typingStyle?: OcChatTypingStyle;
+  /** 이미지 스티커 */
+  stickerStyle?: OcChatStickerStyle;
+  /** 시작 에피소드 id (미설정이면 episodes[0]) */
+  startEpisodeId?: string;
+  /** 호감 구간 (없으면 기본 3단) */
+  affinityTiers?: OcChatAffinityTier[];
+  /** 스토리 에피소드 (첫 만남 등) */
+  episodes?: OcChatEpisode[];
+};
+
+export type OcChatAffinityTier = {
+  min: number;
+  max: number;
+  label: string;
+  toneNote?: string;
+};
+
+export type OcChatEpisodeChoice = {
+  id: string;
+  text: string;
+  /** 호감 변화 (-10~+10 권장) */
+  affinityDelta?: number;
+  next?: string | null;
+};
+
+export type OcChatEpisodeScene = {
+  id: string;
+  /** char = OC 대사, narration = 지문 */
+  speaker: 'char' | 'narration';
+  text: string;
+  /** 다음 씬 id. 없거나 null이면 에피소드 종료 */
+  next?: string | null;
+  choices?: OcChatEpisodeChoice[];
+  /** 씬 공개 전 대기(ms). 안 읽씹·텀 연출용 */
+  delayMs?: number;
+  /**
+   * keepUnread: 직전 유저 말 안 읽은 채 진행
+   * markRead: 이 씬 전에 유저 말을 읽음으로 바꿈 (기본: 캐릭터 대사면 markRead)
+   */
+  readAction?: 'keepUnread' | 'markRead';
+  /** leave: 지문 후 톡방 닫힘(재오픈 시 이어짐), 미읽음 뱃지 가능 */
+  effect?: 'leave';
+};
+
+export type OcChatEpisode = {
+  id: string;
+  title: string;
+  scenes: OcChatEpisodeScene[];
 };
 
 export type PairChemistry = {

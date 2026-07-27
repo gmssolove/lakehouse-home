@@ -1,0 +1,776 @@
+import { get, onValue, ref, remove, set, type Unsubscribe } from 'firebase/database';
+import {
+  clampAffection,
+  needsStoryMode,
+  todayKeyLocal,
+} from '@/lib/oc/ocChatAffinity';
+import {
+  delayKindToMs,
+  hoursSince,
+  looksLikeBehaviorDump,
+  nextLocalMidnightMs,
+  parseOcChatBehavior,
+  parseOcChatProactive,
+  PROACTIVE_AFFECTION_MIN,
+  PROACTIVE_IDLE_MS,
+  splitBubbleGapMs,
+  type OcChatAction,
+  type OcChatBehavior,
+  type OcChatDelayKind,
+  type OcChatPendingBehavior,
+} from '@/lib/oc/ocChatBehavior';
+import {
+  presenceComeOnlineMs,
+  resolveResponseDelaySeconds,
+} from '@/lib/oc/ocChatPresence';
+import { resolveSticker } from '@/lib/oc/ocChatStickers';
+import { db } from '@/lib/firebase/client';
+import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
+import type { OcCharacter } from '@/lib/types/character';
+import { newId } from '@/lib/types/site-content';
+
+export const OC_CHAT_VISITOR_KEY = 'lh_oc_chat_visitor';
+export const OC_CHAT_API_HISTORY = 40;
+export const OC_CHAT_STORE_MAX = 200;
+
+export type OcChatRole = 'user' | 'assistant';
+
+export type OcChatMessageKind = 'chat' | 'story' | 'narration' | 'choice' | 'sticker';
+
+export type OcChatMessage = {
+  id: string;
+  role: OcChatRole;
+  content: string;
+  at: number;
+  kind?: OcChatMessageKind;
+  /** user 전용: 없으면 안 읽음, 숫자면 읽은 시각 */
+  readAt?: number | null;
+  /** kind=sticker 일 때 이미지 URL */
+  stickerUrl?: string;
+  stickerId?: string;
+};
+
+export type OcChatStoryState = {
+  episodeId: string;
+  sceneId: string;
+  completedEpisodeIds: string[];
+};
+
+export type OcChatThread = {
+  messages: OcChatMessage[];
+  updatedAt: number;
+  affection: number;
+  story?: OcChatStoryState;
+  freeGainDate?: string;
+  freeGainToday?: number;
+  /** 오늘 자유대화 하락량 */
+  freeLossToday?: number;
+  lastSeenAt?: number;
+  moodNote?: string;
+  moodDate?: string;
+  turnsToday?: number;
+  turnsDate?: string;
+  closedForToday?: boolean;
+  closedDate?: string;
+  lastProactiveDate?: string;
+  pendingBehavior?: OcChatPendingBehavior;
+  /** 최근 호감 사유 (반복 감쇠용, 비표시) */
+  recentDeltaReasons?: string[];
+  lastInteractionAt?: number;
+  neglectCheckedAt?: number;
+  /** 메신저 presence */
+  presence?: 'online' | 'offline';
+  presenceUpdatedAt?: number;
+  recentActions?: Array<{
+    at: number;
+    action: string;
+    presence: 'online' | 'offline';
+    note?: string;
+  }>;
+};
+
+function threadPath(characterId: string, visitorId: string) {
+  return `lhdata/oc_chat_threads/${characterId}/${visitorId}`;
+}
+
+function characterThreadsPath(characterId: string) {
+  return `lhdata/oc_chat_threads/${characterId}`;
+}
+
+/** 해당 OC의 채팅 스레드만 삭제 (다른 OC 영향 없음) */
+export async function resetOcChatForCharacter(characterId: string): Promise<void> {
+  const id = String(characterId || '').trim();
+  if (!id) throw new Error('캐릭터 ID가 없습니다');
+  if (/[./\[\]]/.test(id)) throw new Error('잘못된 캐릭터 ID');
+  await remove(ref(db, characterThreadsPath(id)));
+}
+
+export function getOrCreateChatVisitorId(): string {
+  if (typeof window === 'undefined') return 'ssr';
+  try {
+    const hit = localStorage.getItem(OC_CHAT_VISITOR_KEY)?.trim();
+    if (hit) return hit;
+    const id =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `v-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(OC_CHAT_VISITOR_KEY, id);
+    return id;
+  } catch {
+    return `v-${Date.now().toString(36)}`;
+  }
+}
+
+export function trimChatMessages(messages: OcChatMessage[], max = OC_CHAT_STORE_MAX): OcChatMessage[] {
+  if (messages.length <= max) return messages;
+  return messages.slice(messages.length - max);
+}
+
+export function createChatMessage(
+  role: OcChatRole,
+  content: string,
+  kind: OcChatMessageKind = 'chat',
+  opts?: { readAt?: number | null; stickerUrl?: string; stickerId?: string },
+): OcChatMessage {
+  const msg: OcChatMessage = {
+    id: newId(),
+    role,
+    content: content.trim(),
+    at: Date.now(),
+    kind,
+  };
+  if (opts?.stickerUrl) {
+    msg.stickerUrl = opts.stickerUrl;
+    msg.stickerId = opts.stickerId;
+    if (!msg.kind || msg.kind === 'chat') msg.kind = 'sticker';
+  }
+  if (role === 'user') {
+    msg.readAt = opts && 'readAt' in opts ? opts.readAt : null;
+  }
+  return msg;
+}
+
+export function markUserMessagesRead(
+  messages: OcChatMessage[],
+  at = Date.now(),
+): OcChatMessage[] {
+  let changed = false;
+  const next = messages.map((m) => {
+    if (m.role !== 'user' || m.readAt) return m;
+    changed = true;
+    return { ...m, readAt: at };
+  });
+  return changed ? next : messages;
+}
+
+export function countCharUnread(thread: OcChatThread): number {
+  const seen = typeof thread.lastSeenAt === 'number' ? thread.lastSeenAt : 0;
+  let n = 0;
+  for (const m of thread.messages) {
+    if (m.role !== 'assistant') continue;
+    if (m.kind === 'narration') continue;
+    if (m.at > seen) n += 1;
+  }
+  return n;
+}
+
+export function sleepMs(ms: number): Promise<void> {
+  const t = Math.max(0, Math.round(ms));
+  if (t <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    setTimeout(resolve, t);
+  });
+}
+
+/** 같은 분·같은 화자면 말풍선 묶음 */
+export function chatMinuteKey(at: number): string {
+  const d = new Date(at);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}-${d.getMinutes()}`;
+}
+
+export function isChatClusterMate(a: OcChatMessage, b: OcChatMessage): boolean {
+  if (a.role !== b.role) return false;
+  if (a.kind === 'narration' || b.kind === 'narration') return false;
+  return chatMinuteKey(a.at) === chatMinuteKey(b.at);
+}
+
+/** 채팅 말풍선 옆 — "오후 7:01" */
+export function formatChatClock(at: number): string {
+  const d = new Date(at);
+  const h24 = d.getHours();
+  const m = d.getMinutes();
+  const period = h24 < 12 ? '오전' : '오후';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${period} ${h12}:${String(m).padStart(2, '0')}`;
+}
+
+/** 연속 메시지 모아 응답 — 대기 ms */
+export const OC_CHAT_SEND_DEBOUNCE_MS = 2600;
+
+function normalizeStory(raw: unknown): OcChatStoryState | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const episodeId = String(o.episodeId || '').trim();
+  const sceneId = String(o.sceneId || '').trim();
+  if (!episodeId || !sceneId) return undefined;
+  const completed = Array.isArray(o.completedEpisodeIds)
+    ? o.completedEpisodeIds.map((x) => String(x || '').trim()).filter(Boolean)
+    : [];
+  return { episodeId, sceneId, completedEpisodeIds: completed };
+}
+
+function normalizePending(raw: unknown): OcChatPendingBehavior | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Record<string, unknown>;
+  const applyAt = typeof o.applyAt === 'number' ? o.applyAt : 0;
+  const action = String(o.action || '') as OcChatAction;
+  if (!applyAt || !['respond', 'read_only', 'ignore', 'end_for_today'].includes(action)) {
+    return undefined;
+  }
+  const messages = Array.isArray(o.messages)
+    ? o.messages.map((x) => String(x || '').trim()).filter(Boolean)
+    : [];
+  const presenceRaw = String(o.presenceState || '').trim();
+  const presenceState =
+    presenceRaw === 'online' || presenceRaw === 'offline' ? presenceRaw : undefined;
+  return {
+    applyAt,
+    action,
+    messages,
+    moodNote: String(o.moodNote || '').trim() || undefined,
+    affinityDelta: typeof o.affinityDelta === 'number' ? o.affinityDelta : 0,
+    presenceState,
+    responseDelaySeconds:
+      typeof o.responseDelaySeconds === 'number' ? o.responseDelaySeconds : undefined,
+    sticker:
+      o.sticker && typeof o.sticker === 'object'
+        ? {
+            id: String((o.sticker as { id?: string }).id || '').trim() || undefined,
+            tags: Array.isArray((o.sticker as { tags?: unknown }).tags)
+              ? ((o.sticker as { tags: unknown[] }).tags || [])
+                  .map((t) => String(t || '').trim())
+                  .filter(Boolean)
+                  .slice(0, 4)
+              : undefined,
+          }
+        : o.sticker === null
+          ? null
+          : undefined,
+  };
+}
+
+export function normalizeChatThread(raw: unknown): OcChatThread {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const list = Array.isArray(o.messages) ? o.messages : [];
+  const messages: OcChatMessage[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const m = item as Record<string, unknown>;
+    const role = m.role === 'user' || m.role === 'assistant' ? m.role : null;
+    const stickerUrl = String(m.stickerUrl || '').trim() || undefined;
+    const stickerId = String(m.stickerId || '').trim() || undefined;
+    const content = String(m.content || '').trim();
+    if (!role || (!content && !stickerUrl)) continue;
+    const kindRaw = String(m.kind || (stickerUrl ? 'sticker' : 'chat'));
+    const kind: OcChatMessageKind =
+      kindRaw === 'story' ||
+      kindRaw === 'narration' ||
+      kindRaw === 'choice' ||
+      kindRaw === 'sticker' ||
+      kindRaw === 'chat'
+        ? kindRaw
+        : 'chat';
+    const readAt =
+      m.readAt === null
+        ? null
+        : typeof m.readAt === 'number' && Number.isFinite(m.readAt)
+          ? m.readAt
+          : role === 'user'
+            ? null
+            : undefined;
+    messages.push({
+      id: String(m.id || newId()),
+      role,
+      content: content || (stickerUrl ? '스티커' : ''),
+      at: typeof m.at === 'number' ? m.at : Date.now(),
+      kind,
+      ...(stickerUrl ? { stickerUrl, stickerId } : {}),
+      ...(role === 'user' ? { readAt } : {}),
+    });
+  }
+  const today = todayKeyLocal();
+  const freeGainDate = String(o.freeGainDate || '').trim() || undefined;
+  const freeGainToday =
+    typeof o.freeGainToday === 'number' && Number.isFinite(o.freeGainToday)
+      ? Math.max(0, o.freeGainToday)
+      : 0;
+  const freeLossToday =
+    typeof o.freeLossToday === 'number' && Number.isFinite(o.freeLossToday)
+      ? Math.max(0, o.freeLossToday)
+      : 0;
+  const turnsDate = String(o.turnsDate || '').trim() || undefined;
+  const turnsToday =
+    typeof o.turnsToday === 'number' && Number.isFinite(o.turnsToday)
+      ? Math.max(0, o.turnsToday)
+      : 0;
+  const closedDate = String(o.closedDate || '').trim() || undefined;
+  const moodDate = String(o.moodDate || '').trim() || undefined;
+  const lastSeenAt =
+    typeof o.lastSeenAt === 'number' && Number.isFinite(o.lastSeenAt)
+      ? o.lastSeenAt
+      : undefined;
+  const recentDeltaReasons = Array.isArray(o.recentDeltaReasons)
+    ? o.recentDeltaReasons.map((x) => String(x || '').trim()).filter(Boolean).slice(-8)
+    : [];
+  const lastInteractionAt =
+    typeof o.lastInteractionAt === 'number' && Number.isFinite(o.lastInteractionAt)
+      ? o.lastInteractionAt
+      : lastMessageAt(messages);
+  const neglectCheckedAt =
+    typeof o.neglectCheckedAt === 'number' && Number.isFinite(o.neglectCheckedAt)
+      ? o.neglectCheckedAt
+      : undefined;
+  const presenceRaw = String(o.presence || '').trim();
+  const presence =
+    presenceRaw === 'online' || presenceRaw === 'offline' ? presenceRaw : undefined;
+  const presenceUpdatedAt =
+    typeof o.presenceUpdatedAt === 'number' && Number.isFinite(o.presenceUpdatedAt)
+      ? o.presenceUpdatedAt
+      : undefined;
+  const recentActions = Array.isArray(o.recentActions)
+    ? o.recentActions
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null;
+          const a = item as Record<string, unknown>;
+          const at = typeof a.at === 'number' ? a.at : 0;
+          const action = String(a.action || '').trim();
+          const p = String(a.presence || '').trim();
+          if (!at || !action || (p !== 'online' && p !== 'offline')) return null;
+          return {
+            at,
+            action,
+            presence: p as 'online' | 'offline',
+            note: String(a.note || '').trim() || undefined,
+          };
+        })
+        .filter(Boolean)
+        .slice(-8) as OcChatThread['recentActions']
+    : undefined;
+
+  return {
+    messages: trimChatMessages(messages),
+    updatedAt: typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
+    affection: clampAffection(typeof o.affection === 'number' ? o.affection : 0),
+    story: normalizeStory(o.story),
+    freeGainDate,
+    freeGainToday: freeGainDate === today ? freeGainToday : 0,
+    freeLossToday: freeGainDate === today ? freeLossToday : 0,
+    lastSeenAt,
+    moodNote: moodDate === today ? String(o.moodNote || '').trim() || undefined : undefined,
+    moodDate: moodDate === today ? moodDate : undefined,
+    turnsToday: turnsDate === today ? turnsToday : 0,
+    turnsDate: turnsDate === today ? turnsDate : undefined,
+    closedForToday: closedDate === today && o.closedForToday === true,
+    closedDate: closedDate === today ? closedDate : undefined,
+    lastProactiveDate: String(o.lastProactiveDate || '').trim() || undefined,
+    pendingBehavior: normalizePending(o.pendingBehavior),
+    recentDeltaReasons,
+    lastInteractionAt,
+    neglectCheckedAt,
+    presence,
+    presenceUpdatedAt,
+    recentActions,
+  };
+}
+
+export async function loadOcChatThread(
+  characterId: string,
+  visitorId: string,
+): Promise<OcChatThread> {
+  const snap = await get(ref(db, threadPath(characterId, visitorId)));
+  return normalizeChatThread(snap.val());
+}
+
+export function subscribeOcChatThread(
+  characterId: string,
+  visitorId: string,
+  onData: (thread: OcChatThread) => void,
+): Unsubscribe {
+  return onValue(ref(db, threadPath(characterId, visitorId)), (snap) => {
+    onData(normalizeChatThread(snap.val()));
+  });
+}
+
+export async function saveOcChatThread(
+  characterId: string,
+  visitorId: string,
+  thread: OcChatThread,
+): Promise<void> {
+  const next: OcChatThread = {
+    messages: trimChatMessages(thread.messages),
+    updatedAt: Date.now(),
+    affection: clampAffection(thread.affection ?? 0),
+    story: thread.story,
+    freeGainDate: thread.freeGainDate,
+    freeGainToday: thread.freeGainToday,
+    freeLossToday: thread.freeLossToday,
+    lastSeenAt: thread.lastSeenAt,
+    moodNote: thread.moodNote,
+    moodDate: thread.moodDate,
+    turnsToday: thread.turnsToday,
+    turnsDate: thread.turnsDate,
+    closedForToday: thread.closedForToday,
+    closedDate: thread.closedDate,
+    lastProactiveDate: thread.lastProactiveDate,
+    pendingBehavior: thread.pendingBehavior,
+    recentDeltaReasons: thread.recentDeltaReasons,
+    lastInteractionAt: thread.lastInteractionAt,
+    neglectCheckedAt: thread.neglectCheckedAt,
+    presence: thread.presence,
+    presenceUpdatedAt: thread.presenceUpdatedAt,
+    recentActions: thread.recentActions,
+  };
+  await set(ref(db, threadPath(characterId, visitorId)), stripUndefinedDeep(next));
+}
+
+export function lastMessageAt(messages: OcChatMessage[]): number | undefined {
+  if (!messages.length) return undefined;
+  return messages[messages.length - 1]?.at;
+}
+
+export type OcChatApiResult = {
+  behavior: OcChatBehavior;
+  affection: number;
+  affinityDelta: number;
+  freeGainToday: number;
+  freeLossToday: number;
+  freeGainDate: string;
+  deltaReason?: string;
+};
+
+export type OcChatProactiveResult = {
+  reachOut: boolean;
+  messages: string[];
+  moodNote?: string;
+  delay: OcChatDelayKind;
+};
+
+export async function postOcChat(params: {
+  characterId: string;
+  visitorId: string;
+  messages: OcChatMessage[];
+  affection: number;
+  freeGainToday: number;
+  freeLossToday?: number;
+  moodNote?: string;
+  turnsToday?: number;
+  hoursSinceLast?: number;
+  closedForToday?: boolean;
+  recentDeltaReasons?: string[];
+  presence?: 'online' | 'offline';
+  recentActions?: OcChatThread['recentActions'];
+}): Promise<OcChatApiResult> {
+  const recent = params.messages
+    .filter((m) => m.kind === 'chat' || m.kind === 'choice' || m.kind === 'sticker' || !m.kind)
+    .slice(-OC_CHAT_API_HISTORY)
+    .map((m) => ({
+      role: m.role,
+      content: m.content,
+      at: m.at,
+      kind: m.kind,
+    }));
+  const res = await fetch('/api/oc-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mode: 'chat',
+      characterId: params.characterId,
+      visitorId: params.visitorId,
+      messages: recent,
+      affection: params.affection,
+      freeGainToday: params.freeGainToday,
+      freeLossToday: params.freeLossToday,
+      moodNote: params.moodNote,
+      turnsToday: params.turnsToday,
+      hoursSinceLast: params.hoursSinceLast,
+      closedForToday: params.closedForToday,
+      recentDeltaReasons: params.recentDeltaReasons,
+      presence: params.presence,
+      recentActions: params.recentActions,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    behavior?: OcChatBehavior;
+    reply?: string;
+    affinityDelta?: number;
+    affection?: number;
+    freeGainToday?: number;
+    freeLossToday?: number;
+    freeGainDate?: string;
+    deltaReason?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new Error(data.error || `요청 실패 (${res.status})`);
+  }
+  const behavior =
+    data.behavior ||
+    parseOcChatBehavior('', data.reply || '');
+  if (
+    behavior.action === 'respond' ||
+    behavior.action === 'end_for_today'
+  ) {
+    if (!behavior.messages.length && data.reply) {
+      behavior.messages = [String(data.reply).trim()].filter(Boolean);
+    }
+  }
+  return {
+    behavior,
+    affinityDelta: typeof data.affinityDelta === 'number' ? data.affinityDelta : behavior.affinityDelta,
+    affection: clampAffection(
+      typeof data.affection === 'number' ? data.affection : params.affection,
+    ),
+    freeGainToday:
+      typeof data.freeGainToday === 'number' ? data.freeGainToday : params.freeGainToday,
+    freeLossToday:
+      typeof data.freeLossToday === 'number'
+        ? data.freeLossToday
+        : params.freeLossToday || 0,
+    freeGainDate: String(data.freeGainDate || todayKeyLocal()),
+    deltaReason: data.deltaReason || behavior.deltaReason,
+  };
+}
+
+export async function postOcChatProactive(params: {
+  characterId: string;
+  visitorId: string;
+  messages: OcChatMessage[];
+  affection: number;
+  moodNote?: string;
+  hoursSinceLast?: number;
+}): Promise<OcChatProactiveResult> {
+  const recent = params.messages
+    .filter((m) => m.kind === 'chat' || m.kind === 'choice' || !m.kind)
+    .slice(-OC_CHAT_API_HISTORY)
+    .map((m) => ({
+      role: m.role,
+      content: m.content,
+      at: m.at,
+      kind: m.kind,
+    }));
+  const res = await fetch('/api/oc-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mode: 'proactive',
+      characterId: params.characterId,
+      visitorId: params.visitorId,
+      messages: recent,
+      affection: params.affection,
+      moodNote: params.moodNote,
+      hoursSinceLast: params.hoursSinceLast,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as OcChatProactiveResult & {
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new Error(data.error || `요청 실패 (${res.status})`);
+  }
+  if (data.reachOut != null) {
+    return {
+      reachOut: Boolean(data.reachOut) && (data.messages || []).length > 0,
+      messages: Array.isArray(data.messages) ? data.messages.map(String).filter(Boolean) : [],
+      moodNote: data.moodNote,
+      delay: data.delay || 'short',
+    };
+  }
+  return parseOcChatProactive(JSON.stringify(data));
+}
+
+/** 답장 예약 시각 — presence 전환 + responseDelay */
+export function computePendingApplyAt(
+  behavior: OcChatBehavior,
+  wasOffline: boolean,
+  now = Date.now(),
+): number {
+  if (behavior.delay === 'next_day') return nextLocalMidnightMs(now);
+  const willOnline =
+    behavior.presenceState !== 'offline' &&
+    (behavior.action === 'respond' ||
+      behavior.action === 'end_for_today' ||
+      behavior.action === 'read_only' ||
+      (behavior.action === 'ignore' && behavior.presenceState === 'online'));
+  let ms = 0;
+  if (wasOffline && willOnline) ms += presenceComeOnlineMs();
+  ms +=
+    resolveResponseDelaySeconds({
+      aiSeconds: behavior.responseDelaySeconds,
+      delayKind: behavior.delay,
+      wasOffline,
+    }) * 1000;
+  return now + Math.max(400, ms);
+}
+
+export function behaviorToPending(
+  behavior: OcChatBehavior,
+  applyAt: number,
+): OcChatPendingBehavior {
+  return {
+    applyAt,
+    action: behavior.action,
+    messages: behavior.messages.filter((m) => m.trim() && !looksLikeBehaviorDump(m)),
+    moodNote: behavior.moodNote,
+    affinityDelta: behavior.affinityDelta,
+    presenceState: behavior.presenceState,
+    responseDelaySeconds: behavior.responseDelaySeconds,
+    typingIndicatorEvents: behavior.typingIndicatorEvents,
+    sticker: behavior.sticker,
+  };
+}
+
+/**
+ * 기한이 된 pendingBehavior를 스레드에 배달 (lastSeenAt 유지 → 미읽음 배지).
+ * 창이 닫혀 있어도 동작. @returns 추가된 말풍선 수
+ */
+export async function tryDeliverPendingChat(params: {
+  characterId: string;
+  visitorId: string;
+  character?: Pick<OcCharacter, 'chatbot'>;
+}): Promise<number> {
+  const thread = await loadOcChatThread(params.characterId, params.visitorId);
+  const pending = thread.pendingBehavior;
+  if (!pending || pending.applyAt > Date.now()) return 0;
+
+  const today = todayKeyLocal();
+  const action = pending.action;
+
+  if (action === 'ignore') {
+    await saveOcChatThread(params.characterId, params.visitorId, {
+      ...thread,
+      pendingBehavior: undefined,
+      moodNote: pending.moodNote || thread.moodNote,
+      moodDate: pending.moodNote ? today : thread.moodDate,
+      presence: pending.presenceState || thread.presence,
+      presenceUpdatedAt: Date.now(),
+      updatedAt: Date.now(),
+      lastSeenAt: thread.lastSeenAt,
+    });
+    return 0;
+  }
+
+  let msgs = thread.messages;
+  if (action === 'read_only' || action === 'respond' || action === 'end_for_today') {
+    msgs = markUserMessagesRead(msgs);
+  }
+
+  if (action === 'read_only') {
+    await saveOcChatThread(params.characterId, params.visitorId, {
+      ...thread,
+      messages: msgs,
+      pendingBehavior: undefined,
+      moodNote: pending.moodNote || thread.moodNote,
+      moodDate: pending.moodNote ? today : thread.moodDate,
+      presence: 'online',
+      presenceUpdatedAt: Date.now(),
+      updatedAt: Date.now(),
+      lastSeenAt: thread.lastSeenAt,
+    });
+    return 0;
+  }
+
+  const lines = (pending.messages || []).filter(
+    (line) => line.trim() && !looksLikeBehaviorDump(line),
+  );
+  const sticker = resolveSticker(params.character?.chatbot, pending.sticker || null);
+  let added = 0;
+
+  for (const line of lines) {
+    msgs = [...msgs, createChatMessage('assistant', line, 'chat')];
+    added += 1;
+  }
+  if (sticker) {
+    msgs = [
+      ...msgs,
+      createChatMessage('assistant', '스티커', 'sticker', {
+        stickerUrl: sticker.imageUrl,
+        stickerId: sticker.id,
+      }),
+    ];
+    added += 1;
+  }
+
+  await saveOcChatThread(params.characterId, params.visitorId, {
+    ...thread,
+    messages: trimChatMessages(msgs),
+    pendingBehavior: undefined,
+    moodNote: pending.moodNote || thread.moodNote,
+    moodDate: pending.moodNote ? today : thread.moodDate,
+    presence: 'online',
+    presenceUpdatedAt: Date.now(),
+    closedForToday: action === 'end_for_today' ? true : thread.closedForToday,
+    closedDate: action === 'end_for_today' ? today : thread.closedDate,
+    updatedAt: Date.now(),
+    lastSeenAt: thread.lastSeenAt,
+    lastInteractionAt: Date.now(),
+  });
+  return added;
+}
+
+/**
+ * 호감 임계 + 유휴 시 선톡 시도. 성공하면 스레드에 메시지 append (미읽음).
+ * @returns 추가된 메시지 수
+ */
+export async function tryDeliverProactiveChat(params: {
+  characterId: string;
+  visitorId: string;
+  character: Pick<OcCharacter, 'chatbot'>;
+}): Promise<number> {
+  const thread = await loadOcChatThread(params.characterId, params.visitorId);
+  if (needsStoryMode(params.character, thread.story?.completedEpisodeIds)) return 0;
+  if (thread.affection < PROACTIVE_AFFECTION_MIN) return 0;
+  if (thread.closedForToday) return 0;
+  if (thread.lastProactiveDate === todayKeyLocal()) return 0;
+  if (thread.pendingBehavior) return 0;
+
+  const lastAt = lastMessageAt(thread.messages);
+  if (!lastAt || Date.now() - lastAt < PROACTIVE_IDLE_MS) return 0;
+  if (!thread.messages.some((m) => m.role === 'user')) return 0;
+
+  const decision = await postOcChatProactive({
+    characterId: params.characterId,
+    visitorId: params.visitorId,
+    messages: thread.messages,
+    affection: thread.affection,
+    moodNote: thread.moodNote,
+    hoursSinceLast: hoursSince(lastAt),
+  });
+
+  const today = todayKeyLocal();
+  if (!decision.reachOut || !decision.messages.length) {
+    await saveOcChatThread(params.characterId, params.visitorId, {
+      ...thread,
+      lastProactiveDate: today,
+      updatedAt: Date.now(),
+    });
+    return 0;
+  }
+
+  await sleepMs(delayKindToMs(decision.delay));
+  let msgs = thread.messages;
+  for (let i = 0; i < decision.messages.length; i++) {
+    if (i > 0) await sleepMs(splitBubbleGapMs());
+    msgs = [...msgs, createChatMessage('assistant', decision.messages[i]!, 'chat')];
+  }
+  await saveOcChatThread(params.characterId, params.visitorId, {
+    ...thread,
+    messages: msgs,
+    moodNote: decision.moodNote || thread.moodNote,
+    moodDate: today,
+    lastProactiveDate: today,
+    updatedAt: Date.now(),
+    lastSeenAt: thread.lastSeenAt,
+  });
+  return decision.messages.length;
+}
+

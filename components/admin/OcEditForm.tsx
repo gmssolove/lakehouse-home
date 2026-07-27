@@ -13,6 +13,7 @@ import { OcEditSortRows } from '@/components/admin/OcEditSortRows';
 import { usePortalListReorder } from '@/components/ui/form/usePortalListReorder';
 import { ImageUploadCrop } from '@/components/ui/form/ImageUploadCrop';
 import { LinkPickList } from '@/components/ui/LinkPickList';
+import { OcChatbotEditor } from '@/components/admin/OcChatbotEditor';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import {
@@ -62,6 +63,7 @@ import type {
   DialogueNode,
   GalleryItem,
   OcCharacter,
+  OcRelationCloseness,
   OcStatBar,
   OcStatPanel,
   OcStatRadarAxis,
@@ -70,11 +72,24 @@ import type {
   CharacterRelation,
   TasteItem,
 } from '@/lib/types/character';
+import ocWorldSeed from '@/data/oc-world.json';
 import { newId } from '@/lib/types/site-content';
 import type { TrpgScenario } from '@/lib/types/site-content';
 
+const WORLD_CHAR_OPTIONS = (ocWorldSeed.worldCharacters || []).map((c) => ({
+  id: String(c.id),
+  name: String(c.name),
+}));
+
+const CLOSENESS_OPTIONS: { value: OcRelationCloseness; label: string }[] = [
+  { value: 'close', label: '챙김/친함' },
+  { value: 'familiar', label: '알 정도' },
+  { value: 'wary', label: '경계' },
+  { value: 'distant', label: '무관심' },
+];
+
 function emptyRelation(): CharacterRelation {
-  return { id: newId(), name: '', relation: '' };
+  return { id: newId(), name: '', relation: '', closeness: 'familiar' };
 }
 
 function linkedScenarioIds(scenarios: TrpgScenario[], ocId: string | number): Set<string> {
@@ -131,6 +146,7 @@ const OC_PROFILE_FIXED: { id: string; label: string }[] = [
   { id: 'keywords', label: '키워드' },
   { id: 'flat', label: '캐해' },
   { id: 'notes', label: '쪽지' },
+  { id: 'chat', label: '챗봇' },
 ];
 
 const PROFILE_ADD_ID = '__add__';
@@ -1897,6 +1913,18 @@ export function OcEditForm({
       </>
       ) : null}
 
+      {profileSub === 'chat' ? (
+      <>
+        <SectionTitle>AI 챗봇 · 스토리 · 호감</SectionTitle>
+        <OcChatbotEditor
+          value={form.chatbot}
+          onChange={(chatbot) => set('chatbot', chatbot)}
+          characterId={String(character.id)}
+          characterName={form.name || character.name}
+        />
+      </>
+      ) : null}
+
       {activeCustom && activeCustomIndex >= 0 ? (
       <>
       <SectionTitle>커스텀 탭</SectionTitle>
@@ -2193,14 +2221,76 @@ export function OcEditForm({
       {tab === 'relations' ? (
       <>
       <SectionTitle>관계</SectionTitle>
+      <p style={{ fontSize: 10, opacity: 0.55, margin: '0 0 8px' }}>
+        챗봇이 주변 인물을 말할 때 씁니다. 공통 인물 id + 이 OC 시점 친밀도를 넣으면 일상
+        언급·팩트 공개가 달라집니다.
+      </p>
       {(form.relationships || []).map((rel, i) => (
-        <div key={rel.id || i} className="oc-edit-list-row" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
-          <input className="form-input" placeholder="이름" value={rel.name} onChange={(e) => updateRelation(i, { name: e.target.value })} />
-          <input className="form-input" placeholder="관계" value={rel.relation} onChange={(e) => updateRelation(i, { relation: e.target.value })} />
-          <input className="form-input" placeholder="메모" value={rel.note || ''} onChange={(e) => updateRelation(i, { note: e.target.value })} />
-          <button type="button" className="btn-del" style={{ padding: '4px 8px' }} onClick={() => removeRelation(i)}>
-            ✕
-          </button>
+        <div key={rel.id || i} style={{ marginBottom: 10 }}>
+          <div className="oc-edit-list-row" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
+            <input
+              className="form-input"
+              placeholder="이름"
+              value={rel.name}
+              onChange={(e) => updateRelation(i, { name: e.target.value })}
+            />
+            <input
+              className="form-input"
+              placeholder="관계"
+              value={rel.relation}
+              onChange={(e) => updateRelation(i, { relation: e.target.value })}
+            />
+            <input
+              className="form-input"
+              placeholder="메모(이 OC 시점)"
+              value={rel.note || ''}
+              onChange={(e) => updateRelation(i, { note: e.target.value })}
+            />
+            <button
+              type="button"
+              className="btn-del"
+              style={{ padding: '4px 8px' }}
+              onClick={() => removeRelation(i)}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+            <select
+              className="form-input"
+              value={rel.worldCharacterId || ''}
+              onChange={(e) => {
+                const wid = e.target.value || undefined;
+                const hit = WORLD_CHAR_OPTIONS.find((c) => c.id === wid);
+                updateRelation(i, {
+                  worldCharacterId: wid,
+                  name: hit?.name || rel.name,
+                });
+              }}
+            >
+              <option value="">공통 인물 (선택)</option>
+              {WORLD_CHAR_OPTIONS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="form-input"
+              value={rel.closeness || 'familiar'}
+              onChange={(e) =>
+                updateRelation(i, {
+                  closeness: e.target.value as OcRelationCloseness,
+                })
+              }
+            >
+              {CLOSENESS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       ))}
       <button type="button" className="btn-save" style={{ padding: '5px 12px', marginBottom: 8 }} onClick={addRelation}>

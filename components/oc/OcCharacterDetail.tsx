@@ -37,7 +37,20 @@ import { StoryReader } from '@/components/shared/StoryReader';
 import { PreviewCarousel } from '@/components/shared/PreviewCarousel';
 import { OcStatHoverPanel } from '@/components/oc/OcStatHoverPanel';
 import { HandwritingNoteFlap } from '@/components/pair/HandwritingNoteFlap';
-import { preloadHandNoteImages, unlockHandNoteSfx, warmHandNoteSfx } from '@/lib/oc/handNotePreload';
+import { OcChatPanel } from '@/components/oc/OcChatPanel';
+import { OcChatPhonePeek } from '@/components/oc/OcChatPhonePeek';
+import {
+  countCharUnread,
+  getOrCreateChatVisitorId,
+  subscribeOcChatThread,
+  tryDeliverPendingChat,
+  tryDeliverProactiveChat,
+} from '@/lib/oc/ocChat';
+import {
+  preloadHandNoteImages,
+  unlockHandNoteSfx,
+  warmHandNoteSfx,
+} from '@/lib/oc/handNotePreload';
 import { hydrateOcStories } from '@/lib/oc/storyEntries';
 import { layoutTasteRows, resolveTasteItems } from '@/lib/oc/tasteItems';
 import { normalizeTouchHoverStyle, normalizeTouchZones } from '@/lib/pair/touchZones';
@@ -929,6 +942,71 @@ export function OcCharacterDetail({
     sfxUrl?: string;
     closeSfxUrl?: string;
   } | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const chatEnabled = Boolean(character.chatbot?.enabled);
+
+  useEffect(() => {
+    setChatOpen(false);
+    setChatUnread(0);
+  }, [character.id]);
+
+  useEffect(() => {
+    if (!chatEnabled || chatOpen) {
+      if (chatOpen) setChatUnread(0);
+      return;
+    }
+    const vid = getOrCreateChatVisitorId();
+    return subscribeOcChatThread(String(character.id), vid, (thread) => {
+      setChatUnread(countCharUnread(thread));
+    });
+  }, [character.id, chatEnabled, chatOpen]);
+
+  /* 예약된 답장 배달 — 창이 닫혀 있어도 주기적으로 확인 (미읽음 배지) */
+  useEffect(() => {
+    if (!chatEnabled) return;
+    const vid = getOrCreateChatVisitorId();
+    const charId = String(character.id);
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled || chatOpen) return;
+      void tryDeliverPendingChat({
+        characterId: charId,
+        visitorId: vid,
+        character,
+      }).catch(() => {});
+    };
+    tick();
+    const id = window.setInterval(tick, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [character, chatEnabled, chatOpen]);
+
+  /* 호감 높고 오래 조용하면 선톡 (하루 1회 시도) */
+  useEffect(() => {
+    if (!chatEnabled || chatOpen) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          await tryDeliverProactiveChat({
+            characterId: String(character.id),
+            visitorId: getOrCreateChatVisitorId(),
+            character,
+          });
+        } catch {
+          /* 선톡 실패는 조용히 무시 */
+        }
+        if (cancelled) return;
+      })();
+    }, 2800);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [character, chatEnabled, chatOpen]);
 
   useEffect(() => {
     if (!readerOpen || !readerEntry) return;
@@ -2231,6 +2309,21 @@ export function OcCharacterDetail({
           onClose={() => setHandNoteLb(null)}
         />
       ) : null}
+
+      {chatEnabled ? (
+        <OcChatPhonePeek
+          characterName={character.name || '캐릭터'}
+          unread={chatUnread}
+          hidden={chatOpen || vn.present}
+          onOpen={() => setChatOpen(true)}
+        />
+      ) : null}
+
+      <OcChatPanel
+        open={chatOpen && chatEnabled}
+        character={character}
+        onClose={() => setChatOpen(false)}
+      />
 
       {isAdmin && onSave ? (
         <LakeEditModal
