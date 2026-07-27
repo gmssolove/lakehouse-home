@@ -59,6 +59,8 @@ type Body = {
   recentDeltaReasons?: string[];
   presence?: string;
   recentActions?: Array<{ at?: number; action?: string; presence?: string; note?: string }>;
+  proactiveKind?: string;
+  openThreads?: Array<{ id?: string; summary?: string }>;
 };
 
 type RateBucket = { count: number; resetAt: number };
@@ -300,6 +302,17 @@ export async function POST(req: Request) {
       });
       const world = await loadOcWorldData();
       const worldLines = buildWorldContextPromptLines({ character, world });
+      const proactiveKind =
+        String(body.proactiveKind || '').trim() === 'task' ? 'task' : 'emotion';
+      const openThreads = Array.isArray(body.openThreads)
+        ? body.openThreads
+            .map((t) => ({
+              id: String(t?.id || '').trim() || undefined,
+              summary: String(t?.summary || '').trim(),
+            }))
+            .filter((t) => t.summary)
+            .slice(0, 8)
+        : undefined;
       const system = buildOcChatProactivePromptParts(character, {
         affection: affectionIn,
         moodNote,
@@ -307,6 +320,8 @@ export async function POST(req: Request) {
         live,
         messages,
         worldLines,
+        proactiveKind,
+        openThreads,
       });
       const raw = await callChatModel(
         system,

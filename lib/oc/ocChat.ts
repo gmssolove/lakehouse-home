@@ -96,6 +96,8 @@ export type OcChatThread = {
     presence: 'online' | 'offline';
     note?: string;
   }>;
+  /** 미해결 용건(선톡 A 카테고리). 없으면 감정형 선톡. */
+  openThreads?: Array<{ id?: string; summary: string }>;
 };
 
 function threadPath(characterId: string, visitorId: string) {
@@ -412,6 +414,19 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
         .filter(Boolean)
         .slice(-10) as OcChatThread['recentActions']
     : undefined;
+  const openThreads = Array.isArray(o.openThreads)
+    ? o.openThreads
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null;
+          const t = item as Record<string, unknown>;
+          const summary = String(t.summary || '').trim();
+          if (!summary) return null;
+          const id = String(t.id || '').trim() || undefined;
+          return { id, summary };
+        })
+        .filter(Boolean)
+        .slice(0, 8) as OcChatThread['openThreads']
+    : undefined;
 
   return {
     messages: trimChatMessages(messages),
@@ -437,6 +452,7 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     presence,
     presenceUpdatedAt,
     recentActions,
+    openThreads,
   };
 }
 
@@ -487,8 +503,128 @@ export async function saveOcChatThread(
     presence: thread.presence,
     presenceUpdatedAt: thread.presenceUpdatedAt,
     recentActions: thread.recentActions,
+    openThreads: thread.openThreads,
   };
   await set(ref(db, threadPath(characterId, visitorId)), stripUndefinedDeep(next));
+}
+
+/** 기한이 된 pending만 스레드에 반영 (I/O 없음). 크론·클라이언트 공용. */
+export function applyDuePendingBehavior(
+  thread: OcChatThread,
+  opts?: { character?: Pick<OcCharacter, 'chatbot'>; now?: number },
+): { thread: OcChatThread; added: number } | null {
+  const now = opts?.now ?? Date.now();
+  const pending = thread.pendingBehavior;
+  if (!pending || pending.applyAt > now) return null;
+
+  const today = todayKeyLocal();
+  const action = pending.action;
+
+  if (action === 'ignore') {
+    return {
+      added: 0,
+      thread: {
+        ...thread,
+        pendingBehavior: undefined,
+        moodNote: pending.moodNote || thread.moodNote,
+        moodDate: pending.moodNote ? today : thread.moodDate,
+        presence: pending.presenceState || thread.presence,
+        presenceUpdatedAt: now,
+        recentActions: appendRecentAction(thread.recentActions, {
+          at: now,
+          action: 'ignore',
+          presence:
+            pending.presenceState === 'online' || pending.presenceState === 'offline'
+              ? pending.presenceState
+              : thread.presence === 'online'
+                ? 'online'
+                : 'offline',
+          note: pending.moodNote,
+        }),
+        updatedAt: now,
+        lastSeenAt: thread.lastSeenAt,
+      },
+    };
+  }
+
+  let msgs = thread.messages;
+  if (action === 'read_only' || action === 'respond' || action === 'end_for_today') {
+    msgs = markUserMessagesRead(msgs, now);
+  }
+
+  if (action === 'read_only') {
+    return {
+      added: 0,
+      thread: {
+        ...thread,
+        messages: msgs,
+        pendingBehavior: undefined,
+        moodNote: pending.moodNote || thread.moodNote,
+        moodDate: pending.moodNote ? today : thread.moodDate,
+        presence: 'online',
+        presenceUpdatedAt: now,
+        recentActions: appendRecentAction(thread.recentActions, {
+          at: now,
+          action: 'read_only',
+          presence: 'online',
+          note: pending.moodNote,
+        }),
+        updatedAt: now,
+        lastSeenAt: thread.lastSeenAt,
+      },
+    };
+  }
+
+  const lines = (pending.messages || []).filter(
+    (line) => line.trim() && !looksLikeBehaviorDump(line),
+  );
+  const sticker = resolveSticker(opts?.character?.chatbot, pending.sticker || null);
+  let added = 0;
+
+  for (const line of lines) {
+    msgs = [...msgs, createChatMessage('assistant', line, 'chat')];
+    added += 1;
+  }
+  if (sticker) {
+    msgs = [
+      ...msgs,
+      createChatMessage('assistant', '스티커', 'sticker', {
+        stickerUrl: sticker.imageUrl,
+        stickerId: sticker.id,
+      }),
+    ];
+    added += 1;
+  }
+
+  return {
+    added,
+    thread: {
+      ...thread,
+      messages: trimChatMessages(msgs),
+      pendingBehavior: undefined,
+      moodNote: pending.moodNote || thread.moodNote,
+      moodDate: pending.moodNote ? today : thread.moodDate,
+      presence: 'online',
+      presenceUpdatedAt: now,
+      closedForToday: action === 'end_for_today' ? true : isChatClosedNow(thread.closedUntil),
+      closedDate: undefined,
+      closedUntil:
+        action === 'end_for_today'
+          ? nextClosedUntil()
+          : isChatClosedNow(thread.closedUntil)
+            ? thread.closedUntil
+            : undefined,
+      recentActions: appendRecentAction(thread.recentActions, {
+        at: now,
+        action,
+        presence: 'online',
+        note: pending.moodNote,
+      }),
+      updatedAt: now,
+      lastSeenAt: thread.lastSeenAt,
+      lastInteractionAt: now,
+    },
+  };
 }
 
 export function lastMessageAt(messages: OcChatMessage[]): number | undefined {
@@ -799,111 +935,10 @@ export async function tryDeliverPendingChat(params: {
   character?: Pick<OcCharacter, 'chatbot'>;
 }): Promise<number> {
   const thread = await loadOcChatThread(params.characterId, params.visitorId);
-  const pending = thread.pendingBehavior;
-  if (!pending || pending.applyAt > Date.now()) return 0;
-
-  const today = todayKeyLocal();
-  const action = pending.action;
-
-  if (action === 'ignore') {
-    await saveOcChatThread(params.characterId, params.visitorId, {
-      ...thread,
-      pendingBehavior: undefined,
-      moodNote: pending.moodNote || thread.moodNote,
-      moodDate: pending.moodNote ? today : thread.moodDate,
-      presence: pending.presenceState || thread.presence,
-      presenceUpdatedAt: Date.now(),
-      recentActions: appendRecentAction(thread.recentActions, {
-        at: Date.now(),
-        action: 'ignore',
-        presence:
-          pending.presenceState === 'online' || pending.presenceState === 'offline'
-            ? pending.presenceState
-            : thread.presence === 'online'
-              ? 'online'
-              : 'offline',
-        note: pending.moodNote,
-      }),
-      updatedAt: Date.now(),
-      lastSeenAt: thread.lastSeenAt,
-    });
-    return 0;
-  }
-
-  let msgs = thread.messages;
-  if (action === 'read_only' || action === 'respond' || action === 'end_for_today') {
-    msgs = markUserMessagesRead(msgs);
-  }
-
-  if (action === 'read_only') {
-    await saveOcChatThread(params.characterId, params.visitorId, {
-      ...thread,
-      messages: msgs,
-      pendingBehavior: undefined,
-      moodNote: pending.moodNote || thread.moodNote,
-      moodDate: pending.moodNote ? today : thread.moodDate,
-      presence: 'online',
-      presenceUpdatedAt: Date.now(),
-      recentActions: appendRecentAction(thread.recentActions, {
-        at: Date.now(),
-        action: 'read_only',
-        presence: 'online',
-        note: pending.moodNote,
-      }),
-      updatedAt: Date.now(),
-      lastSeenAt: thread.lastSeenAt,
-    });
-    return 0;
-  }
-
-  const lines = (pending.messages || []).filter(
-    (line) => line.trim() && !looksLikeBehaviorDump(line),
-  );
-  const sticker = resolveSticker(params.character?.chatbot, pending.sticker || null);
-  let added = 0;
-
-  for (const line of lines) {
-    msgs = [...msgs, createChatMessage('assistant', line, 'chat')];
-    added += 1;
-  }
-  if (sticker) {
-    msgs = [
-      ...msgs,
-      createChatMessage('assistant', '스티커', 'sticker', {
-        stickerUrl: sticker.imageUrl,
-        stickerId: sticker.id,
-      }),
-    ];
-    added += 1;
-  }
-
-  await saveOcChatThread(params.characterId, params.visitorId, {
-    ...thread,
-    messages: trimChatMessages(msgs),
-    pendingBehavior: undefined,
-    moodNote: pending.moodNote || thread.moodNote,
-    moodDate: pending.moodNote ? today : thread.moodDate,
-    presence: 'online',
-    presenceUpdatedAt: Date.now(),
-    closedForToday: action === 'end_for_today' ? true : isChatClosedNow(thread.closedUntil),
-    closedDate: undefined,
-    closedUntil:
-      action === 'end_for_today'
-        ? nextClosedUntil()
-        : isChatClosedNow(thread.closedUntil)
-          ? thread.closedUntil
-          : undefined,
-    recentActions: appendRecentAction(thread.recentActions, {
-      at: Date.now(),
-      action,
-      presence: 'online',
-      note: pending.moodNote,
-    }),
-    updatedAt: Date.now(),
-    lastSeenAt: thread.lastSeenAt,
-    lastInteractionAt: Date.now(),
-  });
-  return added;
+  const result = applyDuePendingBehavior(thread, { character: params.character });
+  if (!result) return 0;
+  await saveOcChatThread(params.characterId, params.visitorId, result.thread);
+  return result.added;
 }
 
 /**

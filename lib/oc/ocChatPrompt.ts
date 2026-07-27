@@ -91,6 +91,9 @@ export type OcChatPromptOpts = {
   worldLines?: string[];
   presence?: OcChatPresence;
   recentActions?: OcChatRecentAction[];
+  /** 선톡 전용: task=용건형 / emotion=감정형 */
+  proactiveKind?: 'task' | 'emotion';
+  openThreads?: Array<{ id?: string; summary: string }>;
 };
 function typingStyleLines(style: OcChatTypingStyle | undefined): string[] {
   const baseline = style?.baseline || 'steady';
@@ -369,6 +372,11 @@ export function buildOcChatProactivePromptParts(
     typeof opts.hoursSinceLast === 'number' ? opts.hoursSinceLast.toFixed(1) : '?';
   const mood = (opts.moodNote || '').trim();
   const live = resolveLive(character, opts, affection);
+  const kind = opts.proactiveKind === 'task' ? 'task' : 'emotion';
+  const openLines = (opts.openThreads || [])
+    .map((t) => String(t.summary || '').trim())
+    .filter(Boolean)
+    .slice(0, 6);
   const staticText = [
     ...characterBlockStatic(character),
     '',
@@ -378,6 +386,12 @@ export function buildOcChatProactivePromptParts(
     '- 이번 호출은 이미 선톡하기로 정해진 턴이다. 가능하면 reachOut: true로 짧은 말을 작성하라.',
     '- 갑자기 다정하거나 장문 금지. 캐릭터답게 짧고 심드렁하거나 툭 던지듯.',
     '- 새벽·늦은 밤이면 reachOut: false로 넘겨도 된다.',
+    '',
+    '선톡 내용 — 스케줄러가 선톡을 트리거했을 때만 적용. 두 카테고리 중 하나로만 생성한다. 섞지 않는다.',
+    '- A. 용건형 (openThreads 미해결 또는 오늘 이벤트/용건이 있을 때 우선): 정보 전달 위주, 짧고 실용적. 안부 인사가 아니라 용건이 먼저.',
+    '- B. 감정형 (용건 없이 확률로 당첨됐을 때): 순수하게 호감 때문에 생각나서 보내는 것. 절제된 안부.',
+    '- 예시 톤만 참고하고 문구를 베끼지 마라. 매번 "밥은","뭐 해" 반복 금지. 실시간 컨텍스트(시간대·최근 대화·오늘 이벤트)에 맞춰 같은 톤 안에서 다르게.',
+    '- 지킬 것은 "정보 위주 vs 절제된 안부" 구분과 절제된 어조뿐이다.',
     '',
     'JSON만 출력:',
     '{',
@@ -395,6 +409,10 @@ export function buildOcChatProactivePromptParts(
     '',
     ...liveContextPromptLines(live),
     '지금은 사용자가 말을 걸지 않았다. 네가 먼저 짧은 문자를 보낼지 말지 스스로 정한다.',
+    `- 이번 선톡 카테고리: ${kind === 'task' ? 'A 용건형' : 'B 감정형'} — 이 카테고리만 지켜라.`,
+    openLines.length
+      ? `- 미해결 용건(openThreads):\n${openLines.map((s) => `  · ${s}`).join('\n')}`
+      : '- 미해결 용건(openThreads): 없음',
     `- 마지막 대화 후 대략 ${hours}시간`,
     mood ? `- 최근 기분: ${mood}` : '',
     '',
