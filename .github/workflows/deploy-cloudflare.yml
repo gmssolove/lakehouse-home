@@ -54,6 +54,9 @@ jobs:
           if [ -n "$ANTHROPIC_MODEL" ]; then
             printf '%s' "$ANTHROPIC_MODEL" | npx wrangler secret put ANTHROPIC_MODEL
           fi
+          if [ -n "$ANTHROPIC_VERIFY_MODEL" ]; then
+            printf '%s' "$ANTHROPIC_VERIFY_MODEL" | npx wrangler secret put ANTHROPIC_VERIFY_MODEL
+          fi
           if [ -n "$OC_CHAT_PROVIDER" ]; then
             printf '%s' "$OC_CHAT_PROVIDER" | npx wrangler secret put OC_CHAT_PROVIDER
           fi
@@ -71,5 +74,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
+          ANTHROPIC_VERIFY_MODEL: ${{ secrets.ANTHROPIC_VERIFY_MODEL }}
           OC_CHAT_PROVIDER: ${{ secrets.OC_CHAT_PROVIDER }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

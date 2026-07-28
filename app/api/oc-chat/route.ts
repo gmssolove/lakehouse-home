@@ -21,6 +21,10 @@ import {
   type OcChatSystemPromptParts,
 } from '@/lib/oc/ocChatPrompt';
 import { prepareOcChatModelMessages } from '@/lib/oc/ocChatModelMessages';
+import {
+  defaultVerifyModel,
+  generateVerifiedOcChatResponse,
+} from '@/lib/oc/ocChatVerify';
 import type { OcCharacter } from '@/lib/types/character';
 
 export const runtime = 'nodejs';
@@ -132,11 +136,14 @@ function ocChatSystemText(system: string | OcChatSystemPromptParts): string {
 async function callClaude(
   system: string | OcChatSystemPromptParts,
   messages: { role: string; content: string }[],
+  opts?: { model?: string; maxTokens?: number; temperature?: number },
 ) {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다');
-  const model = (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim();
+  const model = (opts?.model || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim();
   const systemText = ocChatSystemText(system);
+  const maxTokens = opts?.maxTokens ?? 768;
+  const temperature = opts?.temperature ?? 0.85;
 
   const maxAttempts = 3;
   let lastStatus = 0;
@@ -153,8 +160,8 @@ async function callClaude(
       },
       body: JSON.stringify({
         model,
-        max_tokens: 768,
-        temperature: 0.85,
+        max_tokens: maxTokens,
+        temperature,
         system: systemText,
         messages: (messages.length ? messages : [{ role: 'user', content: '판단해.' }]).map(
           (m) => ({
@@ -223,6 +230,15 @@ async function callChatModel(
   const prepared = prepareOcChatModelMessages(messages, { max: HISTORY_MAX, withClock: true });
   resolveProvider();
   return callClaude(system, prepared);
+}
+
+async function callVerifyModel(system: string, userContent: string) {
+  resolveProvider();
+  return callClaude(system, [{ role: 'user', content: userContent }], {
+    model: defaultVerifyModel(),
+    maxTokens: 16,
+    temperature: 0,
+  });
 }
 
 function httpStatusForChatError(err: unknown, message: string): number {
@@ -435,25 +451,36 @@ export async function POST(req: Request) {
       presence,
       recentActions: recentActions as OcChatRecentAction[],
     });
-    const rawReply = await callChatModel(
-      system,
-      messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        at: m.at,
-        kind: m.kind,
-        stickerId: m.stickerId,
-        stickerUrl: m.stickerUrl,
-      })),
-    );
+    const historyIn = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+      at: m.at,
+      kind: m.kind,
+      stickerId: m.stickerId,
+      stickerUrl: m.stickerUrl,
+    }));
+    const prepared = prepareOcChatModelMessages(historyIn, {
+      max: HISTORY_MAX,
+      withClock: true,
+    });
+    const userText = messages[messages.length - 1]?.content || '';
+    resolveProvider();
+    const verified = await generateVerifiedOcChatResponse({
+      lastUserMessage: userText,
+      historyForModel: prepared,
+      generate: (msgs) => callClaude(system, msgs),
+      verify: callVerifyModel,
+      parse: parseOcChatBehavior,
+    });
     console.info('[oc-chat] model raw', {
       characterId,
       visitorId: visitorId.slice(0, 8),
-      rawLen: rawReply.length,
-      rawPreview: rawReply.slice(0, 1200),
+      rawLen: verified.raw.length,
+      rawPreview: verified.raw.slice(0, 1200),
+      regenerated: verified.regenerated,
+      verifyPassed: verified.verifyPassed,
     });
-    const behavior = parseOcChatBehavior(rawReply);
-    const userText = messages[messages.length - 1]?.content || '';
+    const behavior = verified.behavior;
 
     let proposed = behavior.affinityDelta;
     if (behavior.action === 'ignore' || behavior.action === 'read_only') {
