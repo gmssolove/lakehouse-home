@@ -415,6 +415,15 @@ export async function POST(req: Request) {
       visitorId: visitorId.slice(0, 8),
       mode: 'chat',
       msgCount: messages.length,
+      userBurstCount: (() => {
+        let n = 0;
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i]?.role !== 'user') break;
+          n += 1;
+        }
+        return n;
+      })(),
+      lastUserPreview: (messages[messages.length - 1]?.content || '').slice(0, 80),
       recentActionsRawCount: recentActionsRaw.length,
       recentActionsCount: recentActions.length,
       recentActions: recentActions.map((a) => ({
@@ -479,6 +488,14 @@ export async function POST(req: Request) {
       rawPreview: verified.raw.slice(0, 1200),
       regenerated: verified.regenerated,
       verifyPassed: verified.verifyPassed,
+      userBurstCount: (() => {
+        let n = 0;
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i]?.role !== 'user') break;
+          n += 1;
+        }
+        return n;
+      })(),
     });
     const behavior = verified.behavior;
 

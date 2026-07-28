@@ -104,14 +104,14 @@
 }
 
 .oc-chat-aff-toast.is-up {
-  color: #7cb82e;
-  background: linear-gradient(135deg, rgba(240, 207, 173, 0.95), rgba(215, 169, 130, 0.92));
-  border: 1px solid rgba(255, 230, 190, 0.55);
+  color: #9fd45a;
+  background: rgba(18, 18, 18, 0.94);
+  border: 1px solid rgba(140, 180, 90, 0.38);
 }
 
 .oc-chat-aff-toast.is-down {
   color: #e8a090;
-  background: rgba(48, 28, 28, 0.92);
+  background: rgba(18, 18, 18, 0.94);
   border: 1px solid rgba(180, 100, 90, 0.4);
 }
 

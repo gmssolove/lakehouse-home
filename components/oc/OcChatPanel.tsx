@@ -45,6 +45,8 @@ import {
   loadOcChatThread,
   markUserMessagesRead,
   OC_CHAT_SEND_DEBOUNCE_MS,
+  extractLateUserMessages,
+  countTrailingUserBurst,
   postOcChat,
   resetOcChatThreadForVisitor,
   saveOcChatThread,
@@ -176,6 +178,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const debounceTimer = useRef(0);
   const flushLockRef = useRef(false);
   const pendingFlushRef = useRef(false);
+  /** 마지막 유저 전송 시각 — trailing debounce 기준 */
+  const lastUserSendAtRef = useRef(0);
+  /** 이번 flush가 API에 넣은 메시지 id — 도중 연타는 late로 분리 */
+  const flushIncludedIdsRef = useRef<Set<string>>(new Set());
   const openRef = useRef(open);
   const replyLockRef = useRef(false);
   const stateRef = useRef({
@@ -559,6 +565,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           pushRecent('ignore', nextMeta.presence, behavior.moodNote || behavior.deltaReason);
           nextMeta = { ...nextMeta, pendingBehavior: undefined };
           setMeta(nextMeta);
+          /* 대기 중 연타된 유저 말 보존 */
+          msgs = stateRef.current.messages;
           await persistSnapshot({
             messages: msgs,
             affection: opts.affection,
@@ -710,14 +718,26 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             setMessages(fresh.messages);
             return;
           }
-          /* 타이핑 중 온 유저 말도 유지·읽음 처리 */
-          msgs = markUserMessagesRead(stateRef.current.messages);
-          setMessages(msgs);
+          /* 타이핑 중 온 유저 말도 유지·읽음 처리 — flush 스냅샷 밖 연타는 봇 답 뒤로 */
+          const included = flushIncludedIdsRef.current;
+          {
+            const { head, lateUsers } = extractLateUserMessages(
+              markUserMessagesRead(stateRef.current.messages),
+              included,
+            );
+            msgs = [...head, ...lateUsers];
+            setMessages(msgs);
+          }
           const line = lines[i]!;
           await playLengthTyping(line, behavior.typingIndicatorEvents, i === 0);
-          msgs = markUserMessagesRead(stateRef.current.messages);
-          const botMsg = createChatMessage('assistant', line, 'chat');
-          msgs = [...msgs, botMsg];
+          {
+            const { head, lateUsers } = extractLateUserMessages(
+              markUserMessagesRead(stateRef.current.messages),
+              included,
+            );
+            const botMsg = createChatMessage('assistant', line, 'chat');
+            msgs = [...head, botMsg, ...lateUsers];
+          }
           setMessages(msgs);
           setBusy(false);
           await persistSnapshot({
@@ -755,12 +775,17 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           }
           setBusy(true);
           await sleepMs(typingDurationMs('스티커'));
-          msgs = markUserMessagesRead(stateRef.current.messages);
-          const stickerMsg = createChatMessage('assistant', '스티커', 'sticker', {
-            stickerUrl: sticker.imageUrl,
-            stickerId: sticker.id,
-          });
-          msgs = [...msgs, stickerMsg];
+          {
+            const { head, lateUsers } = extractLateUserMessages(
+              markUserMessagesRead(stateRef.current.messages),
+              flushIncludedIdsRef.current,
+            );
+            const stickerMsg = createChatMessage('assistant', '스티커', 'sticker', {
+              stickerUrl: sticker.imageUrl,
+              stickerId: sticker.id,
+            });
+            msgs = [...head, stickerMsg, ...lateUsers];
+          }
           setMessages(msgs);
           setBusy(false);
         }
@@ -1328,7 +1353,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
     flushLockRef.current = true;
     pendingFlushRef.current = false;
-    const msgCountAtStart = withUser.length;
+    flushIncludedIdsRef.current = new Set(withUser.map((m) => m.id));
+    const includedAtStart = flushIncludedIdsRef.current;
     const aff = stateRef.current.affection;
     const st = stateRef.current.story;
     const gain =
@@ -1341,6 +1367,16 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         : 0;
     const turns = stateRef.current.meta.turnsToday || 0;
     const metaSnap = stateRef.current.meta;
+    const userBurstAtStart = countTrailingUserBurst(withUser);
+
+    const scheduleTrailingFlush = () => {
+      window.clearTimeout(debounceTimer.current);
+      const elapsed = Date.now() - lastUserSendAtRef.current;
+      const wait = Math.max(0, OC_CHAT_SEND_DEBOUNCE_MS - elapsed);
+      debounceTimer.current = window.setTimeout(() => {
+        void flushDebouncedChat();
+      }, wait);
+    };
 
     try {
       let burstStart = withUser.length - 1;
@@ -1370,10 +1406,6 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         recentActions: metaSnap.recentActions,
       });
 
-      setAffection(result.affection);
-      setFreeGainToday(result.freeGainToday);
-      setFreeGainDate(result.freeGainDate);
-
       const reasons = [...(metaSnap.recentDeltaReasons || [])];
       if (result.deltaReason && result.affinityDelta !== 0) {
         reasons.push(result.deltaReason);
@@ -1386,14 +1418,18 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         moodNote: result.behavior.moodNote || stateRef.current.meta.moodNote,
       };
       setMeta(afterMeta);
-      if (result.affinityDelta !== 0) flashAffectionToast(result.affinityDelta);
 
+      /* 호감·토스트는 읽음→답장 연출 끝난 뒤에만 (전송 직후 선반영 금지) */
       await playBehavior(result.behavior, stateRef.current.messages, {
         affection: result.affection,
         freeGainToday: result.freeGainToday,
         freeGainDate: result.freeGainDate,
         story: st,
       });
+      setAffection(result.affection);
+      setFreeGainToday(result.freeGainToday);
+      setFreeGainDate(result.freeGainDate);
+      if (result.affinityDelta !== 0) flashAffectionToast(result.affinityDelta);
       await persistSnapshot({
         messages: stateRef.current.messages,
         affection: result.affection,
@@ -1415,17 +1451,23 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       setWaitingRead(false);
       setBusy(false);
       focusComposer();
-      /* 응답 처리 중에 추가로 보낸 말만 이어서 flush (읽씹 잔여 unread로 루프 금지) */
       const trail = stateRef.current.messages;
-      const trailLast = trail[trail.length - 1];
-      const grewWithUser =
-        trail.length > msgCountAtStart && trailLast && trailLast.role === 'user';
-      if (pendingFlushRef.current || grewWithUser) {
+      const lateUsers = trail.filter(
+        (m) => m.role === 'user' && !includedAtStart.has(m.id),
+      );
+      const needsAgain = pendingFlushRef.current || lateUsers.length > 0;
+      if (needsAgain) {
         pendingFlushRef.current = false;
-        window.clearTimeout(debounceTimer.current);
-        debounceTimer.current = window.setTimeout(() => {
-          void flushDebouncedChat();
-        }, OC_CHAT_SEND_DEBOUNCE_MS);
+        console.info('[oc-chat-ui] schedule trailing flush', {
+          lateUserCount: lateUsers.length,
+          trailingBurst: countTrailingUserBurst(trail),
+          userBurstAtStart,
+          waitMs: Math.max(
+            0,
+            OC_CHAT_SEND_DEBOUNCE_MS - (Date.now() - lastUserSendAtRef.current),
+          ),
+        });
+        scheduleTrailingFlush();
       }
     }
   }, [
@@ -1454,6 +1496,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     const userMsg = createChatMessage('user', text, 'chat');
     const withUser = [...stateRef.current.messages, userMsg];
     setMessages(withUser);
+    lastUserSendAtRef.current = Date.now();
     const aff = stateRef.current.affection;
     const st = stateRef.current.story;
     const turns = (stateRef.current.meta.turnsToday || 0) + 1;
@@ -1508,12 +1551,13 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setMeta(unlocked);
       }
 
-      /* 이미 AI 응답 중이면 큐에 넣고, 끝나면 flush */
+      /* AI 응답 중이면 큐 표시 + 마지막 전송 시각만 갱신(언락 후 trailing wait) */
       if (flushLockRef.current || replyLockRef.current) {
         pendingFlushRef.current = true;
         return;
       }
 
+      /* 마지막 메시지 기준 N초 — 새 말이 오면 타이머 리셋 */
       window.clearTimeout(debounceTimer.current);
       debounceTimer.current = window.setTimeout(() => {
         void flushDebouncedChat();

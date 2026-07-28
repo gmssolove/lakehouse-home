@@ -252,6 +252,38 @@ export function formatChatDayLabel(at: number): string {
 /** 연속 메시지 모아 응답 — 대기 ms */
 export const OC_CHAT_SEND_DEBOUNCE_MS = 2600;
 
+/**
+ * flush 스냅샷에 없던 유저 말(응답 도중 연타)을 분리.
+ * 봇 답은 head 뒤에 붙이고 lateUsers를 맨 뒤로 두어 다음 flush가 잡게 함.
+ */
+export function extractLateUserMessages<T extends { id: string; role?: string }>(
+  messages: T[],
+  includedIds: Set<string>,
+): { head: T[]; lateUsers: T[] } {
+  const head: T[] = [];
+  const lateUsers: T[] = [];
+  for (const m of messages) {
+    if (m.role === 'user' && !includedIds.has(m.id)) lateUsers.push(m);
+    else head.push(m);
+  }
+  return { head, lateUsers };
+}
+
+/** 끝에서부터 연속된 user 말풍선 수 */
+export function countTrailingUserBurst(
+  messages: Array<{ role?: string; kind?: string }>,
+): number {
+  let n = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (!m || (m.kind || 'chat') === 'narration') continue;
+    if (m.role !== 'user') break;
+    n += 1;
+  }
+  return n;
+}
+
+
 function normalizeStory(raw: unknown): OcChatStoryState | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const o = raw as Record<string, unknown>;
