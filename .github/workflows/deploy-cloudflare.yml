@@ -48,6 +48,18 @@ jobs:
           if [ -n "$GEMINI_API_KEY" ]; then
             printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY
           fi
+          if [ -n "$GEMINI_MODEL" ]; then
+            printf '%s' "$GEMINI_MODEL" | npx wrangler secret put GEMINI_MODEL
+          fi
+          if [ -n "$GEMINI_FALLBACK_MODEL" ]; then
+            printf '%s' "$GEMINI_FALLBACK_MODEL" | npx wrangler secret put GEMINI_FALLBACK_MODEL
+          fi
+          if [ -n "$GEMINI_LITE_MODEL" ]; then
+            printf '%s' "$GEMINI_LITE_MODEL" | npx wrangler secret put GEMINI_LITE_MODEL
+          fi
+          if [ -n "$GEMINI_VERIFY_MODEL" ]; then
+            printf '%s' "$GEMINI_VERIFY_MODEL" | npx wrangler secret put GEMINI_VERIFY_MODEL
+          fi
           if [ -n "$ANTHROPIC_API_KEY" ]; then
             printf '%s' "$ANTHROPIC_API_KEY" | npx wrangler secret put ANTHROPIC_API_KEY
           fi
@@ -72,6 +84,10 @@ jobs:
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
           R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL }}
+          GEMINI_LITE_MODEL: ${{ secrets.GEMINI_LITE_MODEL }}
+          GEMINI_VERIFY_MODEL: ${{ secrets.GEMINI_VERIFY_MODEL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
           ANTHROPIC_VERIFY_MODEL: ${{ secrets.ANTHROPIC_VERIFY_MODEL }}

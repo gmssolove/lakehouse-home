@@ -17,14 +17,17 @@ import { buildWorldContextPromptLines, loadOcWorldData } from '@/lib/oc/ocChatWo
 import {
   buildOcChatProactivePromptParts,
   buildOcChatSystemPromptParts,
-  joinOcChatSystemPrompt,
-  type OcChatSystemPromptParts,
 } from '@/lib/oc/ocChatPrompt';
 import { prepareOcChatModelMessages } from '@/lib/oc/ocChatModelMessages';
+import { generateVerifiedOcChatResponse } from '@/lib/oc/ocChatVerify';
 import {
-  defaultVerifyModel,
-  generateVerifiedOcChatResponse,
-} from '@/lib/oc/ocChatVerify';
+  callOcChatLlm,
+  geminiVerifyModel,
+  OcChatUpstreamError,
+  resolveOcChatProvider,
+} from '@/lib/oc/ocChatLlm';
+import { isEveCharacter, stripEveTrailingPeriod } from '@/lib/oc/ocChatEveStyle';
+import { OC_CHAT_API_HISTORY } from '@/lib/oc/ocChat';
 import type { OcCharacter } from '@/lib/types/character';
 
 export const runtime = 'nodejs';
@@ -35,8 +38,8 @@ const RTDB_CHARS_URL =
 
 const RATE_WINDOW_MS = 60_000;
 const RATE_MAX = 24;
-/** 말풍선 단위. 유저↔캐릭 왕복 ~20턴 이상 */
-const HISTORY_MAX = 40;
+/** 말풍선 단위. ~18턴 왕복 — OC_CHAT_API_HISTORY와 동기 */
+const HISTORY_MAX = OC_CHAT_API_HISTORY;
 const CONTENT_MAX = 2000;
 
 type ChatIn = {
@@ -69,19 +72,6 @@ type Body = {
 
 type RateBucket = { count: number; resetAt: number };
 const rateMap = new Map<string, RateBucket>();
-
-class OcChatUpstreamError extends Error {
-  readonly provider = 'anthropic' as const;
-  readonly upstreamStatus: number;
-  readonly upstreamBody: string;
-
-  constructor(message: string, upstreamStatus: number, upstreamBody: string) {
-    super(message);
-    this.name = 'OcChatUpstreamError';
-    this.upstreamStatus = upstreamStatus;
-    this.upstreamBody = upstreamBody;
-  }
-}
 
 function clientIp(req: Request): string {
   const xf = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || '';
@@ -116,108 +106,8 @@ async function loadCharacter(characterId: string): Promise<OcCharacter | null> {
   return list.find((c) => String(c?.id) === id) || null;
 }
 
-function resolveProvider(): 'anthropic' {
-  const forced = (process.env.OC_CHAT_PROVIDER || '').trim().toLowerCase();
-  if (forced && forced !== 'anthropic') {
-    throw new Error(
-      `OC_CHAT_PROVIDER=${forced}는 지원하지 않습니다. anthropic(Claude Sonnet)만 사용합니다.`,
-    );
-  }
-  if (!process.env.ANTHROPIC_API_KEY?.trim()) {
-    throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
-  }
-  return 'anthropic';
-}
-
-function ocChatSystemText(system: string | OcChatSystemPromptParts): string {
-  return typeof system === 'string' ? system : joinOcChatSystemPrompt(system);
-}
-
-async function callClaude(
-  system: string | OcChatSystemPromptParts,
-  messages: { role: string; content: string }[],
-  opts?: { model?: string; maxTokens?: number; temperature?: number },
-) {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다');
-  const model = (opts?.model || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5').trim();
-  const systemText = ocChatSystemText(system);
-  const maxTokens = opts?.maxTokens ?? 768;
-  const temperature = opts?.temperature ?? 0.85;
-
-  const maxAttempts = 3;
-  let lastStatus = 0;
-  let lastBody = '';
-  let lastDetail = '';
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        system: systemText,
-        messages: (messages.length ? messages : [{ role: 'user', content: '판단해.' }]).map(
-          (m) => ({
-            role: m.role === 'assistant' ? 'assistant' : 'user',
-            content: m.content,
-          }),
-        ),
-      }),
-    });
-    const rawText = await res.text();
-    let data: {
-      error?: { message?: string; type?: string };
-      content?: Array<{ type?: string; text?: string }>;
-    } = {};
-    try {
-      data = rawText ? (JSON.parse(rawText) as typeof data) : {};
-    } catch {
-      data = {};
-    }
-    if (res.ok) {
-      const text = (data.content || [])
-        .filter((b) => b.type === 'text')
-        .map((b) => b.text || '')
-        .join('')
-        .trim();
-      if (!text) throw new Error('모델이 빈 응답을 반환했습니다');
-      return text;
-    }
-
-    lastStatus = res.status;
-    lastBody = rawText;
-    const errType = data.error?.type?.trim();
-    const errMsg = data.error?.message?.trim();
-    lastDetail =
-      errType && errMsg
-        ? `${errType}: ${errMsg}`
-        : rawText.trim() && !rawText.trim().startsWith('{')
-          ? rawText.trim().slice(0, 500)
-          : rawText.trim().slice(0, 500) || `HTTP ${res.status}`;
-
-    const retryable = res.status === 408 || res.status === 429 || res.status >= 500;
-    if (!retryable || attempt === maxAttempts) break;
-    await new Promise((r) => setTimeout(r, 450 * attempt + Math.floor(Math.random() * 200)));
-  }
-
-  throw new OcChatUpstreamError(
-    lastStatus === 403 && /request not allowed|forbidden/i.test(lastDetail)
-      ? `Anthropic ${lastStatus}: ${lastDetail} (Worker 출구 지역이 Anthropic 미지원일 수 있음 — 관리자에게 문의)`
-      : `Anthropic ${lastStatus}: ${lastDetail}`,
-    lastStatus,
-    lastBody,
-  );
-}
-
 async function callChatModel(
-  system: string | OcChatSystemPromptParts,
+  system: Parameters<typeof callOcChatLlm>[0],
   messages: Array<{
     role: string;
     content: string;
@@ -227,17 +117,34 @@ async function callChatModel(
     stickerUrl?: string;
   }>,
 ) {
-  const prepared = prepareOcChatModelMessages(messages, { max: HISTORY_MAX, withClock: true });
-  resolveProvider();
-  return callClaude(system, prepared);
+  const prepared = prepareOcChatModelMessages(messages, {
+    max: HISTORY_MAX,
+    withClock: true,
+    maxModelTurns: HISTORY_MAX,
+  });
+  return callOcChatLlm(system, prepared, {
+    enableCache: true,
+    logLabel: 'chat',
+  });
 }
 
 async function callVerifyModel(system: string, userContent: string) {
-  resolveProvider();
-  return callClaude(system, [{ role: 'user', content: userContent }], {
-    model: defaultVerifyModel(),
+  const provider = resolveOcChatProvider();
+  if (provider === 'gemini') {
+    return callOcChatLlm(system, [{ role: 'user', content: userContent }], {
+      maxTokens: 64,
+      temperature: 0,
+      thinkingLevel: 'minimal',
+      logLabel: 'verify',
+      geminiModels: [geminiVerifyModel()],
+    });
+  }
+  return callOcChatLlm(system, [{ role: 'user', content: userContent }], {
+    model: process.env.ANTHROPIC_VERIFY_MODEL || 'claude-haiku-4-5-20251001',
     maxTokens: 16,
     temperature: 0,
+    enableCache: false,
+    logLabel: 'verify',
   });
 }
 
@@ -351,6 +258,11 @@ export async function POST(req: Request) {
         })),
       );
       const decision = parseOcChatProactive(raw);
+      if (isEveCharacter(character) && decision.messages?.length) {
+        decision.messages = decision.messages.map((m) =>
+          stripEveTrailingPeriod(String(m || '').trim()),
+        );
+      }
       return NextResponse.json(decision);
     }
 
@@ -471,15 +383,18 @@ export async function POST(req: Request) {
     const prepared = prepareOcChatModelMessages(historyIn, {
       max: HISTORY_MAX,
       withClock: true,
+      maxModelTurns: HISTORY_MAX,
     });
     const userText = messages[messages.length - 1]?.content || '';
-    resolveProvider();
+    resolveOcChatProvider();
     const verified = await generateVerifiedOcChatResponse({
       lastUserMessage: userText,
       historyForModel: prepared,
-      generate: (msgs) => callClaude(system, msgs),
+      generate: (msgs) =>
+        callOcChatLlm(system, msgs, { enableCache: true, logLabel: 'chat' }),
       verify: callVerifyModel,
       parse: parseOcChatBehavior,
+      eveStyle: isEveCharacter(character),
     });
     console.info('[oc-chat] model raw', {
       characterId,
@@ -488,6 +403,7 @@ export async function POST(req: Request) {
       rawPreview: verified.raw.slice(0, 1200),
       regenerated: verified.regenerated,
       verifyPassed: verified.verifyPassed,
+      historyMsgs: prepared.length,
       userBurstCount: (() => {
         let n = 0;
         for (let i = messages.length - 1; i >= 0; i--) {
@@ -527,9 +443,9 @@ export async function POST(req: Request) {
       deltaReason: behavior.deltaReason,
     });
   } catch (err) {
-    let provider: 'anthropic' | 'unknown' = 'unknown';
+    let provider: 'gemini' | 'anthropic' | 'unknown' = 'unknown';
     try {
-      provider = resolveProvider();
+      provider = resolveOcChatProvider();
     } catch {
       /* keys not configured */
     }

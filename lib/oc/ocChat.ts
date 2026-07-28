@@ -36,8 +36,8 @@ import type { OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
 
 export const OC_CHAT_VISITOR_KEY = 'lh_oc_chat_visitor';
-/** API/모델에 넘기는 최근 대화 메시지 수 (말풍선 단위, ~20턴 이상) */
-export const OC_CHAT_API_HISTORY = 40;
+/** API/모델에 넘기는 최근 대화 말풍선 수 (~18턴 왕복). 비용 상한. */
+export const OC_CHAT_API_HISTORY = 36;
 export const OC_CHAT_STORE_MAX = 200;
 
 export type OcChatRole = 'user' | 'assistant';
@@ -251,6 +251,8 @@ export function formatChatDayLabel(at: number): string {
 
 /** 연속 메시지 모아 응답 — 대기 ms */
 export const OC_CHAT_SEND_DEBOUNCE_MS = 2600;
+/** API/연출 중 버스트가 커졌을 때 최대 재요청 횟수 */
+export const OC_CHAT_BURST_REGATHER_MAX = 3;
 
 /**
  * flush 스냅샷에 없던 유저 말(응답 도중 연타)을 분리.
@@ -267,6 +269,14 @@ export function extractLateUserMessages<T extends { id: string; role?: string }>
     else head.push(m);
   }
   return { head, lateUsers };
+}
+
+/** flush 시작 이후에 들어온 user 말이 있는지 */
+export function hasLateUserMessages(
+  messages: Array<{ id: string; role?: string }>,
+  includedIds: Set<string>,
+): boolean {
+  return messages.some((m) => m.role === 'user' && !includedIds.has(m.id));
 }
 
 /** 끝에서부터 연속된 user 말풍선 수 */

@@ -392,10 +392,11 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
         타이핑 성향
       </h4>
       <p style={{ fontSize: 10, opacity: 0.5, margin: '0 0 8px' }}>
-        이브처럼 한 번에 쓰는 타입은 steady. 부끄럼·망설임은 fluster 트리거를 넣으세요.
+        이브처럼 읽고 나서 한 번에 보내는 타입은 「차분하게 한 번에」.
+        부끄럼·망설임이 있을 때만 「동요할 때」 트리거와 스타일을 넣으세요.
       </p>
       <div className="form-group">
-        <label className="form-label">baseline</label>
+        <label className="form-label">평소 타이핑</label>
         <select
           className="form-input"
           value={typing.baseline || 'steady'}
@@ -408,13 +409,13 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
             })
           }
         >
-          <option value="steady">steady (읽고 한 번에)</option>
-          <option value="hesitant">hesitant (자주 멈춤)</option>
-          <option value="burst">burst (짧게 끊김)</option>
+          <option value="steady">차분하게 한 번에 (읽고 나서 통째로)</option>
+          <option value="hesitant">망설임 (자주 멈춤)</option>
+          <option value="burst">끊어서 (짧게 나눠 침)</option>
         </select>
       </div>
       <div className="form-group">
-        <label className="form-label">fluster 트리거 (쉼표 구분)</label>
+        <label className="form-label">동요할 때 트리거 (쉼표로 구분)</label>
         <input
           className="form-input"
           value={(typing.flusterTrigger || []).join(', ')}
@@ -433,7 +434,7 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
         />
       </div>
       <div className="form-group">
-        <label className="form-label">fluster style</label>
+        <label className="form-label">동요할 때 타이핑</label>
         <select
           className="form-input"
           value={typing.flusterStyle || ''}
@@ -446,10 +447,10 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
             })
           }
         >
-          <option value="">없음</option>
-          <option value="hesitant">hesitant</option>
-          <option value="burst">burst</option>
-          <option value="steady">steady</option>
+          <option value="">없음 (평소와 같음)</option>
+          <option value="hesitant">망설임 (자주 멈춤)</option>
+          <option value="burst">끊어서 (짧게 나눠 침)</option>
+          <option value="steady">차분하게 한 번에</option>
         </select>
       </div>
 

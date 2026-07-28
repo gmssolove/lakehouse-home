@@ -87,7 +87,7 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   pointer-events: none;
-  animation: ocChatAffToast 2s ease both;
+  animation: ocChatAffToast 3s ease both;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
@@ -120,11 +120,11 @@
     opacity: 0;
     transform: translateX(-50%) translateY(6px) scale(0.96);
   }
-  12% {
+  8% {
     opacity: 1;
     transform: translateX(-50%) translateY(0) scale(1);
   }
-  75% {
+  78% {
     opacity: 1;
   }
   100% {

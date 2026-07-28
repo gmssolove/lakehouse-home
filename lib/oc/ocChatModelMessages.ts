@@ -48,10 +48,13 @@ export function ocChatMessageToModelContent(m: InMsg): string {
  */
 export function prepareOcChatModelMessages(
   messages: InMsg[],
-  opts?: { max?: number; withClock?: boolean },
+  opts?: { max?: number; withClock?: boolean; maxModelTurns?: number },
 ): OcChatModelMessage[] {
-  const max = opts?.max ?? 40;
+  /* 말풍선 상한 — 기본 36 ≈ 유저↔캐릭 왕복 ~18턴 */
+  const max = opts?.max ?? 36;
   const withClock = opts?.withClock !== false;
+  /* 합친 뒤 모델 턴(role 교대) 상한 — 기본 36개 메시지 ≈ 18왕복 */
+  const maxModelTurns = opts?.maxModelTurns ?? 36;
   const sliced = messages.slice(-Math.max(1, max));
   const out: OcChatModelMessage[] = [];
 
@@ -71,11 +74,14 @@ export function prepareOcChatModelMessages(
     }
   }
 
-  if (out.length && out[0].role === 'assistant') {
-    out.unshift({ role: 'user', content: '(이전 대화에서 이어짐)' });
+  const trimmed =
+    out.length > maxModelTurns ? out.slice(-maxModelTurns) : out;
+
+  if (trimmed.length && trimmed[0]!.role === 'assistant') {
+    trimmed.unshift({ role: 'user', content: '(이전 대화에서 이어짐)' });
   }
-  if (!out.length) {
-    out.push({ role: 'user', content: '판단해.' });
+  if (!trimmed.length) {
+    trimmed.push({ role: 'user', content: '판단해.' });
   }
-  return out;
+  return trimmed;
 }

@@ -7,13 +7,20 @@ import type {
 
 export const AFFECTION_MIN = 0;
 export const AFFECTION_MAX = 100;
-/** 품질 기반 — 결정적 순간까지 허용 */
+/** 품질 기반 — 상승은 +2~5, 하락은 -1~-3 (기본 0) */
 export const FREE_DELTA_MIN = -3;
 export const FREE_DELTA_MAX = 5;
-/** 하루 상승 상한 (그라인딩 방지) — 너무 안 오른다는 피드백으로 완화 */
+/** 의미 있는 상승의 최소값 (+1 일상 가산 금지) */
+export const FREE_GAIN_MIN = 2;
+/** 하루 상승 상한 (그라인딩 방지) */
 export const FREE_DAILY_GAIN_CAP = 12;
 /** 하루 하락 상한 (실수 한 번에 무너지지 않게) */
 export const FREE_DAILY_LOSS_CAP = 4;
+/** 이보다 짧은 responseDelaySeconds만 빠른 읽음 전환 후보 (활발한 즉답) */
+export const INSTANT_READ_DELAY_MAX_SEC = 5;
+/** 빠른 전환 시 "1"이 보이는 최소·최대 ms — 생략하지 않음 */
+export const FAST_READ_UNREAD_MS_MIN = 300;
+export const FAST_READ_UNREAD_MS_MAX = 500;
 /** 무응답 방치 시 3일마다 -1 */
 export const NEGLECT_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
 export const NEGLECT_MAX_HITS = 5;
@@ -86,6 +93,50 @@ export function clampFreeDelta(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.max(FREE_DELTA_MIN, Math.min(FREE_DELTA_MAX, Math.round(n)));
 }
+
+/**
+ * 호감 구간별 빠른 읽음 전환 확률 ("1"이 아주 짧게만 보임).
+ * 0~20 거의 없음 → 100 거의 항상. "1" 단계는 항상 존재한다.
+ */
+export function instantReadChance(affection: number): number {
+  const a = clampAffection(affection);
+  if (a <= 20) return 0.08;
+  if (a <= 50) return 0.25;
+  if (a <= 70) return 0.48;
+  if (a <= 99) return 0.75;
+  return 0.92;
+}
+
+export function rollInstantRead(affection: number): boolean {
+  return Math.random() < instantReadChance(affection);
+}
+
+/** 빠른 전환 시 "1" 노출 시간 (0.3~0.5초) */
+export function rollFastUnreadVisibleMs(): number {
+  const span = FAST_READ_UNREAD_MS_MAX - FAST_READ_UNREAD_MS_MIN;
+  return FAST_READ_UNREAD_MS_MIN + Math.floor(Math.random() * (span + 1));
+}
+
+/**
+ * responseDelaySeconds가 짧을 때만 호감 확률로 빠른 읽음 전환.
+ * 긴 지연이면 "1"이 delay만큼 오래 보임.
+ * 빠른 전환이어도 "1"을 0.3~0.5초는 반드시 보여 준다.
+ */
+export function shouldFastReadTransition(opts: {
+  affection: number;
+  responseDelaySeconds: number;
+  wasOffline?: boolean;
+}): boolean {
+  if (opts.wasOffline) return false;
+  const sec = opts.responseDelaySeconds;
+  if (!Number.isFinite(sec) || sec < 0 || sec >= INSTANT_READ_DELAY_MAX_SEC) {
+    return false;
+  }
+  return rollInstantRead(opts.affection);
+}
+
+/** @deprecated 이름만 유지 — shouldFastReadTransition 사용 */
+export const shouldInstantRead = shouldFastReadTransition;
 
 export function resolveAffinityTiers(cfg?: OcChatbotConfig | null): OcChatAffinityTier[] {
   const raw = cfg?.affinityTiers;
@@ -212,24 +263,11 @@ function reasonsSimilar(a: string, b: string): boolean {
   return x.includes(y) || y.includes(x);
 }
 
-/** ±0 또는 ±1 미세 랜덤 (0 델타는 올리지 않음, +1을 0으로 깎지 않음) */
-function applyMicroJitter(delta: number): number {
-  if (delta === 0) return 0;
-  const r = Math.random();
-  if (delta > 0) {
-    if (r < 0.18) return clampFreeDelta(delta + 1);
-    if (r < 0.32 && delta > 1) return clampFreeDelta(delta - 1);
-    return delta;
-  }
-  if (r < 0.22) return clampFreeDelta(delta - 1);
-  if (r < 0.4) return clampFreeDelta(delta + 1);
-  return delta;
-}
-
 /**
  * 대화 품질 기반 호감 델타.
- * - 평범한 성의 있는 대화는 +1이 기본(모델 제안 존중, 서버는 억제만 완화)
- * - 의미 없는 반복만 0
+ * - 기본 0. 일상·잡담은 오르지 않음
+ * - 상승은 감정공유/다정함일 때만 +2~+5 (모델 +1은 서버에서 0)
+ * - 무례 -1~-3 / 같은 deltaReason 반복 시 절반
  * - 점수 바닥(0)에서도 하락 델타는 일일 손실·토스트용으로 그대로 카운트
  */
 export function computeFreeChatAffinityDelta(opts: {
@@ -250,16 +288,19 @@ export function computeFreeChatAffinityDelta(opts: {
     delta = Math.min(delta, 0);
   }
 
+  /* +1은 일상 가산으로 취급 → 0 (상승은 최소 FREE_GAIN_MIN) */
+  if (delta > 0 && delta < FREE_GAIN_MIN) {
+    delta = 0;
+  }
+
   const reason = (opts.deltaReason || '').trim();
   if (delta > 0 && reason) {
     const recent = opts.recentReasons || [];
     const repeats = recent.filter((r) => reasonsSimilar(r, reason)).length;
-    /* 같은 패턴 반복 → 절반. 화제(이유)가 바뀌면 정상 */
+    /* 같은 패턴 반복 → 절반. 내용이 바뀌면 정상. 절반 후 1은 감쇠 결과로 허용 */
     if (repeats >= 1) delta = Math.max(1, Math.floor(delta / 2));
     if (repeats >= 4) delta = Math.min(delta, 1);
   }
-
-  delta = applyMicroJitter(delta);
 
   const lossSoFar = Math.max(0, opts.dailyLossSoFar || 0);
   if (delta > 0) {

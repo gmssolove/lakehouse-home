@@ -9,6 +9,10 @@ import {
 } from '@/lib/oc/ocChatContext';
 import { OC_CHAT_SAFETY_PROMPT_LINES } from '@/lib/oc/ocChatSafety';
 import {
+  eveSpeechOverridePromptLines,
+  isEveCharacter,
+} from '@/lib/oc/ocChatEveStyle';
+import {
   formatRecentActionsForPrompt,
   type OcChatPresence,
   type OcChatRecentAction,
@@ -99,8 +103,14 @@ function typingStyleLines(style: OcChatTypingStyle | undefined): string[] {
   const baseline = style?.baseline || 'steady';
   const triggers = (style?.flusterTrigger || []).map((t) => t.trim()).filter(Boolean);
   const fluster = style?.flusterStyle || null;
+  const baselineKo =
+    baseline === 'steady'
+      ? '차분하게 한 번에'
+      : baseline === 'hesitant'
+        ? '망설임'
+        : '끊어서';
   const lines = [
-    `타이핑 성향 baseline: ${baseline}`,
+    `타이핑 성향(평소): ${baselineKo}`,
     baseline === 'steady'
       ? '- 평소: 읽고 생각한 뒤 한 번에. 쓰는 시간은 클라이언트가 글자 수로 계산. pause는 거의 넣지 마라.'
       : baseline === 'hesitant'
@@ -108,12 +118,14 @@ function typingStyleLines(style: OcChatTypingStyle | undefined): string[] {
         : '- 평소: pause로 짧게 끊김. 쓰는 시간은 클라이언트가 글자 수로 정한다.',
   ];
   if (triggers.length && fluster) {
+    const flusterKo =
+      fluster === 'steady' ? '차분하게 한 번에' : fluster === 'hesitant' ? '망설임' : '끊어서';
     lines.push(
-      `flusterTrigger: ${triggers.join(', ')} → 그중 일부(대략 30~50%)에서만 flusterStyle=${fluster}로 typing/pause/clear를 여러 번.`,
+      `동요 트리거: ${triggers.join(', ')} → 그중 일부(대략 30~50%)에서만 동요 타이핑(${flusterKo})으로 pause/clear를 여러 번.`,
       '- 트리거라고 매번 쓰다 지우기 금지. 예측 가능하면 몰입이 깨진다.',
     );
   } else {
-    lines.push('- fluster 없음. 감정 때문에 쓰다 지우기 연출을 넣지 마라.');
+    lines.push('- 동요 연출 없음. 감정 때문에 쓰다 지우기 연출을 넣지 마라.');
   }
   return lines;
 }
@@ -222,12 +234,21 @@ function characterRelationDynamic(character: OcCharacter, affection: number): st
 function staticRulesBlock(): string[] {
   return [
     '대화 이력 규칙:',
-    '- 아래 user/assistant messages는 최근 대화 전문(최대 약 40개 말풍선, 왕복 15~20턴 이상)이다.',
+    '- 아래 user/assistant messages는 최근 대화만 포함한다(대략 왕복 15~18턴, 말풍선 ~36개). 더 옛 맥락은 잘릴 수 있다.',
     '- 직전 한두 줄만 보지 말고, 앞에서 나온 이름·약속·감정·사실을 기억한 뒤 이어가라.',
     '- 이미 물은 것을 또 묻거나, 방금 한 말을 모르는 척하지 마라.',
     '- 메시지 앞 [시각]은 참고용이다. 시계 읽기처럼 말하지 말고 맥락에만 써라.',
     '',
     ...OC_CHAT_SAFETY_PROMPT_LINES,
+    '',
+    'presence 규칙 (고정):',
+    '- presenceState: 이 턴에 유저에게 보일 상태. respond/end_for_today면 보통 online.',
+    '- 오프라인이었다가 대답할 때: presenceState를 online으로 두고, 시스템이 먼저 초록불을 켠 뒤 responseDelaySeconds만큼 기다렸다가 메시지를 보낸다.',
+    '- online인데 답하지 않아도 된다 (action: ignore / read_only). 실제 메신저처럼.',
+    '- offline이면 당장 답이 안 오는 느낌. 나중에 답할 거면 delay long/next_day 또는 긴 responseDelaySeconds.',
+    '- responseDelaySeconds: online 응답 5~60, 오프→온 전환 후 응답은 5~20 권장. delay 필드와 함께 써도 된다.',
+    '- 심야·새벽·피곤한 시간대면 responseDelaySeconds를 평소보다 길게, delay long/next_day를 더 자주 고려하라.',
+    '- 사용자가 "왜 답장 안 해"라고 물으면 최근 자기 행동 기록을 참고해 캐릭터답게 짧게 핑계/반응.',
     '',
     '행동 규칙:',
     '- 기본 action은 respond. 예외: 초면/낯선 단계·심야(저호감)·무례·귀찮음 등에서 read_only/ignore. 그 외에는 읽씹이 기본값이 아니다.',
@@ -254,9 +275,11 @@ function staticRulesBlock(): string[] {
     '',
     '반드시 JSON 객체만 출력한다. 설명·마크다운·코드펜스 금지. 사용자에게 보일 대사는 messages 배열 안에만 넣는다.',
     '예시:',
-    '{"action":"respond","presenceState":"online","responseDelaySeconds":12,"delay":"short","typingIndicatorEvents":[{"type":"typing","durationSeconds":2.5}],"messages":["뭐야.","왜"],"moodNote":"귀찮음","affectionDelta":1,"deltaReason":"일상 잡담","sticker":null}',
-    '{"action":"ignore","presenceState":"online","delay":"immediate","messages":[],"moodNote":"보고도 안 답함","affectionDelta":0,"deltaReason":"귀찮음","sticker":null}',
-    '{"action":"read_only","presenceState":"online","delay":"short","messages":[],"moodNote":"읽만 함","affectionDelta":0,"deltaReason":"읽씹","sticker":null}',
+    '{"action":"respond","presenceState":"online","responseDelaySeconds":12,"delay":"short","typingIndicatorEvents":[{"type":"typing","durationSeconds":2.5}],"messages":["뭐야.","왜"],"moodNote":"귀찮음","affectionDelta":0,"deltaReason":"일상 잡담 — 감정 공유·다정한 말 아님","sticker":null}',
+    '{"action":"respond","presenceState":"online","delay":"short","messages":["…그래."],"moodNote":"조금 신경 쓰임","affectionDelta":3,"deltaReason":"감정공유: 고민을 솔직히 털어놓음","sticker":null}',
+    '{"action":"respond","presenceState":"online","delay":"short","messages":["…알았어."],"moodNote":"짧게 받음","affectionDelta":2,"deltaReason":"다정함: 걱정·챙겨주는 말","sticker":null}',
+    '{"action":"ignore","presenceState":"online","delay":"immediate","messages":[],"moodNote":"보고도 안 답함","affectionDelta":0,"deltaReason":"읽씹 — 감정/다정 카테고리 아님","sticker":null}',
+    '{"action":"read_only","presenceState":"online","delay":"short","messages":[],"moodNote":"읽만 함","affectionDelta":-2,"deltaReason":"무례: 선을 넘는 말","sticker":null}',
     '',
     '필드:',
     '- action: respond | read_only | ignore | end_for_today',
@@ -267,16 +290,20 @@ function staticRulesBlock(): string[] {
     '- messages: 짧은 문자열 배열 1~3 (ignore/read_only면 [])',
     '- sticker: 캐릭터가 스티커를 쓰지 않으면 항상 null. 쓰면 {id, tags} 또는 null',
     '- moodNote: 내부용 기분 한 줄',
-    '- affectionDelta: 정수. 평범한 성의 있는 대화의 기본은 +1. 무의미한 반복만 0.',
-    '- deltaReason: affectionDelta 근거 한 줄 (내부용, 화면에 안 나감)',
+    '- affectionDelta: 정수. 기본 0. 상승은 +2~+5만, 하락은 -1~-3. +1은 쓰지 않는다.',
+    '- deltaReason: 반드시 "왜" 그 델타인지 한 줄 (카테고리명 또는 0인 이유). 내부용, 화면 비표시',
     '',
-    '호감(affectionDelta) 규칙 — 완화됨 (너무 안 오른다는 피드백 반영):',
-    '- 완전 무의미한 반복(같은 인사만 계속 등) → 0',
-    '- 평범하지만 성의 있는 일상·잡담이 이어지면 → +1 (이게 기본값)',
-    '- 솔직한 이야기·배려 등 감정적으로 의미 있는 순간 → +2~+5',
-    '- 무례·선 넘김 → -1~-3',
-    '- 같은 패턴(비슷한 deltaReason)이 반복되면 절반으로 줄이되, 화제가 바뀌면 정상 델타로',
-    '- ignore/read_only면 보통 0 또는 음수',
+    '호감(affectionDelta) 규칙 — 엄격 (기본값 0):',
+    '- 기본값은 항상 0이다. 인사·일상 Q&A·정보 교환·평범한 잡담은 말이 몇 마디 이어져도 올리지 않는다.',
+    '- "대화가 이어졌으니까 오른다" / "성의 있었나?" 같은 애매한 판단 금지. 아래 두 카테고리에 명확히 들어갈 때만 상승.',
+    '- 상승(+2~+5)은 둘 중 하나에 명확히 해당할 때만:',
+    '  (A) 감정공유: 사용자가 너에게 고민·솔직한 감정·힘든 일 등 감정적으로 의미 있는 이야기를 할 때',
+    '  (B) 다정함: 사용자가 너에게 칭찬·걱정·위로·챙겨주는 말 등 좋은/다정한 말을 할 때',
+    '- 위 두 경우가 아니면 무조건 0. +1은 금지(상승은 최소 +2).',
+    '- 무례하거나 선을 넘으면 -1~-3.',
+    '- 같은 패턴(같은 종류의 칭찬/위로·같은 감정공유 유형)이 반복되면 델타를 절반으로. 내용·유형이 바뀌면 정상 델타로 복귀.',
+    '- deltaReason에는 반드시 근거를 남긴다. 예: "감정공유: …" / "다정함: …" / "일상 잡담 — 해당 없음" / "무례: …"',
+    '- ignore/read_only여도 위 규칙과 동일. 해당 없으면 0, 무례면 음수.',
   ];
 }
 
@@ -307,19 +334,11 @@ function presencePromptLines(
   presence: OcChatPresence | undefined,
   recentActions: OcChatRecentAction[] | undefined,
 ): string[] {
-  const lines = [
+  return [
     `현재 메신저 표시 상태(유저 화면): ${presence || 'unknown'}`,
-    'presence 규칙:',
-    '- presenceState: 이 턴에 유저에게 보일 상태. respond/end_for_today면 보통 online.',
-    '- 오프라인이었다가 대답할 때: presenceState를 online으로 두고, 시스템이 먼저 초록불을 켠 뒤 responseDelaySeconds만큼 기다렸다가 메시지를 보낸다.',
-    '- online인데 답하지 않아도 된다 (action: ignore / read_only). 실제 메신저처럼.',
-    '- offline이면 당장 답이 안 오는 느낌. 나중에 답할 거면 delay long/next_day 또는 긴 responseDelaySeconds.',
-    '- responseDelaySeconds: online 응답 5~60, 오프→온 전환 후 응답은 5~20 권장. delay 필드와 함께 써도 된다.',
-    '- 심야·새벽·피곤한 시간대면 responseDelaySeconds를 평소보다 길게, delay long/next_day를 더 자주 고려하라.',
     '- 사용자가 "왜 답장 안 해"라고 물으면 아래 최근 기록을 참고해 캐릭터답게 짧게 핑계/반응.',
     ...formatRecentActionsForPrompt(recentActions),
   ];
-  return lines;
 }
 /** 자유 대화 — 행동 JSON 필수 (정적/동적 분리: Anthropic cache) */
 export function buildOcChatSystemPromptParts(
@@ -332,7 +351,13 @@ export function buildOcChatSystemPromptParts(
     typeof opts.hoursSinceLast === 'number' ? opts.hoursSinceLast.toFixed(1) : '?';
   const mood = (opts.moodNote || '').trim();
   const live = resolveLive(character, opts, affection);
-  const staticText = [...characterBlockStatic(character), '', ...staticRulesBlock()]
+  const staticText = [
+    ...characterBlockStatic(character),
+    '',
+    ...staticRulesBlock(),
+    /* 이브: JSON 예시의 마침표·말투보다 나중에 강제 */
+    ...(isEveCharacter(character) ? eveSpeechOverridePromptLines() : []),
+  ]
     .filter(Boolean)
     .join('\n');
   const dynamicText = [
@@ -403,6 +428,7 @@ export function buildOcChatProactivePromptParts(
     '  "moodNote": "내부용"',
     '}',
     '- reachOut이 false면 messages는 [].',
+    ...(isEveCharacter(character) ? eveSpeechOverridePromptLines() : []),
   ]
     .filter(Boolean)
     .join('\n');

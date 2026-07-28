@@ -15,6 +15,8 @@ import {
   nextClosedUntil,
   resolveAffinityTier,
   resolveStartEpisode,
+  rollFastUnreadVisibleMs,
+  shouldFastReadTransition,
   todayKeyLocal,
 } from '@/lib/oc/ocChatAffinity';
 import {
@@ -45,7 +47,9 @@ import {
   loadOcChatThread,
   markUserMessagesRead,
   OC_CHAT_SEND_DEBOUNCE_MS,
+  OC_CHAT_BURST_REGATHER_MAX,
   extractLateUserMessages,
+  hasLateUserMessages,
   countTrailingUserBurst,
   postOcChat,
   resetOcChatThreadForVisitor,
@@ -58,6 +62,7 @@ import {
 } from '@/lib/oc/ocChat';
 import {
   appendRecentAction,
+  resolveResponseDelaySeconds,
   rollAmbientPresence,
   type OcChatPresence,
   type OcChatRecentAction,
@@ -219,7 +224,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     if (!delta) return;
     setAffToast({ delta });
     window.clearTimeout(affToastTimer.current);
-    affToastTimer.current = window.setTimeout(() => setAffToast(null), 2000);
+    affToastTimer.current = window.setTimeout(() => setAffToast(null), 3000);
   }, []);
 
   const startEpisode = useMemo(
@@ -477,10 +482,31 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         story?: OcChatStoryState;
         skipSeen?: boolean;
       },
-    ) => {
+    ): Promise<'ok' | 'regather'> => {
       let msgs = baseMessages;
       let nextMeta: MetaState = { ...stateRef.current.meta };
+      let deliveredAssistant = false;
       replyLockRef.current = true;
+
+      const lateBurstPending = () =>
+        hasLateUserMessages(stateRef.current.messages, flushIncludedIdsRef.current);
+
+      const abortForRegather = async (): Promise<'regather'> => {
+        nextMeta = { ...nextMeta, pendingBehavior: undefined };
+        setMeta(nextMeta);
+        await persistSnapshot({
+          messages: stateRef.current.messages,
+          affection: opts.affection,
+          story: opts.story,
+          freeGainToday: opts.freeGainToday,
+          freeGainDate: opts.freeGainDate,
+          meta: nextMeta,
+          skipSeen: true,
+          lastSeenAt: stateRef.current.lastSeenAt,
+        });
+        console.info('[oc-chat-ui] abort play — regather burst');
+        return 'regather';
+      };
 
       if (behavior.moodNote) {
         nextMeta = { ...nextMeta, moodNote: behavior.moodNote };
@@ -562,6 +588,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           } else {
             await sleepMs(Math.min(wait, 1800));
           }
+          if (!deliveredAssistant && lateBurstPending()) {
+            return abortForRegather();
+          }
           pushRecent('ignore', nextMeta.presence, behavior.moodNote || behavior.deltaReason);
           nextMeta = { ...nextMeta, pendingBehavior: undefined };
           setMeta(nextMeta);
@@ -577,7 +606,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             skipSeen: true,
             lastSeenAt: stateRef.current.lastSeenAt,
           });
-          return;
+          return 'ok';
         }
 
         /* presence 먼저 반영 + pending 저장 */
@@ -593,8 +622,57 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         });
 
         const waitMs = Math.max(0, applyAt - Date.now());
+        const delaySec = resolveResponseDelaySeconds({
+          aiSeconds: behavior.responseDelaySeconds,
+          delayKind: behavior.delay,
+          wasOffline,
+        });
+        const fastRead =
+          openRef.current &&
+          shouldFastReadTransition({
+            affection: stateRef.current.affection,
+            responseDelaySeconds: delaySec,
+            wasOffline,
+          });
+
+        const markReadNow = async () => {
+          const cur = markUserMessagesRead(stateRef.current.messages);
+          msgs = cur;
+          setMessages(cur);
+          await persistSnapshot({
+            messages: cur,
+            affection: opts.affection,
+            story: opts.story,
+            freeGainToday: opts.freeGainToday,
+            freeGainDate: opts.freeGainDate,
+            meta: nextMeta,
+          });
+        };
+
+        /*
+         * 읽음과 답장 도착을 분리. "1" 단계는 항상 존재한다.
+         * - 빠른 전환(짧은 delay + 호감 확률): "1"을 0.3~0.5초만 → 읽음 → 남은 delay 대기 → 타이핑
+         * - 일반: "1"을 delay 대부분 유지 → 끝나기 직전 읽음 → 답장
+         */
         if (openRef.current) setWaitingRead(true);
-        if (waitMs > 0) await sleepMs(waitMs);
+        if (fastRead) {
+          const unreadFlashMs = rollFastUnreadVisibleMs();
+          await sleepMs(unreadFlashMs);
+          await markReadNow();
+          const rest = Math.max(0, waitMs - unreadFlashMs);
+          if (rest > 0) await sleepMs(rest);
+        } else {
+          const readLeadMs =
+            waitMs > 1400 ? Math.min(700, Math.floor(waitMs * 0.14)) : 0;
+          const untilRead = Math.max(0, waitMs - readLeadMs);
+          if (untilRead > 0) await sleepMs(untilRead);
+          if (openRef.current) await markReadNow();
+          if (readLeadMs > 0) await sleepMs(readLeadMs);
+        }
+
+        if (!deliveredAssistant && lateBurstPending()) {
+          return abortForRegather();
+        }
 
         /* 창이 닫혀 있으면 조용히 배달 (미읽음 유지) */
         if (!openRef.current) {
@@ -618,7 +696,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             recentActions: fresh.recentActions || nextMeta.recentActions,
           });
           if (typeof fresh.lastSeenAt === 'number') setLastSeenAt(fresh.lastSeenAt);
-          return;
+          return 'ok';
         }
 
         /* 열려 있으면: 읽음 → (추가 메시지 오면 계속 읽기) → 타이핑 → 말풍선 */
@@ -658,10 +736,17 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         msgs = await absorbReads(3);
         await sleepMs(220);
 
+        if (!deliveredAssistant && lateBurstPending()) {
+          return abortForRegather();
+        }
+
         if (behavior.action === 'read_only') {
           setWaitingRead(false);
           /* 읽씹 직후에도 바로 온 말은 한 번 더 읽음 */
           msgs = await absorbReads(2);
+          if (!deliveredAssistant && lateBurstPending()) {
+            return abortForRegather();
+          }
           pushRecent('read_only', nextMeta.presence, behavior.moodNote || behavior.deltaReason);
           nextMeta = { ...nextMeta, pendingBehavior: undefined };
           setMeta(nextMeta);
@@ -673,12 +758,16 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             freeGainDate: opts.freeGainDate,
             meta: nextMeta,
           });
-          return;
+          return 'ok';
         }
 
         setWaitingRead(false);
         /* 타이핑 들어가기 직전에도 화면 보고 있는 동안 온 말 흡수 */
         msgs = await absorbReads(1);
+
+        if (!deliveredAssistant && lateBurstPending()) {
+          return abortForRegather();
+        }
 
         /* 이미 백그라운드가 배달했는지 확인 */
         {
@@ -695,7 +784,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               ...closedFieldsFromUntil(fresh.closedUntil),
             };
             setMeta(nextMeta);
-            return;
+            return 'ok';
           }
         }
 
@@ -716,7 +805,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               visitorRef.current || getOrCreateChatVisitorId(),
             );
             setMessages(fresh.messages);
-            return;
+            return 'ok';
+          }
+          if (!deliveredAssistant && lateBurstPending()) {
+            return abortForRegather();
           }
           /* 타이핑 중 온 유저 말도 유지·읽음 처리 — flush 스냅샷 밖 연타는 봇 답 뒤로 */
           const included = flushIncludedIdsRef.current;
@@ -730,6 +822,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           }
           const line = lines[i]!;
           await playLengthTyping(line, behavior.typingIndicatorEvents, i === 0);
+          if (!deliveredAssistant && lateBurstPending()) {
+            setBusy(false);
+            return abortForRegather();
+          }
           {
             const { head, lateUsers } = extractLateUserMessages(
               markUserMessagesRead(stateRef.current.messages),
@@ -737,6 +833,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             );
             const botMsg = createChatMessage('assistant', line, 'chat');
             msgs = [...head, botMsg, ...lateUsers];
+            deliveredAssistant = true;
           }
           setMessages(msgs);
           setBusy(false);
@@ -771,7 +868,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               visitorId: visitorRef.current || getOrCreateChatVisitorId(),
               character,
             });
-            return;
+            return 'ok';
           }
           setBusy(true);
           await sleepMs(typingDurationMs('스티커'));
@@ -785,6 +882,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               stickerId: sticker.id,
             });
             msgs = [...head, stickerMsg, ...lateUsers];
+            deliveredAssistant = true;
           }
           setMessages(msgs);
           setBusy(false);
@@ -807,7 +905,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             skipSeen: !openRef.current,
           });
           setBusy(false);
-          return;
+          return 'ok';
         }
 
         pushRecent(behavior.action, 'online', behavior.moodNote);
@@ -839,6 +937,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           lastSeenAt: !openRef.current ? stateRef.current.lastSeenAt : undefined,
         });
         setBusy(false);
+        return 'ok';
       } finally {
         replyLockRef.current = false;
         setBusy(false);
@@ -1347,27 +1446,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       setMeta(unlocked);
     }
 
-    const withUser = stateRef.current.messages;
-    const last = withUser[withUser.length - 1];
-    if (!last || last.role !== 'user') return;
+    const last0 = stateRef.current.messages[stateRef.current.messages.length - 1];
+    if (!last0 || last0.role !== 'user') return;
 
     flushLockRef.current = true;
     pendingFlushRef.current = false;
-    flushIncludedIdsRef.current = new Set(withUser.map((m) => m.id));
-    const includedAtStart = flushIncludedIdsRef.current;
-    const aff = stateRef.current.affection;
-    const st = stateRef.current.story;
-    const gain =
-      stateRef.current.freeGainDate === todayKeyLocal()
-        ? stateRef.current.freeGainToday
-        : 0;
-    const loss =
-      stateRef.current.freeGainDate === todayKeyLocal()
-        ? stateRef.current.meta.freeLossToday || 0
-        : 0;
-    const turns = stateRef.current.meta.turnsToday || 0;
-    const metaSnap = stateRef.current.meta;
-    const userBurstAtStart = countTrailingUserBurst(withUser);
 
     const scheduleTrailingFlush = () => {
       window.clearTimeout(debounceTimer.current);
@@ -1378,72 +1461,120 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       }, wait);
     };
 
+    const waitBurstQuiet = async () => {
+      for (;;) {
+        const wait = OC_CHAT_SEND_DEBOUNCE_MS - (Date.now() - lastUserSendAtRef.current);
+        if (wait <= 0) return;
+        await sleepMs(wait);
+      }
+    };
+
+    let includedAtStart = new Set<string>();
+    const userBurstAtStart = countTrailingUserBurst(stateRef.current.messages);
+
     try {
-      let burstStart = withUser.length - 1;
-      while (burstStart > 0 && withUser[burstStart - 1]?.role === 'user') {
-        burstStart -= 1;
-      }
-      const beforeBurstAt =
-        burstStart > 0 ? withUser[burstStart - 1]?.at : undefined;
+      for (let attempt = 0; attempt <= OC_CHAT_BURST_REGATHER_MAX; attempt++) {
+        if (attempt > 0) await waitBurstQuiet();
 
-      const result = await postOcChat({
-        characterId: charId,
-        visitorId: visitorRef.current || getOrCreateChatVisitorId(),
-        messages: withUser,
-        affection: aff,
-        freeGainToday: gain,
-        freeLossToday: loss,
-        moodNote: metaSnap.moodNote,
-        turnsToday: turns,
-        hoursSinceLast: hoursSince(
-          typeof beforeBurstAt === 'number'
-            ? beforeBurstAt
-            : lastMessageAt(withUser.slice(0, burstStart)),
-        ),
-        closedForToday: false,
-        recentDeltaReasons: metaSnap.recentDeltaReasons,
-        presence: metaSnap.presence,
-        recentActions: metaSnap.recentActions,
-      });
+        const withUser = stateRef.current.messages;
+        const last = withUser[withUser.length - 1];
+        if (!last || last.role !== 'user') return;
 
-      const reasons = [...(metaSnap.recentDeltaReasons || [])];
-      if (result.deltaReason && result.affinityDelta !== 0) {
-        reasons.push(result.deltaReason);
-      }
-      const afterMeta: MetaState = {
-        ...stateRef.current.meta,
-        freeLossToday: result.freeLossToday,
-        recentDeltaReasons: reasons.slice(-8),
-        lastInteractionAt: Date.now(),
-        moodNote: result.behavior.moodNote || stateRef.current.meta.moodNote,
-      };
-      setMeta(afterMeta);
+        includedAtStart = new Set(withUser.map((m) => m.id));
+        flushIncludedIdsRef.current = includedAtStart;
+        const aff = stateRef.current.affection;
+        const st = stateRef.current.story;
+        const gain =
+          stateRef.current.freeGainDate === todayKeyLocal()
+            ? stateRef.current.freeGainToday
+            : 0;
+        const loss =
+          stateRef.current.freeGainDate === todayKeyLocal()
+            ? stateRef.current.meta.freeLossToday || 0
+            : 0;
+        const turns = stateRef.current.meta.turnsToday || 0;
+        const metaSnap = stateRef.current.meta;
 
-      /* 호감·토스트는 읽음→답장 연출 끝난 뒤에만 (전송 직후 선반영 금지) */
-      await playBehavior(result.behavior, stateRef.current.messages, {
-        affection: result.affection,
-        freeGainToday: result.freeGainToday,
-        freeGainDate: result.freeGainDate,
-        story: st,
-      });
-      setAffection(result.affection);
-      setFreeGainToday(result.freeGainToday);
-      setFreeGainDate(result.freeGainDate);
-      if (result.affinityDelta !== 0) flashAffectionToast(result.affinityDelta);
-      await persistSnapshot({
-        messages: stateRef.current.messages,
-        affection: result.affection,
-        story: st,
-        freeGainToday: result.freeGainToday,
-        freeGainDate: result.freeGainDate,
-        meta: {
+        let burstStart = withUser.length - 1;
+        while (burstStart > 0 && withUser[burstStart - 1]?.role === 'user') {
+          burstStart -= 1;
+        }
+        const beforeBurstAt =
+          burstStart > 0 ? withUser[burstStart - 1]?.at : undefined;
+
+        const result = await postOcChat({
+          characterId: charId,
+          visitorId: visitorRef.current || getOrCreateChatVisitorId(),
+          messages: withUser,
+          affection: aff,
+          freeGainToday: gain,
+          freeLossToday: loss,
+          moodNote: metaSnap.moodNote,
+          turnsToday: turns,
+          hoursSinceLast: hoursSince(
+            typeof beforeBurstAt === 'number'
+              ? beforeBurstAt
+              : lastMessageAt(withUser.slice(0, burstStart)),
+          ),
+          closedForToday: false,
+          recentDeltaReasons: metaSnap.recentDeltaReasons,
+          presence: metaSnap.presence,
+          recentActions: metaSnap.recentActions,
+        });
+
+        /* API 대기 중 연타 → 불완전 응답 버리고 묶어서 재요청 */
+        if (
+          hasLateUserMessages(stateRef.current.messages, includedAtStart) &&
+          attempt < OC_CHAT_BURST_REGATHER_MAX
+        ) {
+          console.info('[oc-chat-ui] discard API reply — burst grew', {
+            attempt,
+            late: countTrailingUserBurst(stateRef.current.messages),
+          });
+          continue;
+        }
+
+        const reasons = [...(metaSnap.recentDeltaReasons || [])];
+        if (result.deltaReason && result.affinityDelta !== 0) {
+          reasons.push(result.deltaReason);
+        }
+
+        /* 호감·토스트는 읽음→답장 연출 끝난 뒤에만 (전송 직후 선반영 금지) */
+        const playResult = await playBehavior(result.behavior, stateRef.current.messages, {
+          affection: result.affection,
+          freeGainToday: result.freeGainToday,
+          freeGainDate: result.freeGainDate,
+          story: st,
+        });
+
+        if (playResult === 'regather' && attempt < OC_CHAT_BURST_REGATHER_MAX) {
+          console.info('[oc-chat-ui] regather after play abort', { attempt });
+          continue;
+        }
+
+        const afterMeta: MetaState = {
           ...stateRef.current.meta,
           freeLossToday: result.freeLossToday,
           recentDeltaReasons: reasons.slice(-8),
           lastInteractionAt: Date.now(),
           moodNote: result.behavior.moodNote || stateRef.current.meta.moodNote,
-        },
-      });
+        };
+        setMeta(afterMeta);
+
+        setAffection(result.affection);
+        setFreeGainToday(result.freeGainToday);
+        setFreeGainDate(result.freeGainDate);
+        if (result.affinityDelta !== 0) flashAffectionToast(result.affinityDelta);
+        await persistSnapshot({
+          messages: stateRef.current.messages,
+          affection: result.affection,
+          story: st,
+          freeGainToday: result.freeGainToday,
+          freeGainDate: result.freeGainDate,
+          meta: afterMeta,
+        });
+        break;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '전송 실패');
     } finally {
@@ -1493,6 +1624,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     setInput('');
     setError('');
     focusComposer();
+    /* "1"은 항상 잠깐이라도 보이게 — 전송 직후 읽음 선반영 금지 */
     const userMsg = createChatMessage('user', text, 'chat');
     const withUser = [...stateRef.current.messages, userMsg];
     setMessages(withUser);
@@ -1507,8 +1639,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     };
     setMeta(nextMeta);
 
-    /* OC가 화면 보고 있는 중이면 곧 읽음 처리 (바로 안 나가는 느낌) */
+    /* OC가 화면 보고 있는 중이면 짧게 "1" 후 읽음 (빠른 전환 최소 노출) */
     if (replyLockRef.current) {
+      const flashMs = rollFastUnreadVisibleMs();
       window.setTimeout(() => {
         if (!openRef.current || !replyLockRef.current) return;
         const marked = markUserMessagesRead(stateRef.current.messages);
@@ -1525,7 +1658,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           freeGainDate: stateRef.current.freeGainDate,
           meta: stateRef.current.meta,
         });
-      }, 650);
+      }, flashMs);
     }
 
     try {
