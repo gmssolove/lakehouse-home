@@ -47,13 +47,15 @@ export function LakeScopeGate({
     setUnlocked(isLakeAccessUnlocked(scope, scopePw));
   }, [scope, scopePw, loggedIn]);
 
+  const canView = isAdmin || !locked || (loggedIn && unlocked);
+
   // 메뉴가 열릴 때 잠겨 있으면 바로 비번 프롬프트를 띄운다.
   useEffect(() => {
-    if (active && locked && !isAdmin && !unlocked) setOpen(true);
+    if (active && locked && !canView) setOpen(true);
     else if (!active) setOpen(false);
-  }, [active, locked, isAdmin, unlocked]);
+  }, [active, locked, canView]);
 
-  if (isAdmin || !locked || unlocked) return <>{children}</>;
+  if (canView) return <>{children}</>;
 
   return (
     <div className="lh-scope-gate">

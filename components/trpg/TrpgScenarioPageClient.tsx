@@ -180,12 +180,13 @@ export function TrpgScenarioPageClient({ id }: Props) {
     // 인증 확정 전엔 판단 보류 — 관리자가 isAdmin=false로 오판돼 목록으로
     // 튕기거나 게이트가 뜨는 것을 방지.
     if (!loaded || !authReady) return;
-    const ok = isAdmin || isLakeAccessUnlocked('trpg', resolveScopePassword('trpg', accessSettings));
+    const scopePw = resolveScopePassword('trpg', accessSettings);
+    const ok = isAdmin || (!!user && isLakeAccessUnlocked('trpg', scopePw));
     setUnlocked(ok);
     if (!ok) {
       router.replace(`/?p=trpg&trpg=${encodeURIComponent(id)}`, { scroll: false });
     }
-  }, [id, isAdmin, loaded, router, accessSettings, authReady]);
+  }, [id, isAdmin, loaded, router, accessSettings, authReady, user]);
 
   const item = useMemo(() => (raw ? normalizeTrpgScenario(raw) : null), [raw]);
   const dates = item ? formatTrpgDateRange(item) : '';
@@ -204,11 +205,10 @@ export function TrpgScenarioPageClient({ id }: Props) {
     const ok =
       isAdmin ||
       !item.secret ||
-      sameAsScope ||
-      isLakeItemUnlocked('trpg', item.id, itemPw);
+      (!!user && (sameAsScope || isLakeItemUnlocked('trpg', item.id, itemPw)));
     setItemUnlocked(ok);
     setItemGateOpen(unlocked && !ok);
-  }, [item, isAdmin, unlocked, accessSettings, authReady]);
+  }, [item, isAdmin, unlocked, accessSettings, authReady, user]);
 
   const canView = unlocked && itemUnlocked;
 

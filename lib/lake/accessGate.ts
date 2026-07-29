@@ -190,12 +190,51 @@ export function itemNeedsUnlock(
   item: WithSecret | undefined,
   settings?: Partial<SiteAccessSettings>,
   isAdmin = false,
+  loggedIn = true,
 ): boolean {
   if (isAdmin) return false;
   if (!item?.secret) return false;
+  if (!loggedIn) return true;
   const pw = resolveItemPassword(scope, item, settings);
   if (!pw) return false;
   return !isLakeItemUnlocked(scope, (item as { id?: string }).id ?? 'global', pw);
+}
+
+/**
+ * 비밀글/잠금 항목 열람 가능 여부.
+ * 관리자이거나 공개 항목이면 true.
+ * 비밀글은 **로그인 + 비밀번호 해제**가 둘 다 필요하다.
+ * (기기 localStorage 해제만으로는 비로그인 열람 불가)
+ */
+export function canAccessSecretItem(
+  scope: LakeAccessScope,
+  itemId: string,
+  opts: {
+    secret?: boolean;
+    expectedPassword?: string;
+    isAdmin?: boolean;
+    loggedIn?: boolean;
+  },
+): boolean {
+  if (opts.isAdmin) return true;
+  if (!opts.secret) return true;
+  if (!opts.loggedIn) return false;
+  return isLakeItemUnlocked(scope, itemId, opts.expectedPassword);
+}
+
+/** 스코프(메뉴) 잠금 — 비밀글과 같이 로그인 필수 */
+export function canAccessSecretScope(
+  scope: LakeAccessScope,
+  opts: {
+    scopePassword?: string;
+    isAdmin?: boolean;
+    loggedIn?: boolean;
+  },
+): boolean {
+  if (opts.isAdmin) return true;
+  if (!opts.scopePassword) return true;
+  if (!opts.loggedIn) return false;
+  return isLakeAccessUnlocked(scope, opts.scopePassword);
 }
 
 /** @deprecated use isLakeAccessUnlocked('oc') */

@@ -17,7 +17,7 @@ import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
 import { displayCategory, isTrpgCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
 import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import {
-  isLakeItemUnlocked,
+  canAccessSecretItem,
   resolveItemPassword,
   unlockLakeItem,
   verifyLakeAccessPassword,
@@ -384,12 +384,30 @@ export function OcPageClient() {
 
   function requestOpenDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean; instant?: boolean }) {
     const id = String(c.id);
-    if (isAdmin || !c.secret || isLakeItemUnlocked('oc', id, resolveItemPassword('oc', c, accessSettings))) {
+    if (
+      canAccessSecretItem('oc', id, {
+        secret: c.secret,
+        expectedPassword: resolveItemPassword('oc', c, accessSettings),
+        isAdmin,
+        loggedIn: !!user,
+      })
+    ) {
       openDetail(c, au, opts);
       return;
     }
     setPasswordGate({ character: c, au, skipIntro: opts?.skipIntro });
   }
+
+  /* 비밀글 상세를 연 뒤 로그아웃되면 닫고 게이트로 */
+  useEffect(() => {
+    if (!authReady || isAdmin || user) return;
+    if (!detail?.secret) return;
+    const pending = { character: detail, au: auIdx, skipIntro: true as const };
+    setIntro(null);
+    setEntrySplash(null);
+    setDetail(null);
+    setPasswordGate(pending);
+  }, [authReady, isAdmin, user, detail, auIdx]);
 
   const bootCharRef = useRef<string | null>(peekPendingOcCharId());
   const [bootCharCover, setBootCharCover] = useState(() => Boolean(bootCharRef.current));

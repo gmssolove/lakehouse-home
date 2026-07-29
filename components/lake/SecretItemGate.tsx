@@ -61,6 +61,9 @@ export function SecretItemGate({
     setUnlocked(isLakeItemUnlocked(scope, item.id, expectedPw));
   }, [scope, item.id, loggedIn, expectedPw]);
 
+  const canView =
+    isAdmin || !item.secret || (loggedIn && unlocked);
+
   const gateModal = (
     <LakeAccessGateModal
       open={open}
@@ -87,7 +90,7 @@ export function SecretItemGate({
     />
   );
 
-  if (isAdmin || !item.secret || unlocked) return <>{children}</>;
+  if (canView) return <>{children}</>;
 
   if (showWhenLocked) {
     const child = Children.only(children);

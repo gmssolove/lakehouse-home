@@ -24,7 +24,7 @@ import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
 import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
 import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
 import {
-  isLakeItemUnlocked,
+  canAccessSecretItem,
   resolveItemPassword,
   unlockLakeItem,
   verifyLakeAccessPassword,
@@ -381,7 +381,14 @@ export function PairPageClient() {
   }
 
   function openPair(p: PairItem, opts?: { skipSplash?: boolean }) {
-    if (isAdmin || !p.secret || isLakeItemUnlocked('pair', p.id, resolveItemPassword('pair', p, accessSettings))) {
+    if (
+      canAccessSecretItem('pair', p.id, {
+        secret: p.secret,
+        expectedPassword: resolveItemPassword('pair', p, accessSettings),
+        isAdmin,
+        loggedIn: !!user,
+      })
+    ) {
       proceedOpenPair(p, opts);
       return;
     }
