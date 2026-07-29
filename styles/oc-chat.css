@@ -74,20 +74,24 @@
 
 .oc-chat-aff-toast {
   position: absolute;
-  top: 58px;
+  /* 헤더(~62px) 바로 아래 — 스레드 위에 분명히 보이게 */
+  top: 72px;
   left: 50%;
-  z-index: 5;
+  z-index: 40;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  transform: translateX(-50%) translateY(-4px);
-  padding: 8px 16px;
+  gap: 6px;
+  transform: translateX(-50%) translateY(0);
+  padding: 9px 18px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
   pointer-events: none;
-  animation: ocChatAffToast 3s ease both;
+  /* 기본 불투명 — reduced-motion으로 duration≈0이 되어도 안 사라지게
+     (예전 both+끝 opacity:0 조합이면 토스트가 즉시 투명해짐) */
+  opacity: 1;
+  animation: ocChatAffToast 2.8s ease-out forwards;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
@@ -118,18 +122,20 @@
 @keyframes ocChatAffToast {
   0% {
     opacity: 0;
-    transform: translateX(-50%) translateY(6px) scale(0.96);
+    transform: translateX(-50%) translateY(8px) scale(0.96);
   }
-  8% {
+  10% {
     opacity: 1;
     transform: translateX(-50%) translateY(0) scale(1);
   }
-  78% {
+  75% {
     opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
   }
   100% {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-8px) scale(0.98);
+    /* 언마운트는 JS 타이머 — 끝 프레임을 투명으로 두면 reduced-motion에서 즉시 안 보임 */
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 
@@ -1033,5 +1039,12 @@
   .oc-chat-row.is-enter .oc-chat-sticker,
   .oc-chat-typing span {
     animation: none !important;
+  }
+
+  /* lake-perf 전역 animation-duration≈0 덮어씀 — 호감 토스트는 반드시 보이게 */
+  .oc-chat-aff-toast {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: translateX(-50%) translateY(0) !important;
   }
 }

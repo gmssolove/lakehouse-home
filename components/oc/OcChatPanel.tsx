@@ -168,7 +168,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const [loadingThread, setLoadingThread] = useState(false);
   const [awaitingChoice, setAwaitingChoice] = useState(false);
   const [error, setError] = useState('');
-  const [affToast, setAffToast] = useState<{ delta: number } | null>(null);
+  const [affToast, setAffToast] = useState<{ delta: number; id: number } | null>(null);
   const [panelAnim, setPanelAnim] = useState<'in' | 'out' | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -222,7 +222,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
   const flashAffectionToast = useCallback((delta: number) => {
     if (!delta) return;
-    setAffToast({ delta });
+    /* id로 리마운트해 애니메이션/표시를 매번 다시 시작 */
+    setAffToast({ delta, id: Date.now() });
     window.clearTimeout(affToastTimer.current);
     affToastTimer.current = window.setTimeout(() => setAffToast(null), 3000);
   }, []);
@@ -1792,6 +1793,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       <div className="oc-chat-phone" style={chatPointStyle as CSSProperties}>
         {affToast ? (
           <div
+            key={affToast.id}
             className={`oc-chat-aff-toast${affToast.delta > 0 ? ' is-up' : ' is-down'}`}
             role="status"
             aria-live="polite"
