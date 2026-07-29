@@ -24,8 +24,8 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
   const [hintOn, setHintOn] = useState(false);
   const [hintOut, setHintOut] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [show, setShow] = useState(false);
-  const [ready, setReady] = useState(false);
+  // hidden 토글에 따라 "렌더 언마운트" 하지 않고, is-ready 클래스만 바꿔 깜빡임을 줄인다.
+  const [ready, setReady] = useState(() => !Boolean(hidden));
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintRef = useRef<HTMLSpanElement | null>(null);
   const lastPos = useRef({ x: 0, y: 0 });
@@ -75,32 +75,16 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
 
   useEffect(() => {
     if (hidden) {
-      setShow(false);
       setReady(false);
       setHintOn(false);
       setHintOut(false);
       clearLeave();
       return;
     }
-    // hidden 해제 순간 지연(setTimeout) + RAF 2단계가 합쳐지면
-    // 알림이 뜰 때 프레임 드랍/깜빡임이 생길 수 있다.
-    // show/ready는 즉시 토글하고, 시각 효과는 CSS transition이 처리한다.
-    setShow(true);
+    setReady(true);
   }, [hidden, clearLeave]);
 
-  /* 마운트/재등장마다 아래에서 올라오는 인 애니메이션 */
-  useLayoutEffect(() => {
-    if (!show) {
-      setReady(false);
-      return;
-    }
-    setReady(false);
-    // 2단계 RAF 대신 1단계만 사용해 토글 타이밍을 단순화한다.
-    const raf = window.requestAnimationFrame(() => setReady(true));
-    return () => window.cancelAnimationFrame(raf);
-  }, [show]);
-
-  if (!mounted || !show) return null;
+  if (!mounted) return null;
 
   const ui = (
     <>

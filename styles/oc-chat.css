@@ -909,7 +909,7 @@
   bottom: 0;
   z-index: 1180;
   width: min(280px, 24vw);
-  height: 68px;
+  height: 0;
   margin: 0;
   padding: 0;
   border: 0;
@@ -918,10 +918,16 @@
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
   transition: height 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
 }
 
 .oc-chat-phone-peek:focus-visible {
   outline: none;
+}
+
+.oc-chat-phone-peek.is-ready {
+  height: 68px;
+  pointer-events: auto;
 }
 
 .oc-chat-phone-peek__visual {
