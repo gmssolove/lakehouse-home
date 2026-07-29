@@ -1,3 +1,4 @@
+import { signInAnonymously } from 'firebase/auth';
 import { get, onValue, ref, remove, set, type Unsubscribe } from 'firebase/database';
 import {
   clampAffection,
@@ -30,7 +31,7 @@ import {
   resolveResponseDelaySeconds,
 } from '@/lib/oc/ocChatPresence';
 import { resolveSticker } from '@/lib/oc/ocChatStickers';
-import { db } from '@/lib/firebase/client';
+import { auth, db } from '@/lib/firebase/client';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import type { OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
@@ -108,11 +109,29 @@ function characterThreadsPath(characterId: string) {
   return `lhdata/oc_chat_threads/${characterId}`;
 }
 
+/**
+ * RTDB 쓰기 규칙은 auth 필요. 관리자 세션이 있으면 그대로 쓰고,
+ * 없으면 익명 로그인(VN 세이브와 동일)으로 게스트 채팅 저장을 허용한다.
+ */
+export async function ensureOcChatAuth(): Promise<void> {
+  if (auth.currentUser) return;
+  await signInAnonymously(auth);
+}
+
+export function formatOcChatFirebaseError(err: unknown, fallback = '채팅 저장에 실패했습니다'): string {
+  const raw = err instanceof Error ? err.message : String(err || '');
+  if (/PERMISSION_DENIED|permission-denied|401/i.test(raw)) {
+    return '채팅 저장 권한이 없습니다. 잠시 후 다시 열어 주세요.';
+  }
+  return raw.trim() || fallback;
+}
+
 /** 해당 OC의 채팅 스레드만 삭제 (다른 OC 영향 없음) — 관리자용, 전 방문자 */
 export async function resetOcChatForCharacter(characterId: string): Promise<void> {
   const id = String(characterId || '').trim();
   if (!id) throw new Error('캐릭터 ID가 없습니다');
   if (/[./\[\]]/.test(id)) throw new Error('잘못된 캐릭터 ID');
+  await ensureOcChatAuth();
   await remove(ref(db, characterThreadsPath(id)));
 }
 
@@ -126,6 +145,7 @@ export async function resetOcChatThreadForVisitor(
   if (!id) throw new Error('캐릭터 ID가 없습니다');
   if (!vid) throw new Error('방문자 ID가 없습니다');
   if (/[./\[\]]/.test(id) || /[./\[\]]/.test(vid)) throw new Error('잘못된 ID');
+  await ensureOcChatAuth();
   await remove(ref(db, threadPath(id, vid)));
 }
 
@@ -502,6 +522,7 @@ export async function loadOcChatThread(
   characterId: string,
   visitorId: string,
 ): Promise<OcChatThread> {
+  await ensureOcChatAuth();
   const snap = await get(ref(db, threadPath(characterId, visitorId)));
   return normalizeChatThread(snap.val());
 }
@@ -511,9 +532,24 @@ export function subscribeOcChatThread(
   visitorId: string,
   onData: (thread: OcChatThread) => void,
 ): Unsubscribe {
-  return onValue(ref(db, threadPath(characterId, visitorId)), (snap) => {
-    onData(normalizeChatThread(snap.val()));
-  });
+  const path = threadPath(characterId, visitorId);
+  let unsub: Unsubscribe | null = null;
+  let cancelled = false;
+  void ensureOcChatAuth()
+    .then(() => {
+      if (cancelled) return;
+      unsub = onValue(ref(db, path), (snap) => {
+        onData(normalizeChatThread(snap.val()));
+      });
+    })
+    .catch((err) => {
+      console.warn('[oc-chat] subscribe auth failed', err);
+      onData(normalizeChatThread(null));
+    });
+  return () => {
+    cancelled = true;
+    unsub?.();
+  };
 }
 
 export async function saveOcChatThread(
@@ -521,6 +557,7 @@ export async function saveOcChatThread(
   visitorId: string,
   thread: OcChatThread,
 ): Promise<void> {
+  await ensureOcChatAuth();
   const next: OcChatThread = {
     messages: trimChatMessages(thread.messages),
     updatedAt: Date.now(),

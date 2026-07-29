@@ -51,6 +51,7 @@ import {
   extractLateUserMessages,
   hasLateUserMessages,
   countTrailingUserBurst,
+  formatOcChatFirebaseError,
   postOcChat,
   resetOcChatThreadForVisitor,
   saveOcChatThread,
@@ -208,6 +209,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   });
   const charId = String(character.id);
   const chatAvatar = resolveChatAvatarUrl(character);
+  const characterRef = useRef(character);
+  characterRef.current = character;
 
   openRef.current = open;
   stateRef.current = {
@@ -348,7 +351,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       await alert('채팅을 초기화했습니다.', '완료');
       focusComposer();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '초기화에 실패했습니다';
+      const msg = formatOcChatFirebaseError(e, '초기화에 실패했습니다');
       setError(msg);
       await alert(msg, '오류');
     } finally {
@@ -958,6 +961,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     revealedRef.current = new Set();
     window.clearTimeout(storyTimer.current);
     visitorRef.current = getOrCreateChatVisitorId();
+    const characterNow = characterRef.current;
     void (async () => {
       try {
         const thread = await loadOcChatThread(charId, visitorRef.current);
@@ -995,11 +999,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setAffection(affectionNow);
         setMeta(nextMeta);
 
-        const ep = resolveStartEpisode(character.chatbot);
+        const ep = resolveStartEpisode(characterNow.chatbot);
         let nextStory = thread.story;
         let nextMessages = thread.messages;
 
-        if (ep && needsStoryMode(character, nextStory?.completedEpisodeIds)) {
+        if (ep && needsStoryMode(characterNow, nextStory?.completedEpisodeIds)) {
           const startId = episodeStartSceneId(ep);
           if (!nextStory || nextStory.episodeId !== ep.id || !nextStory.sceneId) {
             nextStory = {
@@ -1020,7 +1024,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             }
           }
         } else if (!nextMessages.length) {
-          const greeting = defaultChatGreeting(character);
+          const greeting = defaultChatGreeting(characterNow);
           if (greeting) {
             nextMessages = [createChatMessage('assistant', greeting, 'chat')];
           }
@@ -1031,12 +1035,12 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         if (
           pending &&
           pending.applyAt <= Date.now() &&
-          !needsStoryMode(character, nextStory?.completedEpisodeIds)
+          !needsStoryMode(characterNow, nextStory?.completedEpisodeIds)
         ) {
           await tryDeliverPendingChat({
             characterId: charId,
             visitorId: visitorRef.current,
-            character,
+            character: characterNow,
           });
           const fresh = await loadOcChatThread(charId, visitorRef.current);
           nextMessages = fresh.messages;
@@ -1060,34 +1064,42 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setStory(nextStory);
         setMessages(nextMessages);
 
-        await saveOcChatThread(charId, visitorRef.current, {
-          messages: nextMessages,
-          updatedAt: Date.now(),
-          affection: affectionNow,
-          story: nextStory,
-          freeGainDate: thread.freeGainDate || todayKeyLocal(),
-          freeGainToday: thread.freeGainToday || 0,
-          freeLossToday: nextMeta.freeLossToday,
-          lastSeenAt: seenNow,
-          moodNote: nextMeta.moodNote,
-          moodDate: nextMeta.moodNote ? todayKeyLocal() : undefined,
-          turnsToday: nextMeta.turnsToday,
-          turnsDate: todayKeyLocal(),
-          closedForToday: nextMeta.closedForToday,
-          closedDate: undefined,
-          closedUntil: nextMeta.closedUntil,
-          lastProactiveDate: nextMeta.lastProactiveDate,
-          pendingBehavior: pending,
-          recentDeltaReasons: nextMeta.recentDeltaReasons,
-          lastInteractionAt: nextMeta.lastInteractionAt,
-          neglectCheckedAt: nextMeta.neglectCheckedAt,
-          presence: nextMeta.presence,
-          presenceUpdatedAt: nextMeta.presenceUpdatedAt,
-          recentActions: nextMeta.recentActions,
-        });
+        try {
+          await saveOcChatThread(charId, visitorRef.current, {
+            messages: nextMessages,
+            updatedAt: Date.now(),
+            affection: affectionNow,
+            story: nextStory,
+            freeGainDate: thread.freeGainDate || todayKeyLocal(),
+            freeGainToday: thread.freeGainToday || 0,
+            freeLossToday: nextMeta.freeLossToday,
+            lastSeenAt: seenNow,
+            moodNote: nextMeta.moodNote,
+            moodDate: nextMeta.moodNote ? todayKeyLocal() : undefined,
+            turnsToday: nextMeta.turnsToday,
+            turnsDate: todayKeyLocal(),
+            closedForToday: nextMeta.closedForToday,
+            closedDate: undefined,
+            closedUntil: nextMeta.closedUntil,
+            lastProactiveDate: nextMeta.lastProactiveDate,
+            pendingBehavior: pending,
+            recentDeltaReasons: nextMeta.recentDeltaReasons,
+            lastInteractionAt: nextMeta.lastInteractionAt,
+            neglectCheckedAt: nextMeta.neglectCheckedAt,
+            presence: nextMeta.presence,
+            presenceUpdatedAt: nextMeta.presenceUpdatedAt,
+            recentActions: nextMeta.recentActions,
+          });
+        } catch (saveErr) {
+          /* 로드는 성공했는데 저장만 실패하면 대화를 비우지 않는다 */
+          if (!cancelled) {
+            setError(formatOcChatFirebaseError(saveErr, '대화 저장에 실패했습니다'));
+          }
+        }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '대화를 불러오지 못했습니다');
+          setError(formatOcChatFirebaseError(err, '대화를 불러오지 못했습니다'));
+          /* 로드 자체 실패일 때만 비움 — 저장 실패로 여기 오면 안 됨 */
           setMessages([]);
         }
       } finally {
@@ -1107,7 +1119,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       cancelled = true;
       window.clearTimeout(storyTimer.current);
     };
-  }, [charId, character, flashAffectionToast, focusComposer, open, scrollToEnd]);
+  }, [charId, flashAffectionToast, focusComposer, open, scrollToEnd]);
 
   /* end_for_today 쿨다운 만료 시 구분선 해제 */
   useEffect(() => {
@@ -1577,7 +1589,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         break;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '전송 실패');
+      setError(formatOcChatFirebaseError(err, '전송 실패'));
     } finally {
       flushLockRef.current = false;
       setWaitingRead(false);
@@ -1697,7 +1709,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         void flushDebouncedChat();
       }, OC_CHAT_SEND_DEBOUNCE_MS);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '전송 실패');
+      setError(formatOcChatFirebaseError(err, '전송 실패'));
       focusComposer();
     }
   }, [
