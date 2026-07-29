@@ -82,8 +82,10 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
       clearLeave();
       return;
     }
-    const t = window.setTimeout(() => setShow(true), 160);
-    return () => window.clearTimeout(t);
+    // hidden 해제 순간 지연(setTimeout) + RAF 2단계가 합쳐지면
+    // 알림이 뜰 때 프레임 드랍/깜빡임이 생길 수 있다.
+    // show/ready는 즉시 토글하고, 시각 효과는 CSS transition이 처리한다.
+    setShow(true);
   }, [hidden, clearLeave]);
 
   /* 마운트/재등장마다 아래에서 올라오는 인 애니메이션 */
@@ -93,14 +95,9 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
       return;
     }
     setReady(false);
-    let raf2 = 0;
-    const raf1 = window.requestAnimationFrame(() => {
-      raf2 = window.requestAnimationFrame(() => setReady(true));
-    });
-    return () => {
-      window.cancelAnimationFrame(raf1);
-      if (raf2) window.cancelAnimationFrame(raf2);
-    };
+    // 2단계 RAF 대신 1단계만 사용해 토글 타이밍을 단순화한다.
+    const raf = window.requestAnimationFrame(() => setReady(true));
+    return () => window.cancelAnimationFrame(raf);
   }, [show]);
 
   if (!mounted || !show) return null;
