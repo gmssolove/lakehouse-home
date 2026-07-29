@@ -944,12 +944,24 @@ export function OcCharacterDetail({
   } | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
+  /* 미읽음이 한 번이라도 잡히면 채팅 열기 전까지 유지 — RTDB 중간값으로 배지/턱이 깜빡이지 않게 */
+  const [chatAlertLatched, setChatAlertLatched] = useState(false);
   const chatEnabled = Boolean(character.chatbot?.enabled);
 
   useEffect(() => {
     setChatOpen(false);
     setChatUnread(0);
+    setChatAlertLatched(false);
   }, [character.id]);
+
+  useEffect(() => {
+    if (chatOpen) {
+      setChatUnread(0);
+      setChatAlertLatched(false);
+      return;
+    }
+    if (chatUnread > 0) setChatAlertLatched(true);
+  }, [chatOpen, chatUnread]);
 
   useEffect(() => {
     if (!chatEnabled || chatOpen) {
@@ -2313,8 +2325,10 @@ export function OcCharacterDetail({
       {chatEnabled ? (
         <OcChatPhonePeek
           characterName={character.name || '캐릭터'}
-          unread={chatUnread}
-          hidden={chatOpen || (vn.present && chatUnread === 0)}
+          unread={chatAlertLatched ? Math.max(chatUnread, 1) : chatUnread}
+          /* 채팅 열릴 때만 숨김 — VN/unread로 show·hide 하면 알림이 깜빡임 */
+          hidden={chatOpen}
+          tucked={vn.present && !chatAlertLatched}
           onOpen={() => setChatOpen(true)}
         />
       ) : null}

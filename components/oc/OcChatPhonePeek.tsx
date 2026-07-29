@@ -6,7 +6,10 @@ import { createPortal } from 'react-dom';
 type Props = {
   characterName: string;
   unread?: number;
+  /** 채팅 패널이 열려 있을 때만 true — VN/unread로 토글하지 말 것 (깜빡임 원인) */
   hidden?: boolean;
+  /** VN 중·미읽음 없을 때 살짝만 더 내림 (opacity/height 애니 없음) */
+  tucked?: boolean;
   onOpen: () => void;
 };
 
@@ -20,17 +23,22 @@ function chatInviteLabel(name: string) {
   return `${n}과 채팅하기`;
 }
 
-export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: Props) {
+export function OcChatPhonePeek({
+  characterName,
+  unread = 0,
+  hidden,
+  tucked = false,
+  onOpen,
+}: Props) {
   const [hintOn, setHintOn] = useState(false);
   const [hintOut, setHintOut] = useState(false);
   const [mounted, setMounted] = useState(false);
-  // hidden 토글에 따라 "렌더 언마운트" 하지 않고, is-ready 클래스만 바꿔 깜빡임을 줄인다.
-  const [ready, setReady] = useState(() => !Boolean(hidden));
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintRef = useRef<HTMLSpanElement | null>(null);
   const lastPos = useRef({ x: 0, y: 0 });
   const moveRaf = useRef(0);
   const label = chatInviteLabel(characterName);
+  const visible = !Boolean(hidden);
 
   const clearLeave = useCallback(() => {
     if (leaveTimer.current) {
@@ -68,32 +76,38 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
     [clearLeave],
   );
 
+  useEffect(() => {
+    if (visible) return;
+    setHintOn(false);
+    setHintOut(false);
+    clearLeave();
+  }, [visible, clearLeave]);
+
   useLayoutEffect(() => {
     if (!hintOn) return;
     flushHintPos();
   }, [hintOn, flushHintPos]);
 
-  useEffect(() => {
-    if (hidden) {
-      setReady(false);
-      setHintOn(false);
-      setHintOut(false);
-      clearLeave();
-      return;
-    }
-    setReady(true);
-  }, [hidden, clearLeave]);
-
   if (!mounted) return null;
+
+  const cls = [
+    'oc-chat-phone-peek',
+    visible ? 'is-ready' : '',
+    visible && tucked ? 'is-tucked' : '',
+    unread > 0 ? 'has-unread' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const ui = (
     <>
       <button
         type="button"
-        className={`oc-chat-phone-peek${ready ? ' is-ready' : ''}`}
+        className={cls}
         aria-label={unread > 0 ? `${label}, 안 읽은 메시지 ${unread}` : label}
         onClick={onOpen}
         onPointerEnter={(e) => {
+          if (!visible) return;
           clearLeave();
           moveHint(e.clientX, e.clientY);
           setHintOut(false);
@@ -126,7 +140,7 @@ export function OcChatPhonePeek({ characterName, unread = 0, hidden, onOpen }: P
           ) : null}
         </span>
       </button>
-      {hintOn ? (
+      {hintOn && visible ? (
         <span
           ref={hintRef}
           className={`oc-chat-phone-peek__hint${hintOut ? ' is-out' : ' is-in'}`}

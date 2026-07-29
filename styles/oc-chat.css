@@ -902,7 +902,8 @@
 
 /* 하단 핸드폰 peek — 왼쪽 메뉴 아래
    평소 히트박스는 보이는 끝부분만(갤러리 안 가림).
-   호버/포커스 시에만 위로 키워 슬라이드가 끊기지 않게 */
+   호버/포커스 시에만 위로 키워 슬라이드가 끊기지 않게.
+   등장/퇴장은 opacity 애니 금지 — unread 토글마다 깜빡이던 원인 */
 .oc-chat-phone-peek {
   position: fixed;
   left: clamp(0.85rem, 2vw, 1.55rem);
@@ -919,6 +920,7 @@
   -webkit-tap-highlight-color: transparent;
   transition: height 0.34s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
+  visibility: hidden;
 }
 
 .oc-chat-phone-peek:focus-visible {
@@ -928,24 +930,27 @@
 .oc-chat-phone-peek.is-ready {
   height: 68px;
   pointer-events: auto;
+  visibility: visible;
 }
 
 .oc-chat-phone-peek__visual {
   display: block;
   position: relative;
   width: 100%;
-  /* 초기: 더 아래(숨김) → is-ready 시 기본 깊이로 */
-  transform: translate3d(0, 68px, 0);
-  opacity: 0;
-  transition:
-    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.28s ease;
+  transform: translate3d(0, 24px, 0);
+  opacity: 1;
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
 
-.oc-chat-phone-peek.is-ready .oc-chat-phone-peek__visual {
-  transform: translate3d(0, 24px, 0);
-  opacity: 1;
+/* VN 중·미읽음 없을 때만 살짝 더 내림 — opacity/언마운트 없음 */
+.oc-chat-phone-peek.is-ready.is-tucked {
+  height: 40px;
+  pointer-events: none;
+}
+
+.oc-chat-phone-peek.is-ready.is-tucked .oc-chat-phone-peek__visual {
+  transform: translate3d(0, 48px, 0);
 }
 
 .oc-chat-phone-peek.is-ready:hover,
@@ -956,6 +961,16 @@
 .oc-chat-phone-peek.is-ready:hover .oc-chat-phone-peek__visual,
 .oc-chat-phone-peek.is-ready:focus-visible .oc-chat-phone-peek__visual {
   transform: translate3d(0, 16px, 0);
+}
+
+.oc-chat-phone-peek.is-ready.is-tucked:hover,
+.oc-chat-phone-peek.is-ready.is-tucked:focus-visible {
+  height: 40px;
+}
+
+.oc-chat-phone-peek.is-ready.is-tucked:hover .oc-chat-phone-peek__visual,
+.oc-chat-phone-peek.is-ready.is-tucked:focus-visible .oc-chat-phone-peek__visual {
+  transform: translate3d(0, 48px, 0);
 }
 
 .oc-chat-phone-peek__img {
