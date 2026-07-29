@@ -202,10 +202,10 @@ export async function resetOcChatThreadForVisitor(
   await ensureOcChatAuth();
   try {
     await remove(ref(db, threadPath(id, vid)));
-  } catch (err) {
-    if (!isPermissionDeniedError(err)) throw err;
-    await deleteOcChatThreadViaApi(id, vid);
+  } catch {
+    /* firebase optional */
   }
+  await deleteOcChatThreadViaApi(id, vid);
 }
 
 export function getOrCreateChatVisitorId(): string {
@@ -577,14 +577,55 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
   };
 }
 
+async function loadOcChatThreadViaApi(
+  characterId: string,
+  visitorId: string,
+): Promise<OcChatThread | null> {
+  if (typeof window === 'undefined') return null;
+  const qs = new URLSearchParams({ characterId, visitorId });
+  const res = await fetch(`/api/oc-chat-thread?${qs}`, { cache: 'no-store' });
+  if (!res.ok) return null;
+  const data = (await res.json().catch(() => null)) as { thread?: unknown } | null;
+  if (!data?.thread) return null;
+  return normalizeChatThread(data.thread);
+}
+
+function pickNewerThreadClient(a: OcChatThread, b: OcChatThread | null): OcChatThread {
+  const aBlank =
+    !a.messages.length &&
+    !a.pendingBehavior &&
+    !a.story &&
+    !(a.affection > 0) &&
+    !a.lastSeenAt &&
+    !a.lastInteractionAt;
+  const bBlank =
+    !b ||
+    (!b.messages.length &&
+      !b.pendingBehavior &&
+      !b.story &&
+      !(b.affection > 0) &&
+      !b.lastSeenAt &&
+      !b.lastInteractionAt);
+  if (aBlank && bBlank) return a;
+  if (aBlank) return b!;
+  if (bBlank) return a;
+  return (b!.updatedAt || 0) > (a.updatedAt || 0) ? b! : a;
+}
+
 export async function loadOcChatThread(
   characterId: string,
   visitorId: string,
 ): Promise<OcChatThread> {
-  /* 읽기는 공개 — 익명 로그인 실패로 로드가 막히지 않게 auth 강제 안 함 */
   await auth.authStateReady().catch(() => undefined);
-  const snap = await get(ref(db, threadPath(characterId, visitorId)));
-  return normalizeChatThread(snap.val());
+  let fromFb = normalizeChatThread(null);
+  try {
+    const snap = await get(ref(db, threadPath(characterId, visitorId)));
+    fromFb = normalizeChatThread(snap.val());
+  } catch {
+    /* 읽기 실패 시 API/R2만 사용 */
+  }
+  const fromApi = await loadOcChatThreadViaApi(characterId, visitorId);
+  return pickNewerThreadClient(fromFb, fromApi);
 }
 
 export function subscribeOcChatThread(
@@ -592,9 +633,45 @@ export function subscribeOcChatThread(
   visitorId: string,
   onData: (thread: OcChatThread) => void,
 ): Unsubscribe {
-  return onValue(ref(db, threadPath(characterId, visitorId)), (snap) => {
-    onData(normalizeChatThread(snap.val()));
-  });
+  let stopped = false;
+  let lastUpdated = -1;
+
+  const emit = (thread: OcChatThread) => {
+    const at = thread.updatedAt || 0;
+    if (at === lastUpdated && lastUpdated >= 0) return;
+    lastUpdated = at;
+    onData(thread);
+  };
+
+  const pull = () => {
+    void loadOcChatThread(characterId, visitorId)
+      .then((thread) => {
+        if (!stopped) emit(thread);
+      })
+      .catch(() => {});
+  };
+
+  pull();
+  const pollId = window.setInterval(pull, 4000);
+
+  let unsubFb: Unsubscribe | null = null;
+  try {
+    unsubFb = onValue(ref(db, threadPath(characterId, visitorId)), (snap) => {
+      if (stopped) return;
+      void loadOcChatThreadViaApi(characterId, visitorId).then((fromApi) => {
+        if (stopped) return;
+        emit(pickNewerThreadClient(normalizeChatThread(snap.val()), fromApi));
+      });
+    });
+  } catch {
+    /* firebase subscribe optional */
+  }
+
+  return () => {
+    stopped = true;
+    window.clearInterval(pollId);
+    unsubFb?.();
+  };
 }
 
 export async function saveOcChatThread(
@@ -628,18 +705,19 @@ export async function saveOcChatThread(
     recentActions: thread.recentActions,
     openThreads: thread.openThreads,
   };
-  const payload = stripUndefinedDeep(next);
 
-  await ensureOcChatAuth();
-  if (auth.currentUser) {
-    try {
-      await set(ref(db, threadPath(characterId, visitorId)), payload);
-      return;
-    } catch (err) {
-      if (!isPermissionDeniedError(err)) throw err;
-    }
-  }
+  /* 주 저장소: R2 API (Firebase 쓰기 권한과 무관) */
   await saveOcChatThreadViaApi(characterId, visitorId, next);
+
+  /* Firebase는 best-effort — 실패해도 무시 */
+  try {
+    await ensureOcChatAuth();
+    if (auth.currentUser) {
+      await set(ref(db, threadPath(characterId, visitorId)), stripUndefinedDeep(next));
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 /** 기한이 된 pending만 스레드에 반영 (I/O 없음). 크론·클라이언트 공용. */

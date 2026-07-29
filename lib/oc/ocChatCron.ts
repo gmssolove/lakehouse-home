@@ -15,14 +15,51 @@ import {
 import {
   listAllOcChatThreadsServer,
   loadOcCharactersServer,
-  saveOcChatThreadServer,
 } from '@/lib/oc/ocChatRtdbServer';
+import {
+  listOcChatThreadsFromR2,
+  pickNewerThread,
+  saveOcChatThreadToR2,
+} from '@/lib/oc/ocChatThreadStore';
 import {
   loadOcWorldData,
   pickDailyEventsForOc,
   type OcWorldData,
 } from '@/lib/oc/ocChatWorld';
 import type { OcCharacter } from '@/lib/types/character';
+
+async function listMergedOcChatThreads() {
+  const [fromFb, fromR2] = await Promise.all([
+    listAllOcChatThreadsServer().catch(() => []),
+    listOcChatThreadsFromR2().catch(() => []),
+  ]);
+  const map = new Map<string, { characterId: string; visitorId: string; thread: OcChatThread }>();
+  for (const ref of fromFb) {
+    map.set(`${ref.characterId}/${ref.visitorId}`, ref);
+  }
+  for (const ref of fromR2) {
+    const key = `${ref.characterId}/${ref.visitorId}`;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, ref);
+      continue;
+    }
+    map.set(key, {
+      characterId: ref.characterId,
+      visitorId: ref.visitorId,
+      thread: pickNewerThread(prev.thread, ref.thread),
+    });
+  }
+  return [...map.values()];
+}
+
+async function persistCronThread(
+  characterId: string,
+  visitorId: string,
+  thread: OcChatThread,
+): Promise<void> {
+  await saveOcChatThreadToR2(characterId, visitorId, thread);
+}
 
 export type OcChatProactiveKind = 'task' | 'emotion';
 
@@ -121,7 +158,7 @@ async function callProactiveApi(opts: {
   };
 }
 
-/** 사이트 미접속 시에도 지연 답장·선톡 처리 (크론) */
+/** ?�이??미접???�에??지???�장·?�톡 처리 (?�론) */
 export async function runOcChatCronTick(opts: {
   requestUrl: string;
 }): Promise<OcChatCronResult> {
@@ -138,14 +175,14 @@ export async function runOcChatCronTick(opts: {
   const origin = originFromRequest(opts.requestUrl);
   const [characters, refs, world] = await Promise.all([
     loadOcCharactersServer(),
-    listAllOcChatThreadsServer(),
+    listMergedOcChatThreads(),
     loadOcWorldData(),
   ]);
   const charById = new Map(characters.map((c) => [String(c.id), c]));
   const today = todayKeyLocal();
   const now = Date.now();
 
-  /* 1) 기한 지난 pending 배달 — 모델 재호출 없음 */
+  /* 1) 기한 지??pending 배달 ??모델 ?�호�??�음 */
   for (const ref of refs) {
     if (!ref.thread.pendingBehavior) continue;
     if ((ref.thread.pendingBehavior.applyAt || 0) > now) continue;
@@ -158,7 +195,7 @@ export async function runOcChatCronTick(opts: {
         now,
       });
       if (!applied) continue;
-      await saveOcChatThreadServer(ref.characterId, ref.visitorId, applied.thread);
+      await persistCronThread(ref.characterId, ref.visitorId, applied.thread);
       ref.thread = applied.thread;
       result.pendingDelivered += 1;
       result.pendingBubbles += applied.added;
@@ -169,7 +206,7 @@ export async function runOcChatCronTick(opts: {
     }
   }
 
-  /* 2) 선톡 — 호감·유휴·하루 1회 */
+  /* 2) ?�톡 ???�감·?�휴·?�루 1??*/
   for (const ref of refs) {
     if (result.proactiveSent >= MAX_PROACTIVE_PER_TICK) break;
     const character = charById.get(ref.characterId);
@@ -192,7 +229,7 @@ export async function runOcChatCronTick(opts: {
           lastProactiveDate: today,
           updatedAt: now,
         };
-        await saveOcChatThreadServer(ref.characterId, ref.visitorId, next);
+        await persistCronThread(ref.characterId, ref.visitorId, next);
         ref.thread = next;
         result.proactiveSkippedRoll += 1;
       } catch (e) {
@@ -218,7 +255,7 @@ export async function runOcChatCronTick(opts: {
           lastProactiveDate: today,
           updatedAt: Date.now(),
         };
-        await saveOcChatThreadServer(ref.characterId, ref.visitorId, next);
+        await persistCronThread(ref.characterId, ref.visitorId, next);
         ref.thread = next;
         continue;
       }
@@ -237,7 +274,7 @@ export async function runOcChatCronTick(opts: {
         presence: 'online',
         presenceUpdatedAt: Date.now(),
       };
-      await saveOcChatThreadServer(ref.characterId, ref.visitorId, next);
+      await persistCronThread(ref.characterId, ref.visitorId, next);
       ref.thread = next;
       result.proactiveSent += 1;
     } catch (e) {

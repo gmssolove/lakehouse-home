@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { normalizeChatThread } from '@/lib/oc/ocChat';
 import {
-  deleteOcChatThreadServer,
-  loadOcChatThreadServer,
-  saveOcChatThreadServer,
-} from '@/lib/oc/ocChatRtdbServer';
+  deleteOcChatThreadFromR2,
+  loadOcChatThreadFromR2,
+  pickNewerThread,
+  saveOcChatThreadToR2,
+} from '@/lib/oc/ocChatThreadStore';
+import { loadOcChatThreadServer } from '@/lib/oc/ocChatRtdbServer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,7 +31,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'invalid ids' }, { status: 400 });
   }
   try {
-    const thread = await loadOcChatThreadServer(characterId, visitorId);
+    const fromR2 = await loadOcChatThreadFromR2(characterId, visitorId);
+    let fromFb = null as ReturnType<typeof normalizeChatThread> | null;
+    try {
+      const fb = await loadOcChatThreadServer(characterId, visitorId);
+      fromFb = fb;
+    } catch {
+      fromFb = null;
+    }
+    const thread = pickNewerThread(fromFb, fromR2);
     return NextResponse.json({ ok: true, thread });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -51,12 +61,12 @@ export async function PUT(req: Request) {
   }
   const thread = normalizeChatThread(body.thread);
   try {
-    await saveOcChatThreadServer(characterId, visitorId, thread);
+    /* Firebase 쓰기 권한과 무관하게 R2에 저장 (프로덕션 R2 시크릿 사용) */
+    await saveOcChatThreadToR2(characterId, visitorId, thread);
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    const status = /not configured|503/i.test(message) ? 503 : 500;
-    return NextResponse.json({ ok: false, error: message }, { status });
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
 
@@ -77,11 +87,10 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: 'invalid ids' }, { status: 400 });
   }
   try {
-    await deleteOcChatThreadServer(characterId, visitorId);
+    await deleteOcChatThreadFromR2(characterId, visitorId);
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    const status = /not configured|503/i.test(message) ? 503 : 500;
-    return NextResponse.json({ ok: false, error: message }, { status });
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
