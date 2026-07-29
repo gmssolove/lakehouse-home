@@ -110,20 +110,69 @@ function characterThreadsPath(characterId: string) {
 }
 
 /**
- * RTDB 쓰기 규칙은 auth 필요. 관리자 세션이 있으면 그대로 쓰고,
- * 없으면 익명 로그인(VN 세이브와 동일)으로 게스트 채팅 저장을 허용한다.
+ * RTDB 쓰기는 보통 auth 필요.
+ * - 관리자 세션이 있으면 그대로 사용
+ * - 없으면 익명 로그인 시도 (Firebase에서 꺼져 있으면 조용히 스킵)
  */
 export async function ensureOcChatAuth(): Promise<void> {
+  await auth.authStateReady();
   if (auth.currentUser) return;
-  await signInAnonymously(auth);
+  try {
+    await signInAnonymously(auth);
+  } catch (err) {
+    const code =
+      err && typeof err === 'object' && 'code' in err ? String((err as { code: unknown }).code) : '';
+    const msg = err instanceof Error ? err.message : String(err || '');
+    if (/admin-restricted-operation|operation-not-allowed|OPERATION_NOT_ALLOWED/i.test(`${code} ${msg}`)) {
+      /* Anonymous 로그인 비활성 — 클라이언트 쓰기는 실패할 수 있어 API로 폴백 */
+      console.warn('[oc-chat] anonymous auth unavailable', code || msg);
+      return;
+    }
+    throw err;
+  }
 }
 
 export function formatOcChatFirebaseError(err: unknown, fallback = '채팅 저장에 실패했습니다'): string {
   const raw = err instanceof Error ? err.message : String(err || '');
-  if (/PERMISSION_DENIED|permission-denied|401/i.test(raw)) {
+  if (/admin-restricted-operation/i.test(raw)) {
+    return '게스트 로그인(익명 인증)이 꺼져 있습니다. 관리자 로그인 후 이용하거나 Firebase Anonymous를 켜 주세요.';
+  }
+  if (/PERMISSION_DENIED|permission-denied|401|403/i.test(raw)) {
     return '채팅 저장 권한이 없습니다. 잠시 후 다시 열어 주세요.';
   }
   return raw.trim() || fallback;
+}
+
+function isPermissionDeniedError(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : String(err || '');
+  const code =
+    err && typeof err === 'object' && 'code' in err ? String((err as { code: unknown }).code) : '';
+  return /PERMISSION_DENIED|permission-denied|401|403/i.test(`${code} ${raw}`);
+}
+
+async function saveOcChatThreadViaApi(
+  characterId: string,
+  visitorId: string,
+  thread: OcChatThread,
+): Promise<void> {
+  const res = await fetch('/api/oc-chat-thread', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ characterId, visitorId, thread }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || `thread api save ${res.status}`);
+  }
+}
+
+async function deleteOcChatThreadViaApi(characterId: string, visitorId: string): Promise<void> {
+  const qs = new URLSearchParams({ characterId, visitorId });
+  const res = await fetch(`/api/oc-chat-thread?${qs}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error || `thread api delete ${res.status}`);
+  }
 }
 
 /** 해당 OC의 채팅 스레드만 삭제 (다른 OC 영향 없음) — 관리자용, 전 방문자 */
@@ -132,7 +181,12 @@ export async function resetOcChatForCharacter(characterId: string): Promise<void
   if (!id) throw new Error('캐릭터 ID가 없습니다');
   if (/[./\[\]]/.test(id)) throw new Error('잘못된 캐릭터 ID');
   await ensureOcChatAuth();
-  await remove(ref(db, characterThreadsPath(id)));
+  try {
+    await remove(ref(db, characterThreadsPath(id)));
+  } catch (err) {
+    if (!isPermissionDeniedError(err)) throw err;
+    throw new Error('전체 스레드 삭제는 관리자 권한이 필요합니다');
+  }
 }
 
 /** 이 방문자↔이 OC 스레드만 삭제 (다른 사람 대화 유지) */
@@ -146,7 +200,12 @@ export async function resetOcChatThreadForVisitor(
   if (!vid) throw new Error('방문자 ID가 없습니다');
   if (/[./\[\]]/.test(id) || /[./\[\]]/.test(vid)) throw new Error('잘못된 ID');
   await ensureOcChatAuth();
-  await remove(ref(db, threadPath(id, vid)));
+  try {
+    await remove(ref(db, threadPath(id, vid)));
+  } catch (err) {
+    if (!isPermissionDeniedError(err)) throw err;
+    await deleteOcChatThreadViaApi(id, vid);
+  }
 }
 
 export function getOrCreateChatVisitorId(): string {
@@ -522,7 +581,8 @@ export async function loadOcChatThread(
   characterId: string,
   visitorId: string,
 ): Promise<OcChatThread> {
-  await ensureOcChatAuth();
+  /* 읽기는 공개 — 익명 로그인 실패로 로드가 막히지 않게 auth 강제 안 함 */
+  await auth.authStateReady().catch(() => undefined);
   const snap = await get(ref(db, threadPath(characterId, visitorId)));
   return normalizeChatThread(snap.val());
 }
@@ -532,24 +592,9 @@ export function subscribeOcChatThread(
   visitorId: string,
   onData: (thread: OcChatThread) => void,
 ): Unsubscribe {
-  const path = threadPath(characterId, visitorId);
-  let unsub: Unsubscribe | null = null;
-  let cancelled = false;
-  void ensureOcChatAuth()
-    .then(() => {
-      if (cancelled) return;
-      unsub = onValue(ref(db, path), (snap) => {
-        onData(normalizeChatThread(snap.val()));
-      });
-    })
-    .catch((err) => {
-      console.warn('[oc-chat] subscribe auth failed', err);
-      onData(normalizeChatThread(null));
-    });
-  return () => {
-    cancelled = true;
-    unsub?.();
-  };
+  return onValue(ref(db, threadPath(characterId, visitorId)), (snap) => {
+    onData(normalizeChatThread(snap.val()));
+  });
 }
 
 export async function saveOcChatThread(
@@ -557,7 +602,6 @@ export async function saveOcChatThread(
   visitorId: string,
   thread: OcChatThread,
 ): Promise<void> {
-  await ensureOcChatAuth();
   const next: OcChatThread = {
     messages: trimChatMessages(thread.messages),
     updatedAt: Date.now(),
@@ -584,7 +628,18 @@ export async function saveOcChatThread(
     recentActions: thread.recentActions,
     openThreads: thread.openThreads,
   };
-  await set(ref(db, threadPath(characterId, visitorId)), stripUndefinedDeep(next));
+  const payload = stripUndefinedDeep(next);
+
+  await ensureOcChatAuth();
+  if (auth.currentUser) {
+    try {
+      await set(ref(db, threadPath(characterId, visitorId)), payload);
+      return;
+    } catch (err) {
+      if (!isPermissionDeniedError(err)) throw err;
+    }
+  }
+  await saveOcChatThreadViaApi(characterId, visitorId, next);
 }
 
 /** 기한이 된 pending만 스레드에 반영 (I/O 없음). 크론·클라이언트 공용. */

@@ -11,8 +11,13 @@ const RTDB_BASE =
 export const RTDB_CHARS_URL = `${RTDB_BASE}/lhdata/oc_characters.json`;
 export const RTDB_THREADS_URL = `${RTDB_BASE}/lhdata/oc_chat_threads.json`;
 
+function rtdbAuthQuery(): string {
+  const secret = (process.env.FIREBASE_DATABASE_SECRET || '').trim();
+  return secret ? `?auth=${encodeURIComponent(secret)}` : '';
+}
+
 function threadUrl(characterId: string, visitorId: string): string {
-  return `${RTDB_BASE}/lhdata/oc_chat_threads/${encodeURIComponent(characterId)}/${encodeURIComponent(visitorId)}.json`;
+  return `${RTDB_BASE}/lhdata/oc_chat_threads/${encodeURIComponent(characterId)}/${encodeURIComponent(visitorId)}.json${rtdbAuthQuery()}`;
 }
 
 export type OcChatThreadRef = {
@@ -35,9 +40,18 @@ export async function loadOcCharactersServer(): Promise<OcCharacter[]> {
   return asCharacterList(await res.json());
 }
 
+export async function loadOcChatThreadServer(
+  characterId: string,
+  visitorId: string,
+): Promise<OcChatThread> {
+  const res = await fetch(threadUrl(characterId, visitorId), { cache: 'no-store' });
+  if (!res.ok) throw new Error(`thread fetch ${res.status}`);
+  return normalizeChatThread(await res.json());
+}
+
 /** 전체 스레드 스캔 (개인 규모). 크론용. */
 export async function listAllOcChatThreadsServer(): Promise<OcChatThreadRef[]> {
-  const res = await fetch(RTDB_THREADS_URL, { cache: 'no-store' });
+  const res = await fetch(`${RTDB_THREADS_URL}${rtdbAuthQuery()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`threads fetch ${res.status}`);
   const root = await res.json();
   if (!root || typeof root !== 'object') return [];
@@ -95,5 +109,16 @@ export async function saveOcChatThreadServer(
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`thread save ${res.status}: ${text.slice(0, 200)}`);
+  }
+}
+
+export async function deleteOcChatThreadServer(
+  characterId: string,
+  visitorId: string,
+): Promise<void> {
+  const res = await fetch(threadUrl(characterId, visitorId), { method: 'DELETE' });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`thread delete ${res.status}: ${text.slice(0, 200)}`);
   }
 }
