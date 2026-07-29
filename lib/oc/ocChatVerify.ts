@@ -61,6 +61,11 @@ export async function verifyOcChatRelevance(opts: {
     const ans = raw.trim().toLowerCase();
     if (ans.startsWith('yes')) return true;
     if (ans.startsWith('no')) return false;
+    console.warn('[oc-chat] verify ambiguous response (expected yes/no)', {
+      ans: ans.slice(0, 80),
+      lastUserMessagePreview: last.slice(0, 80),
+      candidateCount: msgs.length,
+    });
     /* 애매하면 통과 — 검증기 오탐으로 무한 재생성 방지 */
     return true;
   } catch (e) {
@@ -117,14 +122,22 @@ export async function generateVerifiedOcChatResponse(opts: {
   let regenerated = false;
   let verifyPassed = true;
 
-  if (behavior.action === 'respond' && behavior.messages.length > 0) {
+  const verifyOrFixOnce = async (b: OcChatBehavior): Promise<{
+    behavior: OcChatBehavior;
+    failReason: OcChatVerifyFailReason | null;
+  }> => {
+    if (!(b.action === 'respond' && b.messages.length > 0)) {
+      return { behavior: b, failReason: null };
+    }
+
     let failReason: OcChatVerifyFailReason | null = null;
+    let next = b;
 
     if (opts.eveStyle) {
       const { fixed, needsRegeneration, failKind } = applyEveMechanicalFilters(
-        behavior.messages,
+        next.messages,
       );
-      behavior = { ...behavior, messages: fixed };
+      next = { ...next, messages: fixed };
       if (needsRegeneration) {
         failReason =
           failKind === 'punctuation_only' ? 'punctuation_only' : 'command_ending';
@@ -134,49 +147,81 @@ export async function generateVerifiedOcChatResponse(opts: {
     if (!failReason) {
       const ok = await verifyOcChatRelevance({
         lastUserMessage: opts.lastUserMessage,
-        candidateMessages: behavior.messages,
+        candidateMessages: next.messages,
         callModel: opts.verify,
       });
       if (!ok) failReason = 'context_mismatch';
     }
 
-    verifyPassed = !failReason;
-    if (failReason) {
-      console.warn('[oc-chat] verification failed, regenerating once', {
-        lastUserMessage: opts.lastUserMessage.slice(0, 120),
-        original: behavior.messages,
-        reason:
-          failReason === 'context_mismatch'
-            ? 'context_mismatch'
-            : 'mechanical_filter_triggered',
-      });
-      const retryHistory = [
-        ...opts.historyForModel,
-        { role: 'assistant', content: raw },
-        {
-          role: 'user',
-          content: buildOcChatRetryUserNotice(opts.lastUserMessage, failReason),
-        },
-      ];
-      raw = await opts.generate(retryHistory);
-      behavior = opts.parse(raw);
-      regenerated = true;
-      /* 재생성 결과: 마침표만 정리. 기계 재검증은 안 함(무한루프 방지) */
-      if (opts.eveStyle && behavior.messages.length > 0) {
-        const cleaned = behavior.messages
-          .map((m) => stripEveTrailingPeriod(String(m || '').trim()))
-          .filter((m) => m && !isEvePunctuationOnly(m));
-        behavior = {
-          ...behavior,
-          messages: cleaned,
-          ...(cleaned.length === 0 && behavior.action === 'respond'
-            ? { action: 'read_only' as const }
-            : {}),
-        };
-      }
-      verifyPassed = true;
-    }
-  }
+    return { behavior: next, failReason };
+  };
 
-  return { raw, behavior, regenerated, verifyPassed };
+  const regenerateOnce = async (previousRaw: string, failReason: OcChatVerifyFailReason) => {
+    const retryHistory = [
+      ...opts.historyForModel,
+      { role: 'assistant', content: previousRaw },
+      {
+        role: 'user',
+        content: buildOcChatRetryUserNotice(opts.lastUserMessage, failReason),
+      },
+    ];
+    const nextRaw = await opts.generate(retryHistory);
+    return { raw: nextRaw, behavior: opts.parse(nextRaw) };
+  };
+
+  const eveFinalize = (b: OcChatBehavior): OcChatBehavior => {
+    if (!opts.eveStyle || !b.messages.length) return b;
+    const cleaned = b.messages
+      .map((m) => stripEveTrailingPeriod(String(m || '').trim()))
+      .filter((m) => m && !isEvePunctuationOnly(m));
+    return {
+      ...b,
+      messages: cleaned,
+      ...(cleaned.length === 0 && b.action === 'respond' ? { action: 'read_only' as const } : {}),
+    };
+  };
+
+  // attempt0: initial generation + verification
+  {
+    const { behavior: fixed0, failReason: fail0 } = await verifyOrFixOnce(behavior);
+    behavior = fixed0;
+    verifyPassed = !fail0;
+    if (!fail0) return { raw, behavior, regenerated: false, verifyPassed: true };
+
+    console.warn('[oc-chat] verification failed, regenerating (attempt 1)', {
+      lastUserMessage: opts.lastUserMessage.slice(0, 120),
+      original: behavior.messages,
+      reason:
+        fail0 === 'context_mismatch'
+          ? 'context_mismatch'
+          : 'mechanical_filter_triggered',
+    });
+
+    // attempt1: regenerate + verification
+    const regen1 = await regenerateOnce(raw, fail0);
+    raw = regen1.raw;
+    behavior = regen1.behavior;
+    regenerated = true;
+
+    const { behavior: fixed1, failReason: fail1 } = await verifyOrFixOnce(behavior);
+    behavior = fixed1;
+    verifyPassed = !fail1;
+    if (!fail1) return { raw, behavior, regenerated: true, verifyPassed: true };
+
+    console.warn('[oc-chat] verification failed, regenerating (attempt 2)', {
+      lastUserMessage: opts.lastUserMessage.slice(0, 120),
+      original: behavior.messages,
+      reason:
+        fail1 === 'context_mismatch'
+          ? 'context_mismatch'
+          : 'mechanical_filter_triggered',
+    });
+
+    // attempt2: one more regeneration, but NO verification (fail-safe)
+    const regen2 = await regenerateOnce(raw, fail1);
+    raw = regen2.raw;
+    behavior = eveFinalize(regen2.behavior);
+    verifyPassed = true; // 3번째부터는 무조건 통과 취급
+    return { raw, behavior, regenerated: true, verifyPassed: true };
+  }
 }
