@@ -100,7 +100,7 @@ function originFromRequest(reqUrl: string): string {
   try {
     return new URL(reqUrl).origin;
   } catch {
-    return 'https://lakehouse.me.kr';
+    return 'https://lakehouse.me.jp';
   }
 }
 
@@ -158,7 +158,7 @@ async function callProactiveApi(opts: {
   };
 }
 
-/** ?�이??미접???�에??지???�장·?�톡 처리 (?�론) */
+/** Cron: deliver due pending replies and proactive pings while offline */
 export async function runOcChatCronTick(opts: {
   requestUrl: string;
 }): Promise<OcChatCronResult> {
@@ -182,7 +182,7 @@ export async function runOcChatCronTick(opts: {
   const today = todayKeyLocal();
   const now = Date.now();
 
-  /* 1) 기한 지??pending 배달 ??모델 ?�호�??�음 */
+  // 1) due pendingBehavior delivery (no model call)
   for (const ref of refs) {
     if (!ref.thread.pendingBehavior) continue;
     if ((ref.thread.pendingBehavior.applyAt || 0) > now) continue;
@@ -206,7 +206,7 @@ export async function runOcChatCronTick(opts: {
     }
   }
 
-  /* 2) ?�톡 ???�감·?�휴·?�루 1??*/
+  // 2) proactive reach-out (affection + idle + once/day)
   for (const ref of refs) {
     if (result.proactiveSent >= MAX_PROACTIVE_PER_TICK) break;
     const character = charById.get(ref.characterId);
