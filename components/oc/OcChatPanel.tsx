@@ -1760,15 +1760,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   if (!open && panelAnim == null) return null;
 
   const isOnline = meta.presence === 'online';
-  const statusLabel = inStory
-    ? activeEpisode?.title || '스토리'
-    : waitingRead
-      ? isOnline
-        ? '온라인'
-        : '…'
-      : isOnline
-        ? '온라인'
-        : '오프라인';
+  // 헤더 상태 문구는 스토리 제목/임시 문구 대신 온라인/오프라인만 고정.
+  const statusLabel = isOnline ? '온라인' : '오프라인';
 
   const overlay = (
     <div

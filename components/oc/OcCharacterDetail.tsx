@@ -2314,7 +2314,7 @@ export function OcCharacterDetail({
         <OcChatPhonePeek
           characterName={character.name || '캐릭터'}
           unread={chatUnread}
-          hidden={chatOpen || vn.present}
+          hidden={chatOpen || (vn.present && chatUnread === 0)}
           onOpen={() => setChatOpen(true)}
         />
       ) : null}
