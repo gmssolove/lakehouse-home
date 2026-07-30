@@ -1,16 +1,10 @@
-import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  ListObjectsV2Command,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { AwsClient } from 'aws4fetch';
 import { normalizeChatThread, type OcChatThread } from '@/lib/oc/ocChat';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 
 const PREFIX = 'oc-chat-threads';
 
-let s3Client: S3Client | null = null;
+let awsClient: AwsClient | null = null;
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -18,67 +12,49 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function getS3Client(): S3Client {
-  if (s3Client) return s3Client;
-  const accountId = requireEnv('R2_ACCOUNT_ID');
-  s3Client = new S3Client({
+function getAwsClient(): AwsClient {
+  if (awsClient) return awsClient;
+  awsClient = new AwsClient({
+    accessKeyId: requireEnv('R2_ACCESS_KEY_ID'),
+    secretAccessKey: requireEnv('R2_SECRET_ACCESS_KEY'),
+    service: 's3',
     region: 'auto',
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: requireEnv('R2_ACCESS_KEY_ID'),
-      secretAccessKey: requireEnv('R2_SECRET_ACCESS_KEY'),
-    },
   });
-  return s3Client;
+  return awsClient;
+}
+
+function objectUrl(key: string): string {
+  const accountId = requireEnv('R2_ACCOUNT_ID');
+  const bucket = requireEnv('R2_BUCKET_NAME');
+  const path = key
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `https://${accountId}.r2.cloudflarestorage.com/${bucket}/${path}`;
 }
 
 function threadKey(characterId: string, visitorId: string): string {
   return `${PREFIX}/${encodeURIComponent(characterId)}/${encodeURIComponent(visitorId)}.json`;
 }
 
-async function bodyToString(body: unknown): Promise<string> {
-  if (!body) return '';
-  if (typeof body === 'string') return body;
-  if (body instanceof Uint8Array) return new TextDecoder().decode(body);
-  if (typeof (body as { transformToString?: () => Promise<string> }).transformToString === 'function') {
-    return (body as { transformToString: () => Promise<string> }).transformToString();
-  }
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of body as AsyncIterable<Uint8Array>) {
-    chunks.push(chunk);
-  }
-  const merged = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
-  let offset = 0;
-  for (const c of chunks) {
-    merged.set(c, offset);
-    offset += c.length;
-  }
-  return new TextDecoder().decode(merged);
+function listUrl(continuationToken?: string): string {
+  const accountId = requireEnv('R2_ACCOUNT_ID');
+  const bucket = requireEnv('R2_BUCKET_NAME');
+  const qs = new URLSearchParams({ 'list-type': '2', prefix: `${PREFIX}/` });
+  if (continuationToken) qs.set('continuation-token', continuationToken);
+  return `https://${accountId}.r2.cloudflarestorage.com/${bucket}?${qs}`;
 }
 
 export async function loadOcChatThreadFromR2(
   characterId: string,
   visitorId: string,
 ): Promise<OcChatThread | null> {
-  try {
-    const res = await getS3Client().send(
-      new GetObjectCommand({
-        Bucket: requireEnv('R2_BUCKET_NAME'),
-        Key: threadKey(characterId, visitorId),
-      }),
-    );
-    const text = await bodyToString(res.Body);
-    if (!text.trim()) return null;
-    return normalizeChatThread(JSON.parse(text));
-  } catch (err) {
-    const name = err && typeof err === 'object' && 'name' in err ? String((err as { name: unknown }).name) : '';
-    const http =
-      err && typeof err === 'object' && '$metadata' in err
-        ? Number((err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode)
-        : 0;
-    if (name === 'NoSuchKey' || http === 404) return null;
-    throw err;
-  }
+  const res = await getAwsClient().fetch(objectUrl(threadKey(characterId, visitorId)));
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`R2 get failed: ${res.status} ${await res.text()}`);
+  const text = await res.text();
+  if (!text.trim()) return null;
+  return normalizeChatThread(JSON.parse(text));
 }
 
 export async function saveOcChatThreadToR2(
@@ -112,58 +88,58 @@ export async function saveOcChatThreadToR2(
     recentActions: thread.recentActions,
     openThreads: thread.openThreads,
   });
-  await getS3Client().send(
-    new PutObjectCommand({
-      Bucket: requireEnv('R2_BUCKET_NAME'),
-      Key: threadKey(characterId, visitorId),
-      Body: Buffer.from(JSON.stringify(payload), 'utf8'),
-      ContentType: 'application/json; charset=utf-8',
-    }),
-  );
+  const body = JSON.stringify(payload);
+  const res = await getAwsClient().fetch(objectUrl(threadKey(characterId, visitorId)), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    body,
+  });
+  if (!res.ok) throw new Error(`R2 put failed: ${res.status} ${await res.text()}`);
 }
 
 export async function deleteOcChatThreadFromR2(
   characterId: string,
   visitorId: string,
 ): Promise<void> {
-  try {
-    await getS3Client().send(
-      new DeleteObjectCommand({
-        Bucket: requireEnv('R2_BUCKET_NAME'),
-        Key: threadKey(characterId, visitorId),
-      }),
-    );
-  } catch (err) {
-    const http =
-      err && typeof err === 'object' && '$metadata' in err
-        ? Number((err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode)
-        : 0;
-    if (http === 404) return;
-    throw err;
+  const res = await getAwsClient().fetch(objectUrl(threadKey(characterId, visitorId)), {
+    method: 'DELETE',
+  });
+  if (res.status === 404) return;
+  if (!res.ok) throw new Error(`R2 delete failed: ${res.status} ${await res.text()}`);
+}
+
+function parseListKeys(xml: string): { keys: string[]; nextToken?: string; truncated: boolean } {
+  const keys: string[] = [];
+  const keyRe = /<Key>([^<]+)<\/Key>/g;
+  let m: RegExpExecArray | null;
+  while ((m = keyRe.exec(xml))) {
+    keys.push(m[1]!.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
   }
+  const truncated = /<IsTruncated>true<\/IsTruncated>/i.test(xml);
+  const tokenMatch = xml.match(/<NextContinuationToken>([^<]+)<\/NextContinuationToken>/);
+  return {
+    keys,
+    truncated,
+    nextToken: tokenMatch?.[1],
+  };
 }
 
 export async function listOcChatThreadsFromR2(): Promise<
   Array<{ characterId: string; visitorId: string; thread: OcChatThread }>
 > {
-  const bucket = requireEnv('R2_BUCKET_NAME');
-  const client = getS3Client();
+  const client = getAwsClient();
   const out: Array<{ characterId: string; visitorId: string; thread: OcChatThread }> = [];
   let token: string | undefined;
   do {
-    const page = await client.send(
-      new ListObjectsV2Command({
-        Bucket: bucket,
-        Prefix: `${PREFIX}/`,
-        ContinuationToken: token,
-      }),
-    );
-    for (const obj of page.Contents || []) {
-      const key = obj.Key || '';
-      const m = key.match(/^oc-chat-threads\/([^/]+)\/([^/]+)\.json$/);
-      if (!m) continue;
-      const characterId = decodeURIComponent(m[1]!);
-      const visitorId = decodeURIComponent(m[2]!);
+    const res = await client.fetch(listUrl(token));
+    if (!res.ok) throw new Error(`R2 list failed: ${res.status} ${await res.text()}`);
+    const xml = await res.text();
+    const page = parseListKeys(xml);
+    for (const key of page.keys) {
+      const match = key.match(/^oc-chat-threads\/([^/]+)\/([^/]+)\.json$/);
+      if (!match) continue;
+      const characterId = decodeURIComponent(match[1]!);
+      const visitorId = decodeURIComponent(match[2]!);
       try {
         const thread = await loadOcChatThreadFromR2(characterId, visitorId);
         if (thread) out.push({ characterId, visitorId, thread });
@@ -171,7 +147,7 @@ export async function listOcChatThreadsFromR2(): Promise<
         /* skip bad object */
       }
     }
-    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    token = page.truncated ? page.nextToken : undefined;
   } while (token);
   return out;
 }

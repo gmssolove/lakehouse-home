@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   devIndicators: {
     position: 'bottom-left',
   },
-  serverExternalPackages: ['@aws-sdk/client-s3'],
+  serverExternalPackages: ['aws4fetch'],
   experimental: {
     serverActions: {
       bodySizeLimit: '12mb',
