@@ -689,8 +689,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             charId,
             visitorRef.current || getOrCreateChatVisitorId(),
           );
-          setMessages(fresh.messages);
-          setMeta({
+          const closedMeta: MetaState = {
             ...nextMeta,
             pendingBehavior: fresh.pendingBehavior,
             presence: fresh.presence || nextMeta.presence,
@@ -698,7 +697,19 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             ...closedFieldsFromUntil(fresh.closedUntil),
             moodNote: fresh.moodNote || nextMeta.moodNote,
             recentActions: fresh.recentActions || nextMeta.recentActions,
-          });
+          };
+          /* flush가 이어지기 전에 stateRef를 동기화 — 답장 덮어쓰기 방지 */
+          stateRef.current = {
+            ...stateRef.current,
+            messages: fresh.messages,
+            meta: closedMeta,
+            affection: typeof fresh.affection === 'number' ? fresh.affection : stateRef.current.affection,
+            lastSeenAt:
+              typeof fresh.lastSeenAt === 'number' ? fresh.lastSeenAt : stateRef.current.lastSeenAt,
+          };
+          setMessages(fresh.messages);
+          setMeta(closedMeta);
+          if (typeof fresh.affection === 'number') setAffection(fresh.affection);
           if (typeof fresh.lastSeenAt === 'number') setLastSeenAt(fresh.lastSeenAt);
           return 'ok';
         }
@@ -808,7 +819,18 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               charId,
               visitorRef.current || getOrCreateChatVisitorId(),
             );
+            stateRef.current = {
+              ...stateRef.current,
+              messages: fresh.messages,
+              meta: {
+                ...stateRef.current.meta,
+                pendingBehavior: fresh.pendingBehavior,
+              },
+              affection:
+                typeof fresh.affection === 'number' ? fresh.affection : stateRef.current.affection,
+            };
             setMessages(fresh.messages);
+            if (typeof fresh.affection === 'number') setAffection(fresh.affection);
             return 'ok';
           }
           if (!deliveredAssistant && lateBurstPending()) {
@@ -954,7 +976,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setLoadingThread(true);
+    const soft = stateRef.current.messages.length > 0;
+    /* 이미 메모리에 대화가 있으면 화면을 비우지 않고 백그라운드 갱신만 */
+    if (!soft) setLoadingThread(true);
     setError('');
     setAwaitingChoice(false);
     setWaitingRead(false);
@@ -1063,6 +1087,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setLastSeenAt(seenNow);
         setStory(nextStory);
         setMessages(nextMessages);
+        stateRef.current = {
+          ...stateRef.current,
+          messages: nextMessages,
+          affection: affectionNow,
+          story: nextStory,
+          lastSeenAt: seenNow,
+          meta: nextMeta,
+        };
 
         try {
           await saveOcChatThread(charId, visitorRef.current, {
@@ -1099,8 +1131,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       } catch (err) {
         if (!cancelled) {
           setError(formatOcChatFirebaseError(err, '대화를 불러오지 못했습니다'));
-          /* 로드 자체 실패일 때만 비움 — 저장 실패로 여기 오면 안 됨 */
-          setMessages([]);
+          if (!soft) setMessages([]);
         }
       } finally {
         if (!cancelled) {
@@ -1119,7 +1150,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       cancelled = true;
       window.clearTimeout(storyTimer.current);
     };
-  }, [charId, flashAffectionToast, focusComposer, open, scrollToEnd]);
+  }, [charId, open]);
 
   /* end_for_today 쿨다운 만료 시 구분선 해제 */
   useEffect(() => {

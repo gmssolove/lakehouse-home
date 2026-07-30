@@ -1,5 +1,5 @@
 import { AwsClient } from 'aws4fetch';
-import { normalizeChatThread, type OcChatThread } from '@/lib/oc/ocChat';
+import { mergeOcChatThreads, normalizeChatThread, type OcChatThread } from '@/lib/oc/ocChat';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 
 const PREFIX = 'oc-chat-threads';
@@ -62,31 +62,38 @@ export async function saveOcChatThreadToR2(
   visitorId: string,
   thread: OcChatThread,
 ): Promise<void> {
+  let toSave = thread;
+  try {
+    const existing = await loadOcChatThreadFromR2(characterId, visitorId);
+    if (existing) toSave = mergeOcChatThreads(existing, thread);
+  } catch {
+    /* 기존 없음/읽기 실패 시 그대로 저장 */
+  }
   const payload = stripUndefinedDeep({
-    messages: thread.messages,
-    updatedAt: thread.updatedAt ?? Date.now(),
-    affection: thread.affection ?? 0,
-    story: thread.story,
-    freeGainDate: thread.freeGainDate,
-    freeGainToday: thread.freeGainToday,
-    freeLossToday: thread.freeLossToday,
-    lastSeenAt: thread.lastSeenAt,
-    moodNote: thread.moodNote,
-    moodDate: thread.moodDate,
-    turnsToday: thread.turnsToday,
-    turnsDate: thread.turnsDate,
-    closedForToday: thread.closedForToday,
-    closedDate: thread.closedDate,
-    closedUntil: thread.closedUntil,
-    lastProactiveDate: thread.lastProactiveDate,
-    pendingBehavior: thread.pendingBehavior,
-    recentDeltaReasons: thread.recentDeltaReasons,
-    lastInteractionAt: thread.lastInteractionAt,
-    neglectCheckedAt: thread.neglectCheckedAt,
-    presence: thread.presence,
-    presenceUpdatedAt: thread.presenceUpdatedAt,
-    recentActions: thread.recentActions,
-    openThreads: thread.openThreads,
+    messages: toSave.messages,
+    updatedAt: Math.max(toSave.updatedAt ?? 0, Date.now()),
+    affection: toSave.affection ?? 0,
+    story: toSave.story,
+    freeGainDate: toSave.freeGainDate,
+    freeGainToday: toSave.freeGainToday,
+    freeLossToday: toSave.freeLossToday,
+    lastSeenAt: toSave.lastSeenAt,
+    moodNote: toSave.moodNote,
+    moodDate: toSave.moodDate,
+    turnsToday: toSave.turnsToday,
+    turnsDate: toSave.turnsDate,
+    closedForToday: toSave.closedForToday,
+    closedDate: toSave.closedDate,
+    closedUntil: toSave.closedUntil,
+    lastProactiveDate: toSave.lastProactiveDate,
+    pendingBehavior: toSave.pendingBehavior,
+    recentDeltaReasons: toSave.recentDeltaReasons,
+    lastInteractionAt: toSave.lastInteractionAt,
+    neglectCheckedAt: toSave.neglectCheckedAt,
+    presence: toSave.presence,
+    presenceUpdatedAt: toSave.presenceUpdatedAt,
+    recentActions: toSave.recentActions,
+    openThreads: toSave.openThreads,
   });
   const body = JSON.stringify(payload);
   const res = await getAwsClient().fetch(objectUrl(threadKey(characterId, visitorId)), {
@@ -166,10 +173,5 @@ export function isBlankOcChatThread(t: OcChatThread | null | undefined): boolean
 }
 
 export function pickNewerThread(a: OcChatThread | null, b: OcChatThread | null): OcChatThread {
-  const aBlank = isBlankOcChatThread(a);
-  const bBlank = isBlankOcChatThread(b);
-  if (aBlank && bBlank) return normalizeChatThread(null);
-  if (aBlank) return b!;
-  if (bBlank) return a!;
-  return (b!.updatedAt || 0) > (a!.updatedAt || 0) ? b! : a!;
+  return mergeOcChatThreads(a, b);
 }

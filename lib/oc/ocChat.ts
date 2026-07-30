@@ -591,41 +591,110 @@ async function loadOcChatThreadViaApi(
 }
 
 function pickNewerThreadClient(a: OcChatThread, b: OcChatThread | null): OcChatThread {
-  const aBlank =
-    !a.messages.length &&
-    !a.pendingBehavior &&
-    !a.story &&
-    !(a.affection > 0) &&
-    !a.lastSeenAt &&
-    !a.lastInteractionAt;
-  const bBlank =
-    !b ||
-    (!b.messages.length &&
-      !b.pendingBehavior &&
-      !b.story &&
-      !(b.affection > 0) &&
-      !b.lastSeenAt &&
-      !b.lastInteractionAt);
-  if (aBlank && bBlank) return a;
-  if (aBlank) return b!;
-  if (bBlank) return a;
-  return (b!.updatedAt || 0) > (a.updatedAt || 0) ? b! : a;
+  return mergeOcChatThreads(a, b);
+}
+
+/** 메시지 id 기준 합집합 — 느린/겹친 저장이 답장을 지우지 않게 */
+function mergeChatMessages(a: OcChatMessage[], b: OcChatMessage[]): OcChatMessage[] {
+  const map = new Map<string, OcChatMessage>();
+  for (const m of a) map.set(m.id, m);
+  for (const m of b) {
+    const prev = map.get(m.id);
+    if (!prev) {
+      map.set(m.id, m);
+      continue;
+    }
+    map.set(m.id, {
+      ...prev,
+      ...m,
+      readAt: m.readAt ?? prev.readAt,
+      stickerUrl: m.stickerUrl || prev.stickerUrl,
+      stickerId: m.stickerId || prev.stickerId,
+    });
+  }
+  return [...map.values()].sort((x, y) => x.at - y.at || x.id.localeCompare(y.id));
+}
+
+function pickPendingBehavior(
+  a?: OcChatPendingBehavior,
+  b?: OcChatPendingBehavior,
+  aMsgLen = 0,
+  bMsgLen = 0,
+): OcChatPendingBehavior | undefined {
+  if (!a && !b) return undefined;
+  if (a && !b) {
+    /* b가 메시지를 더 많이 갖고 pending을 비웠으면 이미 배달된 것 */
+    if (bMsgLen > aMsgLen) return undefined;
+    return a;
+  }
+  if (!a && b) {
+    if (aMsgLen > bMsgLen) return undefined;
+    return b;
+  }
+  return (a!.applyAt || 0) >= (b!.applyAt || 0) ? a : b;
+}
+
+function isBlankThreadForMerge(t: OcChatThread): boolean {
+  return (
+    !t.messages.length &&
+    !t.pendingBehavior &&
+    !t.story &&
+    !(t.affection > 0) &&
+    !t.lastSeenAt &&
+    !t.lastInteractionAt
+  );
+}
+
+/** R2/Firebase·동시 저장 병합. 빈 스레드(리셋)는 상대를 그대로 씀. */
+export function mergeOcChatThreads(
+  a: OcChatThread | null | undefined,
+  b: OcChatThread | null | undefined,
+): OcChatThread {
+  const na = normalizeChatThread(a);
+  const nb = normalizeChatThread(b);
+  if (isBlankThreadForMerge(na)) return nb;
+  if (isBlankThreadForMerge(nb)) return na;
+
+  const newer = (nb.updatedAt || 0) >= (na.updatedAt || 0) ? nb : na;
+  const older = newer === nb ? na : nb;
+  const messages = trimChatMessages(mergeChatMessages(na.messages, nb.messages));
+
+  return normalizeChatThread({
+    ...older,
+    ...newer,
+    messages,
+    pendingBehavior: pickPendingBehavior(
+      na.pendingBehavior,
+      nb.pendingBehavior,
+      na.messages.length,
+      nb.messages.length,
+    ),
+    affection: Math.max(na.affection || 0, nb.affection || 0),
+    updatedAt: Math.max(na.updatedAt || 0, nb.updatedAt || 0),
+    lastSeenAt: Math.max(na.lastSeenAt || 0, nb.lastSeenAt || 0) || undefined,
+    lastInteractionAt:
+      Math.max(na.lastInteractionAt || 0, nb.lastInteractionAt || 0) || undefined,
+    freeGainToday: Math.max(na.freeGainToday || 0, nb.freeGainToday || 0),
+    freeLossToday: Math.max(na.freeLossToday || 0, nb.freeLossToday || 0),
+    turnsToday: Math.max(na.turnsToday || 0, nb.turnsToday || 0),
+  });
 }
 
 export async function loadOcChatThread(
   characterId: string,
   visitorId: string,
 ): Promise<OcChatThread> {
+  /* API가 R2+Firebase를 이미 병합 — 클라이언트 이중 Firebase get 생략으로 로드 지연 감소 */
+  const fromApi = await loadOcChatThreadViaApi(characterId, visitorId);
+  if (fromApi && !isBlankThreadForMerge(fromApi)) return fromApi;
+
   await auth.authStateReady().catch(() => undefined);
-  let fromFb = normalizeChatThread(null);
   try {
     const snap = await get(ref(db, threadPath(characterId, visitorId)));
-    fromFb = normalizeChatThread(snap.val());
+    return mergeOcChatThreads(fromApi, normalizeChatThread(snap.val()));
   } catch {
-    /* 읽기 실패 시 API/R2만 사용 */
+    return fromApi || normalizeChatThread(null);
   }
-  const fromApi = await loadOcChatThreadViaApi(characterId, visitorId);
-  return pickNewerThreadClient(fromFb, fromApi);
 }
 
 export function subscribeOcChatThread(
@@ -660,7 +729,7 @@ export function subscribeOcChatThread(
       if (stopped) return;
       void loadOcChatThreadViaApi(characterId, visitorId).then((fromApi) => {
         if (stopped) return;
-        emit(pickNewerThreadClient(normalizeChatThread(snap.val()), fromApi));
+        emit(mergeOcChatThreads(normalizeChatThread(snap.val()), fromApi));
       });
     });
   } catch {
@@ -706,7 +775,7 @@ export async function saveOcChatThread(
     openThreads: thread.openThreads,
   };
 
-  /* 주 저장소: R2 API (Firebase 쓰기 권한과 무관) */
+  /* 주 저장소: R2 API — 서버에서 기존 스레드와 merge */
   await saveOcChatThreadViaApi(characterId, visitorId, next);
 
   /* Firebase는 best-effort — 실패해도 무시 */
