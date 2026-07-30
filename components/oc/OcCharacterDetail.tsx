@@ -1359,9 +1359,11 @@ export function OcCharacterDetail({
 
     {
       const allTaste = resolveTasteItems(character);
-      const layoutRows = layoutTasteRows(allTaste);
+      /* 본문 없는 빈 템플릿(HOBBY/LIKES 등)은 메뉴·패널에 올리지 않음 */
+      const filledTaste = allTaste.filter((it) => it.divider || Boolean(it.body?.trim()));
+      const layoutRows = layoutTasteRows(filledTaste);
       const hasTasteRows = layoutRows.length > 0;
-      if (character.special || hasTasteRows) {
+      if (character.special?.trim() || hasTasteRows) {
         const renderTasteCell = (it: (typeof allTaste)[number]) => (
           <div className="oc-acc-etc-cell" key={it.id}>
             {it.title?.trim() ? <em className="oc-acc-etc-label">{it.title.trim()}</em> : null}

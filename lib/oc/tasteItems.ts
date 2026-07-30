@@ -26,9 +26,10 @@ function normalizeItem(it: TasteItem): TasteItem {
   };
 }
 
-/** 레거시 hobby/likes/hates/tasteExtra → tasteItems, 없으면 기본 3항목 */
+/** 레거시 hobby/likes/hates/tasteExtra → tasteItems. defaults:true 시 편집폼용 빈 템플릿 */
 export function resolveTasteItems(
   character: Pick<OcCharacter, 'tasteItems' | 'hobby' | 'likes' | 'hates' | 'tasteExtra'>,
+  opts?: { defaults?: boolean },
 ): TasteItem[] {
   if (character.tasteItems && character.tasteItems.length > 0) {
     return character.tasteItems.map(normalizeItem);
@@ -58,7 +59,10 @@ export function resolveTasteItems(
 
   if (migrated.length) return migrated;
 
-  return DEFAULT_TASTE_ITEMS.map((d) => ({ ...d, id: newTasteId('def') }));
+  if (opts?.defaults) {
+    return DEFAULT_TASTE_ITEMS.map((d) => ({ ...d, id: newTasteId('def') }));
+  }
+  return [];
 }
 
 export function tasteItemsHaveContent(items: TasteItem[] | undefined): boolean {

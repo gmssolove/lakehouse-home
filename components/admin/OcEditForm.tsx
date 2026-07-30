@@ -228,7 +228,7 @@ function hydrateEditForm(character: OcCharacter): OcCharacter {
   return {
     ...hydrated,
     gallery: normalizeGallery(hydrated.gallery),
-    tasteItems: resolveTasteItems(hydrated),
+    tasteItems: resolveTasteItems(hydrated, { defaults: true }),
     riskStages: resolveRiskStages(hydrated),
     statPanel: hydrateStatPanel(hydrated.statPanel),
   };
@@ -497,7 +497,9 @@ export function OcEditForm({
   async function handleSave() {
     setBusy(true);
     try {
-      const tasteItems = resolveTasteItems(form);
+      const tasteItems = resolveTasteItems(form).filter(
+        (it) => it.divider || Boolean(it.body?.trim()),
+      );
       const riskFinal = finalizeRiskStages(form.riskStages);
       const merged: OcCharacter = stripEmptyThemeFields({
         ...form,

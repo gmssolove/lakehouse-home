@@ -46,9 +46,21 @@ export function LakeAccessGateModal({
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(open);
   const [leaving, setLeaving] = useState(false);
+  /* open이 false로 바뀌어도 exit 애니 동안 문구가 리셋되지 않도록 캐시 */
+  const [cachedTitle, setCachedTitle] = useState(title);
+  const [cachedDesc, setCachedDesc] = useState(description);
+  const [cachedLoggedIn, setCachedLoggedIn] = useState(loggedIn);
   const mountedRef = useRef(open);
   mountedRef.current = mounted;
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      if (title != null) setCachedTitle(title);
+      if (description != null) setCachedDesc(description);
+      setCachedLoggedIn(loggedIn);
+    }
+  }, [open, title, description, loggedIn]);
 
   useEffect(() => {
     if (open) {
@@ -87,8 +99,10 @@ export function LakeAccessGateModal({
 
   if (!mounted) return null;
 
-  const rawDesc = description ?? '로그인 후 비밀번호를 입력해야 열람할 수 있습니다.';
-  const shownDesc = loggedIn ? rawDesc.replace(/로그인\s*후\s*/g, '') : rawDesc;
+  const showLoggedIn = open ? loggedIn : cachedLoggedIn;
+  const rawDesc = (open ? description : cachedDesc) ?? cachedDesc ?? '로그인 후 비밀번호를 입력해야 열람할 수 있습니다.';
+  const shownDesc = showLoggedIn ? rawDesc.replace(/로그인\s*후\s*/g, '') : rawDesc;
+  const shownTitle = (open ? title : cachedTitle) ?? cachedTitle;
 
   function submit() {
     if (!loggedIn) {
@@ -123,9 +137,9 @@ export function LakeAccessGateModal({
         <button type="button" className="oc-profile-gate-backdrop" aria-label="닫기" onClick={onClose} />
       ) : null}
       <div className="oc-profile-gate-box">
-        <div className="oc-profile-gate-title">{title ?? 'Archive Access'}</div>
+        <div className="oc-profile-gate-title">{shownTitle ?? 'Archive Access'}</div>
         <p className="oc-profile-gate-desc">{shownDesc}</p>
-        {!loggedIn ? (
+        {!showLoggedIn ? (
           <>
             <p className="oc-profile-gate-error" style={{ marginBottom: 12 }}>
               로그인이 필요합니다.
