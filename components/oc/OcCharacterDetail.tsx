@@ -40,6 +40,11 @@ import { HandwritingNoteFlap } from '@/components/pair/HandwritingNoteFlap';
 import { OcChatPanel } from '@/components/oc/OcChatPanel';
 import { OcChatPhonePeek } from '@/components/oc/OcChatPhonePeek';
 import {
+  buildOcChatNotifyPayload,
+  OcChatNotifyToast,
+  type OcChatNotifyPayload,
+} from '@/components/oc/OcChatNotifyToast';
+import {
   countCharUnread,
   getOrCreateChatVisitorId,
   loadOcChatThread,
@@ -48,6 +53,7 @@ import {
   subscribeOcChatThread,
   tryDeliverPendingChat,
   tryDeliverProactiveChat,
+  type OcChatThread,
 } from '@/lib/oc/ocChat';
 import {
   preloadHandNoteImages,
@@ -95,6 +101,34 @@ function auVersionLabel(character: OcCharacter, auIdx: number) {
 }
 
 type LayoutTarget = 'char' | 'ghost';
+
+function collectUnreadAssistants(thread: OcChatThread | null | undefined) {
+  if (!thread?.messages?.length) return [] as OcChatThread['messages'];
+  const seen = typeof thread.lastSeenAt === 'number' ? thread.lastSeenAt : 0;
+  return thread.messages.filter(
+    (m) => m.role === 'assistant' && m.kind !== 'narration' && m.at > seen,
+  );
+}
+
+function notifySeenKey(characterId: string, messageId: string) {
+  return `lh_oc_chat_notify:${characterId}:${messageId}`;
+}
+
+function hasNotifiedMessage(characterId: string, messageId: string) {
+  try {
+    return sessionStorage.getItem(notifySeenKey(characterId, messageId)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markNotifiedMessage(characterId: string, messageId: string) {
+  try {
+    sessionStorage.setItem(notifySeenKey(characterId, messageId), '1');
+  } catch {
+    /* ignore */
+  }
+}
 
 type Props = {
   character: OcCharacter;
@@ -949,20 +983,58 @@ export function OcCharacterDetail({
   const [chatUnread, setChatUnread] = useState(0);
   /* 미읽음이 한 번이라도 잡히면 채팅 열기 전까지 유지 — RTDB 중간값으로 배지/턱이 깜빡이지 않게 */
   const [chatAlertLatched, setChatAlertLatched] = useState(false);
+  const [chatNotifyQueue, setChatNotifyQueue] = useState<OcChatNotifyPayload[]>([]);
   const chatEnabled = Boolean(character.chatbot?.enabled);
   const chatOpenRef = useRef(chatOpen);
   chatOpenRef.current = chatOpen;
+  /* 상세 진입 직후 쌓여 있던 미읽음 스팸 방지 — 이후 도착분만 메시지마다 큐 */
+  const notifyBootstrappedRef = useRef(false);
 
-  const applyUnreadFromThread = useCallback((thread: { messages: { role?: string; kind?: string; at: number }[]; lastSeenAt?: number } | null | undefined) => {
-    if (!thread || chatOpenRef.current) return;
-    const n = countCharUnread(thread as Parameters<typeof countCharUnread>[0]);
-    setChatUnread(n);
-    if (n > 0) setChatAlertLatched(true);
-  }, []);
+  const maybeNotifyFromThread = useCallback(
+    (thread: OcChatThread | null | undefined) => {
+      if (!thread || chatOpenRef.current) return;
+      const unread = collectUnreadAssistants(thread);
+      if (!unread.length) return;
+      const charId = String(character.id);
+      const fresh: OcChatNotifyPayload[] = [];
+      for (const m of unread) {
+        if (hasNotifiedMessage(charId, m.id)) continue;
+        markNotifiedMessage(charId, m.id);
+        fresh.push(buildOcChatNotifyPayload(character, m, thread.messages));
+      }
+      if (!fresh.length) return;
+      setChatNotifyQueue((q) => {
+        const seen = new Set(q.map((x) => x.id));
+        const add = fresh.filter((x) => !seen.has(x.id));
+        if (!add.length) return q;
+        if (!notifyBootstrappedRef.current) {
+          notifyBootstrappedRef.current = true;
+          /* 진입 시 밀린 미읽음 → 최신 1개만 */
+          return [add[add.length - 1]!];
+        }
+        /* 이후 OC가 여러 번 보내면 도착 순서대로 큐 (겹침 없이 순차) */
+        return [...q, ...add];
+      });
+    },
+    [character],
+  );
+
+  const applyUnreadFromThread = useCallback(
+    (thread: OcChatThread | null | undefined) => {
+      if (!thread || chatOpenRef.current) return;
+      const n = countCharUnread(thread);
+      setChatUnread(n);
+      if (n > 0) setChatAlertLatched(true);
+      maybeNotifyFromThread(thread);
+    },
+    [maybeNotifyFromThread],
+  );
 
   /* 상세 들어오자마자 캐시 기준으로 배지 표시 — 서버 폴링 전에 알림이 보이게 */
   useLayoutEffect(() => {
     setChatOpen(false);
+    setChatNotifyQueue([]);
+    notifyBootstrappedRef.current = false;
     if (!chatEnabled) {
       setChatUnread(0);
       setChatAlertLatched(false);
@@ -984,6 +1056,7 @@ export function OcCharacterDetail({
     if (chatOpen) {
       setChatUnread(0);
       setChatAlertLatched(false);
+      setChatNotifyQueue([]);
       return;
     }
     if (chatUnread > 0) setChatAlertLatched(true);
@@ -2400,6 +2473,14 @@ export function OcCharacterDetail({
           onOpen={() => setChatOpen(true)}
         />
       ) : null}
+
+      <OcChatNotifyToast
+        payload={chatNotifyQueue[0] ?? null}
+        onDone={(id) => {
+          setChatNotifyQueue((q) => q.filter((x) => x.id !== id));
+        }}
+        onOpen={() => setChatOpen(true)}
+      />
 
       <OcChatPanel
         key={String(character.id)}

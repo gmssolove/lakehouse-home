@@ -260,8 +260,13 @@ export async function runOcChatCronTick(opts: {
         continue;
       }
       let msgs = thread.messages;
-      for (const line of decision.messages) {
-        msgs = [...msgs, createChatMessage('assistant', line, 'chat')];
+      const baseAt = Date.now();
+      for (let i = 0; i < decision.messages.length; i++) {
+        const line = decision.messages[i]!;
+        msgs = [
+          ...msgs,
+          createChatMessage('assistant', line, 'chat', { at: baseAt + i }),
+        ];
       }
       const next: OcChatThread = {
         ...thread,

@@ -240,6 +240,8 @@ export function writeOcChatThreadCache(
 const pendingDeliveryTimers = new Map<string, number>();
 /** 채팅창이 열려 playBehavior가 연출 중일 때 백그라운드 타이머 배달 금지 */
 const uiOwnedPendingKeys = new Set<string>();
+/** 같은 스레드 pending 배달 동시 실행 합치기 */
+const pendingDeliveryInflight = new Map<string, Promise<number>>();
 
 function pendingDeliveryKey(characterId: string, visitorId: string): string {
   return `${characterId}::${visitorId}`;
@@ -326,13 +328,13 @@ export function createChatMessage(
   role: OcChatRole,
   content: string,
   kind: OcChatMessageKind = 'chat',
-  opts?: { readAt?: number | null; stickerUrl?: string; stickerId?: string },
+  opts?: { readAt?: number | null; stickerUrl?: string; stickerId?: string; at?: number },
 ): OcChatMessage {
   const msg: OcChatMessage = {
     id: newId(),
     role,
     content: content.trim(),
-    at: Date.now(),
+    at: typeof opts?.at === 'number' && Number.isFinite(opts.at) ? opts.at : Date.now(),
     kind,
   };
   if (opts?.stickerUrl) {
@@ -644,7 +646,7 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     : undefined;
 
   return {
-    messages: trimChatMessages(messages),
+    messages: trimChatMessages(dedupeRecentAssistantDuplicates(messages)),
     updatedAt: typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
     affection: clampAffection(typeof o.affection === 'number' ? o.affection : 0),
     story: normalizeStory(o.story),
@@ -706,7 +708,9 @@ function mergeChatMessages(a: OcChatMessage[], b: OcChatMessage[]): OcChatMessag
       stickerId: m.stickerId || prev.stickerId,
     });
   }
-  return [...map.values()].sort((x, y) => x.at - y.at || x.id.localeCompare(y.id));
+  const sorted = [...map.values()].sort((x, y) => x.at - y.at || x.id.localeCompare(y.id));
+  /* 이중 배달로 생긴 같은 내용 복사본 제거 (A B B A → A B) */
+  return dedupeRecentAssistantDuplicates(sorted);
 }
 
 function pickPendingBehavior(
@@ -976,6 +980,34 @@ export function pendingLinesAlreadyAtTail(
   return true;
 }
 
+/**
+ * pending 대사열이 최근 assistant 구간에 순서대로 이미 있는지.
+ * 꼬리 정확 일치뿐 아니라 연출 중 새로고침 후 부분/역순 합쳐진 경우도 커버.
+ */
+export function pendingLinesAlreadyPresent(
+  messages: Array<{ role?: string; kind?: string; content?: string }>,
+  lines: string[],
+  expectSticker = false,
+): boolean {
+  if (pendingLinesAlreadyAtTail(messages, lines, expectSticker)) return true;
+  const want = lines.map((l) => l.trim()).filter(Boolean);
+  if (!want.length) return false;
+  const recent = messages.slice(-Math.max(24, want.length * 4));
+  let wi = 0;
+  for (const m of recent) {
+    if (m.role !== 'assistant' || (m.kind || 'chat') !== 'chat') continue;
+    if (String(m.content || '').trim() !== want[wi]) continue;
+    wi += 1;
+    if (wi >= want.length) {
+      if (!expectSticker) return true;
+      return recent.some(
+        (x) => x.role === 'assistant' && (x.kind || 'chat') === 'sticker',
+      );
+    }
+  }
+  return false;
+}
+
 /** 연속 동일 assistant 말풍선 제거 (이중 배달 안전망) */
 export function dedupeAdjacentAssistantMessages<
   T extends { role?: string; kind?: string; content?: string; at?: number },
@@ -993,6 +1025,33 @@ export function dedupeAdjacentAssistantMessages<
       Math.abs((m.at || 0) - (prev.at || 0)) < 180_000
     ) {
       continue;
+    }
+    out.push(m);
+  }
+  return out;
+}
+
+/**
+ * 짧은 시간창 안 같은 assistant 문구 중복 제거 (앞쪽 유지).
+ * 새로고침 이중 배달의 A B B A → A B.
+ */
+export function dedupeRecentAssistantDuplicates<
+  T extends { role?: string; kind?: string; content?: string; at?: number },
+>(messages: T[], windowMs = 180_000): T[] {
+  const out: T[] = [];
+  for (const m of messages) {
+    if (m.role === 'assistant' && (m.kind || 'chat') === 'chat') {
+      const content = String(m.content || '').trim();
+      if (content) {
+        const dup = out.some(
+          (p) =>
+            p.role === 'assistant' &&
+            (p.kind || 'chat') === 'chat' &&
+            String(p.content || '').trim() === content &&
+            Math.abs((m.at || 0) - (p.at || 0)) < windowMs,
+        );
+        if (dup) continue;
+      }
     }
     out.push(m);
   }
@@ -1085,10 +1144,15 @@ export function applyDuePendingBehavior(
   let added = 0;
 
   /* 이미 UI/다른 경로가 같은 대사를 붙였으면 또 붙이지 않음 */
-  const alreadyDelivered = pendingLinesAlreadyAtTail(msgs, lines, Boolean(sticker));
+  const alreadyDelivered = pendingLinesAlreadyPresent(msgs, lines, Boolean(sticker));
   if (!alreadyDelivered) {
-    for (const line of lines) {
-      msgs = [...msgs, createChatMessage('assistant', line, 'chat')];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      /* at을 1ms씩 벌려 배열 순서 = 시간 순서 (동일 ms + id 정렬 뒤집힘 방지) */
+      msgs = [
+        ...msgs,
+        createChatMessage('assistant', line, 'chat', { at: now + i }),
+      ];
       added += 1;
     }
     if (sticker) {
@@ -1097,6 +1161,7 @@ export function applyDuePendingBehavior(
         createChatMessage('assistant', '스티커', 'sticker', {
           stickerUrl: sticker.imageUrl,
           stickerId: sticker.id,
+          at: now + lines.length,
         }),
       ];
       added += 1;
@@ -1455,37 +1520,55 @@ export async function tryDeliverPendingChat(params: {
   const key = pendingDeliveryKey(params.characterId, params.visitorId);
   if (!params.force && uiOwnedPendingKeys.has(key)) return 0;
 
-  const matchesExpect = (pending: OcChatPendingBehavior | undefined) => {
-    if (!pending) return false;
-    if (params.expectPendingId && pending.id && pending.id !== params.expectPendingId) {
-      return false;
-    }
-    return (pending.applyAt || 0) <= Date.now();
-  };
+  const existing = pendingDeliveryInflight.get(key);
+  if (existing) return existing;
 
-  const cached = peekOcChatThreadCache(params.characterId, params.visitorId);
-  if (matchesExpect(cached?.pendingBehavior)) {
-    const fromCache = applyDuePendingBehavior(cached!, { character: params.character });
-    if (fromCache) {
-      const msgs = dedupeAdjacentAssistantMessages(fromCache.thread.messages);
-      await saveOcChatThread(params.characterId, params.visitorId, {
-        ...fromCache.thread,
-        messages: msgs,
-      });
-      return fromCache.added;
+  const run = (async () => {
+    const matchesExpect = (pending: OcChatPendingBehavior | undefined) => {
+      if (!pending) return false;
+      if (params.expectPendingId && pending.id && pending.id !== params.expectPendingId) {
+        return false;
+      }
+      return (pending.applyAt || 0) <= Date.now();
+    };
+
+    const cached = peekOcChatThreadCache(params.characterId, params.visitorId);
+    if (matchesExpect(cached?.pendingBehavior)) {
+      const fromCache = applyDuePendingBehavior(cached!, { character: params.character });
+      if (fromCache) {
+        const msgs = dedupeRecentAssistantDuplicates(
+          dedupeAdjacentAssistantMessages(fromCache.thread.messages),
+        );
+        await saveOcChatThread(params.characterId, params.visitorId, {
+          ...fromCache.thread,
+          messages: msgs,
+        });
+        return fromCache.added;
+      }
+    }
+
+    const thread = await loadOcChatThread(params.characterId, params.visitorId);
+    if (!matchesExpect(thread.pendingBehavior)) return 0;
+    const result = applyDuePendingBehavior(thread, { character: params.character });
+    if (!result) return 0;
+    const msgs = dedupeRecentAssistantDuplicates(
+      dedupeAdjacentAssistantMessages(result.thread.messages),
+    );
+    await saveOcChatThread(params.characterId, params.visitorId, {
+      ...result.thread,
+      messages: msgs,
+    });
+    return result.added;
+  })();
+
+  pendingDeliveryInflight.set(key, run);
+  try {
+    return await run;
+  } finally {
+    if (pendingDeliveryInflight.get(key) === run) {
+      pendingDeliveryInflight.delete(key);
     }
   }
-
-  const thread = await loadOcChatThread(params.characterId, params.visitorId);
-  if (!matchesExpect(thread.pendingBehavior)) return 0;
-  const result = applyDuePendingBehavior(thread, { character: params.character });
-  if (!result) return 0;
-  const msgs = dedupeAdjacentAssistantMessages(result.thread.messages);
-  await saveOcChatThread(params.characterId, params.visitorId, {
-    ...result.thread,
-    messages: msgs,
-  });
-  return result.added;
 }
 
 /**
@@ -1539,9 +1622,15 @@ export async function tryDeliverProactiveChat(params: {
 
   await sleepMs(delayKindToMs(decision.delay));
   let msgs = thread.messages;
+  const baseAt = Date.now();
   for (let i = 0; i < decision.messages.length; i++) {
     if (i > 0) await sleepMs(splitBubbleGapMs());
-    msgs = [...msgs, createChatMessage('assistant', decision.messages[i]!, 'chat')];
+    msgs = [
+      ...msgs,
+      createChatMessage('assistant', decision.messages[i]!, 'chat', {
+        at: baseAt + i * 1000,
+      }),
+    ];
   }
   await saveOcChatThread(params.characterId, params.visitorId, {
     ...thread,

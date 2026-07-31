@@ -3,6 +3,7 @@
 import { ImageUploadCrop } from '@/components/ui/form/ImageUploadCrop';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { LakeToggle } from '@/components/ui/LakeToggle';
+import { AudioFileField } from '@/components/ui/AudioFileField';
 import { DEFAULT_AFFINITY_TIERS } from '@/lib/oc/ocChatAffinity';
 import { resetOcChatForCharacter } from '@/lib/oc/ocChat';
 import { OC_CHAT_DEFAULT_AVATAR } from '@/lib/oc/ocChatPrompt';
@@ -36,6 +37,7 @@ function ensureTiers(cfg: OcChatbotConfig | undefined): OcChatAffinityTier[] {
 export function OcChatbotEditor({ value, onChange, characterId, characterName }: Props) {
   const { confirm, alert } = useLakeDialog();
   const [resetting, setResetting] = useState(false);
+  const [notifySfxUploading, setNotifySfxUploading] = useState(false);
   const cfg = value || {};
   const tiers = ensureTiers(cfg);
   const episodes = cfg.episodes || [];
@@ -201,6 +203,21 @@ export function OcChatbotEditor({ value, onChange, characterId, characterName }:
             <span style={{ fontSize: 10, opacity: 0.5 }}>현재 기본 아바타</span>
           </div>
         ) : null}
+      </div>
+      <div className="form-group">
+        <label className="form-label">새 메시지 알림음</label>
+        <p style={{ fontSize: 10, opacity: 0.5, margin: '0 0 8px' }}>
+          미읽음 메시지가 올 때 한 번 재생됩니다 · 비우면 무음
+        </p>
+        <AudioFileField
+          label=""
+          value={cfg.notifySfxUrl || ''}
+          folder="oc/chat-notify-sfx"
+          uploading={notifySfxUploading}
+          onUploadStart={() => setNotifySfxUploading(true)}
+          onUploadEnd={() => setNotifySfxUploading(false)}
+          onChange={(url) => patch({ notifySfxUrl: url.trim() ? url.trim() : undefined })}
+        />
       </div>
       <div className="form-group">
         <label className="form-label">첫 인사 (스토리 없을 때만)</label>

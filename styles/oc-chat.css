@@ -1040,6 +1040,166 @@
   opacity: 0;
 }
 
+/* ── 새 메시지 상단 배너 토스트 (카카오톡식 · 6_banner_progress) ── */
+.oc-chat-notify {
+  --oc-chat-notify-ms: 5000ms;
+  --oc-chat-notify-leave-ms: 420ms;
+  --oc-chat-notify-accent: #d7a982;
+  position: fixed;
+  left: 50%;
+  /* 상태바 아래보다 더 띄움 */
+  top: calc(env(safe-area-inset-top, 0px) + 52px);
+  z-index: 2600;
+  display: block;
+  width: min(420px, calc(100vw - 24px));
+  margin: 0;
+  padding: 12px 13px 0;
+  border: 1px solid transparent;
+  border-radius: 17px;
+  background: #232220;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-50%) translateY(-120%);
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.18s ease;
+}
+
+.oc-chat-notify:hover {
+  border-color: color-mix(in srgb, var(--oc-chat-notify-accent) 70%, transparent);
+}
+
+.oc-chat-notify.is-enter {
+  animation: oc-chat-notify-in 0.48s cubic-bezier(0.32, 0.9, 0.35, 1.15) forwards !important;
+}
+
+.oc-chat-notify.is-leaving {
+  animation: oc-chat-notify-out var(--oc-chat-notify-leave-ms, 420ms) cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+  pointer-events: none;
+}
+
+/* 인 — 바운스 슬라이드 다운 (기존 유지) */
+@keyframes oc-chat-notify-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-120%);
+    filter: blur(0);
+  }
+  72% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(3%);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* 아웃 — 위로 슬라이드 + 대사창처럼 흐려짐 */
+@keyframes oc-chat-notify-out {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-110%);
+    filter: blur(12px);
+  }
+}
+
+.oc-chat-notify__row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding-bottom: 12px;
+}
+
+.oc-chat-notify__avatar {
+  width: 35px;
+  height: 35px;
+  border-radius: 9px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--oc-chat-notify-accent);
+}
+
+.oc-chat-notify__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.oc-chat-notify__name {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.oc-chat-notify__sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: #c9c6c0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oc-chat-notify__badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--oc-chat-notify-accent);
+}
+
+.oc-chat-notify__track {
+  position: relative;
+  height: 2px;
+  margin: 0 -13px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.oc-chat-notify__bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  background: var(--oc-chat-notify-accent);
+  transform-origin: left center;
+  transform: scaleX(1);
+  /* 유지 시간과 동일 — 다 닳은 직후 아웃 시작 */
+  animation: oc-chat-notify-shrink var(--oc-chat-notify-ms) linear forwards !important;
+}
+
+.oc-chat-notify.is-leaving .oc-chat-notify__bar {
+  animation: none !important;
+  transform: scaleX(0);
+}
+
+@keyframes oc-chat-notify-shrink {
+  0% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .oc-chat-lb,
   .oc-chat-lb__backdrop,

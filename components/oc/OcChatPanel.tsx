@@ -1066,7 +1066,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               msgs = [...head, ...lateUsers];
               deliveredAssistant = true;
             } else {
-              const botMsg = createChatMessage('assistant', line, 'chat');
+              const botMsg = createChatMessage('assistant', line, 'chat', {
+                at: Date.now() + i,
+              });
               msgs = [...head, botMsg, ...lateUsers];
               deliveredAssistant = true;
             }

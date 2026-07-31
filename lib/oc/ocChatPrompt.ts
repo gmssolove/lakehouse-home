@@ -280,7 +280,7 @@ function staticRulesBlock(): string[] {
     '- action: respond | read_only | ignore | end_for_today',
     '- responseDelaySeconds: 숫자(초). online 응답 5~60, 오프→온 후 5~20 권장. delay(immediate|short|long|next_day)는 폴백',
     '- typingIndicatorEvents: pause/clear만. 타이핑 길이는 클라이언트가 글자 수로 계산',
-    '- messages: 짧은 문자열 1~3 (ignore/read_only면 [])',
+    '- messages: 짧은 문자열 1~3 (ignore/read_only면 []). 배열 앞→뒤가 전송 시간순. 사용자 마지막 말에 먼저 반응하는 문장을 [0]에 두고, 덧붙임·후속은 뒤에.',
     '- sticker: 미사용이면 null. 사용 시 {id, tags} 또는 null',
     '- moodNote / deltaReason: 내부용, 화면 비표시',
     '- affectionDelta: 정수. 기본 0. 상승 +2~+5만(+1 금지), 하락 -1~-3. 의미 있는 순간에만. 같은 패턴 반복 시 절반',

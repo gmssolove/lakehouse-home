@@ -538,6 +538,8 @@ export type OcChatbotConfig = {
   sampleDialogue?: string;
   /** 채팅 헤더·말풍선용 프로필 (비우면 기본 실루엣) */
   chatAvatarUrl?: string;
+  /** 새 메시지 알림 효과음 (비우면 무음) */
+  notifySfxUrl?: string;
   /** 챗봇용 본인 기본 정보 (학년·가족 등 — 질문에 답할 근거) */
   selfFacts?: OcChatFactRow[];
   /** 챗봇용 주변 인물 */
