@@ -61,13 +61,16 @@ export async function saveOcChatThreadToR2(
   characterId: string,
   visitorId: string,
   thread: OcChatThread,
+  opts?: { replace?: boolean },
 ): Promise<void> {
   let toSave = thread;
-  try {
-    const existing = await loadOcChatThreadFromR2(characterId, visitorId);
-    if (existing) toSave = mergeOcChatThreads(existing, thread);
-  } catch {
-    /* 기존 없음/읽기 실패 시 그대로 저장 */
+  if (!opts?.replace) {
+    try {
+      const existing = await loadOcChatThreadFromR2(characterId, visitorId);
+      if (existing) toSave = mergeOcChatThreads(existing, thread);
+    } catch {
+      /* 기존 없음/읽기 실패 시 그대로 저장 */
+    }
   }
   const payload = stripUndefinedDeep({
     messages: toSave.messages,

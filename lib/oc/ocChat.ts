@@ -35,6 +35,11 @@ import { auth, db } from '@/lib/firebase/client';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import type { OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
+import {
+  clearOcChatThreadCache,
+  peekOcChatThreadCacheRaw,
+  writeOcChatThreadCacheRaw,
+} from '@/lib/oc/ocChatLocalCache';
 
 export const OC_CHAT_VISITOR_KEY = 'lh_oc_chat_visitor';
 /** API/모델에 넘기는 최근 대화 말풍선 수 (~18턴 왕복). 비용 상한. */
@@ -154,11 +159,17 @@ async function saveOcChatThreadViaApi(
   characterId: string,
   visitorId: string,
   thread: OcChatThread,
+  opts?: { replace?: boolean },
 ): Promise<void> {
   const res = await fetch('/api/oc-chat-thread', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ characterId, visitorId, thread }),
+    body: JSON.stringify({
+      characterId,
+      visitorId,
+      thread,
+      replace: opts?.replace === true,
+    }),
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -206,6 +217,54 @@ export async function resetOcChatThreadForVisitor(
     /* firebase optional */
   }
   await deleteOcChatThreadViaApi(id, vid);
+  clearOcChatThreadCache(id, vid);
+}
+
+export function peekOcChatThreadCache(
+  characterId: string,
+  visitorId: string,
+): OcChatThread | null {
+  const raw = peekOcChatThreadCacheRaw(characterId, visitorId);
+  if (raw == null) return null;
+  return normalizeChatThread(raw);
+}
+
+export function writeOcChatThreadCache(
+  characterId: string,
+  visitorId: string,
+  thread: OcChatThread,
+): void {
+  writeOcChatThreadCacheRaw(characterId, visitorId, stripUndefinedDeep(normalizeChatThread(thread)));
+}
+
+const pendingDeliveryTimers = new Map<string, number>();
+
+/** 창이 닫혀 있어도 applyAt에 답장 배달 (언마운트 생존) */
+export function scheduleOcChatPendingDelivery(
+  characterId: string,
+  visitorId: string,
+  applyAt: number | undefined,
+  character?: Pick<OcCharacter, 'chatbot'>,
+): void {
+  if (typeof window === 'undefined') return;
+  const key = `${characterId}::${visitorId}`;
+  const prev = pendingDeliveryTimers.get(key);
+  if (prev) window.clearTimeout(prev);
+  if (!applyAt) {
+    pendingDeliveryTimers.delete(key);
+    return;
+  }
+  const delay = Math.max(0, applyAt - Date.now()) + 60;
+  const id = window.setTimeout(() => {
+    pendingDeliveryTimers.delete(key);
+    void tryDeliverPendingChat({ characterId, visitorId, character })
+      .then((added) => {
+        if (added <= 0) return;
+        return loadOcChatThread(characterId, visitorId);
+      })
+      .catch(() => {});
+  }, delay);
+  pendingDeliveryTimers.set(key, id);
 }
 
 export function getOrCreateChatVisitorId(): string {
@@ -684,17 +743,29 @@ export async function loadOcChatThread(
   characterId: string,
   visitorId: string,
 ): Promise<OcChatThread> {
+  const cached = peekOcChatThreadCache(characterId, visitorId);
   /* API가 R2+Firebase를 이미 병합 — 클라이언트 이중 Firebase get 생략으로 로드 지연 감소 */
   const fromApi = await loadOcChatThreadViaApi(characterId, visitorId);
-  if (fromApi && !isBlankThreadForMerge(fromApi)) return fromApi;
-
-  await auth.authStateReady().catch(() => undefined);
-  try {
-    const snap = await get(ref(db, threadPath(characterId, visitorId)));
-    return mergeOcChatThreads(fromApi, normalizeChatThread(snap.val()));
-  } catch {
-    return fromApi || normalizeChatThread(null);
+  let remote = fromApi;
+  if (!fromApi || isBlankThreadForMerge(fromApi)) {
+    await auth.authStateReady().catch(() => undefined);
+    try {
+      const snap = await get(ref(db, threadPath(characterId, visitorId)));
+      remote = mergeOcChatThreads(fromApi, normalizeChatThread(snap.val()));
+    } catch {
+      remote = fromApi || normalizeChatThread(null);
+    }
   }
+  const merged = mergeOcChatThreads(cached, remote);
+  writeOcChatThreadCache(characterId, visitorId, merged);
+  if (merged.pendingBehavior?.applyAt) {
+    scheduleOcChatPendingDelivery(
+      characterId,
+      visitorId,
+      merged.pendingBehavior.applyAt,
+    );
+  }
+  return merged;
 }
 
 export function subscribeOcChatThread(
@@ -747,6 +818,7 @@ export async function saveOcChatThread(
   characterId: string,
   visitorId: string,
   thread: OcChatThread,
+  opts?: { replace?: boolean },
 ): Promise<void> {
   const next: OcChatThread = {
     messages: trimChatMessages(thread.messages),
@@ -775,8 +847,24 @@ export async function saveOcChatThread(
     openThreads: thread.openThreads,
   };
 
-  /* 주 저장소: R2 API — 서버에서 기존 스레드와 merge */
-  await saveOcChatThreadViaApi(characterId, visitorId, next);
+  /* 즉시 로컬 캐시 — 다시 열 때 딜레이 없이 표시 */
+  if (opts?.replace) {
+    writeOcChatThreadCache(characterId, visitorId, next);
+  } else {
+    writeOcChatThreadCache(
+      characterId,
+      visitorId,
+      mergeOcChatThreads(peekOcChatThreadCache(characterId, visitorId), next),
+    );
+  }
+  scheduleOcChatPendingDelivery(
+    characterId,
+    visitorId,
+    next.pendingBehavior?.applyAt,
+  );
+
+  /* 주 저장소: R2 API — 서버에서 기존 스레드와 merge (replace 시 덮어쓰기) */
+  await saveOcChatThreadViaApi(characterId, visitorId, next, opts);
 
   /* Firebase는 best-effort — 실패해도 무시 */
   try {
@@ -1215,6 +1303,15 @@ export async function tryDeliverPendingChat(params: {
   visitorId: string;
   character?: Pick<OcCharacter, 'chatbot'>;
 }): Promise<number> {
+  const cached = peekOcChatThreadCache(params.characterId, params.visitorId);
+  if (cached?.pendingBehavior && (cached.pendingBehavior.applyAt || 0) <= Date.now()) {
+    const fromCache = applyDuePendingBehavior(cached, { character: params.character });
+    if (fromCache) {
+      await saveOcChatThread(params.characterId, params.visitorId, fromCache.thread);
+      return fromCache.added;
+    }
+  }
+
   const thread = await loadOcChatThread(params.characterId, params.visitorId);
   const result = applyDuePendingBehavior(thread, { character: params.character });
   if (!result) return 0;

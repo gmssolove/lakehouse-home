@@ -21,6 +21,7 @@ type Body = {
   characterId?: string;
   visitorId?: string;
   thread?: unknown;
+  replace?: boolean;
 };
 
 export async function GET(req: Request) {
@@ -62,7 +63,9 @@ export async function PUT(req: Request) {
   const thread = normalizeChatThread(body.thread);
   try {
     /* Firebase 쓰기 권한과 무관하게 R2에 저장 (프로덕션 R2 시크릿 사용) */
-    await saveOcChatThreadToR2(characterId, visitorId, thread);
+    await saveOcChatThreadToR2(characterId, visitorId, thread, {
+      replace: body.replace === true,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

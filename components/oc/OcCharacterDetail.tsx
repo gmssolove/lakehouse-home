@@ -42,6 +42,8 @@ import { OcChatPhonePeek } from '@/components/oc/OcChatPhonePeek';
 import {
   countCharUnread,
   getOrCreateChatVisitorId,
+  peekOcChatThreadCache,
+  scheduleOcChatPendingDelivery,
   subscribeOcChatThread,
   tryDeliverPendingChat,
   tryDeliverProactiveChat,
@@ -979,6 +981,15 @@ export function OcCharacterDetail({
     if (!chatEnabled) return;
     const vid = getOrCreateChatVisitorId();
     const charId = String(character.id);
+    const cached = peekOcChatThreadCache(charId, vid);
+    if (cached?.pendingBehavior?.applyAt) {
+      scheduleOcChatPendingDelivery(
+        charId,
+        vid,
+        cached.pendingBehavior.applyAt,
+        character,
+      );
+    }
     let cancelled = false;
     const tick = () => {
       if (cancelled || chatOpen) return;
