@@ -200,6 +200,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const flushIncludedIdsRef = useRef<Set<string>>(new Set());
   const openRef = useRef(open);
   const replyLockRef = useRef(false);
+  /** 언마운트 시 stale 없이 flush 호출 */
+  const flushDebouncedChatRef = useRef<() => Promise<void>>(async () => {});
   /** 현재 state가 어느 캐릭터 스레드인지 — 캐릭터 전환 시 오판 방지 */
   const bootstrappedCharIdRef = useRef('');
   const stateRef = useRef({
@@ -1970,11 +1972,46 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     void flushDebouncedChat();
   }, [flushDebouncedChat, open]);
 
+  flushDebouncedChatRef.current = flushDebouncedChat;
+
+  /*
+   * 상세/패널 언마운트: 디바운스만 지우고 끝내면 답장이 영구히 안 옴.
+   * - 진행 중 flush/연출이면 open만 false로 넘겨 finally·강제 배달에 맡김
+   * - 대기만 하던 유저 말이면 즉시 flush
+   * - pending이 있으면 백그라운드 타이머 재예약
+   */
   useEffect(() => {
     return () => {
+      openRef.current = false;
       window.clearTimeout(debounceTimer.current);
+      debounceTimer.current = 0;
+
+      const vid = visitorRef.current || getOrCreateChatVisitorId();
+      const pending = stateRef.current.meta.pendingBehavior;
+
+      if (replyLockRef.current || flushLockRef.current) {
+        /* in-flight: playBehavior finally가 uiOwned 해제 + 닫힌 창 배달 */
+        return;
+      }
+
+      setOcChatPendingUiOwned(charId, vid, false);
+      if (pending?.applyAt) {
+        scheduleOcChatPendingDelivery(
+          charId,
+          vid,
+          pending.applyAt,
+          characterRef.current,
+          pending.id,
+        );
+      }
+
+      const last = stateRef.current.messages[stateRef.current.messages.length - 1];
+      if (last?.role === 'user' || pendingFlushRef.current) {
+        pendingFlushRef.current = false;
+        void flushDebouncedChatRef.current();
+      }
     };
-  }, []);
+  }, [charId]);
 
   useEffect(() => {
     if (open) {
