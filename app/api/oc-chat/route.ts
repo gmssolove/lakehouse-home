@@ -386,12 +386,27 @@ export async function POST(req: Request) {
       maxModelTurns: HISTORY_MAX,
     });
     const userText = messages[messages.length - 1]?.content || '';
+    const recentUserBurst: string[] = [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]?.role !== 'user') break;
+      recentUserBurst.unshift(messages[i]!.content);
+    }
+    const recentAssistantMessages = messages
+      .filter((m) => m.role === 'assistant')
+      .map((m) => m.content)
+      .slice(-8);
     resolveOcChatProvider();
     const verified = await generateVerifiedOcChatResponse({
       lastUserMessage: userText,
+      recentUserBurst,
+      recentAssistantMessages,
       historyForModel: prepared,
       generate: (msgs) =>
-        callOcChatLlm(system, msgs, { enableCache: true, logLabel: 'chat' }),
+        callOcChatLlm(system, msgs, {
+          enableCache: true,
+          logLabel: 'chat',
+          temperature: 0.92,
+        }),
       verify: callVerifyModel,
       parse: parseOcChatBehavior,
       eveStyle: isEveCharacter(character),
