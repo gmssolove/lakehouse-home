@@ -42,6 +42,7 @@ import { OcChatPhonePeek } from '@/components/oc/OcChatPhonePeek';
 import {
   countCharUnread,
   getOrCreateChatVisitorId,
+  loadOcChatThread,
   peekOcChatThreadCache,
   scheduleOcChatPendingDelivery,
   subscribeOcChatThread,
@@ -949,12 +950,35 @@ export function OcCharacterDetail({
   /* 미읽음이 한 번이라도 잡히면 채팅 열기 전까지 유지 — RTDB 중간값으로 배지/턱이 깜빡이지 않게 */
   const [chatAlertLatched, setChatAlertLatched] = useState(false);
   const chatEnabled = Boolean(character.chatbot?.enabled);
+  const chatOpenRef = useRef(chatOpen);
+  chatOpenRef.current = chatOpen;
 
-  useEffect(() => {
+  const applyUnreadFromThread = useCallback((thread: { messages: { role?: string; kind?: string; at: number }[]; lastSeenAt?: number } | null | undefined) => {
+    if (!thread || chatOpenRef.current) return;
+    const n = countCharUnread(thread as Parameters<typeof countCharUnread>[0]);
+    setChatUnread(n);
+    if (n > 0) setChatAlertLatched(true);
+  }, []);
+
+  /* 상세 들어오자마자 캐시 기준으로 배지 표시 — 서버 폴링 전에 알림이 보이게 */
+  useLayoutEffect(() => {
     setChatOpen(false);
-    setChatUnread(0);
-    setChatAlertLatched(false);
-  }, [character.id]);
+    if (!chatEnabled) {
+      setChatUnread(0);
+      setChatAlertLatched(false);
+      return;
+    }
+    const vid = getOrCreateChatVisitorId();
+    const cached = peekOcChatThreadCache(String(character.id), vid);
+    if (cached) {
+      const n = countCharUnread(cached);
+      setChatUnread(n);
+      setChatAlertLatched(n > 0);
+    } else {
+      setChatUnread(0);
+      setChatAlertLatched(false);
+    }
+  }, [character.id, chatEnabled]);
 
   useEffect(() => {
     if (chatOpen) {
@@ -971,10 +995,35 @@ export function OcCharacterDetail({
       return;
     }
     const vid = getOrCreateChatVisitorId();
-    return subscribeOcChatThread(String(character.id), vid, (thread) => {
-      setChatUnread(countCharUnread(thread));
+    const charId = String(character.id);
+    let cancelled = false;
+
+    /* 캐시 즉시 + pending 배달 후 + 서버 로드로 배지 갱신 */
+    const cached = peekOcChatThreadCache(charId, vid);
+    applyUnreadFromThread(cached);
+
+    void (async () => {
+      try {
+        await tryDeliverPendingChat({
+          characterId: charId,
+          visitorId: vid,
+          character,
+        });
+        if (cancelled || chatOpenRef.current) return;
+        applyUnreadFromThread(peekOcChatThreadCache(charId, vid));
+        const thread = await loadOcChatThread(charId, vid);
+        if (cancelled || chatOpenRef.current) return;
+        applyUnreadFromThread(thread);
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    return subscribeOcChatThread(charId, vid, (thread) => {
+      if (cancelled || chatOpenRef.current) return;
+      applyUnreadFromThread(thread);
     });
-  }, [character.id, chatEnabled, chatOpen]);
+  }, [applyUnreadFromThread, character, character.id, chatEnabled, chatOpen]);
 
   /* 예약된 답장 배달 — 창이 닫혀 있어도 주기적으로 확인 (미읽음 배지) */
   useEffect(() => {
@@ -988,16 +1037,22 @@ export function OcCharacterDetail({
         vid,
         cached.pendingBehavior.applyAt,
         character,
+        cached.pendingBehavior.id,
       );
     }
     let cancelled = false;
     const tick = () => {
-      if (cancelled || chatOpen) return;
+      if (cancelled || chatOpenRef.current) return;
       void tryDeliverPendingChat({
         characterId: charId,
         visitorId: vid,
         character,
-      }).catch(() => {});
+      })
+        .then((added) => {
+          if (cancelled || chatOpenRef.current || added <= 0) return;
+          applyUnreadFromThread(peekOcChatThreadCache(charId, vid));
+        })
+        .catch(() => {});
     };
     tick();
     const id = window.setInterval(tick, 4000);
@@ -1005,7 +1060,7 @@ export function OcCharacterDetail({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [character, chatEnabled, chatOpen]);
+  }, [applyUnreadFromThread, character, chatEnabled, chatOpen]);
 
   /* 호감 높고 오래 조용하면 선톡 (하루 1회 시도) */
   useEffect(() => {
