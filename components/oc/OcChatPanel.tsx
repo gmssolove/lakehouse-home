@@ -167,6 +167,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     recentActions: [],
   });
   const [input, setInput] = useState('');
+  /** 캐시/서버로 스토리·스레드가 확정되기 전엔 스토리 잠금 UI를 띄우지 않음 (플레이스홀더 깜빡임 방지) */
+  const [threadReady, setThreadReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [waitingRead, setWaitingRead] = useState(false);
   const [awaitingChoice, setAwaitingChoice] = useState(false);
@@ -192,6 +194,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const flushIncludedIdsRef = useRef<Set<string>>(new Set());
   const openRef = useRef(open);
   const replyLockRef = useRef(false);
+  /** 현재 state가 어느 캐릭터 스레드인지 — 캐릭터 전환 시 오판 방지 */
+  const bootstrappedCharIdRef = useRef('');
   const stateRef = useRef({
     messages: [] as OcChatMessage[],
     affection: 0,
@@ -237,7 +241,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     () => resolveStartEpisode(character.chatbot),
     [character.chatbot],
   );
-  const inStory = needsStoryMode(character, story?.completedEpisodeIds);
+  const inStory =
+    threadReady && needsStoryMode(character, story?.completedEpisodeIds);
   const affinityTier = resolveAffinityTier(affection, character.chatbot);
   const activeEpisode: OcChatEpisode | null =
     inStory && startEpisode ? startEpisode : null;
@@ -331,6 +336,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       lastSeenAt: 0,
       meta: emptyMeta,
     };
+    bootstrappedCharIdRef.current = charId;
+    setThreadReady(true);
     writeOcChatThreadCache(charId, vid, {
       messages: nextMessages,
       updatedAt: Date.now(),
@@ -1026,18 +1033,30 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     };
 
     if (!cached || !cached.messages.length) {
-      if (stateRef.current.messages.length) return;
-      const nextStory = ensureStory(undefined, []);
-      if (nextStory) {
-        setStory(nextStory);
-        stateRef.current = { ...stateRef.current, story: nextStory };
+      /* 이미 이 캐릭터 스레드를 불러온 상태면 그대로 확정 */
+      if (
+        bootstrappedCharIdRef.current === charId &&
+        (stateRef.current.messages.length || stateRef.current.story)
+      ) {
+        setThreadReady(true);
         return;
       }
-      const greeting = defaultChatGreeting(characterNow);
-      if (!greeting) return;
-      const boot = [createChatMessage('assistant', greeting, 'chat')];
-      setMessages(boot);
-      stateRef.current = { ...stateRef.current, messages: boot };
+      /*
+       * 캐시 없음: 서버 로드 전에 completedEpisodeIds=[]로 스토리 잠금을
+       * 걸지 않는다. (자유채팅 유저에게 "스토리를 진행해 주세요" 깜빡임)
+       */
+      if (bootstrappedCharIdRef.current && bootstrappedCharIdRef.current !== charId) {
+        setMessages([]);
+        setStory(undefined);
+        setAffection(0);
+        stateRef.current = {
+          ...stateRef.current,
+          messages: [],
+          story: undefined,
+          affection: 0,
+        };
+      }
+      setThreadReady(false);
       return;
     }
 
@@ -1066,6 +1085,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     setFreeGainDate(cached.freeGainDate || todayKeyLocal());
     setLastSeenAt(cached.lastSeenAt || 0);
     setMeta(nextMeta);
+    bootstrappedCharIdRef.current = charId;
+    setThreadReady(true);
     stateRef.current = {
       messages: cached.messages,
       affection: cached.affection || 0,
@@ -1204,6 +1225,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setLastSeenAt(seenNow);
         setStory(nextStory);
         setMessages(nextMessages);
+        bootstrappedCharIdRef.current = charId;
+        setThreadReady(true);
         stateRef.current = {
           ...stateRef.current,
           messages: nextMessages,
@@ -1257,6 +1280,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       } catch (err) {
         if (!cancelled) {
           setError(formatOcChatFirebaseError(err, '대화를 불러오지 못했습니다'));
+          /* 로드 실패 시에도 잠금 문구로 묶지 않음 — 캐시가 있으면 그 기준 유지 */
+          setThreadReady(true);
         }
       } finally {
         if (!cancelled) {
@@ -2198,12 +2223,12 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               onChange={(e) => setInput(e.target.value)}
               placeholder={inStory ? '스토리를 진행해 주세요' : '메시지 보내기'}
               autoComplete="off"
-              disabled={inStory}
+              disabled={!threadReady || inStory}
               maxLength={2000}
             />
             <button
               type="submit"
-              disabled={inStory || !input.trim()}
+              disabled={!threadReady || inStory || !input.trim()}
               aria-label="전송"
             >
               ➤
