@@ -213,6 +213,36 @@ export function needsStoryMode(
   return !done.has(ep.id);
 }
 
+/**
+ * 자유 채팅 이력이 있는데 스토리 완료 플래그만 사라진 경우 복구.
+ * (merge/캐시로 completedEpisodeIds가 비면 입력창이 스토리 잠금에 걸림)
+ */
+export function recoverStoryIfFreeChatting(
+  character: Pick<OcCharacter, 'chatbot'>,
+  story:
+    | { episodeId: string; sceneId: string; completedEpisodeIds: string[] }
+    | undefined,
+  messages: Array<{ role?: string; kind?: string }>,
+): { episodeId: string; sceneId: string; completedEpisodeIds: string[] } | undefined {
+  const ep = resolveStartEpisode(character.chatbot);
+  if (!ep) return story;
+  if (!needsStoryMode(character, story?.completedEpisodeIds)) return story;
+  const hasUserChat = messages.some((m) => {
+    if (m.role !== 'user') return false;
+    const kind = m.kind || 'chat';
+    return kind === 'chat' || kind === 'sticker';
+  });
+  if (!hasUserChat) return story;
+  const startId = episodeStartSceneId(ep);
+  return {
+    episodeId: ep.id,
+    sceneId: story?.sceneId || startId || ep.id,
+    completedEpisodeIds: Array.from(
+      new Set([...(story?.completedEpisodeIds || []), ep.id]),
+    ),
+  };
+}
+
 export function todayKeyLocal(): string {
   const d = new Date();
   const y = d.getFullYear();

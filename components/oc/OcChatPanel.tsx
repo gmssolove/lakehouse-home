@@ -13,6 +13,7 @@ import {
   needsStoryMode,
   isChatClosedNow,
   nextClosedUntil,
+  recoverStoryIfFreeChatting,
   resolveAffinityTier,
   resolveStartEpisode,
   rollFastUnreadVisibleMs,
@@ -472,7 +473,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         messages: snap.messages,
         updatedAt: Date.now(),
         affection: clampAffection(snap.affection),
-        story: snap.story,
+        story: snap.story ?? stateRef.current.story,
         freeGainDate: snap.freeGainDate ?? stateRef.current.freeGainDate,
         freeGainToday: snap.freeGainToday ?? stateRef.current.freeGainToday,
         freeLossToday: mergedMeta.freeLossToday,
@@ -1000,17 +1001,47 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     if (!open) return;
     const vid = getOrCreateChatVisitorId();
     visitorRef.current = vid;
+    const characterNow = characterRef.current;
     const cached = peekOcChatThreadCache(charId, vid);
+
+    const ensureStory = (
+      rawStory: OcChatStoryState | undefined,
+      msgs: OcChatMessage[],
+    ): OcChatStoryState | undefined => {
+      let nextStory = recoverStoryIfFreeChatting(characterNow, rawStory, msgs) as
+        | OcChatStoryState
+        | undefined;
+      const ep = resolveStartEpisode(characterNow.chatbot);
+      if (ep && needsStoryMode(characterNow, nextStory?.completedEpisodeIds)) {
+        const startId = episodeStartSceneId(ep);
+        if (!nextStory || nextStory.episodeId !== ep.id || !nextStory.sceneId) {
+          nextStory = {
+            episodeId: ep.id,
+            sceneId: startId || '',
+            completedEpisodeIds: nextStory?.completedEpisodeIds || [],
+          };
+        }
+      }
+      return nextStory;
+    };
+
     if (!cached || !cached.messages.length) {
-      /* 캐시 없어도 인사만 바로 보이게 — 빈 화면 깜빡임 방지 */
       if (stateRef.current.messages.length) return;
-      const greeting = defaultChatGreeting(characterRef.current);
-      if (!greeting || needsStoryMode(characterRef.current, [])) return;
+      const nextStory = ensureStory(undefined, []);
+      if (nextStory) {
+        setStory(nextStory);
+        stateRef.current = { ...stateRef.current, story: nextStory };
+        return;
+      }
+      const greeting = defaultChatGreeting(characterNow);
+      if (!greeting) return;
       const boot = [createChatMessage('assistant', greeting, 'chat')];
       setMessages(boot);
       stateRef.current = { ...stateRef.current, messages: boot };
       return;
     }
+
+    const recoveredStory = ensureStory(cached.story, cached.messages);
     const nextMeta: MetaState = {
       moodNote: cached.moodNote,
       turnsToday: cached.turnsToday || 0,
@@ -1024,13 +1055,13 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       presence:
         cached.presence === 'online' || cached.presence === 'offline'
           ? cached.presence
-          : stateRef.current.meta.presence || 'offline',
+          : stateRef.current.meta.presence || rollAmbientPresence(),
       presenceUpdatedAt: cached.presenceUpdatedAt || Date.now(),
       recentActions: cached.recentActions || [],
     };
     setMessages(cached.messages);
     setAffection(cached.affection || 0);
-    setStory(cached.story);
+    setStory(recoveredStory);
     setFreeGainToday(cached.freeGainToday || 0);
     setFreeGainDate(cached.freeGainDate || todayKeyLocal());
     setLastSeenAt(cached.lastSeenAt || 0);
@@ -1038,12 +1069,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     stateRef.current = {
       messages: cached.messages,
       affection: cached.affection || 0,
-      story: cached.story,
+      story: recoveredStory,
       freeGainToday: cached.freeGainToday || 0,
       freeGainDate: cached.freeGainDate || todayKeyLocal(),
       lastSeenAt: cached.lastSeenAt || 0,
       meta: nextMeta,
     };
+    if (recoveredStory !== cached.story) {
+      writeOcChatThreadCache(charId, vid, { ...cached, story: recoveredStory });
+    }
   }, [open, charId]);
 
   useEffect(() => {
@@ -1103,7 +1137,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setMeta(nextMeta);
 
         const ep = resolveStartEpisode(characterNow.chatbot);
-        let nextStory = thread.story;
+        let nextStory = recoverStoryIfFreeChatting(
+          characterNow,
+          thread.story,
+          thread.messages,
+        ) as OcChatStoryState | undefined;
         let nextMessages = thread.messages;
 
         if (ep && needsStoryMode(characterNow, nextStory?.completedEpisodeIds)) {

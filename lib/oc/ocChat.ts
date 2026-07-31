@@ -704,6 +704,26 @@ function isBlankThreadForMerge(t: OcChatThread): boolean {
   );
 }
 
+function pickStoryState(
+  a: OcChatStoryState | undefined,
+  b: OcChatStoryState | undefined,
+): OcChatStoryState | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  const aDone = a.completedEpisodeIds?.length || 0;
+  const bDone = b.completedEpisodeIds?.length || 0;
+  const completedEpisodeIds = Array.from(
+    new Set([...(a.completedEpisodeIds || []), ...(b.completedEpisodeIds || [])]),
+  );
+  /* 완료 목록이 더 많은 쪽의 episode/scene을 우선하되, 완료 id는 합친다 */
+  const base = bDone > aDone ? b : aDone > bDone ? a : b.sceneId ? b : a;
+  return {
+    episodeId: base.episodeId || a.episodeId || b.episodeId,
+    sceneId: base.sceneId || a.sceneId || b.sceneId,
+    completedEpisodeIds,
+  };
+}
+
 /** R2/Firebase·동시 저장 병합. 빈 스레드(리셋)는 상대를 그대로 씀. */
 export function mergeOcChatThreads(
   a: OcChatThread | null | undefined,
@@ -722,6 +742,7 @@ export function mergeOcChatThreads(
     ...older,
     ...newer,
     messages,
+    story: pickStoryState(na.story, nb.story),
     pendingBehavior: pickPendingBehavior(
       na.pendingBehavior,
       nb.pendingBehavior,
