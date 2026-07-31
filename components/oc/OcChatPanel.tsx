@@ -694,26 +694,38 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
       try {
         const wasOffline = nextMeta.presence !== 'online';
+        const willRespond =
+          behavior.action === 'respond' ||
+          behavior.action === 'end_for_today' ||
+          behavior.action === 'read_only';
         const applyAt = computePendingApplyAt(behavior, wasOffline);
         const pending = behaviorToPending(behavior, applyAt);
         cancelOcChatPendingDelivery(charId, vid);
 
-        /* 즉시 예약 — 창을 닫아도 백그라운드가 배달할 수 있게 (창이 열려 있으면 UI 소유) */
+        /*
+         * presence 규칙:
+         * - respond/read_only/end → 읽음·타이핑 전에 반드시 online
+         *   (모델이 offline을 줘도 무시 — 읽음이 오프라인에 뜨던 버그)
+         * - ignore만 offline 유지/전환 허용
+         */
+        let nextPresence: OcChatPresence = nextMeta.presence;
+        if (behavior.action === 'ignore') {
+          if (behavior.presenceState === 'online' || behavior.presenceState === 'offline') {
+            nextPresence = behavior.presenceState;
+          }
+        } else if (willRespond) {
+          nextPresence = 'online';
+        } else if (
+          behavior.presenceState === 'online' ||
+          behavior.presenceState === 'offline'
+        ) {
+          nextPresence = behavior.presenceState;
+        }
+
         nextMeta = {
           ...nextMeta,
           pendingBehavior: pending,
-          presence:
-            behavior.action === 'ignore' && behavior.presenceState === 'offline'
-              ? nextMeta.presence
-              : behavior.presenceState === 'offline' && behavior.action === 'ignore'
-                ? 'offline'
-                : wasOffline &&
-                    (behavior.action === 'respond' ||
-                      behavior.action === 'end_for_today' ||
-                      behavior.action === 'read_only' ||
-                      behavior.presenceState === 'online')
-                  ? 'online'
-                  : behavior.presenceState || nextMeta.presence,
+          presence: nextPresence,
           presenceUpdatedAt: Date.now(),
         };
         setMeta(nextMeta);
@@ -748,7 +760,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           return 'ok';
         }
 
-        /* presence 먼저 반영 + pending 저장 */
+        /* presence 먼저 반영 + pending 저장 — 오프→온이면 초록불이 읽음보다 먼저 */
         await persistSnapshot({
           messages: msgs,
           affection: opts.affection,
@@ -775,6 +787,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           });
 
         const markReadNow = async () => {
+          /* 읽음 직전에 한번 더 online 고정 */
+          if (nextMeta.presence !== 'online') {
+            nextMeta = {
+              ...nextMeta,
+              presence: 'online',
+              presenceUpdatedAt: Date.now(),
+            };
+            setMeta(nextMeta);
+          }
           const cur = markUserMessagesRead(stateRef.current.messages);
           msgs = cur;
           setMessages(cur);
@@ -789,11 +810,16 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         };
 
         /*
-         * 읽음과 답장 도착을 분리. "1" 단계는 항상 존재한다.
-         * - 빠른 전환(짧은 delay + 호감 확률): "1"을 0.3~0.5초만 → 읽음 → 남은 delay 대기 → 타이핑
-         * - 일반: "1"을 delay 대부분 유지 → 끝나기 직전 읽음 → 답장
+         * 순서 고정: (오프면) 온라인 표시 → 대기(미읽음 "1") → 읽음 → 타이핑 → 답장
+         * wasOffline이면 applyAt에 온라인이 된 뒤의 텀이 이미 포함됨.
          */
         if (openRef.current) setWaitingRead(true);
+        if (wasOffline && openRef.current) {
+          /* 초록불이 페인트된 뒤 읽음으로 넘어가게 한 프레임 양보 */
+          await new Promise<void>((r) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => r()));
+          });
+        }
         if (fastRead) {
           const unreadFlashMs = rollFastUnreadVisibleMs();
           await sleepMs(unreadFlashMs);
@@ -941,7 +967,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             nextMeta = {
               ...nextMeta,
               pendingBehavior: undefined,
-              presence: fresh.presence || 'online',
+              /* 연출 중 서버 stale offline으로 덮지 않음 */
+              presence:
+                fresh.presence === 'online'
+                  ? 'online'
+                  : nextMeta.presence === 'online'
+                    ? 'online'
+                    : fresh.presence === 'offline'
+                      ? 'offline'
+                      : nextMeta.presence || 'online',
               ...closedFieldsFromUntil(fresh.closedUntil),
             };
             setMeta(nextMeta);
@@ -951,7 +985,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             const synced = dedupeAdjacentAssistantMessages(fresh.messages);
             setMessages(synced);
             stateRef.current = { ...stateRef.current, messages: synced };
-            nextMeta = { ...nextMeta, pendingBehavior: undefined };
+            nextMeta = {
+              ...nextMeta,
+              pendingBehavior: undefined,
+              presence: nextMeta.presence === 'online' ? 'online' : nextMeta.presence,
+            };
             setMeta(nextMeta);
             return 'ok';
           }
@@ -1537,6 +1575,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         recentActions: patched.recentActions,
       });
     };
+    /* 열자마자 바로 굴리지 않음 — 첫 틱은 간격 뒤 */
     const id = window.setInterval(tick, 70_000);
     return () => window.clearInterval(id);
   }, [busy, charId, inStory, open, waitingRead]);
