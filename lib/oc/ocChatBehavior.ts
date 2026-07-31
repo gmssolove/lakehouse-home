@@ -33,6 +33,8 @@ export type OcChatBehavior = {
 };
 
 export type OcChatPendingBehavior = {
+  /** 예약 단위 id — 취소·교체 후 타이머/크론이 옛 pending을 배달하지 못하게 */
+  id?: string;
   applyAt: number;
   action: OcChatAction;
   messages: string[];

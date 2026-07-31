@@ -238,6 +238,38 @@ export function writeOcChatThreadCache(
 }
 
 const pendingDeliveryTimers = new Map<string, number>();
+/** 채팅창이 열려 playBehavior가 연출 중일 때 백그라운드 타이머 배달 금지 */
+const uiOwnedPendingKeys = new Set<string>();
+
+function pendingDeliveryKey(characterId: string, visitorId: string): string {
+  return `${characterId}::${visitorId}`;
+}
+
+export function cancelOcChatPendingDelivery(
+  characterId: string,
+  visitorId: string,
+): void {
+  if (typeof window === 'undefined') return;
+  const key = pendingDeliveryKey(characterId, visitorId);
+  const prev = pendingDeliveryTimers.get(key);
+  if (prev) window.clearTimeout(prev);
+  pendingDeliveryTimers.delete(key);
+}
+
+/** UI 연출이 pending 배달을 책임질 때 — 타이머/폴링이 같은 답을 또 붙이지 않게 */
+export function setOcChatPendingUiOwned(
+  characterId: string,
+  visitorId: string,
+  owned: boolean,
+): void {
+  const key = pendingDeliveryKey(characterId, visitorId);
+  if (owned) {
+    uiOwnedPendingKeys.add(key);
+    cancelOcChatPendingDelivery(characterId, visitorId);
+  } else {
+    uiOwnedPendingKeys.delete(key);
+  }
+}
 
 /** 창이 닫혀 있어도 applyAt에 답장 배달 (언마운트 생존) */
 export function scheduleOcChatPendingDelivery(
@@ -245,24 +277,26 @@ export function scheduleOcChatPendingDelivery(
   visitorId: string,
   applyAt: number | undefined,
   character?: Pick<OcCharacter, 'chatbot'>,
+  expectPendingId?: string,
 ): void {
   if (typeof window === 'undefined') return;
-  const key = `${characterId}::${visitorId}`;
+  const key = pendingDeliveryKey(characterId, visitorId);
   const prev = pendingDeliveryTimers.get(key);
   if (prev) window.clearTimeout(prev);
-  if (!applyAt) {
+  if (!applyAt || uiOwnedPendingKeys.has(key)) {
     pendingDeliveryTimers.delete(key);
     return;
   }
   const delay = Math.max(0, applyAt - Date.now()) + 60;
   const id = window.setTimeout(() => {
     pendingDeliveryTimers.delete(key);
-    void tryDeliverPendingChat({ characterId, visitorId, character })
-      .then((added) => {
-        if (added <= 0) return;
-        return loadOcChatThread(characterId, visitorId);
-      })
-      .catch(() => {});
+    if (uiOwnedPendingKeys.has(key)) return;
+    void tryDeliverPendingChat({
+      characterId,
+      visitorId,
+      character,
+      expectPendingId,
+    }).catch(() => {});
   }, delay);
   pendingDeliveryTimers.set(key, id);
 }
@@ -459,6 +493,7 @@ function normalizePending(raw: unknown): OcChatPendingBehavior | undefined {
   const presenceState =
     presenceRaw === 'online' || presenceRaw === 'offline' ? presenceRaw : undefined;
   return {
+    id: String(o.id || '').trim() || undefined,
     applyAt,
     action,
     messages,
@@ -682,13 +717,20 @@ function pickPendingBehavior(
 ): OcChatPendingBehavior | undefined {
   if (!a && !b) return undefined;
   if (a && !b) {
-    /* b가 메시지를 더 많이 갖고 pending을 비웠으면 이미 배달된 것 */
-    if (bMsgLen > aMsgLen) return undefined;
+    /*
+     * b가 pending을 비웠고 메시지 수가 같거나 더 많으면 배달·연타 abort 취소로 본다.
+     * (이전: bMsgLen > aMsgLen 만 인정 → 같은 길이에서 abort해도 캐시 pending이 되살아남)
+     */
+    if (bMsgLen >= aMsgLen) return undefined;
     return a;
   }
   if (!a && b) {
     if (aMsgLen > bMsgLen) return undefined;
     return b;
+  }
+  /* 같은 예약이면 id가 있는 쪽·더 늦은 applyAt 우선 */
+  if (a!.id && b!.id && a!.id === b!.id) {
+    return (a!.applyAt || 0) >= (b!.applyAt || 0) ? a : b;
   }
   return (a!.applyAt || 0) >= (b!.applyAt || 0) ? a : b;
 }
@@ -784,6 +826,8 @@ export async function loadOcChatThread(
       characterId,
       visitorId,
       merged.pendingBehavior.applyAt,
+      undefined,
+      merged.pendingBehavior.id,
     );
   }
   return merged;
@@ -882,6 +926,8 @@ export async function saveOcChatThread(
     characterId,
     visitorId,
     next.pendingBehavior?.applyAt,
+    undefined,
+    next.pendingBehavior?.id,
   );
 
   /* 주 저장소: R2 API — 서버에서 기존 스레드와 merge (replace 시 덮어쓰기) */
@@ -896,6 +942,73 @@ export async function saveOcChatThread(
   } catch {
     /* ignore */
   }
+}
+
+/** pending 대사가 이미 스레드 끝에 붙어 있는지 (이중 배달 방지) */
+export function pendingLinesAlreadyAtTail(
+  messages: Array<{ role?: string; kind?: string; content?: string }>,
+  lines: string[],
+  expectSticker = false,
+): boolean {
+  if (!lines.length && !expectSticker) return false;
+  const want = lines.map((l) => l.trim()).filter(Boolean);
+  if (!want.length && !expectSticker) return false;
+  let i = messages.length - 1;
+  if (expectSticker) {
+    const last = messages[i];
+    if (!last || last.role !== 'assistant' || (last.kind || 'chat') !== 'sticker') {
+      return false;
+    }
+    i -= 1;
+  }
+  for (let w = want.length - 1; w >= 0; w -= 1) {
+    const m = messages[i];
+    if (
+      !m ||
+      m.role !== 'assistant' ||
+      (m.kind || 'chat') !== 'chat' ||
+      String(m.content || '').trim() !== want[w]
+    ) {
+      return false;
+    }
+    i -= 1;
+  }
+  return true;
+}
+
+/** 연속 동일 assistant 말풍선 제거 (이중 배달 안전망) */
+export function dedupeAdjacentAssistantMessages<
+  T extends { role?: string; kind?: string; content?: string; at?: number },
+>(messages: T[]): T[] {
+  const out: T[] = [];
+  for (const m of messages) {
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      m.role === 'assistant' &&
+      prev.role === 'assistant' &&
+      (m.kind || 'chat') === 'chat' &&
+      (prev.kind || 'chat') === 'chat' &&
+      String(m.content || '').trim() === String(prev.content || '').trim() &&
+      Math.abs((m.at || 0) - (prev.at || 0)) < 180_000
+    ) {
+      continue;
+    }
+    out.push(m);
+  }
+  return out;
+}
+
+/** 응답 messages 배열 안 인접 중복 문구 제거 */
+export function dedupeAdjacentTextLines(lines: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of lines) {
+    const line = String(raw || '').trim();
+    if (!line) continue;
+    if (out[out.length - 1] === line) continue;
+    out.push(line);
+  }
+  return out;
 }
 
 /** 기한이 된 pending만 스레드에 반영 (I/O 없음). 크론·클라이언트 공용. */
@@ -971,19 +1084,23 @@ export function applyDuePendingBehavior(
   const sticker = resolveSticker(opts?.character?.chatbot, pending.sticker || null);
   let added = 0;
 
-  for (const line of lines) {
-    msgs = [...msgs, createChatMessage('assistant', line, 'chat')];
-    added += 1;
-  }
-  if (sticker) {
-    msgs = [
-      ...msgs,
-      createChatMessage('assistant', '스티커', 'sticker', {
-        stickerUrl: sticker.imageUrl,
-        stickerId: sticker.id,
-      }),
-    ];
-    added += 1;
+  /* 이미 UI/다른 경로가 같은 대사를 붙였으면 또 붙이지 않음 */
+  const alreadyDelivered = pendingLinesAlreadyAtTail(msgs, lines, Boolean(sticker));
+  if (!alreadyDelivered) {
+    for (const line of lines) {
+      msgs = [...msgs, createChatMessage('assistant', line, 'chat')];
+      added += 1;
+    }
+    if (sticker) {
+      msgs = [
+        ...msgs,
+        createChatMessage('assistant', '스티커', 'sticker', {
+          stickerUrl: sticker.imageUrl,
+          stickerId: sticker.id,
+        }),
+      ];
+      added += 1;
+    }
   }
 
   return {
@@ -1302,10 +1419,17 @@ export function behaviorToPending(
   behavior: OcChatBehavior,
   applyAt: number,
 ): OcChatPendingBehavior {
+  const id =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
   return {
+    id,
     applyAt,
     action: behavior.action,
-    messages: behavior.messages.filter((m) => m.trim() && !looksLikeBehaviorDump(m)),
+    messages: dedupeAdjacentTextLines(
+      behavior.messages.filter((m) => m.trim() && !looksLikeBehaviorDump(m)),
+    ),
     moodNote: behavior.moodNote,
     affinityDelta: behavior.affinityDelta,
     presenceState: behavior.presenceState,
@@ -1323,20 +1447,44 @@ export async function tryDeliverPendingChat(params: {
   characterId: string;
   visitorId: string;
   character?: Pick<OcCharacter, 'chatbot'>;
+  /** 예약 당시 id — 취소·교체된 옛 타이머는 무시 */
+  expectPendingId?: string;
+  /** UI 핸드오프(창 닫힘 등) — uiOwned여도 배달 */
+  force?: boolean;
 }): Promise<number> {
+  const key = pendingDeliveryKey(params.characterId, params.visitorId);
+  if (!params.force && uiOwnedPendingKeys.has(key)) return 0;
+
+  const matchesExpect = (pending: OcChatPendingBehavior | undefined) => {
+    if (!pending) return false;
+    if (params.expectPendingId && pending.id && pending.id !== params.expectPendingId) {
+      return false;
+    }
+    return (pending.applyAt || 0) <= Date.now();
+  };
+
   const cached = peekOcChatThreadCache(params.characterId, params.visitorId);
-  if (cached?.pendingBehavior && (cached.pendingBehavior.applyAt || 0) <= Date.now()) {
-    const fromCache = applyDuePendingBehavior(cached, { character: params.character });
+  if (matchesExpect(cached?.pendingBehavior)) {
+    const fromCache = applyDuePendingBehavior(cached!, { character: params.character });
     if (fromCache) {
-      await saveOcChatThread(params.characterId, params.visitorId, fromCache.thread);
+      const msgs = dedupeAdjacentAssistantMessages(fromCache.thread.messages);
+      await saveOcChatThread(params.characterId, params.visitorId, {
+        ...fromCache.thread,
+        messages: msgs,
+      });
       return fromCache.added;
     }
   }
 
   const thread = await loadOcChatThread(params.characterId, params.visitorId);
+  if (!matchesExpect(thread.pendingBehavior)) return 0;
   const result = applyDuePendingBehavior(thread, { character: params.character });
   if (!result) return 0;
-  await saveOcChatThread(params.characterId, params.visitorId, result.thread);
+  const msgs = dedupeAdjacentAssistantMessages(result.thread.messages);
+  await saveOcChatThread(params.characterId, params.visitorId, {
+    ...result.thread,
+    messages: msgs,
+  });
   return result.added;
 }
 
