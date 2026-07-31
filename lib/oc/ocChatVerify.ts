@@ -205,12 +205,14 @@ export type OcChatVerifyFailReason =
   | 'command_ending'
   | 'punctuation_only'
   | 'mechanical_filter'
-  | 'context_mismatch';
+  | 'context_mismatch'
+  | 'duplicate_reply';
 
 export function buildOcChatRetryUserNotice(
   lastUserMessage: string,
   reason: OcChatVerifyFailReason = 'context_mismatch',
   recentUserBurst?: string[],
+  recentAssistantMessages?: string[],
 ): string {
   const last = String(lastUserMessage || '').trim().slice(0, 400);
   if (
@@ -219,6 +221,16 @@ export function buildOcChatRetryUserNotice(
     reason === 'mechanical_filter'
   ) {
     return `[시스템 알림: 명령형 어미로 끝나는 문장이 있거나, 구두점만으로 이루어진 메시지(예: ".....")가 있었습니다. 명령형을 쓰지 말고, 할 말이 없다면 action을 read_only/ignore로 바꾸거나 실제 내용이 담긴 문장으로 다시 쓰세요. 이브면 평서문 끝 마침표도 빼세요. JSON만 출력.]`;
+  }
+  if (reason === 'duplicate_reply') {
+    const banned = (recentAssistantMessages || [])
+      .map((m) => String(m || '').trim())
+      .filter(Boolean)
+      .slice(-4);
+    const banLine = banned.length
+      ? `금지(그대로·거의 그대로 재사용 금지): ${banned.map((m) => `"${m}"`).join(' / ')}.`
+      : '직전 자기 대사를 그대로 다시 쓰지 마세요.';
+    return `[시스템 알림: 방금 답이 직전 대사와 동일·거의 동일했습니다. ${banLine} 사용자 마지막 말("${last}")에 맞게 다른 문장·각도로 새로 짧게 답하세요. 할 말이 없으면 action을 read_only/ignore. JSON만 출력.]`;
   }
   const burst = (recentUserBurst || []).map((m) => String(m || '').trim()).filter(Boolean);
   if (burst.length > 1) {
@@ -237,6 +249,7 @@ export type VerifiedOcChatGenerateResult = {
 /**
  * 생성 → (이브)기계적 필터 → 맥락 검증 → 실패 시 최대 2회 재생성.
  * ignore/read_only 등 messages=[] 는 검증 생략.
+ * 직전 대사 복붙은 최종 시도에서도 통과시키지 않는다(같으면 read_only로 강등).
  */
 export async function generateVerifiedOcChatResponse(opts: {
   lastUserMessage: string;
@@ -257,6 +270,9 @@ export async function generateVerifiedOcChatResponse(opts: {
   let behavior = opts.parse(raw);
   let regenerated = false;
   let verifyPassed = true;
+  const recentAsst = (opts.recentAssistantMessages || [])
+    .map((m) => String(m || '').trim())
+    .filter(Boolean);
 
   const verifyOrFixOnce = async (b: OcChatBehavior): Promise<{
     behavior: OcChatBehavior;
@@ -280,6 +296,10 @@ export async function generateVerifiedOcChatResponse(opts: {
       }
     }
 
+    if (!failReason && isNearDuplicateReply(next.messages, recentAsst)) {
+      failReason = 'duplicate_reply';
+    }
+
     if (!failReason) {
       const ok = await verifyOcChatRelevance({
         lastUserMessage: opts.lastUserMessage,
@@ -288,7 +308,11 @@ export async function generateVerifiedOcChatResponse(opts: {
         candidateMessages: next.messages,
         callModel: opts.verify,
       });
-      if (!ok) failReason = 'context_mismatch';
+      if (!ok) {
+        failReason = isNearDuplicateReply(next.messages, recentAsst)
+          ? 'duplicate_reply'
+          : 'context_mismatch';
+      }
     }
 
     return { behavior: next, failReason };
@@ -304,6 +328,7 @@ export async function generateVerifiedOcChatResponse(opts: {
           opts.lastUserMessage,
           failReason,
           opts.recentUserBurst,
+          recentAsst,
         ),
       },
     ];
@@ -323,7 +348,23 @@ export async function generateVerifiedOcChatResponse(opts: {
     };
   };
 
-  // attempt0: initial generation + verification
+  const demoteDuplicate = (b: OcChatBehavior): OcChatBehavior => {
+    if (!(b.action === 'respond' && b.messages.length > 0)) return b;
+    if (!isNearDuplicateReply(b.messages, recentAsst)) return b;
+    console.warn('[oc-chat] demote duplicate reply to read_only', {
+      lastUserMessage: opts.lastUserMessage.slice(0, 120),
+      messages: b.messages,
+      recentAsst: recentAsst.slice(-3),
+    });
+    return {
+      ...b,
+      action: 'read_only',
+      messages: [],
+      moodNote: b.moodNote || '같은 말 반복 대신 읽만 함',
+    };
+  };
+
+  // attempt0
   {
     const { behavior: fixed0, failReason: fail0 } = await verifyOrFixOnce(behavior);
     behavior = fixed0;
@@ -333,14 +374,10 @@ export async function generateVerifiedOcChatResponse(opts: {
     console.warn('[oc-chat] verification failed, regenerating (attempt 1)', {
       lastUserMessage: opts.lastUserMessage.slice(0, 120),
       original: behavior.messages,
-      reason:
-        fail0 === 'context_mismatch'
-          ? 'context_mismatch'
-          : 'mechanical_filter_triggered',
+      reason: fail0,
       burstCount: opts.recentUserBurst?.length || 0,
     });
 
-    // attempt1: regenerate + verification
     const regen1 = await regenerateOnce(raw, fail0);
     raw = regen1.raw;
     behavior = regen1.behavior;
@@ -354,18 +391,22 @@ export async function generateVerifiedOcChatResponse(opts: {
     console.warn('[oc-chat] verification failed, regenerating (attempt 2)', {
       lastUserMessage: opts.lastUserMessage.slice(0, 120),
       original: behavior.messages,
-      reason:
-        fail1 === 'context_mismatch'
-          ? 'context_mismatch'
-          : 'mechanical_filter_triggered',
+      reason: fail1,
       burstCount: opts.recentUserBurst?.length || 0,
     });
 
-    // attempt2: one more regeneration, but NO verification (fail-safe)
     const regen2 = await regenerateOnce(raw, fail1);
     raw = regen2.raw;
     behavior = eveFinalize(regen2.behavior);
-    verifyPassed = true; // 3번째부터는 무조건 통과 취급
-    return { raw, behavior, regenerated: true, verifyPassed: true };
+    const { behavior: fixed2, failReason: fail2 } = await verifyOrFixOnce(behavior);
+    behavior = eveFinalize(fixed2);
+    if (fail2 === 'duplicate_reply' || isNearDuplicateReply(behavior.messages, recentAsst)) {
+      behavior = demoteDuplicate(behavior);
+      verifyPassed = true;
+      return { raw, behavior, regenerated: true, verifyPassed: true };
+    }
+    /* 맥락 불일치 등은 최후 후보를 쓰되, 복붙만은 위에서 차단 */
+    verifyPassed = !fail2;
+    return { raw, behavior, regenerated: true, verifyPassed };
   }
 }

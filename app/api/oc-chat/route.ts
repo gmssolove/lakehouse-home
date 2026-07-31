@@ -392,7 +392,7 @@ export async function POST(req: Request) {
       recentUserBurst.unshift(messages[i]!.content);
     }
     const recentAssistantMessages = messages
-      .filter((m) => m.role === 'assistant')
+      .filter((m) => m.role === 'assistant' && (m.kind || 'chat') === 'chat')
       .map((m) => m.content)
       .slice(-8);
     resolveOcChatProvider();

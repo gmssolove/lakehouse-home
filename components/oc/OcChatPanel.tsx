@@ -919,11 +919,18 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               markUserMessagesRead(stateRef.current.messages),
               included,
             );
-            /* 이미 같은 줄이 붙어 있으면 스킵 (이중 배달) */
+            /* 직전 말풍선이 같은 assistant 대사라면 이중 배달 — 턴 넘어 반복은 서버 검증이 담당 */
+            const tail = head[head.length - 1];
+            const sameAsImmediatePrev =
+              !!tail &&
+              tail.role === 'assistant' &&
+              (tail.kind || 'chat') === 'chat' &&
+              String(tail.content || '')
+                .trim()
+                .replace(/\s+/g, '') === String(line || '').trim().replace(/\s+/g, '');
             if (
               pendingLinesAlreadyAtTail(head, lines.slice(0, i + 1)) ||
-              (head[head.length - 1]?.role === 'assistant' &&
-                head[head.length - 1]?.content === line)
+              sameAsImmediatePrev
             ) {
               msgs = [...head, ...lateUsers];
               deliveredAssistant = true;
