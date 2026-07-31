@@ -107,6 +107,101 @@ type MetaState = {
   recentActions: OcChatRecentAction[];
 };
 
+type BootChatState = {
+  messages: OcChatMessage[];
+  affection: number;
+  story?: OcChatStoryState;
+  freeGainToday: number;
+  freeGainDate: string;
+  lastSeenAt: number;
+  meta: MetaState;
+  threadReady: boolean;
+  bootstrapped: boolean;
+};
+
+function emptyMetaState(presence: OcChatPresence = 'offline'): MetaState {
+  return {
+    turnsToday: 0,
+    closedForToday: false,
+    closedUntil: undefined,
+    freeLossToday: 0,
+    recentDeltaReasons: [],
+    presence,
+    recentActions: [],
+  };
+}
+
+/** 첫 페인트부터 캐시를 써서 스토리 문구·온오프 깜빡임 방지 */
+function bootChatStateFromCache(character: OcCharacter): BootChatState {
+  const empty: BootChatState = {
+    messages: [],
+    affection: 0,
+    story: undefined,
+    freeGainToday: 0,
+    freeGainDate: todayKeyLocal(),
+    lastSeenAt: 0,
+    meta: emptyMetaState('offline'),
+    threadReady: false,
+    bootstrapped: false,
+  };
+  if (typeof window === 'undefined') return empty;
+  try {
+    const vid = getOrCreateChatVisitorId();
+    const cached = peekOcChatThreadCache(String(character.id), vid);
+    if (!cached?.messages?.length) return empty;
+
+    let story = recoverStoryIfFreeChatting(
+      character,
+      cached.story,
+      cached.messages,
+    ) as OcChatStoryState | undefined;
+    const ep = resolveStartEpisode(character.chatbot);
+    if (ep && needsStoryMode(character, story?.completedEpisodeIds)) {
+      const startId = episodeStartSceneId(ep);
+      if (!story || story.episodeId !== ep.id || !story.sceneId) {
+        story = {
+          episodeId: ep.id,
+          sceneId: startId || '',
+          completedEpisodeIds: story?.completedEpisodeIds || [],
+        };
+      }
+    }
+
+    const presence: OcChatPresence =
+      cached.presence === 'online' || cached.presence === 'offline'
+        ? cached.presence
+        : 'offline';
+
+    return {
+      messages: cached.messages,
+      affection: cached.affection || 0,
+      story,
+      freeGainToday: cached.freeGainToday || 0,
+      freeGainDate: cached.freeGainDate || todayKeyLocal(),
+      lastSeenAt: cached.lastSeenAt || 0,
+      meta: {
+        ...emptyMetaState(presence),
+        moodNote: cached.moodNote,
+        turnsToday: cached.turnsToday || 0,
+        ...closedFieldsFromUntil(cached.closedUntil),
+        pendingBehavior: cached.pendingBehavior,
+        lastProactiveDate: cached.lastProactiveDate,
+        freeLossToday: cached.freeLossToday || 0,
+        recentDeltaReasons: cached.recentDeltaReasons || [],
+        lastInteractionAt: cached.lastInteractionAt,
+        neglectCheckedAt: cached.neglectCheckedAt,
+        presence,
+        presenceUpdatedAt: cached.presenceUpdatedAt || Date.now(),
+        recentActions: cached.recentActions || [],
+      },
+      threadReady: true,
+      bootstrapped: true,
+    };
+  } catch {
+    return empty;
+  }
+}
+
 function withEndForTodayLock(meta: MetaState): MetaState {
   const closedUntil = nextClosedUntil();
   return {
@@ -157,24 +252,22 @@ function chatRelationTitle(name: string) {
 
 export function OcChatPanel({ open, character, onClose }: Props) {
   const { confirm, alert } = useLakeDialog();
-  const [messages, setMessages] = useState<OcChatMessage[]>([]);
-  const [affection, setAffection] = useState(0);
-  const [story, setStory] = useState<OcChatStoryState | undefined>();
-  const [freeGainToday, setFreeGainToday] = useState(0);
-  const [freeGainDate, setFreeGainDate] = useState(todayKeyLocal());
-  const [lastSeenAt, setLastSeenAt] = useState(0);
-  const [meta, setMeta] = useState<MetaState>({
-    turnsToday: 0,
-    closedForToday: false,
-    closedUntil: undefined,
-    freeLossToday: 0,
-    recentDeltaReasons: [],
-    presence: 'offline',
-    recentActions: [],
-  });
+  const bootRef = useRef<BootChatState | null>(null);
+  if (bootRef.current == null) {
+    bootRef.current = bootChatStateFromCache(character);
+  }
+  const boot = bootRef.current;
+
+  const [messages, setMessages] = useState<OcChatMessage[]>(() => boot.messages);
+  const [affection, setAffection] = useState(() => boot.affection);
+  const [story, setStory] = useState<OcChatStoryState | undefined>(() => boot.story);
+  const [freeGainToday, setFreeGainToday] = useState(() => boot.freeGainToday);
+  const [freeGainDate, setFreeGainDate] = useState(() => boot.freeGainDate);
+  const [lastSeenAt, setLastSeenAt] = useState(() => boot.lastSeenAt);
+  const [meta, setMeta] = useState<MetaState>(() => boot.meta);
   const [input, setInput] = useState('');
   /** 캐시/서버로 스토리·스레드가 확정되기 전엔 스토리 잠금 UI를 띄우지 않음 (플레이스홀더 깜빡임 방지) */
-  const [threadReady, setThreadReady] = useState(false);
+  const [threadReady, setThreadReady] = useState(() => boot.threadReady);
   const [busy, setBusy] = useState(false);
   const [waitingRead, setWaitingRead] = useState(false);
   const [awaitingChoice, setAwaitingChoice] = useState(false);
@@ -203,23 +296,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   /** 언마운트 시 stale 없이 flush 호출 */
   const flushDebouncedChatRef = useRef<() => Promise<void>>(async () => {});
   /** 현재 state가 어느 캐릭터 스레드인지 — 캐릭터 전환 시 오판 방지 */
-  const bootstrappedCharIdRef = useRef('');
+  const bootstrappedCharIdRef = useRef(boot.bootstrapped ? String(character.id) : '');
   const stateRef = useRef({
-    messages: [] as OcChatMessage[],
-    affection: 0,
-    story: undefined as OcChatStoryState | undefined,
-    freeGainToday: 0,
-    freeGainDate: todayKeyLocal(),
-    lastSeenAt: 0,
-    meta: {
-      turnsToday: 0,
-      closedForToday: false,
-      closedUntil: undefined,
-      freeLossToday: 0,
-      recentDeltaReasons: [],
-      presence: 'offline' as OcChatPresence,
-      recentActions: [] as OcChatRecentAction[],
-    } as MetaState,
+    messages: boot.messages,
+    affection: boot.affection,
+    story: boot.story,
+    freeGainToday: boot.freeGainToday,
+    freeGainDate: boot.freeGainDate,
+    lastSeenAt: boot.lastSeenAt,
+    meta: boot.meta,
   });
   const charId = String(character.id);
   const chatAvatar = resolveChatAvatarUrl(character);
@@ -249,8 +334,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     () => resolveStartEpisode(character.chatbot),
     [character.chatbot],
   );
+  /*
+   * story가 아직 없으면(로딩) 스토리 잠금으로 보지 않음.
+   * undefined completed = 미진행으로 오인해 "스토리를 진행해 주세요"가 깜빡이던 문제 방지.
+   */
   const inStory =
-    threadReady && needsStoryMode(character, story?.completedEpisodeIds);
+    threadReady &&
+    story != null &&
+    needsStoryMode(character, story.completedEpisodeIds);
   const affinityTier = resolveAffinityTier(affection, character.chatbot);
   const activeEpisode: OcChatEpisode | null =
     inStory && startEpisode ? startEpisode : null;
@@ -1140,7 +1231,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       presence:
         cached.presence === 'online' || cached.presence === 'offline'
           ? cached.presence
-          : stateRef.current.meta.presence || rollAmbientPresence(),
+          : stateRef.current.meta.presence || 'offline',
       presenceUpdatedAt: cached.presenceUpdatedAt || Date.now(),
       recentActions: cached.recentActions || [],
     };
@@ -1202,10 +1293,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           recentDeltaReasons: thread.recentDeltaReasons || [],
           lastInteractionAt: thread.lastInteractionAt,
           neglectCheckedAt: thread.neglectCheckedAt,
-          presence: thread.presence === 'online' || thread.presence === 'offline'
-            ? thread.presence
-            : rollAmbientPresence(),
-          presenceUpdatedAt: thread.presenceUpdatedAt || Date.now(),
+          /* 서버에 presence 없으면 랜덤 롤 대신 현재(캐시) 유지 — 온오프 깜빡임 방지 */
+          presence:
+            thread.presence === 'online' || thread.presence === 'offline'
+              ? thread.presence
+              : stateRef.current.meta.presence || 'offline',
+          presenceUpdatedAt:
+            thread.presence === 'online' || thread.presence === 'offline'
+              ? thread.presenceUpdatedAt || Date.now()
+              : stateRef.current.meta.presenceUpdatedAt || Date.now(),
           recentActions: thread.recentActions || [],
         };
 
@@ -1220,8 +1316,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           nextMeta = { ...nextMeta, neglectCheckedAt: neglect.neglectCheckedAt };
           flashAffectionToast(-neglect.decay);
         }
-        setAffection(affectionNow);
-        setMeta(nextMeta);
+        /* setMeta/setStory는 아래에서 한 번에 — 중간 깜빡임 방지 */
 
         const ep = resolveStartEpisode(characterNow.chatbot);
         let nextStory = recoverStoryIfFreeChatting(
@@ -1276,19 +1371,25 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           nextMeta = {
             ...nextMeta,
             pendingBehavior: fresh.pendingBehavior,
-            presence: fresh.presence || nextMeta.presence,
-            presenceUpdatedAt: fresh.presenceUpdatedAt,
+            presence:
+              fresh.presence === 'online' || fresh.presence === 'offline'
+                ? fresh.presence
+                : nextMeta.presence,
+            presenceUpdatedAt:
+              fresh.presence === 'online' || fresh.presence === 'offline'
+                ? fresh.presenceUpdatedAt || Date.now()
+                : nextMeta.presenceUpdatedAt,
             ...closedFieldsFromUntil(fresh.closedUntil),
             moodNote: fresh.moodNote || nextMeta.moodNote,
             recentActions: fresh.recentActions || nextMeta.recentActions,
           };
           pending = fresh.pendingBehavior;
-          setMeta(nextMeta);
-          setAffection(affectionNow);
         }
 
         const seenNow = Date.now();
         setLastSeenAt(seenNow);
+        setAffection(affectionNow);
+        setMeta(nextMeta);
         setStory(nextStory);
         setMessages(nextMessages);
         bootstrappedCharIdRef.current = charId;

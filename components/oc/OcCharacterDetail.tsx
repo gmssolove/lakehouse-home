@@ -2347,6 +2347,7 @@ export function OcCharacterDetail({
       ) : null}
 
       <OcChatPanel
+        key={String(character.id)}
         open={chatOpen && chatEnabled}
         character={character}
         onClose={() => setChatOpen(false)}
