@@ -526,6 +526,7 @@ export async function POST(req: Request) {
       .map((m) => m.content)
       .slice(-8);
     resolveOcChatProvider();
+    const llmStartedAt = Date.now();
     const verified = await generateVerifiedOcChatResponse({
       lastUserMessage: userText,
       recentUserBurst,
@@ -541,6 +542,17 @@ export async function POST(req: Request) {
       parse: parseOcChatBehavior,
       eveStyle: isEveCharacter(character),
     });
+    const llmMs = Date.now() - llmStartedAt;
+    console.info('[oc-chat] timing', {
+      characterId,
+      visitorId: visitorId.slice(0, 8),
+      llmMs,
+      regenerated: verified.regenerated,
+      verifyPassed: verified.verifyPassed,
+      historyMsgs: prepared.length,
+      userBurstCount: recentUserBurst.length,
+      lastUserPreview: userText.slice(0, 40),
+    });
     console.info('[oc-chat] model raw', {
       characterId,
       visitorId: visitorId.slice(0, 8),
@@ -549,6 +561,7 @@ export async function POST(req: Request) {
       regenerated: verified.regenerated,
       verifyPassed: verified.verifyPassed,
       historyMsgs: prepared.length,
+      llmMs,
       userBurstCount: (() => {
         let n = 0;
         for (let i = messages.length - 1; i >= 0; i--) {

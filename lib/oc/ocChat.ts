@@ -430,10 +430,40 @@ export function formatChatDayLabel(at: number): string {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 ${CHAT_WEEKDAYS[d.getDay()]}`;
 }
 
-/** 연속 메시지 모아 응답 — 대기 ms (2~3초 연타 묶음) */
-export const OC_CHAT_SEND_DEBOUNCE_MS = 3000;
+/** 연속 메시지 모아 응답 — 기본 대기 ms */
+export const OC_CHAT_SEND_DEBOUNCE_MS = 1800;
+/** 짧은 이모티콘·리액션 직후 대기 (더 짧게 묶음) */
+export const OC_CHAT_REACTION_DEBOUNCE_MS = 850;
+/** API/연출 중 연타로 재요청할 때 추가 침묵 대기 (전체 debounce 재적용 금지) */
+export const OC_CHAT_REGATHER_QUIET_MS = 650;
 /** API/연출 중 버스트가 커졌을 때 최대 재요청 횟수 */
 export const OC_CHAT_BURST_REGATHER_MAX = 3;
+
+/** ^0^/ · ㅋㅋ · 이모지 등 — 직전 말에 붙는 짧은 리액션 */
+export function looksLikeShortReaction(text: string): boolean {
+  const t = String(text || '').trim();
+  if (!t || t.length > 28) return false;
+  if (/^(ㅋ+|ㅎ+|ㅠ+|ㅜ+|ㅇㅇ|응|어|웅|헐|와|오|아+|네|ㅇㅋ|ㄱㄱ|ㄱㅅ|ㄴㄴ|ㄷㄷ|ㅎㅎ|ㅋㅋ)$/i.test(t)) {
+    return true;
+  }
+  /* 카오모지·기호 위주 */
+  if (/^[\^ㅇㅋㅎㅠㅜㄷ;:.\-~!?*_/\\|()[\]{}<>'"`~\s0-9a-zA-Z]+$/.test(t) && t.length <= 16) {
+    if (/[\^;:()<>_|~*]/.test(t) || /[ㅋㅎㅠㅜㅇ]/.test(t)) return true;
+  }
+  try {
+    if (/\p{Extended_Pictographic}/u.test(t) && t.replace(/\s/g, '').length <= 12) return true;
+  } catch {
+    /* older runtimes */
+  }
+  return false;
+}
+
+/** 마지막 유저 말 기준 debounce */
+export function resolveOcChatSendDebounceMs(lastUserText?: string): number {
+  return looksLikeShortReaction(lastUserText || '')
+    ? OC_CHAT_REACTION_DEBOUNCE_MS
+    : OC_CHAT_SEND_DEBOUNCE_MS;
+}
 
 /**
  * flush 스냅샷에 없던 유저 말(응답 도중 연타)을 분리.

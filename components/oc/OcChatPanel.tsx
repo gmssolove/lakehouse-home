@@ -50,8 +50,9 @@ import {
   lastMessageAt,
   loadOcChatThread,
   markUserMessagesRead,
-  OC_CHAT_SEND_DEBOUNCE_MS,
+  OC_CHAT_REGATHER_QUIET_MS,
   OC_CHAT_BURST_REGATHER_MAX,
+  resolveOcChatSendDebounceMs,
   extractLateUserMessages,
   hasLateUserMessages,
   countTrailingUserBurst,
@@ -1985,6 +1986,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const flushDebouncedChat = useCallback(async () => {
     if (flushLockRef.current) {
       pendingFlushRef.current = true;
+      console.info('[oc-chat-ui] timing', {
+        event: 'flush_queued',
+        reason: 'already_flushing',
+        replyLock: replyLockRef.current,
+      });
       return;
     }
     if (inStory) return;
@@ -2000,20 +2006,39 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
     flushLockRef.current = true;
     pendingFlushRef.current = false;
+    const flushStartedAt = Date.now();
+
+    const lastUserText = () => {
+      const msgs = stateRef.current.messages;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i]?.role === 'user') return String(msgs[i]?.content || '');
+      }
+      return '';
+    };
+    const burstQuietMsFor = (text?: string) => resolveOcChatSendDebounceMs(text);
 
     const scheduleTrailingFlush = () => {
       window.clearTimeout(debounceTimer.current);
+      const debounceMs = burstQuietMsFor(lastUserText());
       const elapsed = Date.now() - lastUserSendAtRef.current;
-      const wait = Math.max(0, OC_CHAT_SEND_DEBOUNCE_MS - elapsed);
+      const wait = Math.max(0, debounceMs - elapsed);
+      console.info('[oc-chat-ui] timing', {
+        event: 'trailing_flush_scheduled',
+        waitMs: wait,
+        debounceMs,
+      });
       debounceTimer.current = window.setTimeout(() => {
         void flushDebouncedChat();
       }, wait);
     };
 
-    const waitBurstQuiet = async () => {
+    /** 재요청 시 짧은 침묵만 — 전체 debounce를 다시 기다리면 체감 지연이 커짐 */
+    const waitBurstQuiet = async (mode: 'initial' | 'regather') => {
+      const debounceMs =
+        mode === 'regather' ? OC_CHAT_REGATHER_QUIET_MS : burstQuietMsFor(lastUserText());
       for (;;) {
-        const wait = OC_CHAT_SEND_DEBOUNCE_MS - (Date.now() - lastUserSendAtRef.current);
-        if (wait <= 0) return;
+        const wait = debounceMs - (Date.now() - lastUserSendAtRef.current);
+        if (wait <= 0) return debounceMs;
         await sleepMs(wait);
       }
     };
@@ -2026,10 +2051,12 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
     let includedAtStart = new Set<string>();
     const userBurstAtStart = countTrailingUserBurst(stateRef.current.messages);
+    let discardedApiCount = 0;
+    let lastDiscardReason = '';
 
     try {
       for (let attempt = 0; attempt <= OC_CHAT_BURST_REGATHER_MAX; attempt++) {
-        if (attempt > 0) await waitBurstQuiet();
+        const quietMs = await waitBurstQuiet(attempt > 0 ? 'regather' : 'initial');
 
         const withUser = stateRef.current.messages;
         const last = withUser[withUser.length - 1];
@@ -2057,10 +2084,28 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         }
         const beforeBurstAt =
           burstStart > 0 ? withUser[burstStart - 1]?.at : undefined;
+        const trailingBurst = countTrailingUserBurst(withUser);
+        const burstFirstAt =
+          typeof withUser[burstStart]?.at === 'number'
+            ? withUser[burstStart]!.at
+            : lastUserSendAtRef.current;
 
         flushAbortRef.current?.abort();
         const ac = new AbortController();
         flushAbortRef.current = ac;
+
+        const apiStartedAt = Date.now();
+        console.info('[oc-chat-ui] timing', {
+          event: 'api_start',
+          attempt,
+          quietMs,
+          trailingBurst,
+          sinceBurstFirstMs: apiStartedAt - burstFirstAt,
+          sinceFlushStartMs: apiStartedAt - flushStartedAt,
+          discardedApiCount,
+          lastDiscardReason: lastDiscardReason || undefined,
+          lastUserPreview: String(last.content || '').slice(0, 40),
+        });
 
         let result: Awaited<ReturnType<typeof postOcChat>>;
         try {
@@ -2088,12 +2133,22 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           });
         } catch (err) {
           if (isAbortError(err) || burstEpochRef.current !== myEpoch) {
-            console.info('[oc-chat-ui] discard aborted API — newer burst', { attempt });
+            discardedApiCount += 1;
+            lastDiscardReason = 'abort_newer_burst';
+            console.info('[oc-chat-ui] timing', {
+              event: 'api_discard',
+              reason: 'abort_newer_burst',
+              attempt,
+              apiMs: Date.now() - apiStartedAt,
+              path: 'overlapping_api_cancelled',
+            });
             pendingFlushRef.current = false;
             continue;
           }
           throw err;
         }
+
+        const apiMs = Date.now() - apiStartedAt;
 
         /* API 대기 중 연타 → 불완전 응답 버리고 묶어서 재요청 */
         if (
@@ -2101,10 +2156,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           (hasLateUserMessages(stateRef.current.messages, includedAtStart) &&
             attempt < OC_CHAT_BURST_REGATHER_MAX)
         ) {
-          console.info('[oc-chat-ui] discard API reply — burst grew', {
+          discardedApiCount += 1;
+          lastDiscardReason = burstEpochRef.current !== myEpoch ? 'epoch' : 'late_users';
+          console.info('[oc-chat-ui] timing', {
+            event: 'api_discard',
+            reason: lastDiscardReason,
             attempt,
+            apiMs,
             late: countTrailingUserBurst(stateRef.current.messages),
-            epochChanged: burstEpochRef.current !== myEpoch,
+            path: 'overlapping_api_regather',
           });
           pendingFlushRef.current = false;
           continue;
@@ -2115,6 +2175,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           reasons.push(result.deltaReason);
         }
 
+        const playStartedAt = Date.now();
+        console.info('[oc-chat-ui] timing', {
+          event: 'play_start',
+          attempt,
+          apiMs,
+          action: result.behavior.action,
+          bubbleCount: result.behavior.messages?.length || 0,
+        });
+
         /* 호감·토스트는 읽음→답장 연출 끝난 뒤에만 (전송 직후 선반영 금지) */
         const playResult = await playBehavior(result.behavior, stateRef.current.messages, {
           affection: result.affection,
@@ -2123,14 +2192,23 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           story: st,
           expectEpoch: myEpoch,
         });
+        const playMs = Date.now() - playStartedAt;
 
         if (
           playResult === 'regather' ||
           burstEpochRef.current !== myEpoch
         ) {
           pendingFlushRef.current = false;
+          discardedApiCount += 1;
+          lastDiscardReason = 'play_regather';
+          console.info('[oc-chat-ui] timing', {
+            event: 'play_regather',
+            attempt,
+            apiMs,
+            playMs,
+            path: 'mid_play_newer_burst',
+          });
           if (attempt < OC_CHAT_BURST_REGATHER_MAX) {
-            console.info('[oc-chat-ui] regather after play abort', { attempt });
             continue;
           }
         }
@@ -2167,6 +2245,18 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           freeGainToday: result.freeGainToday,
           freeGainDate: result.freeGainDate,
           meta: afterMeta,
+        });
+
+        console.info('[oc-chat-ui] timing', {
+          event: 'turn_done',
+          attempt,
+          apiMs,
+          playMs,
+          totalFromBurstFirstMs: Date.now() - burstFirstAt,
+          flushWallMs: Date.now() - flushStartedAt,
+          discardedApiCount,
+          trailingBurst,
+          path: discardedApiCount > 0 ? 'regathered_then_ok' : 'single_pass',
         });
         break;
       }
@@ -2208,7 +2298,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           userBurstAtStart,
           waitMs: Math.max(
             0,
-            OC_CHAT_SEND_DEBOUNCE_MS - (Date.now() - lastUserSendAtRef.current),
+            burstQuietMsFor(lastUserText()) - (Date.now() - lastUserSendAtRef.current),
           ),
         });
         scheduleTrailingFlush();
@@ -2301,14 +2391,27 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         pendingFlushRef.current = true;
         burstEpochRef.current += 1;
         flushAbortRef.current?.abort();
+        console.info('[oc-chat-ui] timing', {
+          event: 'send_during_inflight',
+          path: 'overlapping_api_or_play',
+          flushLock: flushLockRef.current,
+          replyLock: replyLockRef.current,
+          preview: text.slice(0, 40),
+        });
         return;
       }
 
-      /* 마지막 메시지 기준 N초 — 새 말이 오면 타이머 리셋 */
+      /* 마지막 메시지 기준 debounce — 짧은 리액션은 더 짧게 */
+      const debounceMs = resolveOcChatSendDebounceMs(text);
       window.clearTimeout(debounceTimer.current);
       debounceTimer.current = window.setTimeout(() => {
         void flushDebouncedChat();
-      }, OC_CHAT_SEND_DEBOUNCE_MS);
+      }, debounceMs);
+      console.info('[oc-chat-ui] timing', {
+        event: 'debounce_armed',
+        debounceMs,
+        preview: text.slice(0, 40),
+      });
     } catch (err) {
       setError(formatOcChatFirebaseError(err, '전송 실패'));
       focusComposer();
