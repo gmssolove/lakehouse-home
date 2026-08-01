@@ -368,6 +368,51 @@ export function markUserMessagesRead(
   return changed ? next : messages;
 }
 
+/**
+ * 마지막 OC 답장(내레이션 제외) 이전의 유저 말만 읽음 처리.
+ * 답장 뒤에 붙은 연타(아직 미응답)는 미읽음 "1" 유지.
+ */
+export function markUserMessagesReadThroughLastAssistant(
+  messages: OcChatMessage[],
+  at = Date.now(),
+): OcChatMessage[] {
+  let lastAsst = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (!m || m.role !== 'assistant') continue;
+    if ((m.kind || 'chat') === 'narration') continue;
+    lastAsst = i;
+    break;
+  }
+  if (lastAsst < 0) return messages;
+  let changed = false;
+  const next = messages.map((m, i) => {
+    if (i >= lastAsst) return m;
+    if (m.role !== 'user' || m.readAt) return m;
+    if ((m.kind || 'chat') === 'narration') return m;
+    changed = true;
+    return { ...m, readAt: at };
+  });
+  return changed ? next : messages;
+}
+
+/** UI: 뒤에 OC 답장이 있으면 readAt 누락이어도 읽음으로 본다 */
+export function isOcChatUserMsgUnread(
+  messages: OcChatMessage[],
+  index: number,
+): boolean {
+  const m = messages[index];
+  if (!m || m.role !== 'user' || (m.kind || 'chat') === 'narration') return false;
+  if (m.readAt) return false;
+  for (let j = index + 1; j < messages.length; j++) {
+    const n = messages[j];
+    if (!n || n.role !== 'assistant') continue;
+    if ((n.kind || 'chat') === 'narration') continue;
+    return false;
+  }
+  return true;
+}
+
 export function countCharUnread(thread: OcChatThread): number {
   const seen = typeof thread.lastSeenAt === 'number' ? thread.lastSeenAt : 0;
   let n = 0;
@@ -766,7 +811,13 @@ function mergeChatMessages(a: OcChatMessage[], b: OcChatMessage[]): OcChatMessag
     map.set(m.id, {
       ...prev,
       ...m,
-      readAt: m.readAt ?? prev.readAt,
+      /* 숫자 readAt 우선 — null/누락이 읽음을 다시 덮어쓰지 않게 */
+      readAt:
+        typeof m.readAt === 'number'
+          ? m.readAt
+          : typeof prev.readAt === 'number'
+            ? prev.readAt
+            : (m.readAt ?? prev.readAt),
       stickerUrl: m.stickerUrl || prev.stickerUrl,
       stickerId: m.stickerId || prev.stickerId,
     });
@@ -1196,16 +1247,38 @@ export function applyDuePendingBehavior(
   }
 
   let msgs = thread.messages;
+  const throughAt =
+    typeof pending.createdAt === 'number' ? pending.createdAt : undefined;
+
+  /*
+   * pending 생성 이후에 붙은 유저 말은 이번 답장 대상이 아님.
+   * 읽음 스킵만 하면 답장 앞에 남아 "1"이 고착되고 trailing flush도 안 돈다
+   * → 답장 뒤로 빼서 미읽음 유지 + 후속 응답 대상으로.
+   */
+  let lateAfterPending: OcChatMessage[] = [];
+  if (
+    throughAt != null &&
+    (action === 'read_only' || action === 'respond' || action === 'end_for_today')
+  ) {
+    const head: OcChatMessage[] = [];
+    const late: OcChatMessage[] = [];
+    for (const m of msgs) {
+      if (m.role === 'user' && (m.kind || 'chat') !== 'narration' && m.at > throughAt) {
+        late.push(m);
+      } else {
+        head.push(m);
+      }
+    }
+    msgs = head;
+    lateAfterPending = late;
+  }
+
   if (action === 'read_only' || action === 'respond' || action === 'end_for_today') {
-    const throughAt =
-      typeof pending.createdAt === 'number' ? pending.createdAt : undefined;
-    msgs =
-      throughAt != null
-        ? markUserMessagesRead(msgs, now, { throughAt })
-        : markUserMessagesRead(msgs, now);
+    msgs = markUserMessagesRead(msgs, now);
   }
 
   if (action === 'read_only') {
+    msgs = lateAfterPending.length ? [...msgs, ...lateAfterPending] : msgs;
     return {
       added: 0,
       thread: {
@@ -1257,6 +1330,12 @@ export function applyDuePendingBehavior(
       ];
       added += 1;
     }
+  }
+
+  /* 답장까지 반영된 유저 말 읽음 확정 + 연타분은 답장 뒤로 */
+  msgs = markUserMessagesReadThroughLastAssistant(msgs, now);
+  if (lateAfterPending.length) {
+    msgs = [...msgs, ...lateAfterPending];
   }
 
   return {

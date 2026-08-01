@@ -50,6 +50,8 @@ import {
   lastMessageAt,
   loadOcChatThread,
   markUserMessagesRead,
+  markUserMessagesReadThroughLastAssistant,
+  isOcChatUserMsgUnread,
   OC_CHAT_REGATHER_QUIET_MS,
   OC_CHAT_BURST_REGATHER_MAX,
   resolveOcChatSendDebounceMs,
@@ -1300,6 +1302,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
                 pendingBehavior: undefined,
               };
         setMeta(nextMeta);
+        /* 답장 연출 끝 — readAt 누락/경합으로 "1"이 남지 않게 확정 */
+        msgs = markUserMessagesReadThroughLastAssistant(msgs);
+        setMessages(msgs);
         await persistSnapshot({
           messages: msgs,
           affection: opts.affection,
@@ -2238,14 +2243,20 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setFreeGainToday(result.freeGainToday);
         setFreeGainDate(result.freeGainDate);
         if (result.affinityDelta !== 0) flashAffectionToast(result.affinityDelta);
-        await persistSnapshot({
-          messages: stateRef.current.messages,
-          affection: result.affection,
-          story: st,
-          freeGainToday: result.freeGainToday,
-          freeGainDate: result.freeGainDate,
-          meta: afterMeta,
-        });
+        {
+          const sealed = markUserMessagesReadThroughLastAssistant(
+            stateRef.current.messages,
+          );
+          if (sealed !== stateRef.current.messages) setMessages(sealed);
+          await persistSnapshot({
+            messages: sealed,
+            affection: result.affection,
+            story: st,
+            freeGainToday: result.freeGainToday,
+            freeGainDate: result.freeGainDate,
+            meta: afterMeta,
+          });
+        }
 
         console.info('[oc-chat-ui] timing', {
           event: 'turn_done',
@@ -2345,8 +2356,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     if (replyLockRef.current) {
       const flashMs = rollFastUnreadVisibleMs();
       window.setTimeout(() => {
-        if (!openRef.current || !replyLockRef.current) return;
-        const marked = markUserMessagesRead(stateRef.current.messages);
+        if (!openRef.current) return;
+        /*
+         * replyLock이 연출 종료로 먼저 풀려도, 이미 답장이 붙은 유저 말은 읽음으로 확정.
+         * (예전: !replyLock이면 early return → readAt 미반영 + 이후 persist가 미읽음 덮어쓰기)
+         */
+        const marked = replyLockRef.current
+          ? markUserMessagesRead(stateRef.current.messages)
+          : markUserMessagesReadThroughLastAssistant(stateRef.current.messages);
         if (marked === stateRef.current.messages) return;
         setMessages(marked);
         void persistSnapshot({
@@ -2654,12 +2671,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               const clusterEnd = !next || !isChatClusterMate(m, next);
               const showAvatar =
                 m.role === 'assistant' && m.kind !== 'narration' && !clusterCont;
-              const showUnread =
-                m.role === 'user' && m.kind !== 'narration' && !m.readAt;
+              const showUnread = isOcChatUserMsgUnread(messages, i);
               const showReadLabel =
                 m.role === 'user' &&
                 m.kind !== 'narration' &&
-                Boolean(m.readAt) &&
+                !showUnread &&
                 clusterEnd;
               const showTime = clusterEnd && m.kind !== 'narration';
               const showMeta = showUnread || showReadLabel || showTime;
