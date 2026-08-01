@@ -423,8 +423,8 @@ export function formatChatDayLabel(at: number): string {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 ${CHAT_WEEKDAYS[d.getDay()]}`;
 }
 
-/** 연속 메시지 모아 응답 — 대기 ms */
-export const OC_CHAT_SEND_DEBOUNCE_MS = 2600;
+/** 연속 메시지 모아 응답 — 대기 ms (2~3초 연타 묶음) */
+export const OC_CHAT_SEND_DEBOUNCE_MS = 3000;
 /** API/연출 중 버스트가 커졌을 때 최대 재요청 횟수 */
 export const OC_CHAT_BURST_REGATHER_MAX = 3;
 
@@ -1312,6 +1312,7 @@ export async function postOcChat(params: {
   recentDeltaReasons?: string[];
   presence?: 'online' | 'offline';
   recentActions?: OcChatThread['recentActions'];
+  signal?: AbortSignal;
 }): Promise<OcChatApiResult> {
   const recent = params.messages
     .filter((m) => m.kind === 'chat' || m.kind === 'choice' || m.kind === 'sticker' || !m.kind)
@@ -1353,6 +1354,7 @@ export async function postOcChat(params: {
         params.messages,
       ),
     }),
+    signal: params.signal,
   });
   const rawBody = await res.text();
   type OcChatPostJson = {

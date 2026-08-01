@@ -171,12 +171,12 @@ function salvageMessages(raw: string): string[] {
     return Array.from(open[1].matchAll(/"((?:\\.|[^"\\])*)"/g))
       .map((m) => m[1]!.replace(/\\"/g, '"').replace(/\\n/g, '\n').trim())
       .filter((t) => t && !looksLikeBehaviorDump(t))
-      .slice(0, 5);
+      .slice(0, 3);
   }
   return Array.from(block[1].matchAll(/"((?:\\.|[^"\\])*)"/g))
     .map((m) => m[1]!.replace(/\\"/g, '"').replace(/\\n/g, '\n').trim())
     .filter((t) => t && !looksLikeBehaviorDump(t))
-    .slice(0, 5);
+    .slice(0, 3);
 }
 
 function salvageAction(raw: string): OcChatAction | null {
@@ -194,7 +194,7 @@ function asMessages(raw: unknown): string[] {
     return raw
       .map((x) => String(x || '').trim())
       .filter((t) => t && !looksLikeBehaviorDump(t))
-      .slice(0, 5);
+      .slice(0, 3);
   }
   if (typeof raw === 'string' && raw.trim() && !looksLikeBehaviorDump(raw)) {
     return [raw.trim()];

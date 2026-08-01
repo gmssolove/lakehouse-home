@@ -287,6 +287,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const debounceTimer = useRef(0);
   const flushLockRef = useRef(false);
   const pendingFlushRef = useRef(false);
+  /** 연타로 진행 중 요청을 무효화할 때 증가 */
+  const burstEpochRef = useRef(0);
+  /** in-flight postOcChat 취소 */
+  const flushAbortRef = useRef<AbortController | null>(null);
   /** 마지막 유저 전송 시각 — trailing debounce 기준 */
   const lastUserSendAtRef = useRef(0);
   /** 이번 flush가 API에 넣은 메시지 id — 도중 연타는 late로 분리 */
@@ -615,25 +619,35 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         freeGainDate: string;
         story?: OcChatStoryState;
         skipSeen?: boolean;
+        /** flush epoch — 연타로 바뀌면 연출 중단·롤백 */
+        expectEpoch?: number;
       },
     ): Promise<'ok' | 'regather'> => {
       let msgs = baseMessages;
       let nextMeta: MetaState = { ...stateRef.current.meta };
       let deliveredAssistant = false;
+      const deliveredIds = new Set<string>();
+      const playEpoch = opts.expectEpoch ?? burstEpochRef.current;
       replyLockRef.current = true;
       const vid = visitorRef.current || getOrCreateChatVisitorId();
       visitorRef.current = vid;
       setOcChatPendingUiOwned(charId, vid, true);
 
       const lateBurstPending = () =>
-        hasLateUserMessages(stateRef.current.messages, flushIncludedIdsRef.current);
+        hasLateUserMessages(stateRef.current.messages, flushIncludedIdsRef.current) ||
+        burstEpochRef.current !== playEpoch;
 
       const abortForRegather = async (): Promise<'regather'> => {
         cancelOcChatPendingDelivery(charId, vid);
+        /* 이번 연출에서 붙인 assistant만 제거 — 이후 최신 버스트로 한 번만 재응답 */
+        const rolled = stateRef.current.messages.filter((m) => !deliveredIds.has(m.id));
+        msgs = rolled;
+        stateRef.current = { ...stateRef.current, messages: rolled };
+        setMessages(rolled);
         nextMeta = { ...nextMeta, pendingBehavior: undefined };
         setMeta(nextMeta);
         await persistSnapshot({
-          messages: stateRef.current.messages,
+          messages: rolled,
           affection: opts.affection,
           story: opts.story,
           freeGainToday: opts.freeGainToday,
@@ -642,7 +656,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           skipSeen: true,
           lastSeenAt: stateRef.current.lastSeenAt,
         });
-        console.info('[oc-chat-ui] abort play — regather burst');
+        console.info('[oc-chat-ui] abort play — regather burst', {
+          rolledAway: deliveredIds.size,
+        });
         return 'regather';
       };
 
@@ -1069,6 +1085,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               const botMsg = createChatMessage('assistant', line, 'chat', {
                 at: Date.now() + i,
               });
+              deliveredIds.add(botMsg.id);
               msgs = [...head, botMsg, ...lateUsers];
               deliveredAssistant = true;
             }
@@ -1123,6 +1140,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               stickerUrl: sticker.imageUrl,
               stickerId: sticker.id,
             });
+            deliveredIds.add(stickerMsg.id);
             msgs = [...head, stickerMsg, ...lateUsers];
             deliveredAssistant = true;
           }
@@ -1868,6 +1886,12 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       }
     };
 
+    const isAbortError = (err: unknown) =>
+      (typeof DOMException !== 'undefined' &&
+        err instanceof DOMException &&
+        err.name === 'AbortError') ||
+      (err instanceof Error && err.name === 'AbortError');
+
     let includedAtStart = new Set<string>();
     const userBurstAtStart = countTrailingUserBurst(stateRef.current.messages);
 
@@ -1881,6 +1905,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
         includedAtStart = new Set(withUser.map((m) => m.id));
         flushIncludedIdsRef.current = includedAtStart;
+        const myEpoch = burstEpochRef.current;
         const aff = stateRef.current.affection;
         const st = stateRef.current.story;
         const gain =
@@ -1901,34 +1926,50 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         const beforeBurstAt =
           burstStart > 0 ? withUser[burstStart - 1]?.at : undefined;
 
-        const result = await postOcChat({
-          characterId: charId,
-          visitorId: visitorRef.current || getOrCreateChatVisitorId(),
-          messages: withUser,
-          affection: aff,
-          freeGainToday: gain,
-          freeLossToday: loss,
-          moodNote: metaSnap.moodNote,
-          turnsToday: turns,
-          hoursSinceLast: hoursSince(
-            typeof beforeBurstAt === 'number'
-              ? beforeBurstAt
-              : lastMessageAt(withUser.slice(0, burstStart)),
-          ),
-          closedForToday: false,
-          recentDeltaReasons: metaSnap.recentDeltaReasons,
-          presence: metaSnap.presence,
-          recentActions: metaSnap.recentActions,
-        });
+        flushAbortRef.current?.abort();
+        const ac = new AbortController();
+        flushAbortRef.current = ac;
+
+        let result: Awaited<ReturnType<typeof postOcChat>>;
+        try {
+          result = await postOcChat({
+            characterId: charId,
+            visitorId: visitorRef.current || getOrCreateChatVisitorId(),
+            messages: withUser,
+            affection: aff,
+            freeGainToday: gain,
+            freeLossToday: loss,
+            moodNote: metaSnap.moodNote,
+            turnsToday: turns,
+            hoursSinceLast: hoursSince(
+              typeof beforeBurstAt === 'number'
+                ? beforeBurstAt
+                : lastMessageAt(withUser.slice(0, burstStart)),
+            ),
+            closedForToday: false,
+            recentDeltaReasons: metaSnap.recentDeltaReasons,
+            presence: metaSnap.presence,
+            recentActions: metaSnap.recentActions,
+            signal: ac.signal,
+          });
+        } catch (err) {
+          if (isAbortError(err) || burstEpochRef.current !== myEpoch) {
+            console.info('[oc-chat-ui] discard aborted API — newer burst', { attempt });
+            continue;
+          }
+          throw err;
+        }
 
         /* API 대기 중 연타 → 불완전 응답 버리고 묶어서 재요청 */
         if (
-          hasLateUserMessages(stateRef.current.messages, includedAtStart) &&
-          attempt < OC_CHAT_BURST_REGATHER_MAX
+          burstEpochRef.current !== myEpoch ||
+          (hasLateUserMessages(stateRef.current.messages, includedAtStart) &&
+            attempt < OC_CHAT_BURST_REGATHER_MAX)
         ) {
           console.info('[oc-chat-ui] discard API reply — burst grew', {
             attempt,
             late: countTrailingUserBurst(stateRef.current.messages),
+            epochChanged: burstEpochRef.current !== myEpoch,
           });
           continue;
         }
@@ -1944,10 +1985,20 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           freeGainToday: result.freeGainToday,
           freeGainDate: result.freeGainDate,
           story: st,
+          expectEpoch: myEpoch,
         });
 
-        if (playResult === 'regather' && attempt < OC_CHAT_BURST_REGATHER_MAX) {
-          console.info('[oc-chat-ui] regather after play abort', { attempt });
+        if (
+          playResult === 'regather' ||
+          burstEpochRef.current !== myEpoch
+        ) {
+          if (attempt < OC_CHAT_BURST_REGATHER_MAX) {
+            console.info('[oc-chat-ui] regather after play abort', { attempt });
+            continue;
+          }
+        }
+
+        if (burstEpochRef.current !== myEpoch) {
           continue;
         }
 
@@ -1975,9 +2026,21 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         break;
       }
     } catch (err) {
-      setError(formatOcChatFirebaseError(err, '전송 실패'));
+      if (
+        !(
+          (typeof DOMException !== 'undefined' &&
+            err instanceof DOMException &&
+            err.name === 'AbortError') ||
+          (err instanceof Error && err.name === 'AbortError')
+        )
+      ) {
+        setError(formatOcChatFirebaseError(err, '전송 실패'));
+      }
     } finally {
       flushLockRef.current = false;
+      if (flushAbortRef.current) {
+        flushAbortRef.current = null;
+      }
       setWaitingRead(false);
       setBusy(false);
       focusComposer();
@@ -2082,9 +2145,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setMeta(unlocked);
       }
 
-      /* AI 응답 중이면 큐 표시 + 마지막 전송 시각만 갱신(언락 후 trailing wait) */
+      /* AI 응답 중이면 진행 중 요청 무효화 + 최신 입력으로 다시 묶음 */
       if (flushLockRef.current || replyLockRef.current) {
         pendingFlushRef.current = true;
+        burstEpochRef.current += 1;
+        flushAbortRef.current?.abort();
         return;
       }
 
