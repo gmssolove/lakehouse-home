@@ -177,13 +177,14 @@ async function saveOcChatThreadViaApi(
   thread: OcChatThread,
   opts?: { replace?: boolean },
 ): Promise<void> {
+  const safeThread = stripUndefinedDeep(normalizeChatThread(thread));
   const res = await fetch('/api/oc-chat-thread', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       characterId,
       visitorId,
-      thread,
+      thread: safeThread,
       replace: opts?.replace === true,
     }),
   });

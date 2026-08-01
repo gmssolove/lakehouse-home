@@ -881,7 +881,7 @@ export function OcChatPanel({
         if (!alive()) return false;
         msgs = next;
         stateRef.current = { ...stateRef.current, messages: next };
-        applyMessages(next);
+        setMessages(next);
         return true;
       };
 
