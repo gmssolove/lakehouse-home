@@ -327,6 +327,8 @@ export function OcChatPanel({
   const unreadWhileScrolledRef = useRef(0);
   const prevMsgCountRef = useRef(0);
   const jumpBottomOnEnterRef = useRef(false);
+  /** 사용자가 하단 근처에 있을 때 true — 새 메시지 추가 후에도 "따라가기"용 */
+  const stickToBottomRef = useRef(true);
   const visitorRef = useRef('');
   const revealedRef = useRef<Set<string>>(new Set());
   const storyTimer = useRef(0);
@@ -446,27 +448,42 @@ export function OcChatPanel({
       : null;
   const choices = (activeScene?.choices || []).filter((c) => c.text?.trim());
 
+  const NEAR_BOTTOM_PX = 80;
+
   const isNearBottom = useCallback(() => {
     const el = threadRef.current;
     if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
   }, []);
 
-  const updateScrollUI = useCallback(() => {
+  /**
+   * fromScroll: 사용자/프로그램 스크롤 이벤트일 때만 stick 갱신.
+   * 메시지 추가로 scrollHeight만 커진 뒤 호출하면 바닥인데도 stick이 꺼져 알약이 뜬다.
+   */
+  const updateScrollUI = useCallback((opts?: { fromScroll?: boolean }) => {
     const el = threadRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distanceFromBottom < 40) {
-      unreadWhileScrolledRef.current = 0;
-      setUnreadWhileScrolled(0);
-      setShowScrollFab(false);
+    const near = distanceFromBottom < NEAR_BOTTOM_PX;
+    if (opts?.fromScroll) {
+      stickToBottomRef.current = near;
+    } else if (near) {
+      stickToBottomRef.current = true;
+    }
+    if (near || stickToBottomRef.current) {
+      if (unreadWhileScrolledRef.current !== 0) {
+        unreadWhileScrolledRef.current = 0;
+        setUnreadWhileScrolled(0);
+      }
+      setShowScrollFab((v) => (v ? false : v));
       return;
     }
     if (unreadWhileScrolledRef.current > 0) {
-      setShowScrollFab(false);
+      setShowScrollFab((v) => (v ? false : v));
       return;
     }
-    setShowScrollFab(distanceFromBottom > 220);
+    const wantFab = distanceFromBottom > 220;
+    setShowScrollFab((v) => (v === wantFab ? v : wantFab));
   }, []);
 
   const scrollToEnd = useCallback(
@@ -475,7 +492,8 @@ export function OcChatPanel({
       if (!el) return false;
       const force = opts?.force !== false;
       const smooth = opts?.smooth === true;
-      if (!force && !isNearBottom()) return false;
+      if (!force && !stickToBottomRef.current && !isNearBottom()) return false;
+      stickToBottomRef.current = true;
       if (smooth) {
         el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
       } else {
@@ -484,9 +502,11 @@ export function OcChatPanel({
           el.scrollTop = el.scrollHeight;
         });
       }
-      unreadWhileScrolledRef.current = 0;
-      setUnreadWhileScrolled(0);
-      setShowScrollFab(false);
+      if (unreadWhileScrolledRef.current !== 0) {
+        unreadWhileScrolledRef.current = 0;
+        setUnreadWhileScrolled(0);
+      }
+      setShowScrollFab((v) => (v ? false : v));
       return true;
     },
     [isNearBottom],
@@ -495,15 +515,19 @@ export function OcChatPanel({
   const onMessagesAppended = useCallback(
     (added: number) => {
       if (added <= 0) return;
-      if (isNearBottom()) {
-        scrollToEnd({ force: true, smooth: true });
+      /*
+       * 새 말풍선이 붙으면 scrollHeight만 커져 isNearBottom()이 false가 됨.
+       * 스크롤 리스너로 유지한 stick 플래그로 "따라가기" vs 알약 분기.
+       */
+      if (stickToBottomRef.current) {
+        scrollToEnd({ force: true, smooth: false });
         return;
       }
       unreadWhileScrolledRef.current += added;
       setUnreadWhileScrolled(unreadWhileScrolledRef.current);
-      setShowScrollFab(false);
+      setShowScrollFab((v) => (v ? false : v));
     },
-    [isNearBottom, scrollToEnd],
+    [scrollToEnd],
   );
 
   const refreshInbox = useCallback(async () => {
@@ -528,11 +552,13 @@ export function OcChatPanel({
       unreadWhileScrolledRef.current = 0;
       setUnreadWhileScrolled(0);
       setShowScrollFab(false);
+      stickToBottomRef.current = true;
       return;
     }
     /* 열릴 때만 스레드로 — 목록 보는 중 characters 갱신에 튕기지 않음 */
     setPhoneView('thread');
     jumpBottomOnEnterRef.current = true;
+    stickToBottomRef.current = true;
   }, [open]);
 
   useEffect(() => {
@@ -543,6 +569,7 @@ export function OcChatPanel({
   useEffect(() => {
     if (!open) return;
     jumpBottomOnEnterRef.current = true;
+    stickToBottomRef.current = true;
     prevMsgCountRef.current = 0;
     unreadWhileScrolledRef.current = 0;
     setUnreadWhileScrolled(0);
@@ -559,9 +586,9 @@ export function OcChatPanel({
   useEffect(() => {
     const el = threadRef.current;
     if (!open || !el || phoneView !== 'thread') return;
-    const onScroll = () => updateScrollUI();
+    const onScroll = () => updateScrollUI({ fromScroll: true });
     el.addEventListener('scroll', onScroll, { passive: true });
-    updateScrollUI();
+    updateScrollUI({ fromScroll: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, [open, phoneView, updateScrollUI, charId]);
 
@@ -2207,8 +2234,16 @@ export function OcChatPanel({
     const count = messages.length + (busy || waitingRead ? 1 : 0);
     const added = count - prevMsgCountRef.current;
     prevMsgCountRef.current = count;
-    if (added > 0) onMessagesAppended(added);
-    else updateScrollUI();
+    if (added > 0) {
+      onMessagesAppended(added);
+      return;
+    }
+    /* 같은 개수 갱신(읽음·내용) — stick이면 따라가고, 아니면 FAB만 */
+    if (stickToBottomRef.current) {
+      scrollToEnd({ force: true, smooth: false });
+      return;
+    }
+    updateScrollUI();
   }, [
     messages,
     busy,
@@ -2217,12 +2252,17 @@ export function OcChatPanel({
     open,
     phoneView,
     onMessagesAppended,
+    scrollToEnd,
     updateScrollUI,
   ]);
 
+  /* 스레드 메시지 변화 시 인박스 미리보기 갱신 (연타 저장으로 스택/폭주 방지) */
   useEffect(() => {
     if (!open || phoneView !== 'thread') return;
-    void refreshInbox();
+    const t = window.setTimeout(() => {
+      void refreshInbox();
+    }, 400);
+    return () => window.clearTimeout(t);
   }, [messages.length, open, phoneView, refreshInbox, charId]);
 
   useEffect(() => {

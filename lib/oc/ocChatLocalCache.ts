@@ -45,8 +45,15 @@ export function writeOcChatThreadCacheRaw(
   const k = key(characterId, visitorId);
   memory.set(k, thread);
   if (typeof window === 'undefined') return;
+  let serialized = '';
   try {
-    localStorage.setItem(k, JSON.stringify(thread));
+    serialized = JSON.stringify(thread);
+  } catch {
+    /* 순환 참조 등 — 메모리 캐시만 유지 */
+    return;
+  }
+  try {
+    localStorage.setItem(k, serialized);
   } catch {
     /* quota / private mode */
   }
@@ -57,7 +64,7 @@ export function writeOcChatThreadCacheRaw(
     const prevLen = prevRaw ? messageCount(JSON.parse(prevRaw)) : 0;
     const nextLen = messageCount(thread);
     if (nextLen > prevLen) {
-      localStorage.setItem(bakK, JSON.stringify(thread));
+      localStorage.setItem(bakK, serialized);
     }
   } catch {
     /* ignore backup failures */
