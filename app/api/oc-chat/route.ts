@@ -22,10 +22,11 @@ import { prepareOcChatModelMessages } from '@/lib/oc/ocChatModelMessages';
 import { generateVerifiedOcChatResponse } from '@/lib/oc/ocChatVerify';
 import {
   callOcChatLlm,
-  geminiModelChain,
-  geminiVerifyModel,
+  geminiAuxModelChain,
+  shouldSkipGeminiAuxWork,
   OcChatUpstreamError,
   resolveOcChatProvider,
+  type OcChatLlmResolved,
 } from '@/lib/oc/ocChatLlm';
 import { isEveCharacter, stripEveTrailingPeriod } from '@/lib/oc/ocChatEveStyle';
 import { OC_CHAT_API_HISTORY, type OcChatThread } from '@/lib/oc/ocChat';
@@ -145,12 +146,18 @@ async function callChatModel(
 async function callVerifyModel(system: string, userContent: string) {
   const provider = resolveOcChatProvider();
   if (provider === 'gemini') {
+    if (shouldSkipGeminiAuxWork()) {
+      console.warn('[oc-chat] skip verify (protect chat quota)');
+      return 'yes';
+    }
+    /* Flash/Pro 금지 — lite만 (채팅 RPD와 분리) */
     return callOcChatLlm(system, [{ role: 'user', content: userContent }], {
       maxTokens: 64,
       temperature: 0,
       thinkingLevel: 'minimal',
       logLabel: 'verify',
-      geminiModels: [geminiVerifyModel()],
+      priority: 'aux',
+      geminiModels: geminiAuxModelChain(),
     });
   }
   return callOcChatLlm(system, [{ role: 'user', content: userContent }], {
@@ -159,6 +166,7 @@ async function callVerifyModel(system: string, userContent: string) {
     temperature: 0,
     enableCache: false,
     logLabel: 'verify',
+    priority: 'aux',
   });
 }
 
@@ -188,6 +196,17 @@ async function maybeRefreshMemorySummary(opts: {
     };
   }
 
+  if (shouldSkipGeminiAuxWork()) {
+    console.warn('[oc-chat] skip memory summary (protect chat quota)', {
+      characterId: opts.characterId,
+      visitorId: opts.visitorId.slice(0, 8),
+    });
+    return {
+      memorySummary: existingSummary || undefined,
+      memorySummaryThroughAt: throughAt,
+    };
+  }
+
   const uncovered = ocChatUncoveredColdMessages(messages, throughAt);
   const transcript = formatOcChatMemoryTranscript(uncovered);
   if (!transcript.trim()) {
@@ -198,7 +217,7 @@ async function maybeRefreshMemorySummary(opts: {
   }
 
   try {
-    const liteChain = geminiModelChain().slice(-2);
+    const auxModels = geminiAuxModelChain();
     const raw = await callOcChatLlm(
       buildOcChatMemoryRefreshSystemPrompt(),
       [
@@ -216,7 +235,8 @@ async function maybeRefreshMemorySummary(opts: {
         thinkingLevel: 'minimal',
         enableCache: false,
         logLabel: 'memory-summary',
-        geminiModels: liteChain.length ? liteChain : undefined,
+        priority: 'aux',
+        geminiModels: auxModels,
         model:
           process.env.ANTHROPIC_LITE_MODEL ||
           process.env.ANTHROPIC_VERIFY_MODEL ||
@@ -529,6 +549,8 @@ export async function POST(req: Request) {
       .slice(-8);
     resolveOcChatProvider();
     const llmStartedAt = Date.now();
+    /* ref — 콜백 대입을 TS가 null로 고정 narrowing 하지 않게 */
+    const chatModelRef: { current: OcChatLlmResolved | null } = { current: null };
     const verified = await generateVerifiedOcChatResponse({
       lastUserMessage: userText,
       recentUserBurst,
@@ -538,13 +560,18 @@ export async function POST(req: Request) {
         callOcChatLlm(system, msgs, {
           enableCache: true,
           logLabel: 'chat',
-          temperature: 0.92,
+          priority: 'chat',
+          temperature: 0.75,
+          onModelResolved: (info) => {
+            chatModelRef.current = info;
+          },
         }),
       verify: callVerifyModel,
       parse: parseOcChatBehavior,
       eveStyle: isEveCharacter(character),
     });
     const llmMs = Date.now() - llmStartedAt;
+    const chatModelResolved = chatModelRef.current;
     console.info('[oc-chat] timing', {
       characterId,
       visitorId: visitorId.slice(0, 8),
@@ -554,6 +581,10 @@ export async function POST(req: Request) {
       historyMsgs: prepared.length,
       userBurstCount: recentUserBurst.length,
       lastUserPreview: userText.slice(0, 40),
+      model: chatModelResolved?.model,
+      cascadeIndex: chatModelResolved?.cascadeIndex,
+      wasFallback: chatModelResolved?.wasFallback,
+      temperature: chatModelResolved?.temperature,
     });
     console.info('[oc-chat] model raw', {
       characterId,
@@ -564,6 +595,10 @@ export async function POST(req: Request) {
       verifyPassed: verified.verifyPassed,
       historyMsgs: prepared.length,
       llmMs,
+      model: chatModelResolved?.model,
+      cascadeIndex: chatModelResolved?.cascadeIndex,
+      wasFallback: chatModelResolved?.wasFallback,
+      temperature: chatModelResolved?.temperature,
       userBurstCount: (() => {
         let n = 0;
         for (let i = messages.length - 1; i >= 0; i--) {
@@ -600,18 +635,29 @@ export async function POST(req: Request) {
       memorySummaryThroughAt,
     });
 
-    return NextResponse.json({
-      behavior,
-      reply: replyText,
-      affinityDelta: delta,
-      affection,
-      freeGainToday: dailyGainNext,
-      freeLossToday: dailyLossNext,
-      freeGainDate: todayKeyLocal(),
-      deltaReason: behavior.deltaReason,
-      memorySummary: memoryOut.memorySummary,
-      memorySummaryThroughAt: memoryOut.memorySummaryThroughAt,
-    });
+    const headers = new Headers();
+    if (chatModelResolved) {
+      headers.set('x-oc-chat-model', chatModelResolved.model);
+      headers.set('x-oc-chat-cascade-index', String(chatModelResolved.cascadeIndex));
+      headers.set('x-oc-chat-was-fallback', chatModelResolved.wasFallback ? '1' : '0');
+      headers.set('x-oc-chat-temperature', String(chatModelResolved.temperature));
+    }
+    return NextResponse.json(
+      {
+        behavior,
+        reply: replyText,
+        affinityDelta: delta,
+        affection,
+        freeGainToday: dailyGainNext,
+        freeLossToday: dailyLossNext,
+        freeGainDate: todayKeyLocal(),
+        deltaReason: behavior.deltaReason,
+        memorySummary: memoryOut.memorySummary,
+        memorySummaryThroughAt: memoryOut.memorySummaryThroughAt,
+        llm: chatModelResolved,
+      },
+      { headers },
+    );
   } catch (err) {
     let provider: 'gemini' | 'anthropic' | 'unknown' = 'unknown';
     try {

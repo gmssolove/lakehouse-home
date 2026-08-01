@@ -30,6 +30,7 @@ import {
   lakeNavigate,
   peekPendingOcCharId,
 } from '@/lib/lake/routeTransition';
+import { lakeHistoryReplaceQuiet } from '@/lib/hooks/lakeBackStack';
 import {
   clearOcReturnPath,
   consumeOcReturnPath,
@@ -147,6 +148,10 @@ export function OcPageClient() {
     }
   }, []);
 
+  /**
+   * ?c= 제거. history에는 replace만 (엔트리 추가 금지).
+   * Next searchParams 반영 전에 동기 quiet replace로 재오픈 레이스를 막는다.
+   */
   const scrubOcDeepLink = useCallback(() => {
     try {
       const url = new URL(window.location.href);
@@ -165,6 +170,7 @@ export function OcPageClient() {
         url.searchParams.delete('pair');
         url.searchParams.delete('trpg');
         const next = `${url.pathname}${url.search}${url.hash}`;
+        lakeHistoryReplaceQuiet(next);
         router.replace(next, { scroll: false });
       }
     } catch {
@@ -173,6 +179,8 @@ export function OcPageClient() {
   }, [router]);
 
   const detailBackHandlerRef = useRef<(() => void) | null>(null);
+  /** leave 직후 URL effect가 같은 ?c=로 상세를 다시 열지 않게 */
+  const suppressUrlDetailOpenRef = useRef(false);
 
   const bindDetailBack = useCallback((handler: (() => void) | null) => {
     detailBackHandlerRef.current = handler;
@@ -199,12 +207,24 @@ export function OcPageClient() {
       detailUsedThemeRef.current = false;
       /* 페어 복귀: 상세를 먼저 닫으면 목록이 한 프레임 보임 — soft nav 후 unmount에 맡김 */
       if (returnHref) {
+        suppressUrlDetailOpenRef.current = true;
         clearOcReturnPath();
         lakeNavigate(router, returnHref, '/oc');
+        window.setTimeout(() => {
+          suppressUrlDetailOpenRef.current = false;
+        }, 400);
         return;
       }
-      clearDetailView();
+      /*
+       * 순서 중요: URL ?c= 를 먼저 지운 뒤 detail을 비움.
+       * 반대로 하면 detail=null + 남은 ?c= 로 boot effect가 상세를 다시 연다 → 뒤로가기 2번 필요.
+       */
+      suppressUrlDetailOpenRef.current = true;
       scrubOcDeepLink();
+      clearDetailView();
+      window.setTimeout(() => {
+        suppressUrlDetailOpenRef.current = false;
+      }, 400);
     };
 
     /* 페어/TRPG 복귀: 상세 leave 애니 생략 → 즉시 soft/hard 이동 */
@@ -240,13 +260,22 @@ export function OcPageClient() {
     };
   }, []);
 
+  const closeChat = useCallback(() => {
+    setChatOpen(false);
+  }, []);
+
+  /** 목록으로/브라우저 뒤로 — 채팅이 열려 있으면 먼저 닫고, 그다음 상세 레이어 */
   const requestOcBack = useCallback(() => {
+    if (chatOpen) {
+      closeChat();
+      return;
+    }
     if (detailBackHandlerRef.current) {
       detailBackHandlerRef.current();
       return;
     }
     leaveDetail();
-  }, [leaveDetail]);
+  }, [chatOpen, closeChat, leaveDetail]);
 
   const handleDetailBack = requestOcBack;
 
@@ -267,13 +296,15 @@ export function OcPageClient() {
 
   const routeGuard = useMemo(() => ({ guardPath: '/oc', router }), [router]);
 
+  /* 채팅 모달 = lake-back 한 겹 (history.push 없이). 뒤로가기 1회 = 채팅 닫기 */
+  useLakeBackNavigation(chatOpen, closeChat, 'oc-chat', routeGuard);
   useLakeBackNavigation(
     !!detail || !!intro || !!entrySplash || detailLeaving,
     requestOcBack,
     'oc-detail',
     routeGuard,
   );
-  useLakeBackGesture(leaveOc, !detail && !intro && !entrySplash);
+  useLakeBackGesture(leaveOc, !detail && !intro && !entrySplash && !chatOpen);
 
   useEffect(() => {
     wasInDetailRef.current = !!(detail || intro || entrySplash);
@@ -392,10 +423,6 @@ export function OcPageClient() {
     setChatOpen(true);
   }, []);
 
-  const closeChat = useCallback(() => {
-    setChatOpen(false);
-  }, []);
-
   const commitChatSwitch = useCallback(
     (next: OcCharacter) => {
       const id = String(next.id);
@@ -404,16 +431,24 @@ export function OcPageClient() {
       setChatCharacterId(id);
       setChatOpen(true);
 
+      /*
+       * 인박스 OC 전환은 같은 /oc 상세 세션 안 UI 교체 — push로 히스토리를 쌓지 않음.
+       * replace만으로 ?c= 동기화 (브라우저 뒤로가기가 상세에 남지 않게).
+       */
       chatSwitchSuppressUrlRef.current = true;
       try {
         const url = new URL(window.location.href);
         if (url.searchParams.get('c') !== id) {
           url.searchParams.set('c', id);
           url.searchParams.set('direct', '1');
-          router.push(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+          const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+          lakeHistoryReplaceQuiet(nextUrl);
+          router.replace(nextUrl, { scroll: false });
         }
       } catch {
-        router.push(`/oc?c=${encodeURIComponent(id)}&direct=1`, { scroll: false });
+        const fallback = `/oc?c=${encodeURIComponent(id)}&direct=1`;
+        lakeHistoryReplaceQuiet(fallback);
+        router.replace(fallback, { scroll: false });
       }
       window.setTimeout(() => {
         if (chatSwitchGenRef.current === gen) chatSwitchSuppressUrlRef.current = false;
@@ -522,6 +557,7 @@ export function OcPageClient() {
     // 인증 상태가 확정되기 전엔 열지 않는다 — 관리자가 로딩 중 isAdmin=false로
     // 오판돼 비밀번호 게이트가 뜨는 것을 방지.
     if (!authReady) return;
+    if (suppressUrlDetailOpenRef.current || leavingRef.current) return;
     const fromUrl = searchParams.get('c')?.trim();
     const fromStore = consumePendingOcCharId();
     const charId = fromUrl || fromStore || bootCharRef.current;
@@ -552,6 +588,7 @@ export function OcPageClient() {
   /* 브라우저 back/forward로 ?c= 가 바뀌면 상세·채팅 대상을 soft 동기화 */
   useEffect(() => {
     if (!authReady || !characters.length) return;
+    if (suppressUrlDetailOpenRef.current || leavingRef.current) return;
     if (!detail && !intro && !entrySplash) return;
     const fromUrl = searchParams.get('c')?.trim();
     if (!fromUrl) return;
