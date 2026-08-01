@@ -86,8 +86,8 @@ export function findLongestLocalThreadRawForCharacter(
   characterId: string,
 ): { visitorId: string; thread: unknown; source: 'cache' | 'backup' } | null {
   if (typeof window === 'undefined') return null;
-  let best: { visitorId: string; thread: unknown; source: 'cache' | 'backup'; len: number } | null =
-    null;
+  type Best = { visitorId: string; thread: unknown; source: 'cache' | 'backup'; len: number };
+  let best: Best | undefined;
   const consider = (k: string, source: 'cache' | 'backup') => {
     const prefix = source === 'cache' ? PREFIX : BACKUP_PREFIX;
     if (!k.startsWith(prefix)) return;
