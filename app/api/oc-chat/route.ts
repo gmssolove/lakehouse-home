@@ -22,12 +22,24 @@ import { prepareOcChatModelMessages } from '@/lib/oc/ocChatModelMessages';
 import { generateVerifiedOcChatResponse } from '@/lib/oc/ocChatVerify';
 import {
   callOcChatLlm,
+  geminiModelChain,
   geminiVerifyModel,
   OcChatUpstreamError,
   resolveOcChatProvider,
 } from '@/lib/oc/ocChatLlm';
 import { isEveCharacter, stripEveTrailingPeriod } from '@/lib/oc/ocChatEveStyle';
-import { OC_CHAT_API_HISTORY } from '@/lib/oc/ocChat';
+import { OC_CHAT_API_HISTORY, type OcChatThread } from '@/lib/oc/ocChat';
+import { loadOcChatThreadFromR2, saveOcChatThreadToR2 } from '@/lib/oc/ocChatThreadStore';
+import {
+  buildOcChatMemoryRefreshSystemPrompt,
+  buildOcChatMemoryRefreshUserPrompt,
+  formatOcChatMemoryTranscript,
+  ocChatColdMessages,
+  ocChatUncoveredColdMessages,
+  parseOcChatMemorySummaryOutput,
+  shouldRefreshOcChatMemory,
+  mergeOcChatMemorySummaries,
+} from '@/lib/oc/ocChatMemory';
 import type { OcCharacter } from '@/lib/types/character';
 
 export const runtime = 'nodejs';
@@ -68,6 +80,8 @@ type Body = {
   recentActions?: Array<{ at?: number; action?: string; presence?: string; note?: string }>;
   proactiveKind?: string;
   openThreads?: Array<{ id?: string; summary?: string }>;
+  memorySummary?: string;
+  memorySummaryThroughAt?: number;
 };
 
 type RateBucket = { count: number; resetAt: number };
@@ -146,6 +160,104 @@ async function callVerifyModel(system: string, userContent: string) {
     enableCache: false,
     logLabel: 'verify',
   });
+}
+
+async function maybeRefreshMemorySummary(opts: {
+  characterId: string;
+  visitorId: string;
+  stored: OcChatThread | null;
+  memorySummary?: string;
+  memorySummaryThroughAt?: number;
+}): Promise<{ memorySummary?: string; memorySummaryThroughAt?: number }> {
+  const messages = opts.stored?.messages || [];
+  const existingSummary = String(opts.memorySummary || opts.stored?.memorySummary || '').trim();
+  const throughAt =
+    typeof opts.memorySummaryThroughAt === 'number'
+      ? opts.memorySummaryThroughAt
+      : opts.stored?.memorySummaryThroughAt;
+
+  if (
+    !shouldRefreshOcChatMemory({
+      messages,
+      memorySummaryThroughAt: throughAt,
+    })
+  ) {
+    return {
+      memorySummary: existingSummary || undefined,
+      memorySummaryThroughAt: throughAt,
+    };
+  }
+
+  const uncovered = ocChatUncoveredColdMessages(messages, throughAt);
+  const transcript = formatOcChatMemoryTranscript(uncovered);
+  if (!transcript.trim()) {
+    return {
+      memorySummary: existingSummary || undefined,
+      memorySummaryThroughAt: throughAt,
+    };
+  }
+
+  try {
+    const liteChain = geminiModelChain().slice(-2);
+    const raw = await callOcChatLlm(
+      buildOcChatMemoryRefreshSystemPrompt(),
+      [
+        {
+          role: 'user',
+          content: buildOcChatMemoryRefreshUserPrompt({
+            existingSummary,
+            transcript,
+          }),
+        },
+      ],
+      {
+        maxTokens: 400,
+        temperature: 0.2,
+        thinkingLevel: 'minimal',
+        enableCache: false,
+        logLabel: 'memory-summary',
+        geminiModels: liteChain.length ? liteChain : undefined,
+        model:
+          process.env.ANTHROPIC_LITE_MODEL ||
+          process.env.ANTHROPIC_VERIFY_MODEL ||
+          'claude-haiku-4-5-20251001',
+      },
+    );
+    const chunk = parseOcChatMemorySummaryOutput(raw);
+    const merged = mergeOcChatMemorySummaries(existingSummary, chunk);
+    const cold = ocChatColdMessages(messages);
+    const nextThrough =
+      cold.reduce((max, m) => Math.max(max, typeof m.at === 'number' ? m.at : 0), 0) ||
+      Date.now();
+
+    if (opts.stored) {
+      try {
+        await saveOcChatThreadToR2(opts.characterId, opts.visitorId, {
+          ...opts.stored,
+          memorySummary: merged,
+          memorySummaryThroughAt: nextThrough,
+          updatedAt: Date.now(),
+        });
+      } catch (e) {
+        console.warn('[oc-chat] memory summary R2 save failed', e);
+      }
+    }
+
+    console.info('[oc-chat] memory summary refreshed', {
+      characterId: opts.characterId,
+      visitorId: opts.visitorId.slice(0, 8),
+      uncovered: uncovered.length,
+      summaryLen: merged.length,
+    });
+
+    return { memorySummary: merged, memorySummaryThroughAt: nextThrough };
+  } catch (e) {
+    console.warn('[oc-chat] memory summary refresh failed', e);
+    return {
+      memorySummary: existingSummary || undefined,
+      memorySummaryThroughAt: throughAt,
+    };
+  }
 }
 
 function httpStatusForChatError(err: unknown, message: string): number {
@@ -359,6 +471,23 @@ export async function POST(req: Request) {
     const world = await loadOcWorldData();
     const worldLines = buildWorldContextPromptLines({ character, world });
 
+    let storedThread: OcChatThread | null = null;
+    try {
+      storedThread = await loadOcChatThreadFromR2(characterId, visitorId);
+    } catch {
+      storedThread = null;
+    }
+    const memorySummary = String(
+      body.memorySummary || storedThread?.memorySummary || '',
+    )
+      .trim()
+      .slice(0, 800);
+    const memorySummaryThroughAt =
+      typeof body.memorySummaryThroughAt === 'number' &&
+      Number.isFinite(body.memorySummaryThroughAt)
+        ? body.memorySummaryThroughAt
+        : storedThread?.memorySummaryThroughAt;
+
     const system = buildOcChatSystemPromptParts(character, {
       affection: affectionIn,
       moodNote,
@@ -371,6 +500,7 @@ export async function POST(req: Request) {
       worldLines,
       presence,
       recentActions: recentActions as OcChatRecentAction[],
+      memorySummary: memorySummary || undefined,
     });
     const historyIn = messages.map((m) => ({
       role: m.role,
@@ -447,6 +577,14 @@ export async function POST(req: Request) {
     /* delta는 점수 바닥(0)에 막혀도 일일 손실·토스트용으로 그대로 반환 */
     const replyText = behavior.messages.join('\n') || '';
 
+    const memoryOut = await maybeRefreshMemorySummary({
+      characterId,
+      visitorId,
+      stored: storedThread,
+      memorySummary: memorySummary || undefined,
+      memorySummaryThroughAt,
+    });
+
     return NextResponse.json({
       behavior,
       reply: replyText,
@@ -456,6 +594,8 @@ export async function POST(req: Request) {
       freeLossToday: dailyLossNext,
       freeGainDate: todayKeyLocal(),
       deltaReason: behavior.deltaReason,
+      memorySummary: memoryOut.memorySummary,
+      memorySummaryThroughAt: memoryOut.memorySummaryThroughAt,
     });
   } catch (err) {
     let provider: 'gemini' | 'anthropic' | 'unknown' = 'unknown';

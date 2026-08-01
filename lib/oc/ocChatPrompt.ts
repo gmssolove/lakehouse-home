@@ -17,6 +17,7 @@ import {
   type OcChatPresence,
   type OcChatRecentAction,
 } from '@/lib/oc/ocChatPresence';
+import { ocChatMemoryPromptLines } from '@/lib/oc/ocChatMemory';
 import { stickerCatalogPromptLines } from '@/lib/oc/ocChatStickers';
 import type {
   OcCharacter,
@@ -98,6 +99,8 @@ export type OcChatPromptOpts = {
   /** 선톡 전용: task=용건형 / emotion=감정형 */
   proactiveKind?: 'task' | 'emotion';
   openThreads?: Array<{ id?: string; summary: string }>;
+  /** 최근 창 밖 장기 기억 요약 */
+  memorySummary?: string;
 };
 function typingStyleLines(style: OcChatTypingStyle | undefined): string[] {
   const baseline = style?.baseline || 'steady';
@@ -305,6 +308,7 @@ function staticRulesBlock(): string[] {
     '대화 이력:',
     '- 아래 messages는 최근만(대략 왕복 15~18턴). 앞 맥락의 이름·약속·감정·사실을 이어가라.',
     '- 이미 물은 것을 또 묻거나 방금 한 말을 모르는 척하지 마라. [시각]은 참고용.',
+    '- [이전 대화 요약]이 있으면 그 안의 사실·약속도 최근 대화와 같이 기억한 것으로 다룬다.',
     '',
     '자기 확인 (설정 보호):',
     '- 너(캐릭터)에 대한 주장(정체·능력·평판·유명세·외모 등)을 쉽게 인정하지 마라. 순순한 맞장구 금지.',
@@ -380,6 +384,8 @@ export function buildOcChatSystemPromptParts(
       : '',
     '',
     ...presencePromptLines(opts.presence, opts.recentActions),
+    '',
+    ...ocChatMemoryPromptLines(opts.memorySummary),
     '',
     ...liveContextBehaviorRules(live),
     '',

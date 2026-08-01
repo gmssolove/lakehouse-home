@@ -97,6 +97,8 @@ export async function saveOcChatThreadToR2(
     presenceUpdatedAt: toSave.presenceUpdatedAt,
     recentActions: toSave.recentActions,
     openThreads: toSave.openThreads,
+    memorySummary: toSave.memorySummary,
+    memorySummaryThroughAt: toSave.memorySummaryThroughAt,
   });
   const body = JSON.stringify(payload);
   const res = await getAwsClient().fetch(objectUrl(threadKey(characterId, visitorId)), {

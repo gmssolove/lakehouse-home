@@ -290,12 +290,17 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const pendingFlushRef = useRef(false);
   /** 연타로 진행 중 요청을 무효화할 때 증가 */
   const burstEpochRef = useRef(0);
+  /** 초기화 세대 — 이전 persist/flush가 옛 대화를 다시 저장하지 못하게 */
+  const resetEpochRef = useRef(0);
   /** in-flight postOcChat 취소 */
   const flushAbortRef = useRef<AbortController | null>(null);
   /** 마지막 유저 전송 시각 — trailing debounce 기준 */
   const lastUserSendAtRef = useRef(0);
   /** 이번 flush가 API에 넣은 메시지 id — 도중 연타는 late로 분리 */
   const flushIncludedIdsRef = useRef<Set<string>>(new Set());
+  const memorySummaryRef = useRef<string | undefined>(undefined);
+  const memorySummaryThroughAtRef = useRef<number | undefined>(undefined);
+  const memoryBootedRef = useRef(false);
   const openRef = useRef(open);
   const replyLockRef = useRef(false);
   /** 언마운트 시 stale 없이 flush 호출 */
@@ -326,6 +331,39 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     lastSeenAt,
     meta,
   };
+
+  /* 캐릭터 전환 시 장기 기억 다시 시드 */
+  useEffect(() => {
+    memoryBootedRef.current = false;
+    memorySummaryRef.current = undefined;
+    memorySummaryThroughAtRef.current = undefined;
+    try {
+      const vid = getOrCreateChatVisitorId();
+      const cached = peekOcChatThreadCache(charId, vid);
+      if (cached?.memorySummary) memorySummaryRef.current = cached.memorySummary;
+      if (typeof cached?.memorySummaryThroughAt === 'number') {
+        memorySummaryThroughAtRef.current = cached.memorySummaryThroughAt;
+      }
+    } catch {
+      /* ignore */
+    }
+    memoryBootedRef.current = true;
+  }, [charId]);
+
+  /* 캐시 부트 시 장기 기억 시드 (한 번) */
+  if (!memoryBootedRef.current) {
+    memoryBootedRef.current = true;
+    try {
+      const vid = getOrCreateChatVisitorId();
+      const cached = peekOcChatThreadCache(String(character.id), vid);
+      if (cached?.memorySummary) memorySummaryRef.current = cached.memorySummary;
+      if (typeof cached?.memorySummaryThroughAt === 'number') {
+        memorySummaryThroughAtRef.current = cached.memorySummaryThroughAt;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 
   const flashAffectionToast = useCallback((delta: number) => {
     if (!delta) return;
@@ -387,8 +425,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     window.clearTimeout(debounceTimer.current);
     debounceTimer.current = 0;
     window.clearTimeout(storyTimer.current);
+    /* 진행 중 응답·저장이 옛 대화를 다시 쓰지 못하게 */
+    resetEpochRef.current += 1;
+    burstEpochRef.current += 1;
+    flushAbortRef.current?.abort();
+    flushAbortRef.current = null;
+    pendingFlushRef.current = false;
     replyLockRef.current = false;
     flushLockRef.current = false;
+    cancelOcChatPendingDelivery(charId, vid);
 
     const emptyMeta: MetaState = {
       turnsToday: 0,
@@ -412,6 +457,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     setBusy(false);
     setInput('');
     setRelationAnim(null);
+    memorySummaryRef.current = undefined;
+    memorySummaryThroughAtRef.current = undefined;
 
     const ep = resolveStartEpisode(character.chatbot);
     let nextMessages: OcChatMessage[] = [];
@@ -442,7 +489,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     };
     bootstrappedCharIdRef.current = charId;
     setThreadReady(true);
-    writeOcChatThreadCache(charId, vid, {
+
+    const wiped: OcChatThread = {
       messages: nextMessages,
       updatedAt: Date.now(),
       affection: 0,
@@ -451,47 +499,36 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       freeGainToday: 0,
       freeLossToday: 0,
       closedForToday: false,
+      closedDate: undefined,
+      closedUntil: undefined,
       presence: emptyMeta.presence,
       presenceUpdatedAt: emptyMeta.presenceUpdatedAt,
       recentActions: [],
+      lastInteractionAt: undefined,
       pendingBehavior: undefined,
-    });
+      memorySummary: undefined,
+      memorySummaryThroughAt: undefined,
+      lastSeenAt: 0,
+      turnsToday: 0,
+      turnsDate: todayKeyLocal(),
+      recentDeltaReasons: [],
+    };
+    writeOcChatThreadCache(charId, vid, wiped);
 
-    /* UI는 바로 비우고 완료 팝업 — 서버 삭제는 백그라운드 */
-    setResetting(false);
-    focusComposer();
-    void alert('채팅을 초기화했습니다.', '완료');
-
-    void (async () => {
-      try {
-        await resetOcChatThreadForVisitor(charId, vid);
-        await saveOcChatThread(
-          charId,
-          vid,
-          {
-            messages: nextMessages,
-            updatedAt: Date.now(),
-            affection: 0,
-            story: nextStory,
-            freeGainDate: todayKeyLocal(),
-            freeGainToday: 0,
-            freeLossToday: 0,
-            closedForToday: false,
-            closedDate: undefined,
-            closedUntil: undefined,
-            presence: emptyMeta.presence,
-            presenceUpdatedAt: emptyMeta.presenceUpdatedAt,
-            recentActions: [],
-            lastInteractionAt: undefined,
-            pendingBehavior: undefined,
-          },
-          { replace: true },
-        );
-      } catch (e) {
-        const msg = formatOcChatFirebaseError(e, '초기화에 실패했습니다');
-        setError(msg);
-      }
-    })();
+    try {
+      await resetOcChatThreadForVisitor(charId, vid);
+      /* delete가 캐시를 비우므로 와이프 상태를 바로 다시 씀 */
+      const sealed = { ...wiped, updatedAt: Date.now() };
+      writeOcChatThreadCache(charId, vid, sealed);
+      await saveOcChatThread(charId, vid, sealed, { replace: true });
+      void alert('채팅을 초기화했습니다.', '완료');
+    } catch (e) {
+      const msg = formatOcChatFirebaseError(e, '초기화에 실패했습니다');
+      setError(msg);
+    } finally {
+      setResetting(false);
+      focusComposer();
+    }
   }, [
     alert,
     busy,
@@ -563,6 +600,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       meta?: Partial<MetaState>;
       skipSeen?: boolean;
     }) => {
+      const epoch = resetEpochRef.current;
       const vid = visitorRef.current || getOrCreateChatVisitorId();
       const seen =
         snap.skipSeen
@@ -604,7 +642,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         presence: mergedMeta.presence,
         presenceUpdatedAt: mergedMeta.presenceUpdatedAt,
         recentActions: mergedMeta.recentActions,
+        memorySummary: memorySummaryRef.current,
+        memorySummaryThroughAt: memorySummaryThroughAtRef.current,
       };
+      /* 초기화 이후의 옛 persist는 저장하지 않음 */
+      if (resetEpochRef.current !== epoch) return;
       await saveOcChatThread(charId, vid, next);
     },
     [charId],
@@ -1540,6 +1582,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           pendingBehavior: pending,
           updatedAt: Date.now(),
         });
+        if (thread.memorySummary) memorySummaryRef.current = thread.memorySummary;
+        if (typeof thread.memorySummaryThroughAt === 'number') {
+          memorySummaryThroughAtRef.current = thread.memorySummaryThroughAt;
+        }
 
         try {
           await saveOcChatThread(charId, visitorRef.current, {
@@ -1566,6 +1612,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             presence: nextMeta.presence,
             presenceUpdatedAt: nextMeta.presenceUpdatedAt,
             recentActions: nextMeta.recentActions,
+            memorySummary: memorySummaryRef.current,
+            memorySummaryThroughAt: memorySummaryThroughAtRef.current,
           });
         } catch (saveErr) {
           /* 로드는 성공했는데 저장만 실패하면 대화를 비우지 않는다 */
@@ -2034,6 +2082,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             recentDeltaReasons: metaSnap.recentDeltaReasons,
             presence: metaSnap.presence,
             recentActions: metaSnap.recentActions,
+            memorySummary: memorySummaryRef.current,
+            memorySummaryThroughAt: memorySummaryThroughAtRef.current,
             signal: ac.signal,
           });
         } catch (err) {
@@ -2098,6 +2148,13 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           moodNote: result.behavior.moodNote || stateRef.current.meta.moodNote,
         };
         setMeta(afterMeta);
+
+        if (typeof result.memorySummary === 'string') {
+          memorySummaryRef.current = result.memorySummary.trim() || undefined;
+        }
+        if (typeof result.memorySummaryThroughAt === 'number') {
+          memorySummaryThroughAtRef.current = result.memorySummaryThroughAt;
+        }
 
         setAffection(result.affection);
         setFreeGainToday(result.freeGainToday);

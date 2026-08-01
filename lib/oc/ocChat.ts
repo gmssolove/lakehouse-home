@@ -104,6 +104,10 @@ export type OcChatThread = {
   }>;
   /** 미해결 용건(선톡 A 카테고리). 없으면 감정형 선톡. */
   openThreads?: Array<{ id?: string; summary: string }>;
+  /** 최근 창 밖 대화의 누적 장기 기억 요약 */
+  memorySummary?: string;
+  /** memorySummary에 반영된 마지막 메시지 at */
+  memorySummaryThroughAt?: number;
 };
 
 function threadPath(characterId: string, visitorId: string) {
@@ -666,6 +670,11 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
         .filter(Boolean)
         .slice(0, 8) as OcChatThread['openThreads']
     : undefined;
+  const memorySummary = String(o.memorySummary || '').trim().slice(0, 800) || undefined;
+  const memorySummaryThroughAt =
+    typeof o.memorySummaryThroughAt === 'number' && Number.isFinite(o.memorySummaryThroughAt)
+      ? o.memorySummaryThroughAt
+      : undefined;
 
   return {
     messages: trimChatMessages(dedupeRecentAssistantDuplicates(messages)),
@@ -692,6 +701,8 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     presenceUpdatedAt,
     recentActions,
     openThreads,
+    memorySummary,
+    memorySummaryThroughAt,
   };
 }
 
@@ -804,6 +815,21 @@ export function mergeOcChatThreads(
 
   const newer = (nb.updatedAt || 0) >= (na.updatedAt || 0) ? nb : na;
   const older = newer === nb ? na : nb;
+
+  /*
+   * 채팅 초기화 후 옛 Firebase/캐시가 메시지 합집합으로 되살아나는 것 방지.
+   * 더 최신인데 말풍선이 거의 없고(≤3) 상대는 훨씬 길면 와이프로 본다.
+   */
+  const newerLen = newer.messages.length;
+  const olderLen = older.messages.length;
+  const looksLikeWipe =
+    (newer.updatedAt || 0) > (older.updatedAt || 0) &&
+    newerLen <= 3 &&
+    olderLen >= newerLen + 5;
+  if (looksLikeWipe) {
+    return normalizeChatThread(newer);
+  }
+
   const messages = trimChatMessages(mergeChatMessages(na.messages, nb.messages));
 
   return normalizeChatThread({
@@ -825,6 +851,12 @@ export function mergeOcChatThreads(
     freeGainToday: Math.max(na.freeGainToday || 0, nb.freeGainToday || 0),
     freeLossToday: Math.max(na.freeLossToday || 0, nb.freeLossToday || 0),
     turnsToday: Math.max(na.turnsToday || 0, nb.turnsToday || 0),
+    memorySummary:
+      (na.memorySummaryThroughAt || 0) >= (nb.memorySummaryThroughAt || 0)
+        ? na.memorySummary || nb.memorySummary
+        : nb.memorySummary || na.memorySummary,
+    memorySummaryThroughAt:
+      Math.max(na.memorySummaryThroughAt || 0, nb.memorySummaryThroughAt || 0) || undefined,
   });
 }
 
@@ -936,6 +968,8 @@ export async function saveOcChatThread(
     presenceUpdatedAt: thread.presenceUpdatedAt,
     recentActions: thread.recentActions,
     openThreads: thread.openThreads,
+    memorySummary: thread.memorySummary,
+    memorySummaryThroughAt: thread.memorySummaryThroughAt,
   };
 
   /* 즉시 로컬 캐시 — 다시 열 때 딜레이 없이 표시 */
@@ -1239,6 +1273,8 @@ export type OcChatApiResult = {
   freeLossToday: number;
   freeGainDate: string;
   deltaReason?: string;
+  memorySummary?: string;
+  memorySummaryThroughAt?: number;
 };
 
 export type OcChatProactiveResult = {
@@ -1339,6 +1375,8 @@ export async function postOcChat(params: {
   recentDeltaReasons?: string[];
   presence?: 'online' | 'offline';
   recentActions?: OcChatThread['recentActions'];
+  memorySummary?: string;
+  memorySummaryThroughAt?: number;
   signal?: AbortSignal;
 }): Promise<OcChatApiResult> {
   const recent = params.messages
@@ -1380,6 +1418,8 @@ export async function postOcChat(params: {
         params.recentActions as OcChatRecentAction[] | undefined,
         params.messages,
       ),
+      memorySummary: params.memorySummary,
+      memorySummaryThroughAt: params.memorySummaryThroughAt,
     }),
     signal: params.signal,
   });
@@ -1393,6 +1433,8 @@ export async function postOcChat(params: {
     freeLossToday?: number;
     freeGainDate?: string;
     deltaReason?: string;
+    memorySummary?: string;
+    memorySummaryThroughAt?: number;
     error?: string;
   };
   if (!res.ok) {
@@ -1424,6 +1466,14 @@ export async function postOcChat(params: {
         : params.freeLossToday || 0,
     freeGainDate: String(data.freeGainDate || todayKeyLocal()),
     deltaReason: data.deltaReason || behavior.deltaReason,
+    memorySummary:
+      typeof data.memorySummary === 'string' && data.memorySummary.trim()
+        ? data.memorySummary.trim().slice(0, 800)
+        : params.memorySummary,
+    memorySummaryThroughAt:
+      typeof data.memorySummaryThroughAt === 'number' && Number.isFinite(data.memorySummaryThroughAt)
+        ? data.memorySummaryThroughAt
+        : params.memorySummaryThroughAt,
   };
 }
 
