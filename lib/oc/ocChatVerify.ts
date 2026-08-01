@@ -5,7 +5,7 @@ import {
   stripEveTrailingPeriod,
 } from '@/lib/oc/ocChatEveStyle';
 
-const VERIFY_SYSTEM = `당신은 대화 품질 검사기입니다. 사용자의 마지막 메시지와, 그에 대한 캐릭터의 답변 후보를 보고 판단하세요.
+const VERIFY_SYSTEM = `당신은 대화 품질 검사기입니다. 사용자의 이번 턴 발화(연속 메시지면 전부)와 캐릭터 답변 후보를 보고 판단하세요.
 
 다음 중 하나라도 해당하면 "no":
 - 답변이 사용자가 실제로 한 말과 무관한 화제로 새는 경우
@@ -15,6 +15,7 @@ const VERIFY_SYSTEM = `당신은 대화 품질 검사기입니다. 사용자의 
 - 실질 질문에 단순 맞장구·감사만으로 답을 대체한 경우
 - 사용자가 한 말의 핵심(질문·요청·감정·되묻기)을 무시하는 경우
 - 연속 메시지 중 앞부분만 반영하고 가장 최근 유저 말을 무시하는 경우
+- 연속 메시지인데 마지막 말만 받고 앞 맥락(직전 유저 말의 핵심)을 통째로 무시하는 경우
 - 캐릭터의 직전 대사와 동일·거의 동일한 문장 골격(단어만 바꾼 동어반복 포함)을 다시 쓰는 경우
 - 유저가 직전 답을 되묻거나 설명을 요청했는데, 같은 문장만 반복하고 새 정보가 없는 경우
 
@@ -164,9 +165,9 @@ export async function verifyOcChatRelevance(opts: {
     .filter(Boolean);
   const burstBlock =
     burst.length > 1
-      ? `사용자가 연속으로 보낸 메시지:
+      ? `사용자가 연속으로 보낸 메시지(한 턴 전체 맥락):
 ${burst.map((m, i) => `${i + 1}. "${m}"`).join('\n')}
-답변은 반드시 마지막(가장 최근) 메시지에 대응해야 합니다. 앞 메시지에만 답하고 마지막을 무시하면 "no".
+답변은 위 메시지들을 모두 반영한 한 번의 반응이어야 합니다. 앞부분만 받거나 마지막만 받아도 "no".
 `
       : '';
   const recentBlock =
@@ -175,10 +176,10 @@ ${burst.map((m, i) => `${i + 1}. "${m}"`).join('\n')}
 `
       : '';
 
-  const userTurn = `${burstBlock}${recentBlock}사용자 마지막 메시지: "${last}"
+  const userTurn = `${burstBlock}${recentBlock}사용자 이번 턴(마지막 줄): "${last}"
 캐릭터 답변 후보: ${msgs.map((m) => `"${m}"`).join(' / ')}
 
-이 답변이 사용자 마지막 메시지에 실제로 대응합니까? 직전 대사와 똑같은 복붙이면 "no".`;
+이 답변이 이번 턴 유저 말 전체 맥락에 실제로 대응합니까? 직전 대사와 똑같은 복붙이면 "no".`;
 
   try {
     const raw = await opts.callModel(VERIFY_SYSTEM, userTurn);
@@ -230,13 +231,14 @@ export function buildOcChatRetryUserNotice(
     const banLine = banned.length
       ? `금지(그대로·거의 그대로 재사용 금지): ${banned.map((m) => `"${m}"`).join(' / ')}.`
       : '직전 자기 대사를 그대로 다시 쓰지 마세요.';
-    return `[시스템 알림: 방금 답이 직전 대사와 동일·거의 동일했습니다. ${banLine} 사용자 마지막 말("${last}")에 맞게 다른 문장·각도로 새로 짧게 답하세요. 할 말이 없으면 action을 read_only/ignore. JSON만 출력.]`;
+    return `[시스템 알림: 방금 답이 직전 대사와 동일·거의 동일했습니다. ${banLine} 사용자 이번 턴("${last}" 포함) 맥락에 맞게 다른 문장·각도로 새로 짧게 답하세요. 할 말이 없으면 action을 read_only/ignore. JSON만 출력.]`;
   }
   const burst = (recentUserBurst || []).map((m) => String(m || '').trim()).filter(Boolean);
   if (burst.length > 1) {
-    return `[시스템 알림: 방금 답변이 연속 메시지 중 앞부분만 받고 가장 최근 메시지("${last}")를 무시했습니다. 최근 메시지(특히 질문)에 실제로 대응하는 짧은 답으로 다시 쓰세요. 앞 말에만 감사·맞장구 하고 끝내지 마세요. JSON만 출력.]`;
+    const listed = burst.map((m, i) => `${i + 1}) "${m.slice(0, 120)}"`).join(' ');
+    return `[시스템 알림: 방금 답변이 연속 메시지 전체 맥락을 반영하지 못했습니다(${listed}). 앞·뒤 메시지를 모두 읽고 한 번의 자연스러운 답으로 다시 쓰세요. 마지막만·앞부분만 편향 금지. JSON만 출력.]`;
   }
-  return `[시스템 알림: 방금 답변이 사용자의 마지막 메시지("${last}")와 맥락이 맞지 않았거나, 직전 대사를 반복했거나, 문장이 끊겼습니다. 같은 문장 반복 금지. 마지막 유저 말의 핵심에 맞게 캐릭터답게 새로 짧게 답하세요. 되묻기·설명 요청이면 새 정보를 한 줄이라도 보태세요. JSON만 출력.]`;
+  return `[시스템 알림: 방금 답변이 사용자 이번 턴("${last}")과 맥락이 맞지 않았거나, 직전 대사를 반복했거나, 문장이 끊겼습니다. 같은 문장 반복 금지. 유저 말 핵심에 맞게 캐릭터답게 새로 짧게 답하세요. 되묻기·설명 요청이면 새 정보를 한 줄이라도 보태세요. JSON만 출력.]`;
 }
 
 export type VerifiedOcChatGenerateResult = {
