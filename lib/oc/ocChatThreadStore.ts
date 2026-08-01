@@ -67,7 +67,29 @@ export async function saveOcChatThreadToR2(
   if (!opts?.replace) {
     try {
       const existing = await loadOcChatThreadFromR2(characterId, visitorId);
-      if (existing) toSave = mergeOcChatThreads(existing, thread);
+      if (existing) {
+        toSave = mergeOcChatThreads(existing, thread);
+        /*
+         * merge 후에도 갑자기 짧아지면(옛 wipe 휴리스틱 잔재·이상 스냅샷)
+         * 기존 긴 기록을 우선 유지한다. 의도적 초기화는 clearedAt.
+         */
+        if (
+          !thread.clearedAt &&
+          existing.messages.length >= toSave.messages.length + 3
+        ) {
+          console.warn('[oc-chat-r2] block shrink save', {
+            characterId,
+            existing: existing.messages.length,
+            incoming: thread.messages.length,
+            merged: toSave.messages.length,
+          });
+          toSave = {
+            ...toSave,
+            messages: existing.messages,
+            updatedAt: Math.max(existing.updatedAt || 0, thread.updatedAt || 0, Date.now()),
+          };
+        }
+      }
     } catch {
       /* 기존 없음/읽기 실패 시 그대로 저장 */
     }

@@ -37,7 +37,10 @@ import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import type { OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
 import {
+  clearOcChatThreadBackup,
   clearOcChatThreadCache,
+  findLongestLocalThreadRawForCharacter,
+  peekOcChatThreadBackupRaw,
   peekOcChatThreadCacheRaw,
   writeOcChatThreadCacheRaw,
 } from '@/lib/oc/ocChatLocalCache';
@@ -228,6 +231,7 @@ export async function resetOcChatThreadForVisitor(
   }
   await deleteOcChatThreadViaApi(id, vid);
   clearOcChatThreadCache(id, vid);
+  clearOcChatThreadBackup(id, vid);
 }
 
 export function peekOcChatThreadCache(
@@ -1019,11 +1023,30 @@ export function mergeOcChatThreads(
   });
 }
 
+/** 짧은 스냅샷이 긴 기록을 덮지 않게 — clearedAt(초기화) 없을 때만 */
+function protectAgainstAccidentalShrink(
+  existing: OcChatThread | null | undefined,
+  incoming: OcChatThread,
+): OcChatThread {
+  if (!existing || existing.messages.length <= incoming.messages.length) return incoming;
+  if (incoming.clearedAt && incoming.clearedAt >= (existing.updatedAt || 0)) {
+    return incoming;
+  }
+  const gap = existing.messages.length - incoming.messages.length;
+  if (gap < 3) return incoming;
+  console.warn('[oc-chat] refuse shrink — merge longer existing', {
+    existing: existing.messages.length,
+    incoming: incoming.messages.length,
+  });
+  return mergeOcChatThreads(existing, incoming);
+}
+
 export async function loadOcChatThread(
   characterId: string,
   visitorId: string,
 ): Promise<OcChatThread> {
   const cached = peekOcChatThreadCache(characterId, visitorId);
+  const backup = normalizeChatThread(peekOcChatThreadBackupRaw(characterId, visitorId));
   /* API가 R2+Firebase를 이미 병합 — 클라이언트 이중 Firebase get 생략으로 로드 지연 감소 */
   const fromApi = await loadOcChatThreadViaApi(characterId, visitorId);
   let remote = fromApi;
@@ -1036,8 +1059,45 @@ export async function loadOcChatThread(
       remote = fromApi || normalizeChatThread(null);
     }
   }
-  const merged = mergeOcChatThreads(cached, remote);
+  let merged = mergeOcChatThreads(cached, remote);
+  /* 로컬 최장 백업 복구 (짧은 wipe 이후) */
+  if (
+    backup.messages.length > merged.messages.length + 2 &&
+    !merged.clearedAt
+  ) {
+    console.info('[oc-chat] recover from local backup', {
+      characterId,
+      backup: backup.messages.length,
+      current: merged.messages.length,
+    });
+    merged = mergeOcChatThreads(merged, backup);
+  }
+  /*
+   * visitorId가 바뀌어 새 짧은 스레드만 보일 때 —
+   * 같은 캐릭터의 다른 로컬 키에 긴 기록이 있으면 합친다.
+   */
+  if (!merged.clearedAt && merged.messages.length < 8) {
+    const longest = findLongestLocalThreadRawForCharacter(characterId);
+    if (longest && messageCountLike(longest.thread) > merged.messages.length + 2) {
+      console.info('[oc-chat] recover from other local visitor cache', {
+        characterId,
+        fromVisitor: longest.visitorId.slice(0, 8),
+        source: longest.source,
+        recovered: messageCountLike(longest.thread),
+        current: merged.messages.length,
+      });
+      merged = mergeOcChatThreads(merged, normalizeChatThread(longest.thread));
+    }
+  }
   writeOcChatThreadCache(characterId, visitorId, merged);
+  console.info('[oc-chat] thread load', {
+    characterId,
+    visitorId: visitorId.slice(0, 8),
+    cached: cached?.messages.length || 0,
+    remote: remote?.messages.length || 0,
+    backup: backup.messages.length,
+    merged: merged.messages.length,
+  });
   if (merged.pendingBehavior?.applyAt) {
     scheduleOcChatPendingDelivery(
       characterId,
@@ -1048,6 +1108,12 @@ export async function loadOcChatThread(
     );
   }
   return merged;
+}
+
+function messageCountLike(raw: unknown): number {
+  if (!raw || typeof raw !== 'object') return 0;
+  const msgs = (raw as { messages?: unknown }).messages;
+  return Array.isArray(msgs) ? msgs.length : 0;
 }
 
 export function subscribeOcChatThread(
@@ -1102,40 +1168,45 @@ export async function saveOcChatThread(
   thread: OcChatThread,
   opts?: { replace?: boolean },
 ): Promise<void> {
+  const existingLocal = peekOcChatThreadCache(characterId, visitorId);
+  const protectedThread = opts?.replace
+    ? thread
+    : protectAgainstAccidentalShrink(existingLocal, thread);
   const next: OcChatThread = {
-    messages: trimChatMessages(thread.messages),
+    messages: trimChatMessages(protectedThread.messages),
     updatedAt: Date.now(),
-    affection: clampAffection(thread.affection ?? 0),
-    story: thread.story,
-    freeGainDate: thread.freeGainDate,
-    freeGainToday: thread.freeGainToday,
-    freeLossToday: thread.freeLossToday,
-    lastSeenAt: thread.lastSeenAt,
-    moodNote: thread.moodNote,
-    moodDate: thread.moodDate,
-    turnsToday: thread.turnsToday,
-    turnsDate: thread.turnsDate,
-    closedForToday: thread.closedForToday,
-    closedDate: thread.closedDate,
-    closedUntil: thread.closedUntil,
-    lastProactiveDate: thread.lastProactiveDate,
-    pendingBehavior: thread.pendingBehavior,
-    recentDeltaReasons: thread.recentDeltaReasons,
-    lastInteractionAt: thread.lastInteractionAt,
-    neglectCheckedAt: thread.neglectCheckedAt,
-    presence: thread.presence,
-    presenceUpdatedAt: thread.presenceUpdatedAt,
-    recentActions: thread.recentActions,
-    openThreads: thread.openThreads,
-    memorySummary: thread.memorySummary,
-    memorySummaryThroughAt: thread.memorySummaryThroughAt,
-    clearedAt: thread.clearedAt,
-    pendingClearedAt: thread.pendingClearedAt,
+    affection: clampAffection(protectedThread.affection ?? 0),
+    story: protectedThread.story,
+    freeGainDate: protectedThread.freeGainDate,
+    freeGainToday: protectedThread.freeGainToday,
+    freeLossToday: protectedThread.freeLossToday,
+    lastSeenAt: protectedThread.lastSeenAt,
+    moodNote: protectedThread.moodNote,
+    moodDate: protectedThread.moodDate,
+    turnsToday: protectedThread.turnsToday,
+    turnsDate: protectedThread.turnsDate,
+    closedForToday: protectedThread.closedForToday,
+    closedDate: protectedThread.closedDate,
+    closedUntil: protectedThread.closedUntil,
+    lastProactiveDate: protectedThread.lastProactiveDate,
+    pendingBehavior: protectedThread.pendingBehavior,
+    recentDeltaReasons: protectedThread.recentDeltaReasons,
+    lastInteractionAt: protectedThread.lastInteractionAt,
+    neglectCheckedAt: protectedThread.neglectCheckedAt,
+    presence: protectedThread.presence,
+    presenceUpdatedAt: protectedThread.presenceUpdatedAt,
+    recentActions: protectedThread.recentActions,
+    openThreads: protectedThread.openThreads,
+    memorySummary: protectedThread.memorySummary,
+    memorySummaryThroughAt: protectedThread.memorySummaryThroughAt,
+    clearedAt: protectedThread.clearedAt,
+    pendingClearedAt: protectedThread.pendingClearedAt,
   };
 
   /* 즉시 로컬 캐시 — 다시 열 때 딜레이 없이 표시 */
   if (opts?.replace) {
     writeOcChatThreadCache(characterId, visitorId, next);
+    clearOcChatThreadBackup(characterId, visitorId);
   } else {
     writeOcChatThreadCache(
       characterId,
