@@ -45,8 +45,8 @@ import {
 export const OC_CHAT_VISITOR_KEY = 'lh_oc_chat_visitor';
 /** API/모델에 넘기는 최근 대화 말풍선 수 (~18턴 왕복). 비용 상한. */
 export const OC_CHAT_API_HISTORY = 36;
-/** 클라이언트·R2에 보관하는 말풍선 상한 (오래된 것부터 trim) */
-export const OC_CHAT_STORE_MAX = 800;
+/** 보관 한도 없음 — 하위 호환용 상수(trim no-op) */
+export const OC_CHAT_STORE_MAX = Number.POSITIVE_INFINITY;
 
 export type OcChatRole = 'user' | 'assistant';
 
@@ -112,6 +112,8 @@ export type OcChatThread = {
   memorySummaryThroughAt?: number;
   /** 대화 초기화 시각 — merge 시 이 이후의 짧은 스레드가 옛 긴 기록을 되살리지 않게 */
   clearedAt?: number;
+  /** 이 시각 이전에 만든 pending은 merge에서 무시(배달·abort·취소) */
+  pendingClearedAt?: number;
 };
 
 function threadPath(characterId: string, visitorId: string) {
@@ -327,9 +329,9 @@ export function getOrCreateChatVisitorId(): string {
   }
 }
 
-export function trimChatMessages(messages: OcChatMessage[], max = OC_CHAT_STORE_MAX): OcChatMessage[] {
-  if (messages.length <= max) return messages;
-  return messages.slice(messages.length - max);
+/** 대화 기록은 자르지 않음 */
+export function trimChatMessages(messages: OcChatMessage[]): OcChatMessage[] {
+  return messages;
 }
 
 export function createChatMessage(
@@ -758,6 +760,21 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     typeof o.clearedAt === 'number' && Number.isFinite(o.clearedAt) && o.clearedAt > 0
       ? o.clearedAt
       : undefined;
+  const pendingClearedAt =
+    typeof o.pendingClearedAt === 'number' &&
+    Number.isFinite(o.pendingClearedAt) &&
+    o.pendingClearedAt > 0
+      ? o.pendingClearedAt
+      : undefined;
+  let pendingBehavior = normalizePending(o.pendingBehavior);
+  if (
+    pendingBehavior &&
+    pendingClearedAt &&
+    (pendingBehavior.createdAt || 0) > 0 &&
+    (pendingBehavior.createdAt || 0) <= pendingClearedAt
+  ) {
+    pendingBehavior = undefined;
+  }
 
   return {
     messages: trimChatMessages(dedupeRecentAssistantDuplicates(messages)),
@@ -776,7 +793,7 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     closedDate: undefined,
     closedUntil,
     lastProactiveDate: String(o.lastProactiveDate || '').trim() || undefined,
-    pendingBehavior: normalizePending(o.pendingBehavior),
+    pendingBehavior,
     recentDeltaReasons,
     lastInteractionAt,
     neglectCheckedAt,
@@ -787,6 +804,7 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     memorySummary,
     memorySummaryThroughAt,
     clearedAt,
+    pendingClearedAt,
   };
 }
 
@@ -836,23 +854,51 @@ function mergeChatMessages(a: OcChatMessage[], b: OcChatMessage[]): OcChatMessag
   return dedupeRecentAssistantDuplicates(sorted);
 }
 
+function pendingLooksDelivered(
+  pending: OcChatPendingBehavior,
+  messages: OcChatMessage[],
+): boolean {
+  const lines = pending.messages || [];
+  if (!lines.length && !pending.sticker) {
+    /* read_only/ignore 예약은 말풍선이 없음 — clearedAt으로만 소거 */
+    return false;
+  }
+  return pendingLinesAlreadyPresent(messages, lines, Boolean(pending.sticker));
+}
+
 function pickPendingBehavior(
   a?: OcChatPendingBehavior,
   b?: OcChatPendingBehavior,
-  aMsgLen = 0,
-  bMsgLen = 0,
+  aMessages: OcChatMessage[] = [],
+  bMessages: OcChatMessage[] = [],
+  pendingClearedAt = 0,
 ): OcChatPendingBehavior | undefined {
+  const alive = (p?: OcChatPendingBehavior) => {
+    if (!p) return undefined;
+    if (
+      pendingClearedAt > 0 &&
+      typeof p.createdAt === 'number' &&
+      p.createdAt > 0 &&
+      p.createdAt <= pendingClearedAt
+    ) {
+      return undefined;
+    }
+    return p;
+  };
+  a = alive(a);
+  b = alive(b);
   if (!a && !b) return undefined;
   if (a && !b) {
     /*
-     * b가 pending을 비웠고 메시지 수가 같거나 더 많으면 배달·연타 abort 취소로 본다.
-     * (이전: bMsgLen > aMsgLen 만 인정 → 같은 길이에서 abort해도 캐시 pending이 되살아남)
+     * 예전: 메시지 길이 같으면 pending 삭제 → lastSeen/재입장 저장이
+     * 아직 배달 안 된 답장 예약을 지워버리는 버그.
+     * 이제는 실제 배달됐을 때만 제거.
      */
-    if (bMsgLen >= aMsgLen) return undefined;
+    if (pendingLooksDelivered(a, bMessages)) return undefined;
     return a;
   }
   if (!a && b) {
-    if (aMsgLen > bMsgLen) return undefined;
+    if (pendingLooksDelivered(b, aMessages)) return undefined;
     return b;
   }
   /* 같은 예약이면 id가 있는 쪽·더 늦은 applyAt 우선 */
@@ -939,6 +985,8 @@ export function mergeOcChatThreads(
   }
 
   const messages = trimChatMessages(mergeChatMessages(na.messages, nb.messages));
+  const pendingClearedAt =
+    Math.max(na.pendingClearedAt || 0, nb.pendingClearedAt || 0) || undefined;
 
   return normalizeChatThread({
     ...older,
@@ -948,8 +996,9 @@ export function mergeOcChatThreads(
     pendingBehavior: pickPendingBehavior(
       na.pendingBehavior,
       nb.pendingBehavior,
-      na.messages.length,
-      nb.messages.length,
+      na.messages,
+      nb.messages,
+      pendingClearedAt || 0,
     ),
     affection: Math.max(na.affection || 0, nb.affection || 0),
     updatedAt: Math.max(na.updatedAt || 0, nb.updatedAt || 0),
@@ -966,6 +1015,7 @@ export function mergeOcChatThreads(
     memorySummaryThroughAt:
       Math.max(na.memorySummaryThroughAt || 0, nb.memorySummaryThroughAt || 0) || undefined,
     clearedAt: undefined,
+    pendingClearedAt,
   });
 }
 
@@ -1080,6 +1130,7 @@ export async function saveOcChatThread(
     memorySummary: thread.memorySummary,
     memorySummaryThroughAt: thread.memorySummaryThroughAt,
     clearedAt: thread.clearedAt,
+    pendingClearedAt: thread.pendingClearedAt,
   };
 
   /* 즉시 로컬 캐시 — 다시 열 때 딜레이 없이 표시 */
@@ -1247,6 +1298,12 @@ export function applyDuePendingBehavior(
 
   const today = todayKeyLocal();
   const action = pending.action;
+  const pendingClearedAt = Math.max(
+    thread.pendingClearedAt || 0,
+    typeof pending.createdAt === 'number' && pending.createdAt > 0
+      ? pending.createdAt
+      : now,
+  );
 
   if (action === 'ignore') {
     return {
@@ -1254,6 +1311,7 @@ export function applyDuePendingBehavior(
       thread: {
         ...thread,
         pendingBehavior: undefined,
+        pendingClearedAt,
         moodNote: pending.moodNote || thread.moodNote,
         moodDate: pending.moodNote ? today : thread.moodDate,
         presence: pending.presenceState || thread.presence,
@@ -1314,6 +1372,7 @@ export function applyDuePendingBehavior(
         ...thread,
         messages: msgs,
         pendingBehavior: undefined,
+        pendingClearedAt,
         moodNote: pending.moodNote || thread.moodNote,
         moodDate: pending.moodNote ? today : thread.moodDate,
         presence: 'online',
@@ -1373,6 +1432,7 @@ export function applyDuePendingBehavior(
       ...thread,
       messages: trimChatMessages(msgs),
       pendingBehavior: undefined,
+      pendingClearedAt,
       moodNote: pending.moodNote || thread.moodNote,
       moodDate: pending.moodNote ? today : thread.moodDate,
       presence: 'online',

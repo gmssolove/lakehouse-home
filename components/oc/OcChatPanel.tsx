@@ -102,6 +102,8 @@ type MetaState = {
   /** 이 시각까지 응답 잠금 */
   closedUntil?: number;
   pendingBehavior?: OcChatPendingBehavior;
+  /** pending 취소·배달 완료 시각 — merge가 옛 예약을 되살리지 않게 */
+  pendingClearedAt?: number;
   lastProactiveDate?: string;
   freeLossToday: number;
   recentDeltaReasons: string[];
@@ -123,6 +125,20 @@ type BootChatState = {
   threadReady: boolean;
   bootstrapped: boolean;
 };
+
+function clearPendingMeta(
+  meta: MetaState,
+  pending: OcChatPendingBehavior | undefined = meta.pendingBehavior,
+): MetaState {
+  return {
+    ...meta,
+    pendingBehavior: undefined,
+    pendingClearedAt: Math.max(
+      meta.pendingClearedAt || 0,
+      pending?.createdAt && pending.createdAt > 0 ? pending.createdAt : Date.now(),
+    ),
+  };
+}
 
 function emptyMetaState(presence: OcChatPresence = 'offline'): MetaState {
   return {
@@ -647,6 +663,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         closedUntil: closed.closedUntil,
         lastProactiveDate: mergedMeta.lastProactiveDate,
         pendingBehavior: mergedMeta.pendingBehavior,
+        pendingClearedAt: mergedMeta.pendingClearedAt,
         recentDeltaReasons: mergedMeta.recentDeltaReasons,
         lastInteractionAt: mergedMeta.lastInteractionAt,
         neglectCheckedAt: mergedMeta.neglectCheckedAt,
@@ -710,7 +727,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         msgs = rolled;
         stateRef.current = { ...stateRef.current, messages: rolled };
         setMessages(rolled);
-        nextMeta = { ...nextMeta, pendingBehavior: undefined };
+        const prevPending = nextMeta.pendingBehavior;
+        nextMeta = {
+          ...nextMeta,
+          pendingBehavior: undefined,
+          pendingClearedAt: Math.max(
+            nextMeta.pendingClearedAt || 0,
+            prevPending?.createdAt || Date.now(),
+          ),
+        };
         setMeta(nextMeta);
         await persistSnapshot({
           messages: rolled,
@@ -829,7 +854,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             return abortForRegather();
           }
           pushRecent('ignore', nextMeta.presence, behavior.moodNote || behavior.deltaReason);
-          nextMeta = { ...nextMeta, pendingBehavior: undefined };
+          nextMeta = clearPendingMeta(nextMeta);
           setMeta(nextMeta);
           /* 대기 중 연타된 유저 말 보존 */
           msgs = stateRef.current.messages;
@@ -1303,22 +1328,19 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         }
 
         pushRecent(behavior.action, 'online', behavior.moodNote);
-        nextMeta =
-          behavior.action === 'end_for_today'
-            ? {
-                ...withEndForTodayLock({
-                  ...nextMeta,
-                  presence: 'online',
-                  presenceUpdatedAt: Date.now(),
-                }),
-                pendingBehavior: undefined,
-              }
+        nextMeta = clearPendingMeta({
+          ...(behavior.action === 'end_for_today'
+            ? withEndForTodayLock({
+                ...nextMeta,
+                presence: 'online',
+                presenceUpdatedAt: Date.now(),
+              })
             : {
                 ...nextMeta,
                 presence: 'online',
                 presenceUpdatedAt: Date.now(),
-                pendingBehavior: undefined,
-              };
+              }),
+        });
         setMeta(nextMeta);
         /* 답장 연출 끝 — readAt 누락/경합으로 "1"이 남지 않게 확정 */
         msgs = markUserMessagesReadThroughLastAssistant(msgs);
@@ -1418,6 +1440,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       turnsToday: cached.turnsToday || 0,
       ...closedFieldsFromUntil(cached.closedUntil),
       pendingBehavior: cached.pendingBehavior,
+      pendingClearedAt: cached.pendingClearedAt,
       lastProactiveDate: cached.lastProactiveDate,
       freeLossToday: cached.freeLossToday || 0,
       recentDeltaReasons: cached.recentDeltaReasons || [],
@@ -1483,6 +1506,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           turnsToday: thread.turnsToday || 0,
           ...closedFieldsFromUntil(thread.closedUntil),
           pendingBehavior: thread.pendingBehavior,
+          pendingClearedAt: thread.pendingClearedAt,
           lastProactiveDate: thread.lastProactiveDate,
           freeLossToday: thread.freeLossToday || 0,
           recentDeltaReasons: thread.recentDeltaReasons || [],
@@ -1637,6 +1661,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             closedUntil: nextMeta.closedUntil,
             lastProactiveDate: nextMeta.lastProactiveDate,
             pendingBehavior: pending,
+            pendingClearedAt: nextMeta.pendingClearedAt,
             recentDeltaReasons: nextMeta.recentDeltaReasons,
             lastInteractionAt: nextMeta.lastInteractionAt,
             neglectCheckedAt: nextMeta.neglectCheckedAt,
@@ -2480,9 +2505,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
   /*
    * 상세/패널 언마운트: 디바운스만 지우고 끝내면 답장이 영구히 안 옴.
-   * - 진행 중 flush/연출이면 open만 false로 넘겨 finally·강제 배달에 맡김
-   * - 대기만 하던 유저 말이면 즉시 flush
-   * - pending이 있으면 백그라운드 타이머 재예약
+   * - uiOwned는 항상 해제 + pending 타이머 재예약 (중첩 early-return 금지)
+   * - 진행 중 flush/연출이면 trailing 표시만 남기고 in-flight가 닫힌 창 배달
+   * - 아니면 유저 말이 꼬리면 즉시 flush
    */
   useEffect(() => {
     return () => {
@@ -2493,13 +2518,6 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       const vid = visitorRef.current || getOrCreateChatVisitorId();
       const pending = stateRef.current.meta.pendingBehavior;
 
-      if (replyLockRef.current || flushLockRef.current) {
-        /* in-flight: playBehavior finally가 uiOwned 해제 + 닫힌 창 배달.
-         * 뒤에 유저 말이 있으면 trailing flush가 이어지도록 표시만 남김 */
-        pendingFlushRef.current = true;
-        return;
-      }
-
       setOcChatPendingUiOwned(charId, vid, false);
       if (pending?.applyAt) {
         scheduleOcChatPendingDelivery(
@@ -2509,6 +2527,21 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           characterRef.current,
           pending.id,
         );
+        /* applyAt이 이미 지났으면 바로 배달 (타이머 0ms 레이스 방지) */
+        if (pending.applyAt <= Date.now()) {
+          void tryDeliverPendingChat({
+            characterId: charId,
+            visitorId: vid,
+            character: characterRef.current,
+            expectPendingId: pending.id,
+            force: true,
+          }).catch(() => {});
+        }
+      }
+
+      if (replyLockRef.current || flushLockRef.current) {
+        pendingFlushRef.current = true;
+        return;
       }
 
       const last = stateRef.current.messages[stateRef.current.messages.length - 1];
@@ -2525,6 +2558,32 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       }
     };
   }, [charId]);
+
+  /* 채팅창만 닫아도(상세는 유지) pending 타이머·미응답 flush 보장 */
+  useEffect(() => {
+    if (open) return;
+    const vid = visitorRef.current || getOrCreateChatVisitorId();
+    setOcChatPendingUiOwned(charId, vid, false);
+    const pending = stateRef.current.meta.pendingBehavior;
+    if (pending?.applyAt) {
+      scheduleOcChatPendingDelivery(
+        charId,
+        vid,
+        pending.applyAt,
+        characterRef.current,
+        pending.id,
+      );
+      if (pending.applyAt <= Date.now()) {
+        void tryDeliverPendingChat({
+          characterId: charId,
+          visitorId: vid,
+          character: characterRef.current,
+          expectPendingId: pending.id,
+          force: true,
+        }).catch(() => {});
+      }
+    }
+  }, [open, charId]);
 
   useEffect(() => {
     if (open) {
