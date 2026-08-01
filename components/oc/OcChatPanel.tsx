@@ -637,6 +637,18 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         hasLateUserMessages(stateRef.current.messages, flushIncludedIdsRef.current) ||
         burstEpochRef.current !== playEpoch;
 
+      /** 대기 중 연타가 오면 즉시 중단 — 긴 responseDelay 동안 놓치던 구멍 */
+      const sleepWhileBurstQuiet = async (ms: number): Promise<'ok' | 'regather'> => {
+        const end = Date.now() + Math.max(0, Math.round(ms));
+        while (Date.now() < end) {
+          if (lateBurstPending()) return 'regather';
+          const slice = Math.min(180, end - Date.now());
+          if (slice <= 0) break;
+          await sleepMs(slice);
+        }
+        return lateBurstPending() ? 'regather' : 'ok';
+      };
+
       const abortForRegather = async (): Promise<'regather'> => {
         cancelOcChatPendingDelivery(charId, vid);
         /* 이번 연출에서 붙인 assistant만 제거 — 이후 최신 버스트로 한 번만 재응답 */
@@ -683,7 +695,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         text: string,
         events: OcChatTypingEvent[] | undefined,
         applyFluster: boolean,
-      ) => {
+      ): Promise<'ok' | 'regather'> => {
         const baseMs = typingDurationMs(text);
         const pauses =
           applyFluster && events?.length
@@ -691,21 +703,22 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             : [];
         if (!pauses.length) {
           setBusy(true);
-          await sleepMs(baseMs);
-          return;
+          return sleepWhileBurstQuiet(baseMs);
         }
         const segments = pauses.length + 1;
         const each = Math.max(400, Math.round(baseMs / segments));
         for (let i = 0; i < segments; i++) {
           setBusy(true);
-          await sleepMs(each);
+          if ((await sleepWhileBurstQuiet(each)) === 'regather') return 'regather';
           if (i < pauses.length) {
             const p = pauses[i]!;
             setBusy(false);
-            await sleepMs(Math.round(Math.min(4, Math.max(0.2, p.durationSeconds)) * 1000));
+            const pauseMs = Math.round(Math.min(4, Math.max(0.2, p.durationSeconds)) * 1000);
+            if ((await sleepWhileBurstQuiet(pauseMs)) === 'regather') return 'regather';
           }
         }
         setBusy(true);
+        return 'ok';
       };
 
       try {
@@ -750,12 +763,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           const wait = Math.max(0, applyAt - Date.now());
           if (nextMeta.presence === 'online' && openRef.current) {
             setWaitingRead(true);
-            await sleepMs(Math.min(wait, 2800));
+            if ((await sleepWhileBurstQuiet(Math.min(wait, 2800))) === 'regather') {
+              setWaitingRead(false);
+              return abortForRegather();
+            }
             setWaitingRead(false);
-          } else {
-            await sleepMs(Math.min(wait, 1800));
+          } else if ((await sleepWhileBurstQuiet(Math.min(wait, 1800))) === 'regather') {
+            return abortForRegather();
           }
-          if (!deliveredAssistant && lateBurstPending()) {
+          if (lateBurstPending()) {
             return abortForRegather();
           }
           pushRecent('ignore', nextMeta.presence, behavior.moodNote || behavior.deltaReason);
@@ -838,20 +854,28 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         }
         if (fastRead) {
           const unreadFlashMs = rollFastUnreadVisibleMs();
-          await sleepMs(unreadFlashMs);
+          if ((await sleepWhileBurstQuiet(unreadFlashMs)) === 'regather') {
+            return abortForRegather();
+          }
           await markReadNow();
           const rest = Math.max(0, waitMs - unreadFlashMs);
-          if (rest > 0) await sleepMs(rest);
+          if (rest > 0 && (await sleepWhileBurstQuiet(rest)) === 'regather') {
+            return abortForRegather();
+          }
         } else {
           const readLeadMs =
             waitMs > 1400 ? Math.min(700, Math.floor(waitMs * 0.14)) : 0;
           const untilRead = Math.max(0, waitMs - readLeadMs);
-          if (untilRead > 0) await sleepMs(untilRead);
+          if (untilRead > 0 && (await sleepWhileBurstQuiet(untilRead)) === 'regather') {
+            return abortForRegather();
+          }
           if (openRef.current) await markReadNow();
-          if (readLeadMs > 0) await sleepMs(readLeadMs);
+          if (readLeadMs > 0 && (await sleepWhileBurstQuiet(readLeadMs)) === 'regather') {
+            return abortForRegather();
+          }
         }
 
-        if (!deliveredAssistant && lateBurstPending()) {
+        if (lateBurstPending()) {
           return abortForRegather();
         }
 
@@ -892,8 +916,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           return 'ok';
         }
 
-        /* 열려 있으면: 읽음 → (추가 메시지 오면 계속 읽기) → 타이핑 → 말풍선 */
-        const absorbReads = async (lingerRounds = 3) => {
+        /* 열려 있으면: 읽음 → (추가 메시지 오면 재응답) → 타이핑 → 말풍선 */
+        const absorbReads = async (lingerRounds = 3): Promise<'ok' | 'regather'> => {
           let cur = markUserMessagesRead(stateRef.current.messages);
           msgs = cur;
           setMessages(cur);
@@ -906,11 +930,16 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             meta: nextMeta,
           });
           for (let i = 0; i < lingerRounds; i++) {
-            await sleepMs(320 + Math.round(Math.random() * 280));
+            if (lateBurstPending()) return 'regather';
+            if ((await sleepWhileBurstQuiet(320 + Math.round(Math.random() * 280))) === 'regather') {
+              return 'regather';
+            }
             if (!openRef.current) break;
             const latest = stateRef.current.messages;
             const hasUnread = latest.some((m) => m.role === 'user' && !m.readAt);
             if (!hasUnread) break;
+            /* flush 시작 이후 새 유저 말이면 읽기만 하지 말고 재응답 */
+            if (lateBurstPending()) return 'regather';
             cur = markUserMessagesRead(latest);
             msgs = cur;
             setMessages(cur);
@@ -923,21 +952,27 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               meta: nextMeta,
             });
           }
-          return cur;
+          return lateBurstPending() ? 'regather' : 'ok';
         };
 
-        msgs = await absorbReads(3);
-        await sleepMs(220);
+        if ((await absorbReads(3)) === 'regather') {
+          return abortForRegather();
+        }
+        if ((await sleepWhileBurstQuiet(220)) === 'regather') {
+          return abortForRegather();
+        }
 
-        if (!deliveredAssistant && lateBurstPending()) {
+        if (lateBurstPending()) {
           return abortForRegather();
         }
 
         if (behavior.action === 'read_only') {
           setWaitingRead(false);
-          /* 읽씹 직후에도 바로 온 말은 한 번 더 읽음 */
-          msgs = await absorbReads(2);
-          if (!deliveredAssistant && lateBurstPending()) {
+          /* 읽씹 직후에도 바로 온 말은 재응답 */
+          if ((await absorbReads(2)) === 'regather') {
+            return abortForRegather();
+          }
+          if (lateBurstPending()) {
             return abortForRegather();
           }
           pushRecent('read_only', nextMeta.presence, behavior.moodNote || behavior.deltaReason);
@@ -955,10 +990,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         }
 
         setWaitingRead(false);
-        /* 타이핑 들어가기 직전에도 화면 보고 있는 동안 온 말 흡수 */
-        msgs = await absorbReads(1);
-
-        if (!deliveredAssistant && lateBurstPending()) {
+        /* 타이핑 들어가기 직전에도 화면 보고 있는 동안 온 말 → 재응답 */
+        if ((await absorbReads(1)) === 'regather') {
+          return abortForRegather();
+        }
+        if (lateBurstPending()) {
           return abortForRegather();
         }
 
@@ -1042,22 +1078,17 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             if (typeof fresh.affection === 'number') setAffection(fresh.affection);
             return 'ok';
           }
-          if (!deliveredAssistant && lateBurstPending()) {
+          /* 답장 보내기 전에 새 유저 말 → 이번 답 버리고 최신 기준으로 재응답 */
+          if (lateBurstPending()) {
             return abortForRegather();
           }
-          /* 타이핑 중 온 유저 말도 유지·읽음 처리 — flush 스냅샷 밖 연타는 봇 답 뒤로 */
           const included = flushIncludedIdsRef.current;
-          {
-            const { head, lateUsers } = extractLateUserMessages(
-              markUserMessagesRead(stateRef.current.messages),
-              included,
-            );
-            msgs = [...head, ...lateUsers];
-            setMessages(msgs);
-          }
           const line = lines[i]!;
-          await playLengthTyping(line, behavior.typingIndicatorEvents, i === 0);
-          if (!deliveredAssistant && lateBurstPending()) {
+          if ((await playLengthTyping(line, behavior.typingIndicatorEvents, i === 0)) === 'regather') {
+            setBusy(false);
+            return abortForRegather();
+          }
+          if (lateBurstPending()) {
             setBusy(false);
             return abortForRegather();
           }
@@ -1066,6 +1097,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               markUserMessagesRead(stateRef.current.messages),
               included,
             );
+            if (lateUsers.length) {
+              return abortForRegather();
+            }
             /* 직전 말풍선이 같은 assistant 대사라면 이중 배달 — 턴 넘어 반복은 서버 검증이 담당 */
             const tail = head[head.length - 1];
             const sameAsImmediatePrev =
@@ -1079,14 +1113,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               pendingLinesAlreadyAtTail(head, lines.slice(0, i + 1)) ||
               sameAsImmediatePrev
             ) {
-              msgs = [...head, ...lateUsers];
+              msgs = head;
               deliveredAssistant = true;
             } else {
               const botMsg = createChatMessage('assistant', line, 'chat', {
                 at: Date.now() + i,
               });
               deliveredIds.add(botMsg.id);
-              msgs = [...head, botMsg, ...lateUsers];
+              msgs = [...head, botMsg];
               deliveredAssistant = true;
             }
           }
@@ -1113,7 +1147,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             lastSeenAt: !openRef.current ? stateRef.current.lastSeenAt : undefined,
           });
           if (i < lines.length - 1 || sticker) {
-            await sleepMs(splitBubbleGapMs());
+            if ((await sleepWhileBurstQuiet(splitBubbleGapMs())) === 'regather') {
+              return abortForRegather();
+            }
           }
         }
 
@@ -1129,19 +1165,32 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             });
             return 'ok';
           }
+          if (lateBurstPending()) {
+            return abortForRegather();
+          }
           setBusy(true);
-          await sleepMs(typingDurationMs('스티커'));
+          if ((await sleepWhileBurstQuiet(typingDurationMs('스티커'))) === 'regather') {
+            setBusy(false);
+            return abortForRegather();
+          }
+          if (lateBurstPending()) {
+            setBusy(false);
+            return abortForRegather();
+          }
           {
             const { head, lateUsers } = extractLateUserMessages(
               markUserMessagesRead(stateRef.current.messages),
               flushIncludedIdsRef.current,
             );
+            if (lateUsers.length) {
+              return abortForRegather();
+            }
             const stickerMsg = createChatMessage('assistant', '스티커', 'sticker', {
               stickerUrl: sticker.imageUrl,
               stickerId: sticker.id,
             });
             deliveredIds.add(stickerMsg.id);
-            msgs = [...head, stickerMsg, ...lateUsers];
+            msgs = [...head, stickerMsg];
             deliveredAssistant = true;
           }
           setMessages(msgs);
@@ -1955,6 +2004,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         } catch (err) {
           if (isAbortError(err) || burstEpochRef.current !== myEpoch) {
             console.info('[oc-chat-ui] discard aborted API — newer burst', { attempt });
+            pendingFlushRef.current = false;
             continue;
           }
           throw err;
@@ -1971,6 +2021,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             late: countTrailingUserBurst(stateRef.current.messages),
             epochChanged: burstEpochRef.current !== myEpoch,
           });
+          pendingFlushRef.current = false;
           continue;
         }
 
@@ -1992,6 +2043,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           playResult === 'regather' ||
           burstEpochRef.current !== myEpoch
         ) {
+          pendingFlushRef.current = false;
           if (attempt < OC_CHAT_BURST_REGATHER_MAX) {
             console.info('[oc-chat-ui] regather after play abort', { attempt });
             continue;
@@ -1999,6 +2051,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         }
 
         if (burstEpochRef.current !== myEpoch) {
+          pendingFlushRef.current = false;
           continue;
         }
 
