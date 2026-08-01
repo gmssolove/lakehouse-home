@@ -83,7 +83,10 @@ import {
 } from '@/lib/oc/ocChatPresence';
 import { defaultChatGreeting, resolveChatAvatarUrl } from '@/lib/oc/ocChatPrompt';
 import { resolveSticker } from '@/lib/oc/ocChatStickers';
-import { collapseSameIntentShortBubbles } from '@/lib/oc/ocChatVerify';
+import {
+  areNearDuplicateLines,
+  collapseSameIntentShortBubbles,
+} from '@/lib/oc/ocChatVerify';
 import type { OcChatEpisode, OcChatEpisodeChoice, OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
 
@@ -1196,18 +1199,16 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             if (lateUsers.length) {
               return abortForRegather();
             }
-            /* 직전 말풍선이 같은 assistant 대사라면 이중 배달 — 턴 넘어 반복은 서버 검증이 담당 */
-            const tail = head[head.length - 1];
-            const sameAsImmediatePrev =
-              !!tail &&
-              tail.role === 'assistant' &&
-              (tail.kind || 'chat') === 'chat' &&
-              String(tail.content || '')
-                .trim()
-                .replace(/\s+/g, '') === String(line || '').trim().replace(/\s+/g, '');
+            /* 직전·최근 assistant와 같거나 비슷한 대사라면 스킵 (패러프레이즈 연타 방지) */
+            const recentAsst = head
+              .filter((m) => m.role === 'assistant' && (m.kind || 'chat') === 'chat')
+              .map((m) => String(m.content || '').trim())
+              .filter(Boolean)
+              .slice(-6);
+            const nearDupRecent = recentAsst.some((prev) => areNearDuplicateLines(prev, line));
             if (
               pendingLinesAlreadyAtTail(head, lines.slice(0, i + 1)) ||
-              sameAsImmediatePrev
+              nearDupRecent
             ) {
               msgs = head;
               deliveredAssistant = true;
@@ -2349,10 +2350,16 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         trail,
         stateRef.current.meta.pendingBehavior,
       );
+      /*
+       * 이탈만으로 pendingFlush가 켜진 뒤, 이미 assistant 답이 붙었는데
+       * 또 flush하면 비슷한 답 2~5연타가 쌓임. 실제 새 유저 말이 있을 때만 재요청.
+       */
       const needsAgain =
-        pendingFlushRef.current || lateUsers.length > 0 || trailingNeedsReply;
+        lateUsers.length > 0 ||
+        trailingNeedsReply ||
+        (pendingFlushRef.current && countTrailingUserBurst(trail) > 0);
+      pendingFlushRef.current = false;
       if (needsAgain) {
-        pendingFlushRef.current = false;
         console.info('[oc-chat-ui] schedule trailing flush', {
           lateUserCount: lateUsers.length,
           trailingBurst: countTrailingUserBurst(trail),

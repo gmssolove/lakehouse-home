@@ -114,6 +114,58 @@ export function looksLikeShortBackchannel(text: string): boolean {
   return false;
 }
 
+function charBigrams(s: string): Set<string> {
+  const chars = Array.from(s);
+  const out = new Set<string>();
+  if (chars.length <= 1) {
+    if (chars[0]) out.add(chars[0]);
+    return out;
+  }
+  for (let i = 0; i < chars.length - 1; i++) out.add(chars[i]! + chars[i + 1]!);
+  return out;
+}
+
+function jaccardBigrams(a: string, b: string): number {
+  const A = charBigrams(a);
+  const B = charBigrams(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter += 1;
+  return inter / (A.size + B.size - inter);
+}
+
+/** 같은 턴·직전 말풍선끼리 동의어 반복인지 (깨어/멍함 등 패러프레이즈) */
+export function areNearDuplicateLines(a: string, b: string): boolean {
+  const ca = normalizeForCompare(a);
+  const cb = normalizeForCompare(b);
+  if (!ca || !cb) return false;
+  if (ca === cb) return true;
+  const shorter = ca.length <= cb.length ? ca : cb;
+  const longer = ca.length <= cb.length ? cb : ca;
+  if (shorter.length >= 4 && longer.includes(shorter) && shorter.length / longer.length >= 0.68) {
+    return true;
+  }
+  if (jaccardBigrams(ca, cb) >= 0.42) return true;
+
+  /* 의미 축 겹침: 일어남/방금 깸, 멍/몽롱 등 */
+  const axes: RegExp[] = [
+    /일어|깼|기상|깨어/,
+    /멍|몽롱|졸|피곤|잠/,
+    /뭐해|뭐하|무슨일|왜/,
+    /밥|먹|배고/,
+    /학교|수업|일가|출근/,
+    /미안|죄송|괜찮아|고마|감사/,
+  ];
+  let sharedAxes = 0;
+  for (const re of axes) {
+    if (re.test(ca) && re.test(cb)) sharedAxes += 1;
+  }
+  if (sharedAxes >= 1 && Math.min(ca.length, cb.length) <= 22 && jaccardBigrams(ca, cb) >= 0.28) {
+    return true;
+  }
+  return false;
+}
+
 /** 한 턴 messages가 전부 같은 취지 짧은 맞장구인지 */
 export function isStackedSameIntentShortBubbles(messages: string[]): boolean {
   const lines = messages.map((m) => String(m || '').trim()).filter(Boolean);
@@ -121,20 +173,36 @@ export function isStackedSameIntentShortBubbles(messages: string[]): boolean {
   return lines.every(looksLikeShortBackchannel);
 }
 
+/** 한 턴 안에 서로 비슷한 말이 2개 이상인지 */
+export function isStackedNearDuplicateBubbles(messages: string[]): boolean {
+  const lines = messages.map((m) => String(m || '').trim()).filter(Boolean);
+  if (lines.length < 2) return false;
+  if (isStackedSameIntentShortBubbles(lines)) return true;
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = i + 1; j < lines.length; j++) {
+      if (areNearDuplicateLines(lines[i]!, lines[j]!)) return true;
+    }
+  }
+  return false;
+}
+
 /**
- * 같은 취지 짧은 맞장구 연쇄 → 가장 내용 있는 1개만 남김.
- * 맞장구 2개+ + 실질 문장이면 맞장구만 제거.
+ * 한 턴 응답 정리:
+ * 1) 짧은 맞장구 연쇄 축약
+ * 2) 패러프레이즈 중복 제거
+ * 3) 최대 2말풍선 (질문 1 + 본문 1 정도)
  */
 export function collapseSameIntentShortBubbles(messages: string[]): string[] {
-  const lines = messages.map((m) => String(m || '').trim()).filter(Boolean);
-  if (lines.length <= 1) return lines;
+  const raw = messages.map((m) => String(m || '').trim()).filter(Boolean);
+  if (raw.length <= 1) return raw;
 
+  let lines = raw;
   if (isStackedSameIntentShortBubbles(lines)) {
     const best = lines.reduce((a, b) =>
       Array.from(b).length > Array.from(a).length ? b : a,
     );
     console.info('[oc-chat] collapse same-intent short bubbles', {
-      before: lines,
+      before: raw,
       after: [best],
     });
     return [best];
@@ -143,13 +211,36 @@ export function collapseSameIntentShortBubbles(messages: string[]): string[] {
   const fillers = lines.filter(looksLikeShortBackchannel);
   const content = lines.filter((m) => !looksLikeShortBackchannel(m));
   if (fillers.length >= 2 && content.length >= 1) {
-    console.info('[oc-chat] drop filler bubbles around content', {
-      before: lines,
-      after: content,
-    });
-    return content.slice(0, 3);
+    lines = content;
   }
-  return lines;
+
+  const kept: string[] = [];
+  for (const line of lines) {
+    if (kept.some((k) => areNearDuplicateLines(k, line))) continue;
+    kept.push(line);
+  }
+
+  /* 하드 캡 2 — 본문 1 + (있으면) 마지막 질문 1 */
+  let out = kept;
+  if (out.length > 2) {
+    const isQ = (m: string) => /[?？]|무슨\s*일|뭐\s*해|뭐하|어때/.test(m);
+    const questions = out.filter(isQ);
+    const rest = out.filter((m) => !isQ(m));
+    const body =
+      rest.sort((a, b) => Array.from(b).length - Array.from(a).length)[0] ||
+      questions[0];
+    const q = questions.length ? questions[questions.length - 1] : undefined;
+    const pick = [body, q && q !== body ? q : undefined].filter(Boolean) as string[];
+    out = kept.filter((m) => pick.includes(m)).slice(0, 2);
+  }
+
+  if (out.length !== raw.length || out.some((m, i) => m !== raw[i])) {
+    console.info('[oc-chat] collapse redundant reply bubbles', {
+      before: raw,
+      after: out,
+    });
+  }
+  return out;
 }
 
 /** 후보 답이 최근 자기 말과 동일/거의 동일하면 true */
@@ -219,7 +310,7 @@ export async function verifyOcChatRelevance(opts: {
   if (!last) return true;
 
   if (looksLikeIgnoredQuestionReply(last, msgs)) return false;
-  if (isStackedSameIntentShortBubbles(msgs)) return false;
+  if (isStackedNearDuplicateBubbles(msgs)) return false;
 
   const recentAsst = (opts.recentAssistantMessages || [])
     .map((m) => String(m || '').trim())
@@ -294,7 +385,7 @@ export function buildOcChatRetryUserNotice(
     return `[시스템 알림: 명령형 어미로 끝나는 문장이 있거나, 구두점만으로 이루어진 메시지(예: ".....")가 있었습니다. 명령형을 쓰지 말고, 할 말이 없다면 action을 read_only/ignore로 바꾸거나 실제 내용이 담긴 문장으로 다시 쓰세요. 이브면 평서문 끝 마침표도 빼세요. JSON만 출력.]`;
   }
   if (reason === 'stacked_filler') {
-    return `[시스템 알림: 같은 취지의 짧은 맞장구("그래"/"그렇구나" 등)를 messages에 여러 개로 쪼개 보냈습니다. 말풍선은 정보·반응·질문이 다를 때만 나누고, 맞장구는 한 문장으로 합치세요. 유저 이번 턴("${last}")에 실제 내용으로 짧게 다시 답하세요. JSON만 출력.]`;
+    return `[시스템 알림: 같은 취지·비슷한 말("방금 깼어"/"아직 멍해" 반복 등)을 messages에 여러 개로 쪼개 보냈습니다. messages는 최대 2개, 각 줄 내용이 달라야 합니다. 맞장구·상황 묘사는 한 문장으로 합치고 필요하면 질문 하나만 덧붙이세요. 유저 이번 턴("${last}")에 맞게 다시 쓰세요. JSON만 출력.]`;
   }
   if (reason === 'duplicate_reply') {
     const banned = (recentAssistantMessages || [])
@@ -375,9 +466,9 @@ export async function generateVerifiedOcChatResponse(opts: {
       failReason = 'duplicate_reply';
     }
 
-    if (!failReason && isStackedSameIntentShortBubbles(next.messages)) {
+    if (!failReason && isStackedNearDuplicateBubbles(next.messages)) {
       failReason = 'stacked_filler';
-      console.warn('[oc-chat] stacked same-intent short bubbles', {
+      console.warn('[oc-chat] stacked near-duplicate reply bubbles', {
         lastUserMessage: opts.lastUserMessage.slice(0, 120),
         messages: next.messages,
       });
@@ -394,7 +485,7 @@ export async function generateVerifiedOcChatResponse(opts: {
       if (!ok) {
         failReason = isNearDuplicateReply(next.messages, recentAsst)
           ? 'duplicate_reply'
-          : isStackedSameIntentShortBubbles(next.messages)
+          : isStackedNearDuplicateBubbles(next.messages)
             ? 'stacked_filler'
             : 'context_mismatch';
       }

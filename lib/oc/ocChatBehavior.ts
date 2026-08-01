@@ -173,12 +173,12 @@ function salvageMessages(raw: string): string[] {
     return Array.from(open[1].matchAll(/"((?:\\.|[^"\\])*)"/g))
       .map((m) => m[1]!.replace(/\\"/g, '"').replace(/\\n/g, '\n').trim())
       .filter((t) => t && !looksLikeBehaviorDump(t))
-      .slice(0, 3);
+      .slice(0, 2);
   }
   return Array.from(block[1].matchAll(/"((?:\\.|[^"\\])*)"/g))
     .map((m) => m[1]!.replace(/\\"/g, '"').replace(/\\n/g, '\n').trim())
     .filter((t) => t && !looksLikeBehaviorDump(t))
-    .slice(0, 3);
+    .slice(0, 2);
 }
 
 function salvageAction(raw: string): OcChatAction | null {
@@ -196,7 +196,7 @@ function asMessages(raw: unknown): string[] {
     return raw
       .map((x) => String(x || '').trim())
       .filter((t) => t && !looksLikeBehaviorDump(t))
-      .slice(0, 3);
+      .slice(0, 2);
   }
   if (typeof raw === 'string' && raw.trim() && !looksLikeBehaviorDump(raw)) {
     return [raw.trim()];
@@ -360,7 +360,7 @@ export function parseOcChatProactive(raw: string): OcChatProactiveDecision {
     const delayRaw = String(o.delay || 'short').trim() as OcChatDelayKind;
     const delay: OcChatDelayKind =
       delayRaw === 'long' || delayRaw === 'immediate' ? delayRaw : 'short';
-    const messages = asMessages(o.messages).slice(0, 3);
+    const messages = asMessages(o.messages).slice(0, 2);
     const moodNote = String(o.moodNote || '').trim().slice(0, 200) || undefined;
     return {
       reachOut: reachOut && messages.length > 0,

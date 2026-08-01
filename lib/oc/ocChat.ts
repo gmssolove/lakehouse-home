@@ -31,7 +31,10 @@ import {
   resolveResponseDelaySeconds,
 } from '@/lib/oc/ocChatPresence';
 import { resolveSticker } from '@/lib/oc/ocChatStickers';
-import { collapseSameIntentShortBubbles } from '@/lib/oc/ocChatVerify';
+import {
+  areNearDuplicateLines,
+  collapseSameIntentShortBubbles,
+} from '@/lib/oc/ocChatVerify';
 import { auth, db } from '@/lib/firebase/client';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import type { OcCharacter } from '@/lib/types/character';
@@ -1331,13 +1334,12 @@ export function dedupeRecentAssistantDuplicates<
     if (m.role === 'assistant' && (m.kind || 'chat') === 'chat') {
       const content = String(m.content || '').trim();
       if (content) {
-        const dup = out.some(
-          (p) =>
-            p.role === 'assistant' &&
-            (p.kind || 'chat') === 'chat' &&
-            String(p.content || '').trim() === content &&
-            Math.abs((m.at || 0) - (p.at || 0)) < windowMs,
-        );
+        const dup = out.some((p) => {
+          if (p.role !== 'assistant' || (p.kind || 'chat') !== 'chat') return false;
+          if (Math.abs((m.at || 0) - (p.at || 0)) >= windowMs) return false;
+          const prev = String(p.content || '').trim();
+          return prev === content || areNearDuplicateLines(prev, content);
+        });
         if (dup) continue;
       }
     }
@@ -1460,34 +1462,63 @@ export function applyDuePendingBehavior(
     };
   }
 
-  const lines = (pending.messages || []).filter(
-    (line) => line.trim() && !looksLikeBehaviorDump(line),
+  const lines = collapseSameIntentShortBubbles(
+    (pending.messages || []).filter(
+      (line) => line.trim() && !looksLikeBehaviorDump(line),
+    ),
   );
   const sticker = resolveSticker(opts?.character?.chatbot, pending.sticker || null);
   let added = 0;
+  const recentAsstText = msgs
+    .filter((m) => m.role === 'assistant' && (m.kind || 'chat') === 'chat')
+    .map((m) => m.content)
+    .slice(-8);
 
   /* 이미 UI/다른 경로가 같은 대사를 붙였으면 또 붙이지 않음 */
   const alreadyDelivered = pendingLinesAlreadyPresent(msgs, lines, Boolean(sticker));
   if (!alreadyDelivered) {
+    let t = 0;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
+      if (recentAsstText.some((prev) => areNearDuplicateLines(prev, line))) {
+        console.info('[oc-chat] skip near-dup pending line', { line: line.slice(0, 60) });
+        continue;
+      }
       /* at을 1ms씩 벌려 배열 순서 = 시간 순서 (동일 ms + id 정렬 뒤집힘 방지) */
       msgs = [
         ...msgs,
-        createChatMessage('assistant', line, 'chat', { at: now + i }),
+        createChatMessage('assistant', line, 'chat', { at: now + t }),
       ];
+      recentAsstText.push(line);
       added += 1;
+      t += 1;
     }
-    if (sticker) {
+    if (sticker && added > 0) {
       msgs = [
         ...msgs,
         createChatMessage('assistant', '스티커', 'sticker', {
           stickerUrl: sticker.imageUrl,
           stickerId: sticker.id,
-          at: now + lines.length,
+          at: now + t,
         }),
       ];
       added += 1;
+    } else if (sticker && added === 0 && !alreadyDelivered) {
+      /* 대사만 중복이고 스티커는 아직 없으면 스티커만 */
+      const hasSticker = msgs.some(
+        (m) => m.role === 'assistant' && (m.kind || 'chat') === 'sticker',
+      );
+      if (!hasSticker) {
+        msgs = [
+          ...msgs,
+          createChatMessage('assistant', '스티커', 'sticker', {
+            stickerUrl: sticker.imageUrl,
+            stickerId: sticker.id,
+            at: now,
+          }),
+        ];
+        added += 1;
+      }
     }
   }
 
