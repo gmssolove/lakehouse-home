@@ -55,10 +55,10 @@
 }
 
 /* PV 종료·스킵 후 lhDetailOpen(both)이 화면 전체를 opacity:0에 묶는 문제 차단
-   — 목록 복귀(is-ui-leaving) 연출은 허용 */
-#detail-screen.active:not(.is-ui-leaving),
-#detail-screen.active.is-pv-done:not(.is-ui-leaving),
-#detail-screen.active:not(.is-ui-leaving):has(.oc-detail-right) {
+   — 목록 복귀(is-ui-leaving)·채팅 OC 전환 페이드(is-chat-switch-fade)는 허용 */
+#detail-screen.active:not(.is-ui-leaving):not(.is-chat-switch-fade),
+#detail-screen.active.is-pv-done:not(.is-ui-leaving):not(.is-chat-switch-fade),
+#detail-screen.active:not(.is-ui-leaving):not(.is-chat-switch-fade):has(.oc-detail-right) {
   animation: none !important;
   opacity: 1 !important;
   filter: none !important;

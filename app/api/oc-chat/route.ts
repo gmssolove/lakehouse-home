@@ -263,11 +263,13 @@ async function maybeRefreshMemorySummary(opts: {
 function httpStatusForChatError(err: unknown, message: string): number {
   if (err instanceof OcChatUpstreamError) {
     if (err.upstreamStatus === 429) return 429;
+    if (err.upstreamStatus === 503) return 503;
     if (/API_KEY|키가 없/i.test(message)) return 503;
     return 502;
   }
   if (/API_KEY|키가 없/i.test(message)) return 503;
-  if (/할당량|결제|billing|quota/i.test(message)) return 429;
+  if (/할당량|결제|billing|quota|RESOURCE_EXHAUSTED/i.test(message)) return 429;
+  if (/UNAVAILABLE|overloaded|high demand|일시적/i.test(message)) return 503;
   return 502;
 }
 

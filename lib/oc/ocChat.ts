@@ -472,6 +472,119 @@ export function formatChatClock(at: number): string {
   return `${period} ${h12}:${String(m).padStart(2, '0')}`;
 }
 
+/** 채팅 목록 상대 시간 — "방금" / "N분 전" / "어제" / "M월 D일" */
+export function formatChatRelativeTime(at: number, now = Date.now()): string {
+  if (!Number.isFinite(at) || at <= 0) return '';
+  const diff = Math.max(0, now - at);
+  if (diff < 60_000) return '방금';
+  if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)}분 전`;
+  if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))}시간 전`;
+
+  const d = new Date(at);
+  const n = new Date(now);
+  const startOfToday = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+  const startOfYesterday = startOfToday - 24 * 60 * 60_000;
+  if (at >= startOfYesterday && at < startOfToday) return '어제';
+
+  if (d.getFullYear() === n.getFullYear()) {
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  }
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}.${mm}.${dd}`;
+}
+
+export type OcChatInboxItem = {
+  characterId: string;
+  lastAt: number;
+  preview: string;
+  unread: number;
+  updatedAt: number;
+};
+
+export function previewFromChatMessage(m: OcChatMessage | undefined): string {
+  if (!m) return '';
+  if (m.kind === 'sticker') return '스티커';
+  const text = String(m.content || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.slice(0, 120);
+}
+
+export function inboxItemFromThread(
+  characterId: string,
+  thread: OcChatThread | null | undefined,
+): OcChatInboxItem | null {
+  if (!thread?.messages?.length) return null;
+  const last = thread.messages[thread.messages.length - 1]!;
+  const lastAt = typeof last.at === 'number' ? last.at : 0;
+  if (!lastAt) return null;
+  return {
+    characterId: String(characterId),
+    lastAt,
+    preview: previewFromChatMessage(last),
+    unread: countCharUnread(thread),
+    updatedAt:
+      typeof thread.updatedAt === 'number' && thread.updatedAt > 0
+        ? thread.updatedAt
+        : lastAt,
+  };
+}
+
+/** 서버 inbox + 로컬 캐시를 lastAt 기준으로 병합 (스레드 있는 것만) */
+export function mergeOcChatInboxItems(
+  remote: OcChatInboxItem[],
+  local: OcChatInboxItem[],
+): OcChatInboxItem[] {
+  const map = new Map<string, OcChatInboxItem>();
+  for (const item of [...remote, ...local]) {
+    const id = String(item.characterId);
+    const prev = map.get(id);
+    if (!prev || item.lastAt > prev.lastAt) {
+      map.set(id, { ...item, characterId: id });
+    } else if (item.lastAt === prev.lastAt && item.unread > prev.unread) {
+      map.set(id, { ...prev, unread: item.unread, preview: item.preview || prev.preview });
+    }
+  }
+  return [...map.values()].sort((a, b) => b.lastAt - a.lastAt);
+}
+
+export function collectLocalOcChatInbox(visitorId: string, characterIds: string[]): OcChatInboxItem[] {
+  const out: OcChatInboxItem[] = [];
+  for (const id of characterIds) {
+    const item = inboxItemFromThread(id, peekOcChatThreadCache(id, visitorId));
+    if (item) out.push(item);
+  }
+  return out;
+}
+
+export async function fetchOcChatInbox(visitorId: string): Promise<OcChatInboxItem[]> {
+  const vid = String(visitorId || '').trim();
+  if (!vid) return [];
+  const res = await fetch(`/api/oc-chat-inbox?visitorId=${encodeURIComponent(vid)}`, {
+    method: 'GET',
+    cache: 'no-store',
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { items?: OcChatInboxItem[] };
+  const items = Array.isArray(data.items) ? data.items : [];
+  return items
+    .map((raw) => {
+      const characterId = String(raw?.characterId || '').trim();
+      const lastAt = Number(raw?.lastAt) || 0;
+      if (!characterId || !lastAt) return null;
+      return {
+        characterId,
+        lastAt,
+        preview: String(raw?.preview || ''),
+        unread: Math.max(0, Math.floor(Number(raw?.unread) || 0)),
+        updatedAt: Number(raw?.updatedAt) || lastAt,
+      } satisfies OcChatInboxItem;
+    })
+    .filter((x): x is OcChatInboxItem => !!x)
+    .sort((a, b) => b.lastAt - a.lastAt);
+}
+
 const CHAT_WEEKDAYS = [
   '일요일',
   '월요일',
@@ -1629,6 +1742,12 @@ function looksLikeCloudflareBlock(status: number, rawBody: string): boolean {
 function ocChatHttpErrorMessage(status: number, rawBody: string): string {
   const apiError = parseOcChatApiErrorField(rawBody);
   if (apiError) {
+    if (/API_KEY|키가 없/i.test(apiError)) {
+      return '채팅 API 키가 설정되지 않았습니다. 배포 환경 시크릿을 확인해 주세요.';
+    }
+    if (status === 503 || /UNAVAILABLE|overloaded|high demand/i.test(apiError)) {
+      return `서버가 잠시 바쁩니다. 잠시 후 다시 보내 주세요. (${status})`;
+    }
     return status >= 500 ? `서버 오류: ${apiError}` : apiError;
   }
   const trimmed = rawBody.trim();
@@ -1639,12 +1758,15 @@ function ocChatHttpErrorMessage(status: number, rawBody: string): string {
   if (looksLikeCloudflareBlock(status, rawBody)) {
     return `브라우저 보안 확인이 가로막았습니다 (${status}). 일반 창에서 새로고침 후 다시 시도해 주세요.`;
   }
-  const snippet = trimmed.slice(0, 160);
-  if (snippet && !snippet.startsWith('<')) {
-    return `${snippet}${rawBody.length > 160 ? '…' : ''} (${status})`;
+  if (status === 503) {
+    return '서버가 잠시 바쁩니다. 잠시 후 다시 보내 주세요. (503)';
   }
   if (status === 429) {
     return '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  const snippet = trimmed.slice(0, 160);
+  if (snippet && !snippet.startsWith('<')) {
+    return `${snippet}${rawBody.length > 160 ? '…' : ''} (${status})`;
   }
   return `채팅 요청 실패 (${status})`;
 }
@@ -1679,6 +1801,20 @@ export async function postOcChat(params: {
   memorySummaryThroughAt?: number;
   signal?: AbortSignal;
 }): Promise<OcChatApiResult> {
+  type OcChatPostJson = {
+    behavior?: OcChatBehavior;
+    reply?: string;
+    affinityDelta?: number;
+    affection?: number;
+    freeGainToday?: number;
+    freeLossToday?: number;
+    freeGainDate?: string;
+    deltaReason?: string;
+    memorySummary?: string;
+    memorySummaryThroughAt?: number;
+    error?: string;
+  };
+
   const recent = params.messages
     .filter((m) => m.kind === 'chat' || m.kind === 'choice' || m.kind === 'sticker' || !m.kind)
     .slice(-OC_CHAT_API_HISTORY)
@@ -1697,84 +1833,92 @@ export async function postOcChat(params: {
       stickerUrl: m.stickerUrl,
     }))
     .filter((m) => m.content);
-  const res = await fetch('/api/oc-chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      mode: 'chat',
-      characterId: params.characterId,
-      visitorId: params.visitorId,
-      messages: recent,
-      affection: params.affection,
-      freeGainToday: params.freeGainToday,
-      freeLossToday: params.freeLossToday,
-      moodNote: params.moodNote,
-      turnsToday: params.turnsToday,
-      hoursSinceLast: params.hoursSinceLast,
-      closedForToday: params.closedForToday,
-      recentDeltaReasons: params.recentDeltaReasons,
-      presence: params.presence,
-      recentActions: resolveRecentActionsForPrompt(
-        params.recentActions as OcChatRecentAction[] | undefined,
-        params.messages,
-      ),
-      memorySummary: params.memorySummary,
-      memorySummaryThroughAt: params.memorySummaryThroughAt,
-    }),
-    signal: params.signal,
-  });
-  const rawBody = await res.text();
-  type OcChatPostJson = {
-    behavior?: OcChatBehavior;
-    reply?: string;
-    affinityDelta?: number;
-    affection?: number;
-    freeGainToday?: number;
-    freeLossToday?: number;
-    freeGainDate?: string;
-    deltaReason?: string;
-    memorySummary?: string;
-    memorySummaryThroughAt?: number;
-    error?: string;
-  };
-  if (!res.ok) {
-    throw new Error(ocChatHttpErrorMessage(res.status, rawBody));
-  }
-  const data = parseOcChatJsonBody<OcChatPostJson>(rawBody, res.status);
-  const behavior =
-    data.behavior ||
-    parseOcChatBehavior('', data.reply || '');
-  if (
-    behavior.action === 'respond' ||
-    behavior.action === 'end_for_today'
-  ) {
-    if (!behavior.messages.length && data.reply) {
-      behavior.messages = [String(data.reply).trim()].filter(Boolean);
-    }
-  }
-  return {
-    behavior,
-    affinityDelta: typeof data.affinityDelta === 'number' ? data.affinityDelta : behavior.affinityDelta,
-    affection: clampAffection(
-      typeof data.affection === 'number' ? data.affection : params.affection,
+
+  const body = {
+    mode: 'chat' as const,
+    characterId: params.characterId,
+    visitorId: params.visitorId,
+    messages: recent,
+    affection: params.affection,
+    freeGainToday: params.freeGainToday,
+    freeLossToday: params.freeLossToday,
+    moodNote: params.moodNote,
+    turnsToday: params.turnsToday,
+    hoursSinceLast: params.hoursSinceLast,
+    closedForToday: params.closedForToday,
+    recentDeltaReasons: params.recentDeltaReasons,
+    presence: params.presence,
+    recentActions: resolveRecentActionsForPrompt(
+      params.recentActions as OcChatRecentAction[] | undefined,
+      params.messages,
     ),
-    freeGainToday:
-      typeof data.freeGainToday === 'number' ? data.freeGainToday : params.freeGainToday,
-    freeLossToday:
-      typeof data.freeLossToday === 'number'
-        ? data.freeLossToday
-        : params.freeLossToday || 0,
-    freeGainDate: String(data.freeGainDate || todayKeyLocal()),
-    deltaReason: data.deltaReason || behavior.deltaReason,
-    memorySummary:
-      typeof data.memorySummary === 'string' && data.memorySummary.trim()
-        ? data.memorySummary.trim().slice(0, 800)
-        : params.memorySummary,
-    memorySummaryThroughAt:
-      typeof data.memorySummaryThroughAt === 'number' && Number.isFinite(data.memorySummaryThroughAt)
-        ? data.memorySummaryThroughAt
-        : params.memorySummaryThroughAt,
+    memorySummary: params.memorySummary,
+    memorySummaryThroughAt: params.memorySummaryThroughAt,
   };
+
+  const runOnce = async (): Promise<OcChatApiResult> => {
+    const res = await fetch('/api/oc-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: params.signal,
+    });
+    const rawBody = await res.text();
+    if (!res.ok) {
+      throw new Error(ocChatHttpErrorMessage(res.status, rawBody));
+    }
+    const data = parseOcChatJsonBody<OcChatPostJson>(rawBody, res.status);
+    const behavior =
+      data.behavior ||
+      parseOcChatBehavior('', data.reply || '');
+    if (
+      behavior.action === 'respond' ||
+      behavior.action === 'end_for_today'
+    ) {
+      if (!behavior.messages.length && data.reply) {
+        behavior.messages = [String(data.reply).trim()].filter(Boolean);
+      }
+    }
+    return {
+      behavior,
+      affinityDelta:
+        typeof data.affinityDelta === 'number' ? data.affinityDelta : behavior.affinityDelta,
+      affection: clampAffection(
+        typeof data.affection === 'number' ? data.affection : params.affection,
+      ),
+      freeGainToday:
+        typeof data.freeGainToday === 'number' ? data.freeGainToday : params.freeGainToday,
+      freeLossToday:
+        typeof data.freeLossToday === 'number'
+          ? data.freeLossToday
+          : params.freeLossToday || 0,
+      freeGainDate: String(data.freeGainDate || todayKeyLocal()),
+      deltaReason: data.deltaReason || behavior.deltaReason,
+      memorySummary:
+        typeof data.memorySummary === 'string' && data.memorySummary.trim()
+          ? data.memorySummary.trim().slice(0, 800)
+          : params.memorySummary,
+      memorySummaryThroughAt:
+        typeof data.memorySummaryThroughAt === 'number' &&
+        Number.isFinite(data.memorySummaryThroughAt)
+          ? data.memorySummaryThroughAt
+          : params.memorySummaryThroughAt,
+    };
+  };
+
+  try {
+    return await runOnce();
+  } catch (err) {
+    if (params.signal?.aborted) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    const retryable = /\(50[023]\)|\(429\)|서버 오류|Request not allowed|가로막|UNAVAILABLE|overloaded|잠시/i.test(
+      msg,
+    );
+    if (!retryable) throw err;
+    await sleepMs(650);
+    if (params.signal?.aborted) throw err;
+    return await runOnce();
+  }
 }
 
 export async function postOcChatProactive(params: {

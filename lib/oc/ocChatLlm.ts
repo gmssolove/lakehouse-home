@@ -264,7 +264,11 @@ export async function callGemini(
           /empty response/i.test(e.message);
         const retrySame = retryable && attempt < maxAttempts;
         if (retrySame) {
-          await new Promise((r) => setTimeout(r, 400 * attempt));
+          const backoff =
+            e.upstreamStatus === 503 || e.upstreamStatus === 429
+              ? 700 * attempt
+              : 400 * attempt;
+          await new Promise((r) => setTimeout(r, backoff));
           continue;
         }
         const tryNext = i < models.length - 1 && retryable;

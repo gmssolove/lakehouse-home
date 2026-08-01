@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
+import { OcChatPanel } from '@/components/oc/OcChatPanel';
 import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
 import { EntrySplash } from '@/components/shared/EntrySplash';
 import { PageTipToast } from '@/components/shared/PageTipToast';
@@ -96,6 +97,9 @@ export function OcPageClient() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   /** OC 페이지 마운트당 1회 — 영역 클릭 후 TOUCH! 숨김(새로고침/재진입 시 초기화) */
   const [touchHintDismissed, setTouchHintDismissed] = useState(false);
+  /** 채팅 오버레이 — 상세 remount와 분리해 OC 전환 시에도 유지 */
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatCharacterId, setChatCharacterId] = useState<string | null>(null);
 
   useEffect(() => {
     document.body.style.opacity = '1';
@@ -187,6 +191,8 @@ export function OcPageClient() {
     const finish = () => {
       leavingRef.current = false;
       setDetailLeaving(false);
+      setChatOpen(false);
+      setChatCharacterId(null);
       if (detailUsedThemeRef.current) {
         restorePageSnapshot(ocSettings.autoResumeMainBgm);
       }
@@ -335,7 +341,11 @@ export function OcPageClient() {
     setAuIdx(au);
   }
 
-  function openDetail(c: OcCharacter, au: number, opts?: { skipIntro?: boolean; instant?: boolean }) {
+  function openDetail(
+    c: OcCharacter,
+    au: number,
+    opts?: { skipIntro?: boolean; instant?: boolean; skipSplash?: boolean },
+  ) {
     setDetailInstant(!!opts?.instant);
     const hasTheme = characterHasBgmTheme(c);
     detailUsedThemeRef.current = hasTheme;
@@ -354,7 +364,7 @@ export function OcPageClient() {
     } else {
       resumePageBgmIfNeeded();
     }
-    if (normalizeEntrySplash(c.entrySplash).enabled) {
+    if (!opts?.skipSplash && normalizeEntrySplash(c.entrySplash).enabled) {
       const pending = { character: c, auIdx: au, skipIntro: opts?.skipIntro };
       splashPendingRef.current = pending;
       setIntro(null);
@@ -366,6 +376,101 @@ export function OcPageClient() {
     setEntrySplash(null);
     proceedAfterSplash(c, au, opts);
   }
+
+  const chatSwitchTimerRef = useRef(0);
+  const chatSwitchDebounceRef = useRef(0);
+  const chatSwitchGenRef = useRef(0);
+  /** 페이드 중 URL sync가 openDetail을 덮어쓰지 않게 */
+  const chatSwitchPendingIdRef = useRef<string | null>(null);
+  const chatSwitchSuppressUrlRef = useRef(false);
+  const detailRef = useRef(detail);
+  detailRef.current = detail;
+
+  const openChatForCharacter = useCallback((c: OcCharacter) => {
+    if (!c.chatbot?.enabled) return;
+    setChatCharacterId(String(c.id));
+    setChatOpen(true);
+  }, []);
+
+  const closeChat = useCallback(() => {
+    setChatOpen(false);
+  }, []);
+
+  const commitChatSwitch = useCallback(
+    (next: OcCharacter) => {
+      const id = String(next.id);
+      const gen = ++chatSwitchGenRef.current;
+      chatSwitchPendingIdRef.current = id;
+      setChatCharacterId(id);
+      setChatOpen(true);
+
+      chatSwitchSuppressUrlRef.current = true;
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('c') !== id) {
+          url.searchParams.set('c', id);
+          url.searchParams.set('direct', '1');
+          router.push(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+        }
+      } catch {
+        router.push(`/oc?c=${encodeURIComponent(id)}&direct=1`, { scroll: false });
+      }
+      window.setTimeout(() => {
+        if (chatSwitchGenRef.current === gen) chatSwitchSuppressUrlRef.current = false;
+      }, 280);
+
+      const screen = document.getElementById('detail-screen');
+      const needsSwap = String(detailRef.current?.id) !== id;
+      window.clearTimeout(chatSwitchTimerRef.current);
+
+      if (!needsSwap) {
+        chatSwitchPendingIdRef.current = null;
+        return;
+      }
+
+      /* 상세는 즉시 교체 — 페이드는 교체와 동시에 짧게만 */
+      openDetail(next, -1, { skipIntro: true, instant: true, skipSplash: true });
+      chatSwitchPendingIdRef.current = null;
+
+      if (!screen) return;
+      screen.classList.remove('is-chat-switch-fade');
+      void screen.offsetWidth;
+      screen.classList.add('is-chat-switch-fade');
+      chatSwitchTimerRef.current = window.setTimeout(() => {
+        if (chatSwitchGenRef.current !== gen) return;
+        screen.classList.remove('is-chat-switch-fade');
+      }, 280);
+    },
+    [router],
+  );
+
+  const switchChatToCharacter = useCallback(
+    (next: OcCharacter) => {
+      if (!next.chatbot?.enabled) return;
+      const id = String(next.id);
+      const canOpen = canAccessSecretItem('oc', id, {
+        secret: next.secret,
+        expectedPassword: resolveItemPassword('oc', next, accessSettings),
+        isAdmin,
+        loggedIn: !!user,
+      });
+      if (!canOpen) {
+        setPasswordGate({ character: next, au: -1, skipIntro: true });
+        return;
+      }
+      window.clearTimeout(chatSwitchDebounceRef.current);
+      commitChatSwitch(next);
+    },
+    [accessSettings, commitChatSwitch, isAdmin, user],
+  );
+
+  const chatCharacter = useMemo(() => {
+    if (!chatCharacterId) return null;
+    return (
+      characters.find((c) => String(c.id) === String(chatCharacterId)) ||
+      (liveDetail && String(liveDetail.id) === String(chatCharacterId) ? liveDetail : null)
+    );
+  }, [characters, chatCharacterId, liveDetail]);
 
   const finishEntrySplash = useCallback(() => {
     const pending = splashPendingRef.current;
@@ -443,6 +548,36 @@ export function OcPageClient() {
     requestOpenDetail(c, -1, { skipIntro, instant: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from URL
   }, [characters, searchParams, detail, intro, entrySplash, authReady]);
+
+  /* 브라우저 back/forward로 ?c= 가 바뀌면 상세·채팅 대상을 soft 동기화 */
+  useEffect(() => {
+    if (!authReady || !characters.length) return;
+    if (!detail && !intro && !entrySplash) return;
+    const fromUrl = searchParams.get('c')?.trim();
+    if (!fromUrl) return;
+    /* 목록에서 고른 soft push 처리 중이면 URL sync가 끼어들어 깜빡이지 않게 */
+    if (chatSwitchSuppressUrlRef.current) return;
+    if (
+      chatSwitchPendingIdRef.current &&
+      String(chatSwitchPendingIdRef.current) === String(fromUrl)
+    ) {
+      return;
+    }
+    if (String(detail?.id) === String(fromUrl)) {
+      if (chatOpen) setChatCharacterId(String(fromUrl));
+      return;
+    }
+    const c = characters.find((ch) => String(ch.id) === String(fromUrl));
+    if (!c) return;
+    /* back 등 외부 URL 변화 — 진행 중 페이드 취소 후 맞춤 */
+    window.clearTimeout(chatSwitchTimerRef.current);
+    window.clearTimeout(chatSwitchDebounceRef.current);
+    chatSwitchPendingIdRef.current = null;
+    document.getElementById('detail-screen')?.classList.remove('is-chat-switch-fade');
+    openDetail(c, -1, { skipIntro: true, instant: true, skipSplash: true });
+    if (chatOpen) setChatCharacterId(String(c.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync from URL only
+  }, [searchParams, characters, authReady, detail?.id, chatOpen, intro, entrySplash]);
 
   const detailImg = liveDetail ? charImg(liveDetail, auIdx) : null;
   const tipToastOc = useMemo(
@@ -713,9 +848,23 @@ export function OcPageClient() {
             }
             touchHintDismissed={touchHintDismissed}
             onTouchHintDismiss={() => setTouchHintDismissed(true)}
+            chatOpen={chatOpen}
+            onOpenChat={() => {
+              if (liveDetail) openChatForCharacter(liveDetail);
+            }}
           />
         )}
       </div>
+
+      {chatCharacter?.chatbot?.enabled ? (
+        <OcChatPanel
+          open={chatOpen}
+          character={chatCharacter}
+          characters={characters}
+          onClose={closeChat}
+          onSelectCharacter={switchChatToCharacter}
+        />
+      ) : null}
 
       {entrySplash ? (
         <EntrySplash

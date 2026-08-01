@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>채팅 목록 ↔ 상세 네비게이션 + 토스트</title>
+<style>
+  :root{
+    --bg:#F7F5F1; --surface:#FFFFFF; --border:#E7E3DA;
+    --text:#2B2A27; --sub:#8C887E; --accent:#C97B63; --accent-bg:#FBEDE8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;
+    background:#DCD8CD; display:flex; align-items:flex-start; justify-content:center; gap:28px;
+    min-height:100vh; padding:40px 20px; flex-wrap:wrap;
+  }
+
+  /* ---- 좌측 컨트롤 패널(데모용, 실제 앱에는 필요없음) ---- */
+  .panel{
+    width:250px; background:var(--surface); border:1px solid var(--border);
+    border-radius:20px; padding:16px; box-shadow:0 10px 24px rgba(0,0,0,0.08);
+    font-size:12.5px; color:var(--sub);
+  }
+  .panel h3{margin:2px 0 10px; font-size:14px; color:var(--text);}
+  .panel button{
+    width:100%; padding:10px; margin-bottom:8px; border-radius:12px; border:1px solid var(--border);
+    background:var(--bg); color:var(--text); font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .panel button:hover{background:var(--accent-bg); border-color:var(--accent);}
+  .panel p{line-height:1.6; margin-top:12px;}
+
+  /* ---- 폰 목업 ---- */
+  .phone{
+    width:380px; height:720px; background:var(--bg); border-radius:36px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.25); overflow:hidden; position:relative;
+    border:8px solid #1c1c1c; flex-shrink:0;
+  }
+  .statusbar{height:26px; background:var(--bg); position:relative; z-index:5;}
+
+  .stack{
+    position:relative; width:100%; height:calc(100% - 26px); overflow:hidden;
+  }
+  .screen{
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    background:var(--bg); display:flex; flex-direction:column;
+    transition: transform .32s cubic-bezier(.32,.9,.35,1);
+  }
+  /* 기본: 목록이 보이고, 상세는 오른쪽 바깥에 대기 */
+  #screen-list{ transform: translateX(0); z-index:1; }
+  #screen-detail{ transform: translateX(100%); z-index:2; }
+  .stack.detail-active #screen-list{ transform: translateX(-28%); filter:brightness(0.92); }
+  .stack.detail-active #screen-detail{ transform: translateX(0); }
+
+  /* ---- 목록 화면 ---- */
+  .list-header{
+    padding:18px 16px 10px; font-size:19px; font-weight:800; color:var(--text);
+    background:var(--bg);
+  }
+  .chat-row{
+    display:flex; align-items:center; gap:12px; padding:10px 16px;
+    cursor:pointer; border-bottom:1px solid var(--border);
+  }
+  .chat-row:hover{background:var(--surface);}
+  .row-avatar{
+    width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:16px; color:#fff; flex-shrink:0;
+  }
+  .row-mid{flex:1; min-width:0;}
+  .row-name{font-size:14.5px; font-weight:700; color:var(--text);}
+  .row-msg{font-size:12.5px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;}
+  .row-right{display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex-shrink:0;}
+  .row-time{font-size:11px; color:var(--sub);}
+  .row-badge{
+    min-width:18px; height:18px; border-radius:9px; background:var(--accent); color:#fff;
+    font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center; padding:0 5px;
+  }
+
+  /* ---- 상세 화면 ---- */
+  .detail-header{
+    display:flex; align-items:center; gap:10px; padding:14px 12px;
+    background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0;
+  }
+  .back-btn{
+    width:34px; height:34px; border-radius:50%; border:none; background:transparent;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
+  }
+  .back-btn:hover{background:var(--bg);}
+  .back-btn svg{width:20px; height:20px;}
+  .d-avatar{
+    width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:14px; color:#fff; flex-shrink:0;
+  }
+  .d-name{font-size:15px; font-weight:700; color:var(--text);}
+  .d-status{font-size:11.5px; color:var(--sub);}
+  .chatlog{padding:20px 16px; display:flex; flex-direction:column; gap:10px; flex:1; overflow-y:auto; position:relative;}
+  .bubble{max-width:70%; padding:10px 14px; border-radius:16px; font-size:13.5px; line-height:1.5; color:var(--text);
+    opacity:0; animation:bubbleIn .22s ease forwards;}
+  @keyframes bubbleIn{ to{opacity:1;} }
+  .them{background:var(--surface); border:1px solid var(--border); align-self:flex-start; border-bottom-left-radius:4px;}
+  .me{background:var(--accent); color:#fff; align-self:flex-end; border-bottom-right-radius:4px;}
+
+  /* ---- 스크롤 보조 UI (아래로 이동 화살표 / 새 메시지 알림) ---- */
+  .new-msg-pill{
+    position:absolute; left:50%; bottom:14px; transform:translate(-50%, 8px) scale(0.95);
+    pointer-events:none; cursor:pointer; display:flex; align-items:center; gap:6px;
+    background:#232220; color:#fff; font-size:12px; font-weight:600; padding:8px 14px;
+    border-radius:999px; box-shadow:0 8px 18px rgba(0,0,0,0.22);
+    opacity:0; transition:all .2s ease; z-index:15;
+  }
+  .new-msg-pill.show{ opacity:1; transform:translate(-50%, 0) scale(1); pointer-events:auto; }
+  .new-msg-pill .arrow{font-size:11px;}
+
+  .scroll-fab{
+    position:absolute; right:14px; bottom:14px; transform:translateY(8px) scale(0.9);
+    pointer-events:none; cursor:pointer; width:36px; height:36px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--border); box-shadow:0 6px 16px rgba(0,0,0,0.16);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:all .2s ease; z-index:15;
+  }
+  .scroll-fab.show{ opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+  .scroll-fab svg{width:16px; height:16px;}
+
+  /* ---- 토스트 (어느 화면 위에도 뜸) ---- */
+  .toast{
+    position:absolute; left:10px; right:10px; top:36px; z-index:50;
+    background:#232220; color:#fff; border-radius:16px;
+    padding:11px 12px 0 12px; overflow:hidden;
+    box-shadow:0 10px 24px rgba(0,0,0,0.3);
+    opacity:0; transform:translateY(-120%);
+    pointer-events:none; cursor:pointer;
+  }
+  .toast.show{ animation: dropIn 3.4s cubic-bezier(.32,.9,.35,1.15) forwards; pointer-events:auto; }
+  @keyframes dropIn{
+    0%{opacity:0; transform:translateY(-120%);}
+    10%{opacity:1; transform:translateY(0);}
+    16%{transform:translateY(3%);}
+    22%{transform:translateY(0);}
+    88%{opacity:1; transform:translateY(0);}
+    100%{opacity:0; transform:translateY(-110%);}
+  }
+  .toast-row{display:flex; align-items:center; gap:10px; padding-bottom:11px;}
+  .t-avatar{
+    width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:13px; color:#fff; flex-shrink:0;
+  }
+  .toast-text{flex:1; min-width:0;}
+  .toast-name{font-size:12.5px; font-weight:700;}
+  .toast-sub{font-size:12px; color:#C9C6C0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px;}
+  .toast-badge{font-size:10px; padding:2px 7px; border-radius:999px; font-weight:700; flex-shrink:0; color:#fff;}
+  .track{height:2px; background:rgba(255,255,255,0.16); margin:0 -12px; position:relative;}
+  .bar{
+    position:absolute; left:0; top:0; height:100%; width:100%;
+    transform-origin:left; animation: shrink 3.4s linear forwards;
+  }
+  @keyframes shrink{ 0%{transform:scaleX(1);} 10%{transform:scaleX(1);} 100%{transform:scaleX(0);} }
+</style>
+</head>
+<body>
+
+  <div class="panel">
+    <h3>데모 컨트롤</h3>
+    <button onclick="fireToast()">📩 새 알림 토스트 띄우기</button>
+    <button onclick="goList()">◀ 목록으로 강제 이동</button>
+    <button onclick="simulateIncoming()">💬 위로 스크롤한 채로 메시지 오기</button>
+    <p>상세 화면에서 위로 스크롤해보세요. 어느 정도 올라가면 하단에 <b>↓ 화살표</b>가 뜨고, 그 상태에서 새 메시지가 오면 화살표 대신 <b>"새 메시지" 알약</b>이 떠요. 둘 다 누르면 최신 메시지로 스르륵 이동합니다.</p>
+  </div>
+
+  <div class="phone">
+    <div class="statusbar"></div>
+    <div class="stack" id="stack">
+
+      <!-- 목록 화면 -->
+      <div class="screen" id="screen-list">
+        <div class="list-header">채팅</div>
+        <div id="chat-rows"></div>
+      </div>
+
+      <!-- 상세 화면 -->
+      <div class="screen" id="screen-detail">
+        <div class="detail-header">
+          <button class="back-btn" onclick="goList()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2B2A27" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+          <div class="d-avatar" id="d-avatar">카</div>
+          <div>
+            <div class="d-name" id="d-name">강 카논</div>
+            <div class="d-status" id="d-status">밴드부 · 방금 전 활동</div>
+          </div>
+        </div>
+        <div class="chatlog" id="chatlog"></div>
+        <div class="new-msg-pill" id="new-msg-pill" onclick="scrollToBottom()">
+          <span id="new-msg-text">새 메시지</span><span class="arrow">▾</span>
+        </div>
+        <div class="scroll-fab" id="scroll-fab" onclick="scrollToBottom()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#2B2A27" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+      </div>
+
+      <!-- 토스트 -->
+      <div class="toast" id="toast" onclick="onToastTap()">
+        <div class="toast-row">
+          <div class="t-avatar" id="t-avatar">카</div>
+          <div class="toast-text">
+            <div class="toast-name" id="t-name">카논</div>
+            <div class="toast-sub" id="t-sub">끝나면 꼭 연락해!! 기다린다~</div>
+          </div>
+          <div class="toast-badge" id="t-badge">NEW</div>
+        </div>
+        <div class="track"><div class="bar" id="bar"></div></div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+  // ▼ OC 목록 — 여기 배열만 수정하면 전체 반영됩니다 ▼
+  const OC_LIST = [
+    {
+      name: "강 카논", initial: "카", color: "#C97B63",
+      status: "밴드부 · 방금 전 활동",
+      lastMsgs: ["안녕!", "오늘 뭐했어", "나는 밴드부 연습했어", "손가락 아파 죽는 줄", "근데 재밌어서 계속 하게 됨", "뭐해? 나 지금 연습실이야", "과제 하는 중~ 곧 끝나"],
+      previewMsg: "끝나면 꼭 연락해!! 기다린다~", time: "방금", unread: 1
+    },
+    {
+      name: "계하", initial: "계", color: "#5B7B8C",
+      status: "탐사자 · 조사 중",
+      lastMsgs: ["어제 그 장소 다시 가봤어", "역시 뭔가 이상하더라", "혼자 가긴 좀 그래서 세키한테 연락했어", "귀현이도 온다고 함", "단서 하나 찾은 것 같아", "지금 그쪽으로 갈게"],
+      previewMsg: "이거 혼자 볼 게 아닌 것 같은데...", time: "3분 전", unread: 2
+    },
+    {
+      name: "이브", initial: "이", color: "#8C6FA8",
+      status: "경계지기 · 대기 중",
+      lastMsgs: ["오늘 별일 없었냐고 물어봐서 답장할게", "딱히 없었어", "그냥 평소랑 똑같았어", "너는 어땠는데", "오늘도 별일 없었어?", "다행이다"],
+      previewMsg: "잠깐 얘기 좀 할 수 있을까", time: "1시간 전", unread: 0
+    }
+  ];
+  // ▲ name, initial, color, status, lastMsgs, previewMsg, time, unread 자유롭게 수정 ▲
+
+  let toastTargetIndex = 0;
+
+  function renderList(){
+    const wrap = document.getElementById('chat-rows');
+    wrap.innerHTML = OC_LIST.map((oc, i) => `
+      <div class="chat-row" onclick="openChat(${i})">
+        <div class="row-avatar" style="background:${oc.color}">${oc.initial}</div>
+        <div class="row-mid">
+          <div class="row-name">${oc.name}</div>
+          <div class="row-msg">${oc.previewMsg}</div>
+        </div>
+        <div class="row-right">
+          <div class="row-time">${oc.time}</div>
+          ${oc.unread > 0 ? `<div class="row-badge">${oc.unread}</div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  let currentOcIndex = 0;
+  let unreadWhileScrolled = 0;
+
+  function openChat(i){
+    currentOcIndex = i;
+    unreadWhileScrolled = 0;
+    const oc = OC_LIST[i];
+    document.getElementById('d-avatar').textContent = oc.initial;
+    document.getElementById('d-avatar').style.background = oc.color;
+    document.getElementById('d-name').textContent = oc.name;
+    document.getElementById('d-status').textContent = oc.status;
+    document.getElementById('chatlog').innerHTML = oc.lastMsgs.map((m, idx) =>
+      `<div class="bubble ${idx % 2 === 0 ? 'them' : 'me'}">${m}</div>`
+    ).join('');
+    document.getElementById('stack').classList.add('detail-active');
+    document.getElementById('new-msg-pill').classList.remove('show');
+    document.getElementById('scroll-fab').classList.remove('show');
+    // 화면 진입 시 항상 최신 메시지 위치에서 시작
+    requestAnimationFrame(()=>{
+      const log = document.getElementById('chatlog');
+      log.scrollTop = log.scrollHeight;
+    });
+  }
+
+  function isNearBottom(){
+    const log = document.getElementById('chatlog');
+    return (log.scrollHeight - log.scrollTop - log.clientHeight) < 40;
+  }
+
+  function scrollToBottom(){
+    const log = document.getElementById('chatlog');
+    log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
+    unreadWhileScrolled = 0;
+    document.getElementById('new-msg-pill').classList.remove('show');
+    document.getElementById('scroll-fab').classList.remove('show');
+  }
+
+  function updateScrollUI(){
+    const log = document.getElementById('chatlog');
+    const distanceFromBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
+    const scrolledUpALot = distanceFromBottom > 220; // 이 정도 이상 올리면 화살표 노출
+
+    if(isNearBottom()){
+      // 바닥 근처면 둘 다 숨김 + 안읽음 카운트 리셋
+      unreadWhileScrolled = 0;
+      document.getElementById('new-msg-pill').classList.remove('show');
+      document.getElementById('scroll-fab').classList.remove('show');
+      return;
+    }
+
+    if(unreadWhileScrolled > 0){
+      // 새 메시지가 온 상태로 스크롤이 올라가 있으면 알약 우선 표시
+      document.getElementById('new-msg-text').textContent = `새 메시지 ${unreadWhileScrolled}개`;
+      document.getElementById('new-msg-pill').classList.add('show');
+      document.getElementById('scroll-fab').classList.remove('show');
+    } else if(scrolledUpALot){
+      document.getElementById('new-msg-pill').classList.remove('show');
+      document.getElementById('scroll-fab').classList.add('show');
+    } else {
+      document.getElementById('new-msg-pill').classList.remove('show');
+      document.getElementById('scroll-fab').classList.remove('show');
+    }
+  }
+
+  function simulateIncoming(){
+    const log = document.getElementById('chatlog');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble them';
+    bubble.textContent = '아 맞다 이거 말하는 거 깜빡했는데';
+    log.appendChild(bubble);
+
+    if(isNearBottom()){
+      // 이미 하단 근처였다면 톡처럼 자연스럽게 같이 내려감
+      requestAnimationFrame(()=> log.scrollTo({ top: log.scrollHeight, behavior:'smooth' }));
+    } else {
+      // 위로 스크롤해서 보고 있던 중이라면 자동으로 안 내리고 알려주기만 함
+      unreadWhileScrolled += 1;
+    }
+    updateScrollUI();
+  }
+
+  function goList(){
+    document.getElementById('stack').classList.remove('detail-active');
+  }
+
+  function fireToast(){
+    toastTargetIndex = Math.floor(Math.random() * OC_LIST.length);
+    const oc = OC_LIST[toastTargetIndex];
+    document.getElementById('t-avatar').textContent = oc.initial;
+    document.getElementById('t-avatar').style.background = oc.color;
+    document.getElementById('t-name').textContent = oc.name;
+    document.getElementById('t-sub').textContent = oc.previewMsg;
+    document.getElementById('t-badge').style.background = oc.color;
+    document.getElementById('bar').style.background = oc.color;
+
+    const t = document.getElementById('toast');
+    const b = document.getElementById('bar');
+    t.classList.remove('show');
+    b.style.animation = 'none';
+    void t.offsetWidth;
+    t.classList.add('show');
+    b.style.animation = 'shrink 3.4s linear forwards';
+  }
+
+  function onToastTap(){
+    document.getElementById('toast').classList.remove('show');
+    openChat(toastTargetIndex);
+  }
+
+  renderList();
+  document.getElementById('chatlog').addEventListener('scroll', updateScrollUI);
+  window.addEventListener('load', () => setTimeout(fireToast, 500));
+</script>
+</body>
+</html>

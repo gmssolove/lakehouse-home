@@ -37,7 +37,6 @@ import { StoryReader } from '@/components/shared/StoryReader';
 import { PreviewCarousel } from '@/components/shared/PreviewCarousel';
 import { OcStatHoverPanel } from '@/components/oc/OcStatHoverPanel';
 import { HandwritingNoteFlap } from '@/components/pair/HandwritingNoteFlap';
-import { OcChatPanel } from '@/components/oc/OcChatPanel';
 import { OcChatPhonePeek } from '@/components/oc/OcChatPhonePeek';
 import {
   buildOcChatNotifyPayload,
@@ -146,6 +145,10 @@ type Props = {
   onTouchHintDismiss?: () => void;
   /** 관련 프로필(딥링크) 진입 — 입장 슬라이드 없이 즉시 표시 */
   enterInstant?: boolean;
+  /** 채팅 오버레이는 OcPageClient가 소유 — 상세는 peek/토스트만 */
+  chatOpen?: boolean;
+  onOpenChat?: () => void;
+  onCloseChat?: () => void;
 };
 
 function isKeywordField(k: string) {
@@ -215,6 +218,8 @@ export function OcCharacterDetail({
   touchHintDismissed = false,
   onTouchHintDismiss,
   enterInstant = false,
+  chatOpen = false,
+  onOpenChat,
 }: Props) {
   const router = useRouter();
   const { trpg } = useSiteContent();
@@ -979,7 +984,6 @@ export function OcCharacterDetail({
     sfxUrl?: string;
     closeSfxUrl?: string;
   } | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
   /* 미읽음이 한 번이라도 잡히면 채팅 열기 전까지 유지 — RTDB 중간값으로 배지/턱이 깜빡이지 않게 */
   const [chatAlertLatched, setChatAlertLatched] = useState(false);
@@ -1032,10 +1036,14 @@ export function OcCharacterDetail({
 
   /* 상세 들어오자마자 캐시 기준으로 배지 표시 — 서버 폴링 전에 알림이 보이게 */
   useLayoutEffect(() => {
-    setChatOpen(false);
     setChatNotifyQueue([]);
     notifyBootstrappedRef.current = false;
     if (!chatEnabled) {
+      setChatUnread(0);
+      setChatAlertLatched(false);
+      return;
+    }
+    if (chatOpen) {
       setChatUnread(0);
       setChatAlertLatched(false);
       return;
@@ -1050,6 +1058,8 @@ export function OcCharacterDetail({
       setChatUnread(0);
       setChatAlertLatched(false);
     }
+    // chatOpen은 상위 소유 — 캐릭터 전환 시 배지만 재계산
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit chatOpen
   }, [character.id, chatEnabled]);
 
   useEffect(() => {
@@ -2470,7 +2480,7 @@ export function OcCharacterDetail({
           /* 채팅 열릴 때만 숨김 — VN/unread로 show·hide 하면 알림이 깜빡임 */
           hidden={chatOpen}
           tucked={vn.present && !chatAlertLatched}
-          onOpen={() => setChatOpen(true)}
+          onOpen={() => onOpenChat?.()}
         />
       ) : null}
 
@@ -2479,14 +2489,7 @@ export function OcCharacterDetail({
         onDone={(id) => {
           setChatNotifyQueue((q) => q.filter((x) => x.id !== id));
         }}
-        onOpen={() => setChatOpen(true)}
-      />
-
-      <OcChatPanel
-        key={String(character.id)}
-        open={chatOpen && chatEnabled}
-        character={character}
-        onClose={() => setChatOpen(false)}
+        onOpen={() => onOpenChat?.()}
       />
 
       {isAdmin && onSave ? (

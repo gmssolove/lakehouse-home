@@ -38,11 +38,13 @@ import { resolveOcChatPointStyle } from '@/lib/oc/characterTheme';
 import {
   behaviorToPending,
   cancelOcChatPendingDelivery,
+  collectLocalOcChatInbox,
   computePendingApplyAt,
   createChatMessage,
   chatDayKey,
   dedupeAdjacentAssistantMessages,
   dedupeAdjacentTextLines,
+  fetchOcChatInbox,
   formatChatClock,
   formatChatDayLabel,
   getOrCreateChatVisitorId,
@@ -51,6 +53,7 @@ import {
   loadOcChatThread,
   markUserMessagesRead,
   markUserMessagesReadThroughLastAssistant,
+  mergeOcChatInboxItems,
   isOcChatUserMsgUnread,
   OC_CHAT_REGATHER_QUIET_MS,
   OC_CHAT_BURST_REGATHER_MAX,
@@ -70,6 +73,7 @@ import {
   sleepMs,
   tryDeliverPendingChat,
   writeOcChatThreadCache,
+  type OcChatInboxItem,
   type OcChatMessage,
   type OcChatStoryState,
   type OcChatThread,
@@ -89,12 +93,17 @@ import {
 } from '@/lib/oc/ocChatVerify';
 import type { OcChatEpisode, OcChatEpisodeChoice, OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
+import { OcChatInboxList } from '@/components/oc/OcChatInboxList';
 
 type Props = {
   open: boolean;
   character: OcCharacter;
+  characters?: OcCharacter[];
   onClose: () => void;
+  onSelectCharacter?: (character: OcCharacter) => void;
 };
+
+type PhoneView = 'list' | 'thread';
 
 const STORY_AUTO_MS = 720;
 
@@ -274,7 +283,13 @@ function chatRelationTitle(name: string) {
   return `${n}와의 관계`;
 }
 
-export function OcChatPanel({ open, character, onClose }: Props) {
+export function OcChatPanel({
+  open,
+  character,
+  characters = [],
+  onClose,
+  onSelectCharacter,
+}: Props) {
   const { confirm, alert } = useLakeDialog();
   const bootRef = useRef<BootChatState | null>(null);
   if (bootRef.current == null) {
@@ -301,10 +316,17 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [relationAnim, setRelationAnim] = useState<'in' | 'out' | null>(null);
+  const [phoneView, setPhoneView] = useState<PhoneView>('thread');
+  const [inboxItems, setInboxItems] = useState<OcChatInboxItem[]>([]);
+  const [unreadWhileScrolled, setUnreadWhileScrolled] = useState(0);
+  const [showScrollFab, setShowScrollFab] = useState(false);
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
   const affToastTimer = useRef(0);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const unreadWhileScrolledRef = useRef(0);
+  const prevMsgCountRef = useRef(0);
+  const jumpBottomOnEnterRef = useRef(false);
   const visitorRef = useRef('');
   const revealedRef = useRef<Set<string>>(new Set());
   const storyTimer = useRef(0);
@@ -340,6 +362,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     meta: boot.meta,
   });
   const charId = String(character.id);
+  /** 렌더 중·비동기 콜백이 참조하는 “지금 열린 OC” — stale persist/setMessages 차단 */
+  const activeCharIdRef = useRef(charId);
+  activeCharIdRef.current = charId;
   const chatAvatar = resolveChatAvatarUrl(character);
   const characterRef = useRef(character);
   characterRef.current = character;
@@ -354,6 +379,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     lastSeenAt,
     meta,
   };
+
+  const stillOnChar = useCallback((expectId: string) => {
+    return activeCharIdRef.current === String(expectId);
+  }, []);
 
   /* 캐릭터 전환 시 장기 기억 다시 시드 */
   useEffect(() => {
@@ -417,19 +446,124 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       : null;
   const choices = (activeScene?.choices || []).filter((c) => c.text?.trim());
 
-  const scrollToEnd = useCallback((force = true) => {
+  const isNearBottom = useCallback(() => {
+    const el = threadRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }, []);
+
+  const updateScrollUI = useCallback(() => {
     const el = threadRef.current;
     if (!el) return;
-    /* 위로 올려 과거를 보는 중이면 새 말풍선/타이핑 때문에 강제로 끌어내리지 않음 */
-    if (!force) {
-      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (dist > 96) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 40) {
+      unreadWhileScrolledRef.current = 0;
+      setUnreadWhileScrolled(0);
+      setShowScrollFab(false);
+      return;
     }
-    el.scrollTop = el.scrollHeight;
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-    });
+    if (unreadWhileScrolledRef.current > 0) {
+      setShowScrollFab(false);
+      return;
+    }
+    setShowScrollFab(distanceFromBottom > 220);
   }, []);
+
+  const scrollToEnd = useCallback(
+    (opts?: { force?: boolean; smooth?: boolean }): boolean => {
+      const el = threadRef.current;
+      if (!el) return false;
+      const force = opts?.force !== false;
+      const smooth = opts?.smooth === true;
+      if (!force && !isNearBottom()) return false;
+      if (smooth) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      } else {
+        el.scrollTop = el.scrollHeight;
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
+      unreadWhileScrolledRef.current = 0;
+      setUnreadWhileScrolled(0);
+      setShowScrollFab(false);
+      return true;
+    },
+    [isNearBottom],
+  );
+
+  const onMessagesAppended = useCallback(
+    (added: number) => {
+      if (added <= 0) return;
+      if (isNearBottom()) {
+        scrollToEnd({ force: true, smooth: true });
+        return;
+      }
+      unreadWhileScrolledRef.current += added;
+      setUnreadWhileScrolled(unreadWhileScrolledRef.current);
+      setShowScrollFab(false);
+    },
+    [isNearBottom, scrollToEnd],
+  );
+
+  const refreshInbox = useCallback(async () => {
+    const vid = visitorRef.current || getOrCreateChatVisitorId();
+    visitorRef.current = vid;
+    const chatbotIds = characters
+      .filter((c) => c.chatbot?.enabled)
+      .map((c) => String(c.id));
+    const local = collectLocalOcChatInbox(vid, chatbotIds);
+    setInboxItems((prev) => mergeOcChatInboxItems(prev, local));
+    try {
+      const remote = await fetchOcChatInbox(vid);
+      setInboxItems(mergeOcChatInboxItems(remote, local));
+    } catch {
+      setInboxItems(local);
+    }
+  }, [characters]);
+
+  useEffect(() => {
+    if (!open) {
+      setPhoneView('thread');
+      unreadWhileScrolledRef.current = 0;
+      setUnreadWhileScrolled(0);
+      setShowScrollFab(false);
+      return;
+    }
+    /* 열릴 때만 스레드로 — 목록 보는 중 characters 갱신에 튕기지 않음 */
+    setPhoneView('thread');
+    jumpBottomOnEnterRef.current = true;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    void refreshInbox();
+  }, [open, refreshInbox]);
+
+  useEffect(() => {
+    if (!open) return;
+    jumpBottomOnEnterRef.current = true;
+    prevMsgCountRef.current = 0;
+    unreadWhileScrolledRef.current = 0;
+    setUnreadWhileScrolled(0);
+    setShowScrollFab(false);
+  }, [charId, open]);
+
+  useEffect(() => {
+    if (!open || phoneView !== 'list') return;
+    void refreshInbox();
+    const id = window.setInterval(() => void refreshInbox(), 45_000);
+    return () => window.clearInterval(id);
+  }, [open, phoneView, refreshInbox]);
+
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!open || !el || phoneView !== 'thread') return;
+    const onScroll = () => updateScrollUI();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    updateScrollUI();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [open, phoneView, updateScrollUI, charId]);
 
   const focusComposer = useCallback(() => {
     requestAnimationFrame(() => {
@@ -629,16 +763,21 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       lastSeenAt?: number;
       meta?: Partial<MetaState>;
       skipSeen?: boolean;
+      /** 명시적 저장 대상 — 없으면 이 콜백이 만들어진 시점의 charId */
+      characterId?: string;
     }) => {
+      const saveCharId = String(snap.characterId || charId);
       const epoch = resetEpochRef.current;
       const vid = visitorRef.current || getOrCreateChatVisitorId();
+      /* 다른 OC로 전환된 뒤 stale persist가 섞이지 않게 */
+      if (activeCharIdRef.current !== saveCharId) return;
       const seen =
         snap.skipSeen
           ? snap.lastSeenAt ?? stateRef.current.lastSeenAt
           : openRef.current
             ? Date.now()
             : (snap.lastSeenAt ?? stateRef.current.lastSeenAt);
-      if (!snap.skipSeen && openRef.current) {
+      if (!snap.skipSeen && openRef.current && activeCharIdRef.current === saveCharId) {
         setLastSeenAt(seen);
       }
       const today = todayKeyLocal();
@@ -646,7 +785,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         ...stateRef.current.meta,
         ...snap.meta,
       };
-      if (snap.meta) setMeta(mergedMeta);
+      if (snap.meta && activeCharIdRef.current === saveCharId) setMeta(mergedMeta);
       const closed = closedFieldsFromUntil(mergedMeta.closedUntil);
       const next: OcChatThread = {
         messages: snap.messages,
@@ -676,9 +815,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         memorySummary: memorySummaryRef.current,
         memorySummaryThroughAt: memorySummaryThroughAtRef.current,
       };
-      /* 초기화 이후의 옛 persist는 저장하지 않음 */
+      /* 초기화·OC 전환 이후의 옛 persist는 저장하지 않음 */
       if (resetEpochRef.current !== epoch) return;
-      await saveOcChatThread(charId, vid, next);
+      if (activeCharIdRef.current !== saveCharId) return;
+      await saveOcChatThread(saveCharId, vid, next);
     },
     [charId],
   );
@@ -697,6 +837,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         expectEpoch?: number;
       },
     ): Promise<'ok' | 'regather'> => {
+      const playCharId = charId;
+      const alive = () =>
+        stillOnChar(playCharId) &&
+        (opts.expectEpoch == null || burstEpochRef.current === opts.expectEpoch);
       let msgs = baseMessages;
       let nextMeta: MetaState = { ...stateRef.current.meta };
       let deliveredAssistant = false;
@@ -705,7 +849,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       replyLockRef.current = true;
       const vid = visitorRef.current || getOrCreateChatVisitorId();
       visitorRef.current = vid;
-      setOcChatPendingUiOwned(charId, vid, true);
+      setOcChatPendingUiOwned(playCharId, vid, true);
+      const applyMessages = (next: OcChatMessage[]) => {
+        if (!alive()) return false;
+        msgs = next;
+        stateRef.current = { ...stateRef.current, messages: next };
+        applyMessages(next);
+        return true;
+      };
 
       const lateBurstPending = () =>
         hasLateUserMessages(stateRef.current.messages, flushIncludedIdsRef.current) ||
@@ -724,12 +875,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       };
 
       const abortForRegather = async (): Promise<'regather'> => {
-        cancelOcChatPendingDelivery(charId, vid);
+        cancelOcChatPendingDelivery(playCharId, vid);
         /* 이번 연출에서 붙인 assistant만 제거 — 이후 최신 버스트로 한 번만 재응답 */
         const rolled = stateRef.current.messages.filter((m) => !deliveredIds.has(m.id));
-        msgs = rolled;
-        stateRef.current = { ...stateRef.current, messages: rolled };
-        setMessages(rolled);
+        if (!alive()) return 'regather';
+        applyMessages(rolled);
         const prevPending = nextMeta.pendingBehavior;
         nextMeta = {
           ...nextMeta,
@@ -739,7 +889,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             prevPending?.createdAt || Date.now(),
           ),
         };
-        setMeta(nextMeta);
+        if (alive()) setMeta(nextMeta);
         await persistSnapshot({
           messages: rolled,
           affection: opts.affection,
@@ -749,6 +899,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           meta: nextMeta,
           skipSeen: true,
           lastSeenAt: stateRef.current.lastSeenAt,
+          characterId: playCharId,
         });
         console.info('[oc-chat-ui] abort play — regather burst', {
           rolledAway: deliveredIds.size,
@@ -811,7 +962,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           behavior.action === 'read_only';
         const applyAt = computePendingApplyAt(behavior, wasOffline);
         const pending = behaviorToPending(behavior, applyAt);
-        cancelOcChatPendingDelivery(charId, vid);
+        cancelOcChatPendingDelivery(playCharId, vid);
 
         /*
          * presence 규칙:
@@ -912,7 +1063,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           }
           const cur = markUserMessagesRead(stateRef.current.messages);
           msgs = cur;
-          setMessages(cur);
+          applyMessages(cur);
           await persistSnapshot({
             messages: cur,
             affection: opts.affection,
@@ -963,15 +1114,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
         /* 창이 닫혀 있으면 조용히 배달 (미읽음 유지) — 이후 유저 말이 있으면 재응답 */
         if (!openRef.current) {
-          setOcChatPendingUiOwned(charId, vid, false);
+          setOcChatPendingUiOwned(playCharId, vid, false);
           await tryDeliverPendingChat({
-            characterId: charId,
+            characterId: playCharId,
             visitorId: vid,
             character,
             expectPendingId: pending.id,
             force: true,
           });
-          const fresh = await loadOcChatThread(charId, vid);
+          const fresh = await loadOcChatThread(playCharId, vid);
           const closedMeta: MetaState = {
             ...nextMeta,
             pendingBehavior: fresh.pendingBehavior,
@@ -991,7 +1142,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             lastSeenAt:
               typeof fresh.lastSeenAt === 'number' ? fresh.lastSeenAt : stateRef.current.lastSeenAt,
           };
-          setMessages(closedMsgs);
+          applyMessages(closedMsgs);
           setMeta(closedMeta);
           if (typeof fresh.affection === 'number') setAffection(fresh.affection);
           if (typeof fresh.lastSeenAt === 'number') setLastSeenAt(fresh.lastSeenAt);
@@ -1006,7 +1157,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         const absorbReads = async (lingerRounds = 3): Promise<'ok' | 'regather'> => {
           let cur = markUserMessagesRead(stateRef.current.messages);
           msgs = cur;
-          setMessages(cur);
+          applyMessages(cur);
           await persistSnapshot({
             messages: cur,
             affection: opts.affection,
@@ -1028,7 +1179,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             if (lateBurstPending()) return 'regather';
             cur = markUserMessagesRead(latest);
             msgs = cur;
-            setMessages(cur);
+            applyMessages(cur);
             await persistSnapshot({
               messages: cur,
               affection: opts.affection,
@@ -1086,7 +1237,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
         /* 이미 백그라운드/다른 경로가 이 예약을 배달했는지 확인 */
         {
-          const fresh = await loadOcChatThread(charId, vid);
+          const fresh = await loadOcChatThread(playCharId, vid);
           const freshLines = collapseSameIntentShortBubbles(
             dedupeAdjacentTextLines(
               (behavior.messages || []).filter(
@@ -1102,7 +1253,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           const alreadyThere = pendingLinesAlreadyAtTail(fresh.messages, freshLines);
           if (oursGone && alreadyThere) {
             const synced = dedupeAdjacentAssistantMessages(fresh.messages);
-            setMessages(synced);
+            applyMessages(synced);
             stateRef.current = { ...stateRef.current, messages: synced };
             nextMeta = {
               ...nextMeta,
@@ -1123,7 +1274,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           }
           if (alreadyThere) {
             const synced = dedupeAdjacentAssistantMessages(fresh.messages);
-            setMessages(synced);
+            applyMessages(synced);
             stateRef.current = { ...stateRef.current, messages: synced };
             nextMeta = {
               ...nextMeta,
@@ -1150,15 +1301,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
         for (let i = 0; i < lines.length; i++) {
           if (!openRef.current) {
-            setOcChatPendingUiOwned(charId, vid, false);
+            setOcChatPendingUiOwned(playCharId, vid, false);
             await tryDeliverPendingChat({
-              characterId: charId,
+              characterId: playCharId,
               visitorId: vid,
               character,
               expectPendingId: pending.id,
               force: true,
             });
-            const fresh = await loadOcChatThread(charId, vid);
+            const fresh = await loadOcChatThread(playCharId, vid);
             const synced = dedupeAdjacentAssistantMessages(fresh.messages);
             stateRef.current = {
               ...stateRef.current,
@@ -1170,7 +1321,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               affection:
                 typeof fresh.affection === 'number' ? fresh.affection : stateRef.current.affection,
             };
-            setMessages(synced);
+            applyMessages(synced);
             if (typeof fresh.affection === 'number') setAffection(fresh.affection);
             if (ocChatNeedsReplyToTrailingUsers(synced, fresh.pendingBehavior)) {
               return 'regather';
@@ -1222,7 +1373,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             }
           }
           msgs = dedupeAdjacentAssistantMessages(msgs);
-          setMessages(msgs);
+          applyMessages(msgs);
           setBusy(false);
           await persistSnapshot({
             messages: msgs,
@@ -1252,15 +1403,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
         if (sticker) {
           if (!openRef.current) {
-            setOcChatPendingUiOwned(charId, vid, false);
+            setOcChatPendingUiOwned(playCharId, vid, false);
             await tryDeliverPendingChat({
-              characterId: charId,
+              characterId: playCharId,
               visitorId: vid,
               character,
               expectPendingId: pending.id,
               force: true,
             });
-            const fresh = await loadOcChatThread(charId, vid);
+            const fresh = await loadOcChatThread(playCharId, vid);
             const synced = dedupeAdjacentAssistantMessages(fresh.messages);
             stateRef.current = {
               ...stateRef.current,
@@ -1270,7 +1421,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
                 pendingBehavior: fresh.pendingBehavior,
               },
             };
-            setMessages(synced);
+            applyMessages(synced);
             if (ocChatNeedsReplyToTrailingUsers(synced, fresh.pendingBehavior)) {
               return 'regather';
             }
@@ -1304,7 +1455,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             msgs = [...head, stickerMsg];
             deliveredAssistant = true;
           }
-          setMessages(msgs);
+          applyMessages(msgs);
           setBusy(false);
         }
 
@@ -1345,7 +1496,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setMeta(nextMeta);
         /* 답장 연출 끝 — readAt 누락/경합으로 "1"이 남지 않게 확정 */
         msgs = markUserMessagesReadThroughLastAssistant(msgs);
-        setMessages(msgs);
+        applyMessages(msgs);
         await persistSnapshot({
           messages: msgs,
           affection: opts.affection,
@@ -1364,27 +1515,85 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         setWaitingRead(false);
         /* 연출 종료 — 창이 닫혀 있고 pending이 남았으면 타이머에 맡김 */
         const stillPending = stateRef.current.meta.pendingBehavior;
-        setOcChatPendingUiOwned(charId, vid, false);
+        setOcChatPendingUiOwned(playCharId, vid, false);
         if (!openRef.current && stillPending?.applyAt) {
-          scheduleOcChatPendingDelivery(
-            charId,
-            vid,
-            stillPending.applyAt,
-            character,
+          scheduleOcChatPendingDelivery(playCharId, vid, stillPending.applyAt, characterRef.current,
             stillPending.id,
           );
         }
       }
     },
-    [character, charId, persistSnapshot],
+    [character, charId, persistSnapshot, stillOnChar],
   );
 
   useLayoutEffect(() => {
     if (!open) return;
     const vid = getOrCreateChatVisitorId();
     visitorRef.current = vid;
+    const nextId = charId;
+    const prevId = bootstrappedCharIdRef.current;
     const characterNow = characterRef.current;
-    const cached = peekOcChatThreadCache(charId, vid);
+    const switching = Boolean(prevId && prevId !== nextId);
+
+    /* OC 전환: in-flight 응답/저장이 다음 OC state에 섞이지 않게 즉시 중단 */
+    if (switching) {
+      flushAbortRef.current?.abort();
+      burstEpochRef.current += 1;
+      window.clearTimeout(debounceTimer.current);
+      debounceTimer.current = 0;
+      flushLockRef.current = false;
+      replyLockRef.current = false;
+      pendingFlushRef.current = false;
+      setBusy(false);
+      setWaitingRead(false);
+      setError('');
+      setInput('');
+      setUnreadWhileScrolled(0);
+      unreadWhileScrolledRef.current = 0;
+      setShowScrollFab(false);
+      /* 직전 OC UI 상태를 그 OC 키로만 봉인 */
+      if (stateRef.current.messages.length > 0) {
+        const sealedMeta = stateRef.current.meta;
+        const sealed: OcChatThread = {
+          messages: stateRef.current.messages,
+          updatedAt: Date.now(),
+          affection: clampAffection(stateRef.current.affection),
+          story: stateRef.current.story,
+          freeGainDate: stateRef.current.freeGainDate,
+          freeGainToday: stateRef.current.freeGainToday,
+          freeLossToday: sealedMeta.freeLossToday,
+          lastSeenAt: stateRef.current.lastSeenAt || undefined,
+          moodNote: sealedMeta.moodNote,
+          turnsToday: sealedMeta.turnsToday,
+          closedForToday: sealedMeta.closedForToday,
+          closedUntil: sealedMeta.closedUntil,
+          lastProactiveDate: sealedMeta.lastProactiveDate,
+          pendingBehavior: sealedMeta.pendingBehavior,
+          pendingClearedAt: sealedMeta.pendingClearedAt,
+          recentDeltaReasons: sealedMeta.recentDeltaReasons,
+          lastInteractionAt: sealedMeta.lastInteractionAt,
+          neglectCheckedAt: sealedMeta.neglectCheckedAt,
+          presence: sealedMeta.presence,
+          presenceUpdatedAt: sealedMeta.presenceUpdatedAt,
+          recentActions: sealedMeta.recentActions,
+          memorySummary: memorySummaryRef.current,
+          memorySummaryThroughAt: memorySummaryThroughAtRef.current,
+        };
+        writeOcChatThreadCache(prevId, vid, sealed);
+        void saveOcChatThread(prevId, vid, sealed).catch(() => {});
+        setOcChatPendingUiOwned(prevId, vid, false);
+      }
+      memorySummaryRef.current = undefined;
+      memorySummaryThroughAtRef.current = undefined;
+      revealedRef.current = new Set();
+    }
+
+    activeCharIdRef.current = nextId;
+    const cached = peekOcChatThreadCache(nextId, vid);
+    if (cached?.memorySummary) memorySummaryRef.current = cached.memorySummary;
+    if (typeof cached?.memorySummaryThroughAt === 'number') {
+      memorySummaryThroughAtRef.current = cached.memorySummaryThroughAt;
+    }
 
     const ensureStory = (
       rawStory: OcChatStoryState | undefined,
@@ -1407,10 +1616,21 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       return nextStory;
     };
 
+    const emptyMeta: MetaState = {
+      turnsToday: 0,
+      closedForToday: false,
+      freeLossToday: 0,
+      recentDeltaReasons: [],
+      presence: 'offline',
+      presenceUpdatedAt: Date.now(),
+      recentActions: [],
+    };
+
     if (!cached || !cached.messages.length) {
-      /* 이미 이 캐릭터 스레드를 불러온 상태면 그대로 확정 */
+      /* 이미 이 캐릭터 스레드를 불러온 상태면 그대로 확정 (전환이 아닐 때만) */
       if (
-        bootstrappedCharIdRef.current === charId &&
+        !switching &&
+        bootstrappedCharIdRef.current === nextId &&
         (stateRef.current.messages.length || stateRef.current.story)
       ) {
         setThreadReady(true);
@@ -1419,18 +1639,25 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       /*
        * 캐시 없음: 서버 로드 전에 completedEpisodeIds=[]로 스토리 잠금을
        * 걸지 않는다. (자유채팅 유저에게 "스토리를 진행해 주세요" 깜빡임)
+       * 전환 시에는 이전 OC 메시지를 절대 남기지 않음.
        */
-      if (bootstrappedCharIdRef.current && bootstrappedCharIdRef.current !== charId) {
-        setMessages([]);
-        setStory(undefined);
-        setAffection(0);
-        stateRef.current = {
-          ...stateRef.current,
-          messages: [],
-          story: undefined,
-          affection: 0,
-        };
-      }
+      setMessages([]);
+      setStory(undefined);
+      setAffection(0);
+      setFreeGainToday(0);
+      setFreeGainDate(todayKeyLocal());
+      setLastSeenAt(0);
+      setMeta(emptyMeta);
+      stateRef.current = {
+        messages: [],
+        story: undefined,
+        affection: 0,
+        freeGainToday: 0,
+        freeGainDate: todayKeyLocal(),
+        lastSeenAt: 0,
+        meta: emptyMeta,
+      };
+      bootstrappedCharIdRef.current = nextId;
       setThreadReady(false);
       return;
     }
@@ -1450,7 +1677,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       presence:
         cached.presence === 'online' || cached.presence === 'offline'
           ? cached.presence
-          : stateRef.current.meta.presence || 'offline',
+          : 'offline',
       presenceUpdatedAt: cached.presenceUpdatedAt || Date.now(),
       recentActions: cached.recentActions || [],
     };
@@ -1461,7 +1688,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     setFreeGainDate(cached.freeGainDate || todayKeyLocal());
     setLastSeenAt(cached.lastSeenAt || 0);
     setMeta(nextMeta);
-    bootstrappedCharIdRef.current = charId;
+    bootstrappedCharIdRef.current = nextId;
     setThreadReady(true);
     stateRef.current = {
       messages: cached.messages,
@@ -1473,13 +1700,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       meta: nextMeta,
     };
     if (recoveredStory !== cached.story) {
-      writeOcChatThreadCache(charId, vid, { ...cached, story: recoveredStory });
+      writeOcChatThreadCache(nextId, vid, { ...cached, story: recoveredStory });
     }
   }, [open, charId]);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    const loadCharId = charId;
     /* 로딩 문구 없이 조용히 로드 — 캐시로 이미 그린 뒤 서버와 동기화 */
     setError('');
     setAwaitingChoice(false);
@@ -1492,14 +1720,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       try {
         /* 기한 지난 예약 답장 먼저 — 캐시 기준으로 즉시 배달 가능 */
         await tryDeliverPendingChat({
-          characterId: charId,
+          characterId: loadCharId,
           visitorId: visitorRef.current,
           character: characterNow,
         });
-        if (cancelled) return;
+        if (cancelled || !stillOnChar(loadCharId)) return;
 
-        const thread = await loadOcChatThread(charId, visitorRef.current);
-        if (cancelled) return;
+        const thread = await loadOcChatThread(loadCharId, visitorRef.current);
+        if (cancelled || !stillOnChar(loadCharId)) return;
         setFreeGainDate(thread.freeGainDate || todayKeyLocal());
         setFreeGainToday(thread.freeGainToday || 0);
         let nextMeta: MetaState = {
@@ -1581,11 +1809,12 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           !needsStoryMode(characterNow, nextStory?.completedEpisodeIds)
         ) {
           await tryDeliverPendingChat({
-            characterId: charId,
+            characterId: loadCharId,
             visitorId: visitorRef.current,
             character: characterNow,
           });
-          const fresh = await loadOcChatThread(charId, visitorRef.current);
+          if (cancelled || !stillOnChar(loadCharId)) return;
+          const fresh = await loadOcChatThread(loadCharId, visitorRef.current);
           nextMessages = fresh.messages;
           affectionNow = fresh.affection;
           nextMeta = {
@@ -1606,13 +1835,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           pending = fresh.pendingBehavior;
         }
 
+        if (cancelled || !stillOnChar(loadCharId)) return;
+
         const seenNow = Date.now();
         setLastSeenAt(seenNow);
         setAffection(affectionNow);
         setMeta(nextMeta);
         setStory(nextStory);
         setMessages(nextMessages);
-        bootstrappedCharIdRef.current = charId;
+        bootstrappedCharIdRef.current = loadCharId;
         setThreadReady(true);
         stateRef.current = {
           ...stateRef.current,
@@ -1623,13 +1854,13 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           meta: nextMeta,
         };
         console.info('[oc-chat-ui] thread loaded', {
-          characterId: charId,
+          characterId: loadCharId,
           messageCount: nextMessages.length,
           firstAt: nextMessages[0]?.at,
           lastAt: nextMessages[nextMessages.length - 1]?.at,
           clearedAt: thread.clearedAt,
         });
-        writeOcChatThreadCache(charId, visitorRef.current, {
+        writeOcChatThreadCache(loadCharId, visitorRef.current, {
           ...thread,
           messages: nextMessages,
           affection: affectionNow,
@@ -1644,7 +1875,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         }
 
         try {
-          await saveOcChatThread(charId, visitorRef.current, {
+          if (!stillOnChar(loadCharId)) return;
+          await saveOcChatThread(loadCharId, visitorRef.current, {
             messages: nextMessages,
             updatedAt: Date.now(),
             affection: affectionNow,
@@ -1674,7 +1906,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           });
         } catch (saveErr) {
           /* 로드는 성공했는데 저장만 실패하면 대화를 비우지 않는다 */
-          if (!cancelled) {
+          if (!cancelled && stillOnChar(loadCharId)) {
             setError(formatOcChatFirebaseError(saveErr, '대화 저장에 실패했습니다'));
           }
         }
@@ -1682,28 +1914,30 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         /* 나갔다 왔을 때 유저 말이 끝에 남아 있으면(예약 없음) 바로 응답 재개 */
         if (
           !cancelled &&
+          stillOnChar(loadCharId) &&
           ocChatNeedsReplyToTrailingUsers(nextMessages, pending) &&
           !needsStoryMode(characterNow, nextStory?.completedEpisodeIds)
         ) {
           pendingFlushRef.current = true;
           window.setTimeout(() => {
-            if (!openRef.current) return;
+            if (!openRef.current || !stillOnChar(loadCharId)) return;
             void flushDebouncedChatRef.current();
           }, 120);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && stillOnChar(loadCharId)) {
           setError(formatOcChatFirebaseError(err, '대화를 불러오지 못했습니다'));
           /* 로드 실패 시에도 잠금 문구로 묶지 않음 — 캐시가 있으면 그 기준 유지 */
           setThreadReady(true);
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && stillOnChar(loadCharId)) {
           focusComposer();
+          jumpBottomOnEnterRef.current = true;
           requestAnimationFrame(() => {
-            scrollToEnd();
-            window.setTimeout(scrollToEnd, 50);
-            window.setTimeout(scrollToEnd, 180);
+            scrollToEnd({ force: true, smooth: false });
+            window.setTimeout(() => scrollToEnd({ force: true, smooth: false }), 50);
+            window.setTimeout(() => scrollToEnd({ force: true, smooth: false }), 180);
           });
         }
       }
@@ -1712,7 +1946,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       cancelled = true;
       window.clearTimeout(storyTimer.current);
     };
-  }, [charId, open]);
+  }, [charId, open, stillOnChar]);
 
   /* end_for_today 쿨다운 만료 시 구분선 해제 */
   useEffect(() => {
@@ -1751,6 +1985,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       if (replyLockRef.current || busy || waitingRead) return;
       const next = rollAmbientPresence();
       if (next === stateRef.current.meta.presence) return;
+      if (!stillOnChar(charId)) return;
       const patched: MetaState = {
         ...stateRef.current.meta,
         presence: next,
@@ -1758,6 +1993,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       };
       setMeta(patched);
       const vid = visitorRef.current || getOrCreateChatVisitorId();
+      /* 현재 열린 OC 메시지만 그 OC 키로 저장 */
       void saveOcChatThread(charId, vid, {
         messages: stateRef.current.messages,
         updatedAt: Date.now(),
@@ -1787,7 +2023,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     /* 열자마자 바로 굴리지 않음 — 첫 틱은 간격 뒤 */
     const id = window.setInterval(tick, 70_000);
     return () => window.clearInterval(id);
-  }, [busy, charId, inStory, open, waitingRead]);
+  }, [busy, charId, inStory, open, stillOnChar, waitingRead]);
 
   /* 스토리 씬 공개 + 자동 진행 */
   useEffect(() => {
@@ -1942,22 +2178,72 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     story?.sceneId,
   ]);
 
+  /* 방 진입·OC 전환: 최근 메시지가 보이도록 하단 고정 (DOM/메시지 준비 전에는 플래그 유지) */
+  useLayoutEffect(() => {
+    if (!open || phoneView !== 'thread') return;
+    if (!jumpBottomOnEnterRef.current) return;
+    /* 스레드 로드 전 빈 화면에서 플래그를 소모하면 이후 스크롤이 안 됨 */
+    if (!threadRef.current) return;
+    if (messages.length === 0 && !threadReady) return;
+
+    const count = messages.length + (busy || waitingRead ? 1 : 0);
+    const ok = scrollToEnd({ force: true, smooth: false });
+    if (!ok) return;
+    jumpBottomOnEnterRef.current = false;
+    prevMsgCountRef.current = count;
+    const t1 = window.setTimeout(() => scrollToEnd({ force: true, smooth: false }), 50);
+    const t2 = window.setTimeout(() => scrollToEnd({ force: true, smooth: false }), 180);
+    const t3 = window.setTimeout(() => scrollToEnd({ force: true, smooth: false }), 360);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
+  }, [open, phoneView, messages, threadReady, busy, waitingRead, charId, scrollToEnd]);
+
   useEffect(() => {
-    if (!open) return;
-    /* 열기·새 메시지 시에만 하단 고정. 과거 스크롤 중이면 유지 */
-    scrollToEnd(false);
-  }, [messages, busy, waitingRead, awaitingChoice, open, scrollToEnd]);
+    if (!open || phoneView !== 'thread') return;
+    if (jumpBottomOnEnterRef.current) return;
+    const count = messages.length + (busy || waitingRead ? 1 : 0);
+    const added = count - prevMsgCountRef.current;
+    prevMsgCountRef.current = count;
+    if (added > 0) onMessagesAppended(added);
+    else updateScrollUI();
+  }, [
+    messages,
+    busy,
+    waitingRead,
+    awaitingChoice,
+    open,
+    phoneView,
+    onMessagesAppended,
+    updateScrollUI,
+  ]);
+
+  useEffect(() => {
+    if (!open || phoneView !== 'thread') return;
+    void refreshInbox();
+  }, [messages.length, open, phoneView, refreshInbox, charId]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.preventDefault();
+      if (relationAnim === 'in') {
+        closeRelation();
+        return;
+      }
+      if (phoneView === 'thread') {
+        setPhoneView('list');
+        void refreshInbox();
+        return;
+      }
       onClose();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose, open]);
+  }, [closeRelation, onClose, open, phoneView, refreshInbox, relationAnim]);
 
   const pickChoice = useCallback(
     async (choice: OcChatEpisodeChoice) => {
@@ -2041,6 +2327,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   );
 
   const flushDebouncedChat = useCallback(async () => {
+    const flushCharId = charId;
     if (flushLockRef.current) {
       pendingFlushRef.current = true;
       console.info('[oc-chat-ui] timing', {
@@ -2050,6 +2337,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       });
       return;
     }
+    if (!stillOnChar(flushCharId)) return;
     if (inStory) return;
     if (isChatClosedNow(stateRef.current.meta.closedUntil)) return;
     if (stateRef.current.meta.closedForToday || stateRef.current.meta.closedUntil) {
@@ -2164,10 +2452,12 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           lastUserPreview: String(last.content || '').slice(0, 40),
         });
 
+        if (!stillOnChar(flushCharId)) return;
+
         let result: Awaited<ReturnType<typeof postOcChat>>;
         try {
           result = await postOcChat({
-            characterId: charId,
+            characterId: flushCharId,
             visitorId: visitorRef.current || getOrCreateChatVisitorId(),
             messages: withUser,
             affection: aff,
@@ -2380,12 +2670,15 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     inStory,
     persistSnapshot,
     playBehavior,
+    stillOnChar,
   ]);
 
   const send = useCallback(async () => {
+    const sendCharId = charId;
     const text = input.trim();
     /* 답장 대기 중에도 추가 전송 허용 (디바운스/다음 턴으로 이어짐) */
     if (!text || inStory) return;
+    if (!stillOnChar(sendCharId)) return;
     const ban = checkChatBanned(text);
     if (ban.blocked) {
       setError(chatBanUserMessage(ban.reason));
@@ -2398,6 +2691,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     /* "1"은 항상 잠깐이라도 보이게 — 전송 직후 읽음 선반영 금지 */
     const userMsg = createChatMessage('user', text, 'chat');
     const withUser = [...stateRef.current.messages, userMsg];
+    if (!stillOnChar(sendCharId)) return;
     setMessages(withUser);
     lastUserSendAtRef.current = Date.now();
     const aff = stateRef.current.affection;
@@ -2414,7 +2708,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     if (replyLockRef.current) {
       const flashMs = rollFastUnreadVisibleMs();
       window.setTimeout(() => {
-        if (!openRef.current) return;
+        if (!openRef.current || !stillOnChar(sendCharId)) return;
         /*
          * replyLock이 연출 종료로 먼저 풀려도, 이미 답장이 붙은 유저 말은 읽음으로 확정.
          * (예전: !replyLock이면 early return → readAt 미반영 + 이후 persist가 미읽음 덮어쓰기)
@@ -2434,6 +2728,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               : 0,
           freeGainDate: stateRef.current.freeGainDate,
           meta: stateRef.current.meta,
+          characterId: sendCharId,
         });
       }, flashMs);
     }
@@ -2445,6 +2740,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         story: st,
         meta: nextMeta,
         skipSeen: !openRef.current,
+        characterId: sendCharId,
       });
       focusComposer();
 
@@ -2492,11 +2788,13 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       focusComposer();
     }
   }, [
+    charId,
     flushDebouncedChat,
     focusComposer,
     inStory,
     input,
     persistSnapshot,
+    stillOnChar,
   ]);
 
   /* 창 닫을 때 대기 중이면 바로 flush */
@@ -2511,33 +2809,44 @@ export function OcChatPanel({ open, character, onClose }: Props) {
   flushDebouncedChatRef.current = flushDebouncedChat;
 
   /*
-   * 상세/패널 언마운트: 디바운스만 지우고 끝내면 답장이 영구히 안 옴.
-   * - uiOwned는 항상 해제 + pending 타이머 재예약 (중첩 early-return 금지)
-   * - 진행 중 flush/연출이면 trailing 표시만 남기고 in-flight가 닫힌 창 배달
-   * - 아니면 유저 말이 꼬리면 즉시 flush
+   * OC 전환 cleanup — 패널 닫힘으로 취급 금지.
+   * (구버전: openRef=false + flushDebouncedChatRef → 새 OC id에 옛 메시지 저장)
+   * 직전 OC 봉인은 useLayoutEffect가 담당.
    */
+  useEffect(() => {
+    const effectCharId = charId;
+    return () => {
+      window.clearTimeout(debounceTimer.current);
+      debounceTimer.current = 0;
+      flushAbortRef.current?.abort();
+      const vid = visitorRef.current || getOrCreateChatVisitorId();
+      setOcChatPendingUiOwned(effectCharId, vid, false);
+    };
+  }, [charId]);
+
+  /* 패널 컴포넌트 진짜 언마운트 시에만 flush/pending 인계 */
   useEffect(() => {
     return () => {
       openRef.current = false;
       window.clearTimeout(debounceTimer.current);
       debounceTimer.current = 0;
 
+      const id = activeCharIdRef.current;
       const vid = visitorRef.current || getOrCreateChatVisitorId();
       const pending = stateRef.current.meta.pendingBehavior;
 
-      setOcChatPendingUiOwned(charId, vid, false);
+      setOcChatPendingUiOwned(id, vid, false);
       if (pending?.applyAt) {
         scheduleOcChatPendingDelivery(
-          charId,
+          id,
           vid,
           pending.applyAt,
           characterRef.current,
           pending.id,
         );
-        /* applyAt이 이미 지났으면 바로 배달 (타이머 0ms 레이스 방지) */
         if (pending.applyAt <= Date.now()) {
           void tryDeliverPendingChat({
-            characterId: charId,
+            characterId: id,
             visitorId: vid,
             character: characterRef.current,
             expectPendingId: pending.id,
@@ -2564,7 +2873,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         void flushDebouncedChatRef.current();
       }
     };
-  }, [charId]);
+  }, []);
 
   /* 채팅창만 닫아도(상세는 유지) pending 타이머·미응답 flush 보장 */
   useEffect(() => {
@@ -2648,6 +2957,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             return;
           }
           if (relationAnim === 'out') return;
+          /* 바깥(백드롭) = 채팅 전체 닫기 (목록으로 돌아가지 않음) */
           onClose();
         }}
       />
@@ -2695,7 +3005,49 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             </span>
           </div>
         ) : null}
+        <div className={`oc-chat-stack${phoneView === 'thread' ? ' is-thread' : ''}`}>
+          <div className="oc-chat-screen oc-chat-screen--list" aria-hidden={phoneView !== 'list'}>
+            <header className="oc-chat-phone__head oc-chat-phone__head--list">
+              <div className="oc-chat-phone__meta">
+                <div className="oc-chat-phone__name">채팅</div>
+              </div>
+              <button type="button" className="oc-chat-phone__close" onClick={onClose} aria-label="닫기">
+                ✕
+              </button>
+            </header>
+            <OcChatInboxList
+              items={inboxItems}
+              characters={characters}
+              onSelect={(next) => {
+                setPhoneView('thread');
+                jumpBottomOnEnterRef.current = true;
+                onSelectCharacter?.(next);
+              }}
+            />
+          </div>
+
+          <div className="oc-chat-screen oc-chat-screen--thread" aria-hidden={phoneView !== 'thread'}>
         <header className="oc-chat-phone__head">
+          <button
+            type="button"
+            className="oc-chat-phone__back"
+            aria-label="채팅 목록"
+            onClick={() => {
+              setPhoneView('list');
+              void refreshInbox();
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+              <path
+                d="M15 18l-6-6 6-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
           <div className="oc-chat-phone__avatar-wrap" aria-hidden>
             <div className="oc-chat-phone__avatar">
               <img src={chatAvatar} alt="" referrerPolicy="no-referrer" />
@@ -2754,6 +3106,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           </button>
         </header>
 
+        <div className="oc-chat-phone__thread-wrap">
         <div className="oc-chat-phone__thread lh-scroll" ref={threadRef}>
           {messages.map((m, i) => {
               const prev = i > 0 ? messages[i - 1] : null;
@@ -2873,6 +3226,36 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           ) : null}
           {error ? <div className="oc-chat-phone__error">{error}</div> : null}
         </div>
+        <button
+          type="button"
+          className={`oc-chat-new-msg-pill${unreadWhileScrolled > 0 ? ' is-show' : ''}`}
+          onClick={() => scrollToEnd({ force: true, smooth: true })}
+        >
+          <span>새 메시지 {unreadWhileScrolled}개</span>
+          <span className="oc-chat-new-msg-pill__arrow" aria-hidden>
+            ▾
+          </span>
+        </button>
+        <button
+          type="button"
+          className={`oc-chat-scroll-fab${
+            showScrollFab && unreadWhileScrolled <= 0 ? ' is-show' : ''
+          }`}
+          aria-label="최신 메시지로"
+          onClick={() => scrollToEnd({ force: true, smooth: true })}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path
+              d="M6 9l6 6 6-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        </div>
 
         {inStory && awaitingChoice && choices.length > 0 ? (
           <div className="oc-chat-choices">
@@ -2914,6 +3297,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             </button>
           </form>
         )}
+          </div>
+        </div>
       </div>
       {relationAnim != null ? (
         <div
