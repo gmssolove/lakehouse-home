@@ -351,10 +351,13 @@ export function createChatMessage(
 export function markUserMessagesRead(
   messages: OcChatMessage[],
   at = Date.now(),
+  opts?: { throughAt?: number },
 ): OcChatMessage[] {
+  const throughAt = opts?.throughAt;
   let changed = false;
   const next = messages.map((m) => {
     if (m.role !== 'user' || m.readAt) return m;
+    if (typeof throughAt === 'number' && m.at > throughAt) return m;
     changed = true;
     return { ...m, readAt: at };
   });
@@ -467,6 +470,24 @@ export function countTrailingUserBurst(
   return n;
 }
 
+/** 마지막이 유저 말이고, 대기 중인 답장 예약이 없으면 새 응답이 필요 */
+export function ocChatNeedsReplyToTrailingUsers(
+  messages: Array<{ role?: string; kind?: string }>,
+  pending?: OcChatPendingBehavior | null,
+): boolean {
+  if (countTrailingUserBurst(messages) <= 0) return false;
+  if (
+    pending &&
+    (pending.action === 'respond' ||
+      pending.action === 'read_only' ||
+      pending.action === 'end_for_today' ||
+      pending.action === 'ignore')
+  ) {
+    return false;
+  }
+  return true;
+}
+
 
 function normalizeStory(raw: unknown): OcChatStoryState | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -497,6 +518,7 @@ function normalizePending(raw: unknown): OcChatPendingBehavior | undefined {
   return {
     id: String(o.id || '').trim() || undefined,
     applyAt,
+    createdAt: typeof o.createdAt === 'number' ? o.createdAt : undefined,
     action,
     messages,
     moodNote: String(o.moodNote || '').trim() || undefined,
@@ -1111,7 +1133,12 @@ export function applyDuePendingBehavior(
 
   let msgs = thread.messages;
   if (action === 'read_only' || action === 'respond' || action === 'end_for_today') {
-    msgs = markUserMessagesRead(msgs, now);
+    const throughAt =
+      typeof pending.createdAt === 'number' ? pending.createdAt : undefined;
+    msgs =
+      throughAt != null
+        ? markUserMessagesRead(msgs, now, { throughAt })
+        : markUserMessagesRead(msgs, now);
   }
 
   if (action === 'read_only') {
@@ -1493,6 +1520,7 @@ export function behaviorToPending(
   return {
     id,
     applyAt,
+    createdAt: Date.now(),
     action: behavior.action,
     messages: dedupeAdjacentTextLines(
       behavior.messages.filter((m) => m.trim() && !looksLikeBehaviorDump(m)),
@@ -1534,24 +1562,25 @@ export async function tryDeliverPendingChat(params: {
       return (pending.applyAt || 0) <= Date.now();
     };
 
-    const cached = peekOcChatThreadCache(params.characterId, params.visitorId);
-    if (matchesExpect(cached?.pendingBehavior)) {
-      const fromCache = applyDuePendingBehavior(cached!, { character: params.character });
-      if (fromCache) {
-        const msgs = dedupeRecentAssistantDuplicates(
-          dedupeAdjacentAssistantMessages(fromCache.thread.messages),
-        );
-        await saveOcChatThread(params.characterId, params.visitorId, {
-          ...fromCache.thread,
-          messages: msgs,
-        });
-        return fromCache.added;
-      }
-    }
-
-    const thread = await loadOcChatThread(params.characterId, params.visitorId);
+    /*
+     * 캐시만으로 먼저 배달하면, 직전 전송이 아직 캐시에 안 붙은 유저 말을
+     * 빠뜨린 채 저장할 수 있다. 항상 remote+최신 캐시를 합친 뒤 배달.
+     */
+    const remote = await loadOcChatThread(params.characterId, params.visitorId);
+    const thread = mergeOcChatThreads(
+      peekOcChatThreadCache(params.characterId, params.visitorId),
+      remote,
+    );
     if (!matchesExpect(thread.pendingBehavior)) return 0;
-    const result = applyDuePendingBehavior(thread, { character: params.character });
+
+    /* load 중에 또 유저 말이 붙었으면 한 번 더 합침 */
+    const latest = mergeOcChatThreads(
+      peekOcChatThreadCache(params.characterId, params.visitorId),
+      thread,
+    );
+    if (!matchesExpect(latest.pendingBehavior)) return 0;
+
+    const result = applyDuePendingBehavior(latest, { character: params.character });
     if (!result) return 0;
     const msgs = dedupeRecentAssistantDuplicates(
       dedupeAdjacentAssistantMessages(result.thread.messages),

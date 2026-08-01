@@ -36,6 +36,8 @@ export type OcChatPendingBehavior = {
   /** 예약 단위 id — 취소·교체 후 타이머/크론이 옛 pending을 배달하지 못하게 */
   id?: string;
   applyAt: number;
+  /** 예약 생성 시각 — 이후 온 유저 말은 이 답장 배달 때 읽음 처리하지 않음 */
+  createdAt?: number;
   action: OcChatAction;
   messages: string[];
   moodNote?: string;

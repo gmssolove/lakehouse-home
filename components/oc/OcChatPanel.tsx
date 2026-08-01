@@ -55,6 +55,7 @@ import {
   extractLateUserMessages,
   hasLateUserMessages,
   countTrailingUserBurst,
+  ocChatNeedsReplyToTrailingUsers,
   formatOcChatFirebaseError,
   peekOcChatThreadCache,
   pendingLinesAlreadyAtTail,
@@ -879,7 +880,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           return abortForRegather();
         }
 
-        /* 창이 닫혀 있으면 조용히 배달 (미읽음 유지) */
+        /* 창이 닫혀 있으면 조용히 배달 (미읽음 유지) — 이후 유저 말이 있으면 재응답 */
         if (!openRef.current) {
           setOcChatPendingUiOwned(charId, vid, false);
           await tryDeliverPendingChat({
@@ -913,6 +914,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           setMeta(closedMeta);
           if (typeof fresh.affection === 'number') setAffection(fresh.affection);
           if (typeof fresh.lastSeenAt === 'number') setLastSeenAt(fresh.lastSeenAt);
+          /* 배달 후에도 뒤에 유저 말이 남으면 이번 턴을 끝내지 않고 묶어서 재응답 */
+          if (ocChatNeedsReplyToTrailingUsers(closedMsgs, fresh.pendingBehavior)) {
+            return 'regather';
+          }
           return 'ok';
         }
 
@@ -1076,6 +1081,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
             };
             setMessages(synced);
             if (typeof fresh.affection === 'number') setAffection(fresh.affection);
+            if (ocChatNeedsReplyToTrailingUsers(synced, fresh.pendingBehavior)) {
+              return 'regather';
+            }
             return 'ok';
           }
           /* 답장 보내기 전에 새 유저 말 → 이번 답 버리고 최신 기준으로 재응답 */
@@ -1163,6 +1171,20 @@ export function OcChatPanel({ open, character, onClose }: Props) {
               expectPendingId: pending.id,
               force: true,
             });
+            const fresh = await loadOcChatThread(charId, vid);
+            const synced = dedupeAdjacentAssistantMessages(fresh.messages);
+            stateRef.current = {
+              ...stateRef.current,
+              messages: synced,
+              meta: {
+                ...stateRef.current.meta,
+                pendingBehavior: fresh.pendingBehavior,
+              },
+            };
+            setMessages(synced);
+            if (ocChatNeedsReplyToTrailingUsers(synced, fresh.pendingBehavior)) {
+              return 'regather';
+            }
             return 'ok';
           }
           if (lateBurstPending()) {
@@ -1550,6 +1572,19 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           if (!cancelled) {
             setError(formatOcChatFirebaseError(saveErr, '대화 저장에 실패했습니다'));
           }
+        }
+
+        /* 나갔다 왔을 때 유저 말이 끝에 남아 있으면(예약 없음) 바로 응답 재개 */
+        if (
+          !cancelled &&
+          ocChatNeedsReplyToTrailingUsers(nextMessages, pending) &&
+          !needsStoryMode(characterNow, nextStory?.completedEpisodeIds)
+        ) {
+          pendingFlushRef.current = true;
+          window.setTimeout(() => {
+            if (!openRef.current) return;
+            void flushDebouncedChatRef.current();
+          }, 120);
         }
       } catch (err) {
         if (!cancelled) {
@@ -2101,12 +2136,18 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       const lateUsers = trail.filter(
         (m) => m.role === 'user' && !includedAtStart.has(m.id),
       );
-      const needsAgain = pendingFlushRef.current || lateUsers.length > 0;
+      const trailingNeedsReply = ocChatNeedsReplyToTrailingUsers(
+        trail,
+        stateRef.current.meta.pendingBehavior,
+      );
+      const needsAgain =
+        pendingFlushRef.current || lateUsers.length > 0 || trailingNeedsReply;
       if (needsAgain) {
         pendingFlushRef.current = false;
         console.info('[oc-chat-ui] schedule trailing flush', {
           lateUserCount: lateUsers.length,
           trailingBurst: countTrailingUserBurst(trail),
+          trailingNeedsReply,
           userBurstAtStart,
           waitMs: Math.max(
             0,
@@ -2250,7 +2291,9 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       const pending = stateRef.current.meta.pendingBehavior;
 
       if (replyLockRef.current || flushLockRef.current) {
-        /* in-flight: playBehavior finally가 uiOwned 해제 + 닫힌 창 배달 */
+        /* in-flight: playBehavior finally가 uiOwned 해제 + 닫힌 창 배달.
+         * 뒤에 유저 말이 있으면 trailing flush가 이어지도록 표시만 남김 */
+        pendingFlushRef.current = true;
         return;
       }
 
@@ -2266,7 +2309,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       }
 
       const last = stateRef.current.messages[stateRef.current.messages.length - 1];
-      if (last?.role === 'user' || pendingFlushRef.current) {
+      if (
+        last?.role === 'user' ||
+        pendingFlushRef.current ||
+        ocChatNeedsReplyToTrailingUsers(
+          stateRef.current.messages,
+          stateRef.current.meta.pendingBehavior,
+        )
+      ) {
         pendingFlushRef.current = false;
         void flushDebouncedChatRef.current();
       }
