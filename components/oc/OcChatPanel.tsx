@@ -83,6 +83,7 @@ import {
 } from '@/lib/oc/ocChatPresence';
 import { defaultChatGreeting, resolveChatAvatarUrl } from '@/lib/oc/ocChatPrompt';
 import { resolveSticker } from '@/lib/oc/ocChatStickers';
+import { collapseSameIntentShortBubbles } from '@/lib/oc/ocChatVerify';
 import type { OcChatEpisode, OcChatEpisodeChoice, OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
 
@@ -397,9 +398,14 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       : null;
   const choices = (activeScene?.choices || []).filter((c) => c.text?.trim());
 
-  const scrollToEnd = useCallback(() => {
+  const scrollToEnd = useCallback((force = true) => {
     const el = threadRef.current;
     if (!el) return;
+    /* 위로 올려 과거를 보는 중이면 새 말풍선/타이핑 때문에 강제로 끌어내리지 않음 */
+    if (!force) {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (dist > 96) return;
+    }
     el.scrollTop = el.scrollHeight;
     requestAnimationFrame(() => {
       el.scrollTop = el.scrollHeight;
@@ -493,9 +499,10 @@ export function OcChatPanel({ open, character, onClose }: Props) {
     bootstrappedCharIdRef.current = charId;
     setThreadReady(true);
 
+    const wipedAt = Date.now();
     const wiped: OcChatThread = {
       messages: nextMessages,
-      updatedAt: Date.now(),
+      updatedAt: wipedAt,
       affection: 0,
       story: nextStory,
       freeGainDate: todayKeyLocal(),
@@ -515,6 +522,7 @@ export function OcChatPanel({ open, character, onClose }: Props) {
       turnsToday: 0,
       turnsDate: todayKeyLocal(),
       recentDeltaReasons: [],
+      clearedAt: wipedAt,
     };
     writeOcChatThreadCache(charId, vid, wiped);
 
@@ -1051,9 +1059,11 @@ export function OcChatPanel({ open, character, onClose }: Props) {
         /* 이미 백그라운드/다른 경로가 이 예약을 배달했는지 확인 */
         {
           const fresh = await loadOcChatThread(charId, vid);
-          const freshLines = dedupeAdjacentTextLines(
-            (behavior.messages || []).filter(
-              (line) => line.trim() && !looksLikeBehaviorDump(line),
+          const freshLines = collapseSameIntentShortBubbles(
+            dedupeAdjacentTextLines(
+              (behavior.messages || []).filter(
+                (line) => line.trim() && !looksLikeBehaviorDump(line),
+              ),
             ),
           );
           const oursGone =
@@ -1097,9 +1107,17 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           }
         }
 
-        const lines = dedupeAdjacentTextLines(
-          behavior.messages.filter((line) => line.trim() && !looksLikeBehaviorDump(line)),
+        const lines = collapseSameIntentShortBubbles(
+          dedupeAdjacentTextLines(
+            behavior.messages.filter((line) => line.trim() && !looksLikeBehaviorDump(line)),
+          ),
         );
+        if (lines.length < (behavior.messages?.length || 0)) {
+          console.info('[oc-chat-ui] collapsed same-intent short bubbles before play', {
+            before: behavior.messages,
+            after: lines,
+          });
+        }
         const sticker = resolveSticker(character.chatbot, behavior.sticker || null);
 
         for (let i = 0; i < lines.length; i++) {
@@ -1579,6 +1597,13 @@ export function OcChatPanel({ open, character, onClose }: Props) {
           lastSeenAt: seenNow,
           meta: nextMeta,
         };
+        console.info('[oc-chat-ui] thread loaded', {
+          characterId: charId,
+          messageCount: nextMessages.length,
+          firstAt: nextMessages[0]?.at,
+          lastAt: nextMessages[nextMessages.length - 1]?.at,
+          clearedAt: thread.clearedAt,
+        });
         writeOcChatThreadCache(charId, visitorRef.current, {
           ...thread,
           messages: nextMessages,
@@ -1893,7 +1918,8 @@ export function OcChatPanel({ open, character, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    scrollToEnd();
+    /* 열기·새 메시지 시에만 하단 고정. 과거 스크롤 중이면 유지 */
+    scrollToEnd(false);
   }, [messages, busy, waitingRead, awaitingChoice, open, scrollToEnd]);
 
   useEffect(() => {

@@ -31,6 +31,7 @@ import {
   resolveResponseDelaySeconds,
 } from '@/lib/oc/ocChatPresence';
 import { resolveSticker } from '@/lib/oc/ocChatStickers';
+import { collapseSameIntentShortBubbles } from '@/lib/oc/ocChatVerify';
 import { auth, db } from '@/lib/firebase/client';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import type { OcCharacter } from '@/lib/types/character';
@@ -44,7 +45,8 @@ import {
 export const OC_CHAT_VISITOR_KEY = 'lh_oc_chat_visitor';
 /** API/모델에 넘기는 최근 대화 말풍선 수 (~18턴 왕복). 비용 상한. */
 export const OC_CHAT_API_HISTORY = 36;
-export const OC_CHAT_STORE_MAX = 200;
+/** 클라이언트·R2에 보관하는 말풍선 상한 (오래된 것부터 trim) */
+export const OC_CHAT_STORE_MAX = 800;
 
 export type OcChatRole = 'user' | 'assistant';
 
@@ -108,6 +110,8 @@ export type OcChatThread = {
   memorySummary?: string;
   /** memorySummary에 반영된 마지막 메시지 at */
   memorySummaryThroughAt?: number;
+  /** 대화 초기화 시각 — merge 시 이 이후의 짧은 스레드가 옛 긴 기록을 되살리지 않게 */
+  clearedAt?: number;
 };
 
 function threadPath(characterId: string, visitorId: string) {
@@ -750,6 +754,10 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     typeof o.memorySummaryThroughAt === 'number' && Number.isFinite(o.memorySummaryThroughAt)
       ? o.memorySummaryThroughAt
       : undefined;
+  const clearedAt =
+    typeof o.clearedAt === 'number' && Number.isFinite(o.clearedAt) && o.clearedAt > 0
+      ? o.clearedAt
+      : undefined;
 
   return {
     messages: trimChatMessages(dedupeRecentAssistantDuplicates(messages)),
@@ -778,6 +786,7 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     openThreads,
     memorySummary,
     memorySummaryThroughAt,
+    clearedAt,
   };
 }
 
@@ -898,17 +907,35 @@ export function mergeOcChatThreads(
   const older = newer === nb ? na : nb;
 
   /*
-   * 채팅 초기화 후 옛 Firebase/캐시가 메시지 합집합으로 되살아나는 것 방지.
-   * 더 최신인데 말풍선이 거의 없고(≤3) 상대는 훨씬 길면 와이프로 본다.
+   * 의도적 초기화(clearedAt)만 긴 기록을 버린다.
+   * (예전 looksLikeWipe: 짧은 최신 스냅샷이 긴 대화를 지워버리는 버그가 있었음)
    */
-  const newerLen = newer.messages.length;
-  const olderLen = older.messages.length;
-  const looksLikeWipe =
-    (newer.updatedAt || 0) > (older.updatedAt || 0) &&
-    newerLen <= 3 &&
-    olderLen >= newerLen + 5;
-  if (looksLikeWipe) {
-    return normalizeChatThread(newer);
+  const clearAt = Math.max(na.clearedAt || 0, nb.clearedAt || 0);
+  if (clearAt > 0) {
+    const cleared = (na.clearedAt || 0) >= (nb.clearedAt || 0) ? na : nb;
+    const other = cleared === na ? nb : na;
+    if (clearAt >= (other.updatedAt || 0)) {
+      return normalizeChatThread({
+        ...cleared,
+        clearedAt: clearAt,
+        updatedAt: Math.max(cleared.updatedAt || 0, clearAt),
+      });
+    }
+    /* 초기화 이후 이어 쓴 쪽과 초기화 이전 쪽이 섞일 때: clearedAt 이후 메시지만 남김 */
+    const kept = mergeChatMessages(na.messages, nb.messages).filter(
+      (m) => m.at >= clearAt - 50,
+    );
+    return normalizeChatThread({
+      ...newer,
+      ...cleared,
+      messages: kept.length ? kept : cleared.messages,
+      story: cleared.story,
+      affection: Math.max(cleared.affection || 0, newer === cleared ? newer.affection : 0),
+      clearedAt: clearAt,
+      updatedAt: Math.max(na.updatedAt || 0, nb.updatedAt || 0),
+      memorySummary: cleared.memorySummary,
+      memorySummaryThroughAt: cleared.memorySummaryThroughAt,
+    });
   }
 
   const messages = trimChatMessages(mergeChatMessages(na.messages, nb.messages));
@@ -938,6 +965,7 @@ export function mergeOcChatThreads(
         : nb.memorySummary || na.memorySummary,
     memorySummaryThroughAt:
       Math.max(na.memorySummaryThroughAt || 0, nb.memorySummaryThroughAt || 0) || undefined,
+    clearedAt: undefined,
   });
 }
 
@@ -1051,6 +1079,7 @@ export async function saveOcChatThread(
     openThreads: thread.openThreads,
     memorySummary: thread.memorySummary,
     memorySummaryThroughAt: thread.memorySummaryThroughAt,
+    clearedAt: thread.clearedAt,
   };
 
   /* 즉시 로컬 캐시 — 다시 열 때 딜레이 없이 표시 */
@@ -1681,8 +1710,10 @@ export function behaviorToPending(
     applyAt,
     createdAt: Date.now(),
     action: behavior.action,
-    messages: dedupeAdjacentTextLines(
-      behavior.messages.filter((m) => m.trim() && !looksLikeBehaviorDump(m)),
+    messages: collapseSameIntentShortBubbles(
+      dedupeAdjacentTextLines(
+        behavior.messages.filter((m) => m.trim() && !looksLikeBehaviorDump(m)),
+      ),
     ),
     moodNote: behavior.moodNote,
     affinityDelta: behavior.affinityDelta,

@@ -146,6 +146,7 @@
   padding: 14px 14px 12px;
   border-bottom: 1px solid rgba(215, 169, 130, 0.14);
   background: rgba(16, 18, 16, 0.92);
+  flex-shrink: 0;
 }
 
 .oc-chat-phone__avatar-wrap {
@@ -584,14 +585,18 @@
 }
 
 .oc-chat-phone__thread {
-  flex: 1;
+  flex: 1 1 auto;
+  /* flex 컬럼에서 스크롤 가능하게 — min-height:auto면 콘텐츠만큼 커져 스크롤 불가 */
+  min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
   gap: 0;
-  contain: content;
   overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .oc-chat-phone__hint,
@@ -818,6 +823,7 @@
   padding: 10px 12px;
   border-top: 1px solid rgba(215, 169, 130, 0.14);
   background: rgba(16, 18, 16, 0.92);
+  flex-shrink: 0;
 }
 
 .oc-chat-phone__form input {

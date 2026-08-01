@@ -13,6 +13,7 @@ const VERIFY_SYSTEM = `당신은 대화 품질 검사기입니다. 사용자의 
 - 문장이 접속사·조사·명사 등으로 뚝 끊겨서 문법적으로 안 끝난 경우
 - 의미 없는 필러만 있고 실질 반응이 없는 경우
 - 실질 질문에 단순 맞장구·감사만으로 답을 대체한 경우
+- 같은 취지의 짧은 맞장구만 2~3개로 쪼개 보낸 경우(예: "그래"/"그렇구나"/"그게 편하긴 하지")
 - 사용자가 한 말의 핵심(질문·요청·감정·되묻기)을 무시하는 경우
 - 연속 메시지 중 앞부분만 반영하고 가장 최근 유저 말을 무시하는 경우
 - 연속 메시지인데 마지막 말만 받고 앞 맥락(직전 유저 말의 핵심)을 통째로 무시하는 경우
@@ -84,6 +85,73 @@ function normalizeForCompare(s: string): string {
     .replace(/[.…·~!?？！,.，。\"'“”‘’\-—]/g, '');
 }
 
+/**
+ * 짧은 맞장구·추임새만 있는 말풍선.
+ * "그래" / "그렇구나" / "그게 편하긴 하지" 처럼 같은 취지를 여러 개로 쪼갤 때 탐지용.
+ */
+export function looksLikeShortBackchannel(text: string): boolean {
+  const raw = String(text || '').trim();
+  if (!raw) return true;
+  if (Array.from(raw).length > 28) return false;
+  if (/[?？]/.test(raw)) return false;
+  const compact = normalizeForCompare(raw);
+  if (!compact) return true;
+  if (compact.length > 18) return false;
+  if (
+    /^(아+|어+|음+|응+|ㅇㅇ|ㅇㅋ|그래요?|그치|그렇구나|그렇네|그런가|그랬구나|그랬네|맞아|맞아요|알겠어|알았어|아하|헐|하+|ㅋ+|ㅎ+|오+|와+|네+|예+|흠+|흐음|오키|okay|ok|그쳐|응응|아아|음음|그래그래)/.test(
+      compact,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /(그렇구나|그렇네|그랬구나|편하긴|좋지|좋아|괜찮아|알겠어|맞아|그렇긴해|그렇지|그거야|그런가)/.test(
+      compact,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** 한 턴 messages가 전부 같은 취지 짧은 맞장구인지 */
+export function isStackedSameIntentShortBubbles(messages: string[]): boolean {
+  const lines = messages.map((m) => String(m || '').trim()).filter(Boolean);
+  if (lines.length < 2) return false;
+  return lines.every(looksLikeShortBackchannel);
+}
+
+/**
+ * 같은 취지 짧은 맞장구 연쇄 → 가장 내용 있는 1개만 남김.
+ * 맞장구 2개+ + 실질 문장이면 맞장구만 제거.
+ */
+export function collapseSameIntentShortBubbles(messages: string[]): string[] {
+  const lines = messages.map((m) => String(m || '').trim()).filter(Boolean);
+  if (lines.length <= 1) return lines;
+
+  if (isStackedSameIntentShortBubbles(lines)) {
+    const best = lines.reduce((a, b) =>
+      Array.from(b).length > Array.from(a).length ? b : a,
+    );
+    console.info('[oc-chat] collapse same-intent short bubbles', {
+      before: lines,
+      after: [best],
+    });
+    return [best];
+  }
+
+  const fillers = lines.filter(looksLikeShortBackchannel);
+  const content = lines.filter((m) => !looksLikeShortBackchannel(m));
+  if (fillers.length >= 2 && content.length >= 1) {
+    console.info('[oc-chat] drop filler bubbles around content', {
+      before: lines,
+      after: content,
+    });
+    return content.slice(0, 3);
+  }
+  return lines;
+}
+
 /** 후보 답이 최근 자기 말과 동일/거의 동일하면 true */
 export function isNearDuplicateReply(
   candidateMessages: string[],
@@ -151,6 +219,7 @@ export async function verifyOcChatRelevance(opts: {
   if (!last) return true;
 
   if (looksLikeIgnoredQuestionReply(last, msgs)) return false;
+  if (isStackedSameIntentShortBubbles(msgs)) return false;
 
   const recentAsst = (opts.recentAssistantMessages || [])
     .map((m) => String(m || '').trim())
@@ -207,7 +276,8 @@ export type OcChatVerifyFailReason =
   | 'punctuation_only'
   | 'mechanical_filter'
   | 'context_mismatch'
-  | 'duplicate_reply';
+  | 'duplicate_reply'
+  | 'stacked_filler';
 
 export function buildOcChatRetryUserNotice(
   lastUserMessage: string,
@@ -222,6 +292,9 @@ export function buildOcChatRetryUserNotice(
     reason === 'mechanical_filter'
   ) {
     return `[시스템 알림: 명령형 어미로 끝나는 문장이 있거나, 구두점만으로 이루어진 메시지(예: ".....")가 있었습니다. 명령형을 쓰지 말고, 할 말이 없다면 action을 read_only/ignore로 바꾸거나 실제 내용이 담긴 문장으로 다시 쓰세요. 이브면 평서문 끝 마침표도 빼세요. JSON만 출력.]`;
+  }
+  if (reason === 'stacked_filler') {
+    return `[시스템 알림: 같은 취지의 짧은 맞장구("그래"/"그렇구나" 등)를 messages에 여러 개로 쪼개 보냈습니다. 말풍선은 정보·반응·질문이 다를 때만 나누고, 맞장구는 한 문장으로 합치세요. 유저 이번 턴("${last}")에 실제 내용으로 짧게 다시 답하세요. JSON만 출력.]`;
   }
   if (reason === 'duplicate_reply') {
     const banned = (recentAssistantMessages || [])
@@ -302,6 +375,14 @@ export async function generateVerifiedOcChatResponse(opts: {
       failReason = 'duplicate_reply';
     }
 
+    if (!failReason && isStackedSameIntentShortBubbles(next.messages)) {
+      failReason = 'stacked_filler';
+      console.warn('[oc-chat] stacked same-intent short bubbles', {
+        lastUserMessage: opts.lastUserMessage.slice(0, 120),
+        messages: next.messages,
+      });
+    }
+
     if (!failReason) {
       const ok = await verifyOcChatRelevance({
         lastUserMessage: opts.lastUserMessage,
@@ -313,11 +394,24 @@ export async function generateVerifiedOcChatResponse(opts: {
       if (!ok) {
         failReason = isNearDuplicateReply(next.messages, recentAsst)
           ? 'duplicate_reply'
-          : 'context_mismatch';
+          : isStackedSameIntentShortBubbles(next.messages)
+            ? 'stacked_filler'
+            : 'context_mismatch';
       }
     }
 
     return { behavior: next, failReason };
+  };
+
+  const finalizeMessages = (b: OcChatBehavior): OcChatBehavior => {
+    if (!(b.action === 'respond' || b.action === 'end_for_today') || !b.messages.length) {
+      return b;
+    }
+    const collapsed = collapseSameIntentShortBubbles(b.messages);
+    if (collapsed === b.messages || (collapsed.length === b.messages.length && collapsed.every((m, i) => m === b.messages[i]))) {
+      return b;
+    }
+    return { ...b, messages: collapsed };
   };
 
   const regenerateOnce = async (previousRaw: string, failReason: OcChatVerifyFailReason) => {
@@ -369,7 +463,7 @@ export async function generateVerifiedOcChatResponse(opts: {
   // attempt0
   {
     const { behavior: fixed0, failReason: fail0 } = await verifyOrFixOnce(behavior);
-    behavior = fixed0;
+    behavior = finalizeMessages(eveFinalize(fixed0));
     verifyPassed = !fail0;
     if (!fail0) return { raw, behavior, regenerated: false, verifyPassed: true };
 
@@ -386,7 +480,7 @@ export async function generateVerifiedOcChatResponse(opts: {
     regenerated = true;
 
     const { behavior: fixed1, failReason: fail1 } = await verifyOrFixOnce(behavior);
-    behavior = fixed1;
+    behavior = finalizeMessages(eveFinalize(fixed1));
     verifyPassed = !fail1;
     if (!fail1) return { raw, behavior, regenerated: true, verifyPassed: true };
 
@@ -401,9 +495,15 @@ export async function generateVerifiedOcChatResponse(opts: {
     raw = regen2.raw;
     behavior = eveFinalize(regen2.behavior);
     const { behavior: fixed2, failReason: fail2 } = await verifyOrFixOnce(behavior);
-    behavior = eveFinalize(fixed2);
+    behavior = finalizeMessages(eveFinalize(fixed2));
     if (fail2 === 'duplicate_reply' || isNearDuplicateReply(behavior.messages, recentAsst)) {
       behavior = demoteDuplicate(behavior);
+      verifyPassed = true;
+      return { raw, behavior, regenerated: true, verifyPassed: true };
+    }
+    /* stacked_filler 등은 최후 후보를 collapse로 줄인 뒤 사용 */
+    if (fail2 === 'stacked_filler') {
+      behavior = finalizeMessages(behavior);
       verifyPassed = true;
       return { raw, behavior, regenerated: true, verifyPassed: true };
     }
