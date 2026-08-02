@@ -64,6 +64,7 @@ import {
   ocChatNeedsReplyToTrailingUsers,
   formatOcChatFirebaseError,
   isOcChatTransientBusyError,
+  mergeOcChatThreads,
   peekOcChatThreadCache,
   pendingLinesAlreadyAtTail,
   postOcChat,
@@ -943,12 +944,22 @@ export function OcChatPanel({
       skipSeen?: boolean;
       /** 명시적 저장 대상 — 없으면 이 콜백이 만들어진 시점의 charId */
       characterId?: string;
+      /**
+       * 다른 OC로 떠난 뒤에도 이 스레드에 써야 할 때 (pending 인계 등).
+       * characterId를 명시한 저장만 허용.
+       */
+      allowInactive?: boolean;
     }) => {
       const saveCharId = String(snap.characterId || charId);
       const epoch = resetEpochRef.current;
       const vid = visitorRef.current || getOrCreateChatVisitorId();
       /* 다른 OC로 전환된 뒤 stale persist가 섞이지 않게 */
-      if (activeCharIdRef.current !== saveCharId) return;
+      if (
+        activeCharIdRef.current !== saveCharId &&
+        !(snap.allowInactive && snap.characterId)
+      ) {
+        return;
+      }
       const seen =
         snap.skipSeen
           ? snap.lastSeenAt ?? stateRef.current.lastSeenAt
@@ -1040,23 +1051,92 @@ export function OcChatPanel({
         hasLateUserMessages(stateRef.current.messages, flushIncludedIdsRef.current) ||
         burstEpochRef.current !== playEpoch;
 
-      /** 대기 중 연타가 오면 즉시 중단 — 긴 responseDelay 동안 놓치던 구멍 */
+      /**
+       * 다른 OC로 떠났으면 UI 연출 대신 백그라운드 배달로 인계.
+       * (창만 닫힌 경우와 동일 — 안 그러면 들어가기 전까지 답장이 안 옴)
+       */
+      const handoffPendingToBackground = async (): Promise<'ok'> => {
+        setOcChatPendingUiOwned(playCharId, vid, false);
+        const pending =
+          nextMeta.pendingBehavior ||
+          peekOcChatThreadCache(playCharId, vid)?.pendingBehavior;
+        if (!pending?.applyAt) return 'ok';
+        const cached = peekOcChatThreadCache(playCharId, vid);
+        const base: OcChatThread = cached || {
+          messages: msgs,
+          updatedAt: Date.now(),
+          affection: clampAffection(opts.affection),
+          story: opts.story,
+          freeGainDate: opts.freeGainDate,
+          freeGainToday: opts.freeGainToday,
+          lastSeenAt: stateRef.current.lastSeenAt || undefined,
+          pendingBehavior: pending,
+          pendingClearedAt: nextMeta.pendingClearedAt,
+          presence: nextMeta.presence,
+          presenceUpdatedAt: nextMeta.presenceUpdatedAt,
+        };
+        const withPending: OcChatThread = {
+          ...base,
+          pendingBehavior: pending,
+          updatedAt: Date.now(),
+        };
+        writeOcChatThreadCache(
+          playCharId,
+          vid,
+          mergeOcChatThreads(cached, withPending),
+        );
+        void saveOcChatThread(playCharId, vid, withPending).catch(() => {});
+        scheduleOcChatPendingDelivery(
+          playCharId,
+          vid,
+          pending.applyAt,
+          character,
+          pending.id,
+        );
+        if (pending.applyAt <= Date.now()) {
+          await tryDeliverPendingChat({
+            characterId: playCharId,
+            visitorId: vid,
+            character,
+            expectPendingId: pending.id,
+            force: true,
+          });
+        }
+        console.info('[oc-chat-ui] handoff pending to background', {
+          characterId: playCharId,
+          applyAt: pending.applyAt,
+          due: pending.applyAt <= Date.now(),
+        });
+        return 'ok';
+      };
+
+      /** 대기 중 연타·OC 이탈이면 중단 — 긴 responseDelay 동안 놓치던 구멍 */
       const sleepWhileBurstQuiet = async (ms: number): Promise<'ok' | 'regather'> => {
         const end = Date.now() + Math.max(0, Math.round(ms));
         while (Date.now() < end) {
-          if (lateBurstPending()) return 'regather';
+          /* 이탈은 regather → abortForRegather가 백그라운드 인계 */
+          if (!stillOnChar(playCharId) || lateBurstPending()) return 'regather';
           const slice = Math.min(180, end - Date.now());
           if (slice <= 0) break;
           await sleepMs(slice);
         }
-        return lateBurstPending() ? 'regather' : 'ok';
+        if (!stillOnChar(playCharId) || lateBurstPending()) return 'regather';
+        return 'ok';
       };
 
       const abortForRegather = async (): Promise<'regather'> => {
+        /* OC를 떠난 뒤의 epoch bump는 답장 취소가 아니라 백그라운드 인계 */
+        if (!stillOnChar(playCharId)) {
+          await handoffPendingToBackground();
+          return 'regather';
+        }
         cancelOcChatPendingDelivery(playCharId, vid);
         /* 이번 연출에서 붙인 assistant만 제거 — 이후 최신 버스트로 한 번만 재응답 */
         const rolled = stateRef.current.messages.filter((m) => !deliveredIds.has(m.id));
-        if (!alive()) return 'regather';
+        if (!alive()) {
+          await handoffPendingToBackground();
+          return 'regather';
+        }
         applyMessages(rolled);
         const prevPending = nextMeta.pendingBehavior;
         nextMeta = {
@@ -1213,6 +1293,8 @@ export function OcChatPanel({
           meta: nextMeta,
           skipSeen: !isViewingThread(),
           lastSeenAt: !isViewingThread() ? stateRef.current.lastSeenAt : undefined,
+          characterId: playCharId,
+          allowInactive: true,
         });
 
         const waitMs = Math.max(0, applyAt - Date.now());
@@ -1223,6 +1305,7 @@ export function OcChatPanel({
         });
         const fastRead =
           openRef.current &&
+          stillOnChar(playCharId) &&
           shouldFastReadTransition({
             affection: stateRef.current.affection,
             responseDelaySeconds: delaySec,
@@ -1249,6 +1332,8 @@ export function OcChatPanel({
             freeGainToday: opts.freeGainToday,
             freeGainDate: opts.freeGainDate,
             meta: nextMeta,
+            characterId: playCharId,
+            allowInactive: true,
           });
         };
 
@@ -1256,8 +1341,8 @@ export function OcChatPanel({
          * 순서 고정: (오프면) 온라인 표시 → 대기(미읽음 "1") → 읽음 → 타이핑 → 답장
          * wasOffline이면 applyAt에 온라인이 된 뒤의 텀이 이미 포함됨.
          */
-        if (isViewingThread()) setWaitingRead(true);
-        if (wasOffline && isViewingThread()) {
+        if (isViewingThread() && stillOnChar(playCharId)) setWaitingRead(true);
+        if (wasOffline && isViewingThread() && stillOnChar(playCharId)) {
           /* 초록불이 페인트된 뒤 읽음으로 넘어가게 한 프레임 양보 */
           await new Promise<void>((r) => {
             requestAnimationFrame(() => requestAnimationFrame(() => r()));
@@ -1268,7 +1353,7 @@ export function OcChatPanel({
           if ((await sleepWhileBurstQuiet(unreadFlashMs)) === 'regather') {
             return abortForRegather();
           }
-          if (isViewingThread()) await markReadNow();
+          if (isViewingThread() && stillOnChar(playCharId)) await markReadNow();
           const rest = Math.max(0, waitMs - unreadFlashMs);
           if (rest > 0 && (await sleepWhileBurstQuiet(rest)) === 'regather') {
             return abortForRegather();
@@ -1280,7 +1365,7 @@ export function OcChatPanel({
           if (untilRead > 0 && (await sleepWhileBurstQuiet(untilRead)) === 'regather') {
             return abortForRegather();
           }
-          if (isViewingThread()) await markReadNow();
+          if (isViewingThread() && stillOnChar(playCharId)) await markReadNow();
           if (readLeadMs > 0 && (await sleepWhileBurstQuiet(readLeadMs)) === 'regather') {
             return abortForRegather();
           }
@@ -1290,8 +1375,8 @@ export function OcChatPanel({
           return abortForRegather();
         }
 
-        /* 창이 닫혀 있으면 조용히 배달 (미읽음 유지) — 이후 유저 말이 있으면 재응답 */
-        if (!openRef.current) {
+        /* 창 닫힘·다른 OC로 이탈 → 조용히 배달 (미읽음 유지) */
+        if (!openRef.current || !stillOnChar(playCharId)) {
           setOcChatPendingUiOwned(playCharId, vid, false);
           await tryDeliverPendingChat({
             characterId: playCharId,
@@ -1300,6 +1385,7 @@ export function OcChatPanel({
             expectPendingId: pending.id,
             force: true,
           });
+          if (!stillOnChar(playCharId)) return 'ok';
           const fresh = await loadOcChatThread(playCharId, vid);
           const closedMeta: MetaState = {
             ...nextMeta,
@@ -1478,7 +1564,7 @@ export function OcChatPanel({
         const sticker = resolveSticker(character.chatbot, behavior.sticker || null);
 
         for (let i = 0; i < lines.length; i++) {
-          if (!openRef.current) {
+          if (!openRef.current || !stillOnChar(playCharId)) {
             setOcChatPendingUiOwned(playCharId, vid, false);
             await tryDeliverPendingChat({
               characterId: playCharId,
@@ -1487,6 +1573,7 @@ export function OcChatPanel({
               expectPendingId: pending.id,
               force: true,
             });
+            if (!stillOnChar(playCharId)) return 'ok';
             const fresh = await loadOcChatThread(playCharId, vid);
             const synced = dedupeAdjacentAssistantMessages(fresh.messages);
             stateRef.current = {
@@ -1580,7 +1667,7 @@ export function OcChatPanel({
         }
 
         if (sticker) {
-          if (!openRef.current) {
+          if (!openRef.current || !stillOnChar(playCharId)) {
             setOcChatPendingUiOwned(playCharId, vid, false);
             await tryDeliverPendingChat({
               characterId: playCharId,
@@ -1589,6 +1676,7 @@ export function OcChatPanel({
               expectPendingId: pending.id,
               force: true,
             });
+            if (!stillOnChar(playCharId)) return 'ok';
             const fresh = await loadOcChatThread(playCharId, vid);
             const synced = dedupeAdjacentAssistantMessages(fresh.messages);
             stateRef.current = {
@@ -1692,10 +1780,33 @@ export function OcChatPanel({
         setBusy(false);
         setWaitingRead(false);
         /* 연출 종료 — 스레드를 안 보고 있으면 pending 타이머에 맡김 */
-        const stillPending = stateRef.current.meta.pendingBehavior;
         setOcChatPendingUiOwned(playCharId, vid, false);
-        if (!isViewingThread() && stillPending?.applyAt) {
-          scheduleOcChatPendingDelivery(playCharId, vid, stillPending.applyAt, characterRef.current,
+        const cachedPending = peekOcChatThreadCache(playCharId, vid)?.pendingBehavior;
+        const stillPending =
+          cachedPending || stateRef.current.meta.pendingBehavior;
+        if (stillPending?.applyAt && !stillOnChar(playCharId)) {
+          scheduleOcChatPendingDelivery(
+            playCharId,
+            vid,
+            stillPending.applyAt,
+            character,
+            stillPending.id,
+          );
+          if (stillPending.applyAt <= Date.now()) {
+            void tryDeliverPendingChat({
+              characterId: playCharId,
+              visitorId: vid,
+              character,
+              expectPendingId: stillPending.id,
+              force: true,
+            }).catch(() => {});
+          }
+        } else if (!isViewingThread() && stillPending?.applyAt) {
+          scheduleOcChatPendingDelivery(
+            playCharId,
+            vid,
+            stillPending.applyAt,
+            characterRef.current,
             stillPending.id,
           );
         }
@@ -1734,7 +1845,7 @@ export function OcChatPanel({
       unreadWhileScrolledRef.current = 0;
       setShowScrollFab(false);
       /* 직전 OC UI 상태를 그 OC 키로만 봉인 */
-      if (stateRef.current.messages.length > 0) {
+      if (stateRef.current.messages.length > 0 || stateRef.current.meta.pendingBehavior) {
         const sealedMeta = stateRef.current.meta;
         const sealed: OcChatThread = {
           messages: stateRef.current.messages,
@@ -1761,8 +1872,34 @@ export function OcChatPanel({
           memorySummary: memorySummaryRef.current,
           memorySummaryThroughAt: memorySummaryThroughAtRef.current,
         };
-        writeOcChatThreadCache(prevId, vid, sealed);
-        void saveOcChatThread(prevId, vid, sealed).catch(() => {});
+        /* 캐시에 이미 있는 pending을 봉인이 지우지 않게 merge */
+        const prevCached = peekOcChatThreadCache(prevId, vid);
+        const sealedMerged = mergeOcChatThreads(prevCached, sealed);
+        writeOcChatThreadCache(prevId, vid, sealedMerged);
+        void saveOcChatThread(prevId, vid, sealedMerged).catch(() => {});
+        setOcChatPendingUiOwned(prevId, vid, false);
+        const handoffPending = sealedMerged.pendingBehavior;
+        if (handoffPending?.applyAt) {
+          const prevChar =
+            characters?.find((c) => String(c.id) === String(prevId)) || undefined;
+          scheduleOcChatPendingDelivery(
+            prevId,
+            vid,
+            handoffPending.applyAt,
+            prevChar,
+            handoffPending.id,
+          );
+          if (handoffPending.applyAt <= Date.now()) {
+            void tryDeliverPendingChat({
+              characterId: prevId,
+              visitorId: vid,
+              character: prevChar,
+              expectPendingId: handoffPending.id,
+              force: true,
+            }).catch(() => {});
+          }
+        }
+      } else {
         setOcChatPendingUiOwned(prevId, vid, false);
       }
       memorySummaryRef.current = undefined;
@@ -1884,7 +2021,7 @@ export function OcChatPanel({
     if (recoveredStory !== cached.story) {
       writeOcChatThreadCache(nextId, vid, { ...cached, story: recoveredStory });
     }
-  }, [open, charId]);
+  }, [open, charId, characters]);
 
   useEffect(() => {
     if (!open) return;
@@ -2442,19 +2579,20 @@ export function OcChatPanel({
       if (phoneView === 'thread') {
         setPhoneView('list');
         onPhoneViewChange?.('list');
-        if (!replyLockRef.current && !flushLockRef.current) {
-          const vid = visitorRef.current || getOrCreateChatVisitorId();
-          setOcChatPendingUiOwned(charId, vid, false);
-          const pending = stateRef.current.meta.pendingBehavior;
-          if (pending?.applyAt) {
-            scheduleOcChatPendingDelivery(
-              charId,
-              vid,
-              pending.applyAt,
-              characterRef.current,
-              pending.id,
-            );
-          }
+        /* 연출 중이어도 UI 소유를 풀어 백그라운드 배달·토스트가 막히지 않게 */
+        const vid = visitorRef.current || getOrCreateChatVisitorId();
+        setOcChatPendingUiOwned(charId, vid, false);
+        const pending =
+          stateRef.current.meta.pendingBehavior ||
+          peekOcChatThreadCache(charId, vid)?.pendingBehavior;
+        if (pending?.applyAt) {
+          scheduleOcChatPendingDelivery(
+            charId,
+            vid,
+            pending.applyAt,
+            characterRef.current,
+            pending.id,
+          );
         }
         void refreshInbox();
         return;
@@ -2761,6 +2899,9 @@ export function OcChatPanel({
         });
         const playMs = Date.now() - playStartedAt;
 
+        /* play 도중 다른 OC로 이동 — 이후 메타/호감 반영은 새 OC에 섞이지 않게 중단 */
+        if (!stillOnChar(flushCharId)) return;
+
         if (
           playResult === 'regather' ||
           burstEpochRef.current !== myEpoch
@@ -2775,6 +2916,8 @@ export function OcChatPanel({
             playMs,
             path: 'mid_play_newer_burst',
           });
+          /* 다른 OC로 떠난 뒤엔 이 flush를 이어가지 않음 */
+          if (!stillOnChar(flushCharId)) return;
           if (attempt < OC_CHAT_BURST_REGATHER_MAX) {
             continue;
           }
@@ -3286,22 +3429,21 @@ export function OcChatPanel({
               onPhoneViewChange?.('list');
               /*
                * 목록으로 나가면 숨은 스레드 연출에 UI 소유를 붙잡지 않음.
-               * (연출 중이면 replyLock이 잡고, 끝나면 finally에서 이미 해제)
                * 소유가 남으면 AlertHost/타이머 배달·토스트가 막힘.
                */
-              if (!replyLockRef.current && !flushLockRef.current) {
-                const vid = visitorRef.current || getOrCreateChatVisitorId();
-                setOcChatPendingUiOwned(charId, vid, false);
-                const pending = stateRef.current.meta.pendingBehavior;
-                if (pending?.applyAt) {
-                  scheduleOcChatPendingDelivery(
-                    charId,
-                    vid,
-                    pending.applyAt,
-                    characterRef.current,
-                    pending.id,
-                  );
-                }
+              const vid = visitorRef.current || getOrCreateChatVisitorId();
+              setOcChatPendingUiOwned(charId, vid, false);
+              const pending =
+                stateRef.current.meta.pendingBehavior ||
+                peekOcChatThreadCache(charId, vid)?.pendingBehavior;
+              if (pending?.applyAt) {
+                scheduleOcChatPendingDelivery(
+                  charId,
+                  vid,
+                  pending.applyAt,
+                  characterRef.current,
+                  pending.id,
+                );
               }
               void refreshInbox();
             }}

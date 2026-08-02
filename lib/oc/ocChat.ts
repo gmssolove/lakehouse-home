@@ -1521,27 +1521,29 @@ export async function saveOcChatThread(
   };
 
   /* 즉시 로컬 캐시 — 다시 열 때 딜레이 없이 표시 */
+  let stored = next;
   if (opts?.replace) {
     writeOcChatThreadCache(characterId, visitorId, next);
     clearOcChatThreadBackup(characterId, visitorId);
   } else {
-    writeOcChatThreadCache(
-      characterId,
-      visitorId,
-      mergeOcChatThreads(peekOcChatThreadCache(characterId, visitorId), next),
-    );
+    stored = mergeOcChatThreads(peekOcChatThreadCache(characterId, visitorId), next);
+    writeOcChatThreadCache(characterId, visitorId, stored);
   }
+  /*
+   * 스케줄은 merge 결과 기준 — pending 없는 봉인 저장이
+   * 이미 잡혀 있던 applyAt 타이머를 취소하지 않게.
+   */
   scheduleOcChatPendingDelivery(
     characterId,
     visitorId,
-    next.pendingBehavior?.applyAt,
+    stored.pendingBehavior?.applyAt,
     undefined,
-    next.pendingBehavior?.id,
+    stored.pendingBehavior?.id,
   );
 
   /* 주 저장소: R2 API — 서버에서 기존 스레드와 merge (replace 시 덮어쓰기) */
   try {
-    await saveOcChatThreadViaApi(characterId, visitorId, next, opts);
+    await saveOcChatThreadViaApi(characterId, visitorId, stored, opts);
   } catch (e) {
     /* 로컬은 이미 저장됨. 초기화(replace)만 실패를 올리고, 일반 동기화는 채팅을 막지 않음 */
     if (opts?.replace) throw e;
@@ -1552,7 +1554,7 @@ export async function saveOcChatThread(
   try {
     await ensureOcChatAuth();
     if (auth.currentUser) {
-      await set(ref(db, threadPath(characterId, visitorId)), stripUndefinedDeep(next));
+      await set(ref(db, threadPath(characterId, visitorId)), stripUndefinedDeep(stored));
     }
   } catch {
     /* ignore */
