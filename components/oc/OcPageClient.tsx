@@ -901,6 +901,7 @@ export function OcPageClient() {
       <OcChatAlertHost
         characters={characters}
         chatOpen={chatOpen}
+        phoneView={chatPhoneView}
         mutedCharacterId={
           chatOpen && chatPhoneView === 'thread' ? chatCharacterId : null
         }

@@ -1055,7 +1055,7 @@
   left: 50%;
   /* 상태바 아래보다 더 띄움 */
   top: calc(env(safe-area-inset-top, 0px) + 52px);
-  z-index: 2600;
+  z-index: 3200;
   display: block;
   width: min(420px, calc(100vw - 24px));
   margin: 0;

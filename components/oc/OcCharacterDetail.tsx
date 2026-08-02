@@ -47,6 +47,7 @@ import {
   countCharUnread,
   getOrCreateChatVisitorId,
   loadOcChatThread,
+  mergeOcChatThreads,
   peekOcChatThreadCache,
   scheduleOcChatPendingDelivery,
   subscribeOcChatThread,
@@ -992,8 +993,6 @@ export function OcCharacterDetail({
     closeSfxUrl?: string;
   } | null>(null);
   const [chatUnread, setChatUnread] = useState(0);
-  /* 미읽음이 한 번이라도 잡히면 채팅 열기 전까지 유지 — RTDB 중간값으로 배지/턱이 깜빡이지 않게 */
-  const [chatAlertLatched, setChatAlertLatched] = useState(false);
   const [chatNotifyQueue, setChatNotifyQueue] = useState<OcChatNotifyPayload[]>([]);
   const chatEnabled = Boolean(character.chatbot?.enabled);
   const chatOpenRef = useRef(chatOpen);
@@ -1035,13 +1034,19 @@ export function OcCharacterDetail({
   const applyUnreadFromThread = useCallback(
     (thread: OcChatThread | null | undefined) => {
       if (!thread || chatMuteAlertsRef.current) return;
-      const n = countCharUnread(thread);
+      const vid = getOrCreateChatVisitorId();
+      const charId = String(character.id);
+      /* 구독/원격 stale lastSeen 이 로컬 읽음을 덮지 않게 */
+      const merged = mergeOcChatThreads(
+        peekOcChatThreadCache(charId, vid),
+        thread,
+      );
+      const n = countCharUnread(merged);
       setChatUnread(n);
-      /* 읽음(0)이면 래치도 해제 — 확인 후에도 핸드폰 알림이 남는 문제 방지 */
-      setChatAlertLatched(n > 0);
-      if (n > 0) maybeNotifyFromThread(thread);
+      if (n > 0) maybeNotifyFromThread(merged);
+      else setChatNotifyQueue([]);
     },
-    [maybeNotifyFromThread],
+    [character.id, maybeNotifyFromThread],
   );
 
   /* 상세 들어오자마자 캐시 기준으로 배지 표시 — 서버 폴링 전에 알림이 보이게 */
@@ -1050,23 +1055,18 @@ export function OcCharacterDetail({
     notifyBootstrappedRef.current = false;
     if (!chatEnabled) {
       setChatUnread(0);
-      setChatAlertLatched(false);
       return;
     }
     if (chatMuteAlerts) {
       setChatUnread(0);
-      setChatAlertLatched(false);
       return;
     }
     const vid = getOrCreateChatVisitorId();
     const cached = peekOcChatThreadCache(String(character.id), vid);
     if (cached) {
-      const n = countCharUnread(cached);
-      setChatUnread(n);
-      setChatAlertLatched(n > 0);
+      setChatUnread(countCharUnread(cached));
     } else {
       setChatUnread(0);
-      setChatAlertLatched(false);
     }
     // chatMuteAlerts는 상위 소유 — 캐릭터 전환 시 배지만 재계산
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit chatMuteAlerts
@@ -1075,12 +1075,10 @@ export function OcCharacterDetail({
   useEffect(() => {
     if (chatMuteAlerts) {
       setChatUnread(0);
-      setChatAlertLatched(false);
       setChatNotifyQueue([]);
       return;
     }
     if (chatUnread <= 0) {
-      setChatAlertLatched(false);
       setChatNotifyQueue([]);
     }
   }, [chatMuteAlerts, chatUnread]);
@@ -2502,10 +2500,10 @@ export function OcCharacterDetail({
       {chatEnabled ? (
         <OcChatPhonePeek
           characterName={character.name || '캐릭터'}
-          unread={chatAlertLatched ? Math.max(chatUnread, 1) : chatUnread}
+          unread={chatUnread}
           /* 채팅 열릴 때만 숨김 — VN/unread로 show·hide 하면 알림이 깜빡임 */
           hidden={chatOpen}
-          tucked={vn.present && !chatAlertLatched}
+          tucked={vn.present && chatUnread <= 0}
           onOpen={() => onOpenChat?.()}
         />
       ) : null}

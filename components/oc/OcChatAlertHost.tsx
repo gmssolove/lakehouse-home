@@ -45,25 +45,27 @@ function markNotifiedMessage(characterId: string, messageId: string) {
   }
 }
 
+type PhoneView = 'list' | 'thread';
+
 type Props = {
   characters: OcCharacter[];
   /** 채팅 오버레이가 열려 있을 때만 토스트 (상세 배지는 OcCharacterDetail) */
   chatOpen: boolean;
-  /** 스레드를 보고 있는 OC — 이 캐릭터만 알림 음소거 */
+  /** 패널이 보고하는 화면 — 목록이면 절대 mute 하지 않음 */
+  phoneView?: PhoneView;
+  /** 스레드를 보고 있는 OC — phoneView==='thread' 일 때만 적용 */
   mutedCharacterId?: string | null;
   onOpenCharacter?: (character: OcCharacter) => void;
 };
 
 /**
  * 모든 챗봇 OC의 pending 배달 + (채팅 열림 시) 알림.
- * A 상세·목록을 켜 둔 동안 B 메시지/알림이 죽지 않게 함.
- *
- * 원격 폴링은 채팅이 열려 있을 때만 · 한 명씩 · 느리게 —
- * OC 페이지만 켜 둔 채 전원 load 하면 Worker 503을 유발함.
+ * 목록만 띄운 상태에서도 새 메시지 토스트가 뜨게 함.
  */
 export function OcChatAlertHost({
   characters,
   chatOpen,
+  phoneView = 'thread',
   mutedCharacterId = null,
   onOpenCharacter,
 }: Props) {
@@ -73,6 +75,8 @@ export function OcChatAlertHost({
   );
   const [queue, setQueue] = useState<OcChatNotifyPayload[]>([]);
   const openCharRef = useRef<OcCharacter | null>(null);
+  const phoneViewRef = useRef(phoneView);
+  phoneViewRef.current = phoneView;
   const mutedRef = useRef(mutedCharacterId);
   mutedRef.current = mutedCharacterId;
   const chatOpenRef = useRef(chatOpen);
@@ -80,14 +84,24 @@ export function OcChatAlertHost({
   const bootstrappedRef = useRef(new Set<string>());
   const remoteCursorRef = useRef(0);
   const remoteInflightRef = useRef(false);
+  /** 목록 진입 시각 — 이전 미읽음 스팸 없이, 진입 이후 도착분만 토스트 */
+  const listWatchAtRef = useRef(0);
+
+  const effectiveMutedId = useCallback((): string | null => {
+    /* 목록 화면에서는 mute 금지 (부모 state 한 박자 지연 대비) */
+    if (phoneViewRef.current === 'list') return null;
+    return mutedRef.current ? String(mutedRef.current) : null;
+  }, []);
 
   const enqueueFromThread = useCallback(
     (character: OcCharacter, thread: OcChatThread | null | undefined) => {
       if (!chatOpenRef.current || !thread) return;
       const charId = String(character.id);
       const unread = collectUnreadAssistants(thread);
+      const mutedId = effectiveMutedId();
+      const onList = phoneViewRef.current === 'list';
 
-      if (mutedRef.current && String(mutedRef.current) === charId) {
+      if (mutedId && mutedId === charId) {
         for (const m of unread) markNotifiedMessage(charId, m.id);
         bootstrappedRef.current.add(charId);
         setQueue((q) => q.filter((x) => String(x.characterId || '') !== charId));
@@ -98,8 +112,15 @@ export function OcChatAlertHost({
         setQueue((q) => q.filter((x) => String(x.characterId || '') !== charId));
         return;
       }
+
+      const floor = onList ? listWatchAtRef.current - 2_000 : 0;
       const fresh: OcChatNotifyPayload[] = [];
       for (const m of unread) {
+        if (onList && m.at < floor) {
+          /* 목록 진입 전 미읽음 — 팝업 없이 소비 */
+          markNotifiedMessage(charId, m.id);
+          continue;
+        }
         if (hasNotifiedMessage(charId, m.id)) continue;
         markNotifiedMessage(charId, m.id);
         fresh.push(buildOcChatNotifyPayload(character, m, thread.messages));
@@ -110,6 +131,11 @@ export function OcChatAlertHost({
         const seen = new Set(q.map((x) => x.id));
         const add = fresh.filter((x) => !seen.has(x.id));
         if (!add.length) return q;
+        /*
+         * 목록에서는 bootstrap 으로 최신 1개만 남기지 않음 —
+         * 새 도착분은 모두 큐에 올려 팝업이 뜨게.
+         */
+        if (onList) return [...q, ...add];
         if (!bootstrappedRef.current.has(charId)) {
           bootstrappedRef.current.add(charId);
           return [...q, add[add.length - 1]!];
@@ -117,33 +143,36 @@ export function OcChatAlertHost({
         return [...q, ...add];
       });
     },
-    [],
+    [effectiveMutedId],
   );
 
-  const scanAllCached = useCallback(() => {
-    if (!chatOpenRef.current) return;
-    const vid = getOrCreateChatVisitorId();
-    for (const c of chatbotChars) {
-      enqueueFromThread(c, peekOcChatThreadCache(String(c.id), vid));
+  useEffect(() => {
+    if (!chatOpen) {
+      setQueue([]);
+      bootstrappedRef.current = new Set();
+      listWatchAtRef.current = 0;
+      return;
     }
-  }, [chatbotChars, enqueueFromThread]);
+    if (phoneView === 'list') {
+      listWatchAtRef.current = Date.now();
+      /* 목록 진입 시 조용히 과거 미읽음만 소비 — 이후 도착분이 팝업 대상 */
+      const vid = getOrCreateChatVisitorId();
+      for (const c of chatbotChars) {
+        const id = String(c.id);
+        const thread = peekOcChatThreadCache(id, vid);
+        const unread = collectUnreadAssistants(thread);
+        for (const m of unread) {
+          if (m.at < listWatchAtRef.current - 2_000) markNotifiedMessage(id, m.id);
+        }
+      }
+    }
+  }, [chatOpen, phoneView, chatbotChars]);
 
   useEffect(() => {
-    if (!mutedCharacterId) return;
+    if (phoneView !== 'thread' || !mutedCharacterId) return;
     const id = String(mutedCharacterId);
     setQueue((q) => q.filter((x) => String(x.characterId || '') !== id));
-  }, [mutedCharacterId]);
-
-  useEffect(() => {
-    if (!chatOpen || mutedCharacterId) return;
-    scanAllCached();
-  }, [chatOpen, mutedCharacterId, scanAllCached]);
-
-  useEffect(() => {
-    if (chatOpen) return;
-    setQueue([]);
-    bootstrappedRef.current = new Set();
-  }, [chatOpen]);
+  }, [mutedCharacterId, phoneView]);
 
   const deliverDueFromCache = useCallback(
     (c: OcCharacter, vid: string) => {
@@ -165,7 +194,6 @@ export function OcChatAlertHost({
     [enqueueFromThread],
   );
 
-  /** 로컬 캐시만 — 원격 hit 없음. 상세를 연 적 있어 캐시에 pending이 있을 때 배달 */
   useEffect(() => {
     if (!chatbotChars.length) return;
     const vid = getOrCreateChatVisitorId();
@@ -190,37 +218,60 @@ export function OcChatAlertHost({
       for (const c of chatbotChars) deliverDueFromCache(c, vid);
     };
     tick();
-    const timer = window.setInterval(tick, 2_000);
+    const timer = window.setInterval(tick, 1_500);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
   }, [chatbotChars, deliverDueFromCache]);
 
-  /**
-   * 원격 pending — 채팅 오버레이가 열려 있을 때만.
-   * 전원 일괄 load 금지 · 한 번에 한 OC · 동시 1요청.
-   */
   useEffect(() => {
     if (!chatOpen || !chatbotChars.length) return;
     const vid = getOrCreateChatVisitorId();
     let cancelled = false;
+
+    const pickNext = (): OcCharacter | null => {
+      const muted = effectiveMutedId() || '';
+      const others = chatbotChars.filter((c) => String(c.id) !== muted);
+      const pool = others.length ? others : chatbotChars;
+
+      const due = pool.filter((c) => {
+        const p = peekOcChatThreadCache(String(c.id), vid)?.pendingBehavior;
+        return Boolean(p && (p.applyAt || 0) <= Date.now());
+      });
+      if (due.length) {
+        const i = remoteCursorRef.current % due.length;
+        remoteCursorRef.current = i + 1;
+        return due[i] ?? null;
+      }
+
+      const cached = pool.filter((c) => Boolean(peekOcChatThreadCache(String(c.id), vid)));
+      const use = cached.length ? cached : pool;
+      const i = remoteCursorRef.current % use.length;
+      remoteCursorRef.current = i + 1;
+      return use[i] ?? null;
+    };
 
     const syncOne = async (c: OcCharacter) => {
       if (remoteInflightRef.current) return;
       remoteInflightRef.current = true;
       const id = String(c.id);
       try {
-        const thread = await loadOcChatThread(id, vid);
-        if (cancelled) return;
-        const applyAt = thread.pendingBehavior?.applyAt;
+        const loaded = await Promise.race([
+          loadOcChatThread(id, vid),
+          new Promise<null>((resolve) => {
+            window.setTimeout(() => resolve(null), 6_000);
+          }),
+        ]);
+        if (cancelled || !loaded) return;
+        const applyAt = loaded.pendingBehavior?.applyAt;
         if (applyAt) {
           scheduleOcChatPendingDelivery(
             id,
             vid,
             applyAt,
             c,
-            thread.pendingBehavior?.id,
+            loaded.pendingBehavior?.id,
           );
           if (applyAt <= Date.now()) {
             await tryDeliverPendingChat({
@@ -239,22 +290,21 @@ export function OcChatAlertHost({
     };
 
     const tickRemote = () => {
-      if (cancelled || !chatbotChars.length || remoteInflightRef.current) return;
-      const i = remoteCursorRef.current % chatbotChars.length;
-      remoteCursorRef.current = i + 1;
-      const c = chatbotChars[i];
+      if (cancelled || remoteInflightRef.current) return;
+      const c = pickNext();
       if (c) void syncOne(c);
     };
 
-    /* 열자마자 전원 돌리지 않음 — 첫 틱만 약간 앞당김 */
-    const first = window.setTimeout(tickRemote, 400);
-    const timer = window.setInterval(tickRemote, 8_000);
+    /* 목록이면 더 자주 — 새 메시지 팝업 타이밍 */
+    const intervalMs = phoneView === 'list' ? 2_500 : 3_500;
+    const first = window.setTimeout(tickRemote, 200);
+    const timer = window.setInterval(tickRemote, intervalMs);
     return () => {
       cancelled = true;
       window.clearTimeout(first);
       window.clearInterval(timer);
     };
-  }, [chatOpen, chatbotChars, enqueueFromThread]);
+  }, [chatOpen, chatbotChars, enqueueFromThread, effectiveMutedId, phoneView]);
 
   useEffect(() => {
     const vid = getOrCreateChatVisitorId();

@@ -711,15 +711,27 @@ export function mergeOcChatInboxItems(
         continue;
       }
       if (item.lastAt < prev.lastAt) continue;
-      /* lastAt 동일 — 더 최신 updatedAt을 신뢰 (읽음 후 unread 0이 max로 안 죽게) */
+      /* lastAt 동일 — 더 최신 updatedAt을 신뢰 */
       const preferItem = (item.updatedAt || 0) >= (prev.updatedAt || 0);
       const newer = preferItem ? item : prev;
       const older = preferItem ? prev : item;
+      let unread = Math.max(0, newer.unread);
+      /*
+       * 읽음 후 remote stale unread 가 되살아나는 것 방지:
+       * 같은 lastAt 에서 한쪽이 0이고 updatedAt 이 뒤지지 않으면 0 유지.
+       */
+      if (newer.unread === 0 || older.unread === 0) {
+        const zeroSide = newer.unread === 0 ? newer : older;
+        const otherSide = newer.unread === 0 ? older : newer;
+        if ((zeroSide.updatedAt || 0) + 50 >= (otherSide.updatedAt || 0)) {
+          unread = 0;
+        }
+      }
       map.set(id, {
         characterId: id,
         lastAt: prev.lastAt,
         preview: newer.preview || older.preview,
-        unread: Math.max(0, newer.unread),
+        unread,
         updatedAt: Math.max(prev.updatedAt || 0, item.updatedAt || 0) || prev.lastAt,
       });
     }
@@ -1417,12 +1429,23 @@ export function subscribeOcChatThread(
 ): Unsubscribe {
   let stopped = false;
   let lastUpdated = -1;
+  let lastSeenEmitted = -1;
 
   const emit = (thread: OcChatThread) => {
-    const at = thread.updatedAt || 0;
-    if (at === lastUpdated && lastUpdated >= 0) return;
+    /*
+     * 항상 로컬 캐시와 합친 뒤 emit — Firebase/API 옛 lastSeenAt 이
+     * 읽음 직후 배지·알림을 되돌리지 않게.
+     */
+    const merged = mergeOcChatThreads(
+      peekOcChatThreadCache(characterId, visitorId),
+      thread,
+    );
+    const at = merged.updatedAt || 0;
+    const seen = merged.lastSeenAt || 0;
+    if (at === lastUpdated && seen === lastSeenEmitted && lastUpdated >= 0) return;
     lastUpdated = at;
-    onData(thread);
+    lastSeenEmitted = seen;
+    onData(merged);
   };
 
   const pull = () => {
