@@ -1,6 +1,7 @@
 'use client';
 
 import { resolveOcChatPointStyle, normalizeHex } from '@/lib/oc/characterTheme';
+import { playOcChatNotifySfx } from '@/lib/oc/ocChatNotifySfx';
 import { resolveChatAvatarUrl } from '@/lib/oc/ocChatPrompt';
 import type { OcCharacter } from '@/lib/types/character';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -34,18 +35,6 @@ type Props = {
   onDone: (id: string) => void;
   onOpen?: (payload: OcChatNotifyPayload) => void;
 };
-
-function playNotifySfx(url: string | undefined) {
-  const src = (url || '').trim();
-  if (!src || typeof window === 'undefined') return;
-  try {
-    const audio = new Audio(src);
-    audio.volume = 0.85;
-    void audio.play().catch(() => {});
-  } catch {
-    /* autoplay / decode ignore */
-  }
-}
 
 function previewText(msg: { content?: string; kind?: string }): string {
   const raw = (msg.content || '').replace(/\s+/g, ' ').trim();
@@ -182,7 +171,8 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
       sfxRaf.current = window.requestAnimationFrame(() => {
         sfxRaf.current = window.requestAnimationFrame(() => {
           sfxRaf.current = 0;
-          playNotifySfx(sfxUrl);
+          /* 백그라운드면 큐잉 후 포그라운드에서 재생 */
+          playOcChatNotifySfx(sfxUrl);
         });
       });
     }
@@ -193,15 +183,30 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
      */
     window.clearTimeout(leaveTimer.current);
     window.clearTimeout(doneTimer.current);
-    if (!doneOnceRef.current) {
+
+    const armHoldTimer = () => {
+      window.clearTimeout(leaveTimer.current);
+      if (doneOnceRef.current) return;
+      /* 숨은 탭에서는 유지 타이머 정지 — 돌아오면 다시 셈 */
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       leaveTimer.current = window.setTimeout(() => {
         startLeave(id);
       }, OC_CHAT_NOTIFY_MS);
-    }
+    };
+
+    armHoldTimer();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') armHoldTimer();
+      else window.clearTimeout(leaveTimer.current);
+    };
+    document.addEventListener('visibilitychange', onVis);
 
     return () => {
+      document.removeEventListener('visibilitychange', onVis);
       window.clearTimeout(leaveTimer.current);
-      window.clearTimeout(doneTimer.current);
+      /* doneTimer는 startLeave가 잡은 퇴장 타이머 — payload 유지 중엔 건드리지 않음 */
     };
   }, [payload, startLeave]);
 

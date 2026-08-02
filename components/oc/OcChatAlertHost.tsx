@@ -14,6 +14,7 @@ import {
   tryDeliverPendingChat,
   type OcChatThread,
 } from '@/lib/oc/ocChat';
+import { armOcChatNotifySfx } from '@/lib/oc/ocChatNotifySfx';
 import type { OcCharacter } from '@/lib/types/character';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -84,8 +85,12 @@ export function OcChatAlertHost({
   const bootstrappedRef = useRef(new Set<string>());
   const remoteCursorRef = useRef(0);
   const remoteInflightRef = useRef(false);
-  /** 목록 진입 시각 — 이전 미읽음 스팸 없이, 진입 이후 도착분만 토스트 */
-  const listWatchAtRef = useRef(0);
+  /**
+   * 목록 진입 시점에 이미 있던 미읽음 id — 시간(floor) 대신 id로 스팸 차단.
+   * (characters 리렌더로 listWatchAt이 리셋되며 새 도착분을 삼키던 버그 방지)
+   */
+  const listBaselineIdsRef = useRef(new Set<string>());
+  const wasOnListRef = useRef(false);
 
   const effectiveMutedId = useCallback((): string | null => {
     /* 목록 화면에서는 mute 금지 (부모 state 한 박자 지연 대비) */
@@ -113,10 +118,9 @@ export function OcChatAlertHost({
         return;
       }
 
-      const floor = onList ? listWatchAtRef.current - 2_000 : 0;
       const fresh: OcChatNotifyPayload[] = [];
       for (const m of unread) {
-        if (onList && m.at < floor) {
+        if (onList && listBaselineIdsRef.current.has(`${charId}:${m.id}`)) {
           /* 목록 진입 전 미읽음 — 팝업 없이 소비 */
           markNotifiedMessage(charId, m.id);
           continue;
@@ -150,22 +154,28 @@ export function OcChatAlertHost({
     if (!chatOpen) {
       setQueue([]);
       bootstrappedRef.current = new Set();
-      listWatchAtRef.current = 0;
+      listBaselineIdsRef.current = new Set();
+      wasOnListRef.current = false;
       return;
     }
-    if (phoneView === 'list') {
-      listWatchAtRef.current = Date.now();
-      /* 목록 진입 시 조용히 과거 미읽음만 소비 — 이후 도착분이 팝업 대상 */
-      const vid = getOrCreateChatVisitorId();
-      for (const c of chatbotChars) {
-        const id = String(c.id);
-        const thread = peekOcChatThreadCache(id, vid);
-        const unread = collectUnreadAssistants(thread);
-        for (const m of unread) {
-          if (m.at < listWatchAtRef.current - 2_000) markNotifiedMessage(id, m.id);
-        }
+    armOcChatNotifySfx();
+    const onList = phoneView === 'list';
+    const enteredList = onList && !wasOnListRef.current;
+    wasOnListRef.current = onList;
+    if (!enteredList) return;
+
+    /* 목록으로 막 들어왔을 때만 baseline 스냅샷 — chars 리렌더로 리셋하지 않음 */
+    const vid = getOrCreateChatVisitorId();
+    const baseline = new Set<string>();
+    for (const c of chatbotChars) {
+      const id = String(c.id);
+      const thread = peekOcChatThreadCache(id, vid);
+      for (const m of collectUnreadAssistants(thread)) {
+        baseline.add(`${id}:${m.id}`);
+        markNotifiedMessage(id, m.id);
       }
     }
+    listBaselineIdsRef.current = baseline;
   }, [chatOpen, phoneView, chatbotChars]);
 
   useEffect(() => {
@@ -316,6 +326,16 @@ export function OcChatAlertHost({
       enqueueFromThread(c, thread);
     });
   }, [chatbotChars, enqueueFromThread]);
+
+  /* 숨은 탭에서 배달된 토스트 — 다시 보일 때 큐가 비어 있지 않으면 SFX 재무장 */
+  useEffect(() => {
+    if (!chatOpen) return;
+    const onVis = () => {
+      if (document.visibilityState === 'visible') armOcChatNotifySfx();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [chatOpen]);
 
   if (!chatOpen) return null;
 
