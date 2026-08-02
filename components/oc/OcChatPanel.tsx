@@ -101,6 +101,8 @@ type Props = {
   characters?: OcCharacter[];
   onClose: () => void;
   onSelectCharacter?: (character: OcCharacter) => void;
+  /** 목록/스레드 — 부모 알림 억제·배지용 */
+  onPhoneViewChange?: (view: 'list' | 'thread') => void;
 };
 
 type PhoneView = 'list' | 'thread';
@@ -289,6 +291,7 @@ export function OcChatPanel({
   characters = [],
   onClose,
   onSelectCharacter,
+  onPhoneViewChange,
 }: Props) {
   const { confirm, alert } = useLakeDialog();
   const bootRef = useRef<BootChatState | null>(null);
@@ -372,6 +375,13 @@ export function OcChatPanel({
   characterRef.current = character;
 
   openRef.current = open;
+  const phoneViewRef = useRef<PhoneView>(phoneView);
+  phoneViewRef.current = phoneView;
+  /** 스레드를 직접 보고 있을 때만 읽음/lastSeen 갱신 — 목록 대기 중엔 미읽음 유지 */
+  const isViewingThread = useCallback(
+    () => openRef.current && phoneViewRef.current === 'thread',
+    [],
+  );
   stateRef.current = {
     messages,
     affection,
@@ -577,11 +587,45 @@ export function OcChatPanel({
   }, [charId, open]);
 
   useEffect(() => {
+    if (!open) {
+      onPhoneViewChange?.('thread');
+      return;
+    }
+    onPhoneViewChange?.(phoneView);
+  }, [onPhoneViewChange, open, phoneView]);
+
+  useEffect(() => {
     if (!open || phoneView !== 'list') return;
-    void refreshInbox();
-    const id = window.setInterval(() => void refreshInbox(), 45_000);
-    return () => window.clearInterval(id);
-  }, [open, phoneView, refreshInbox]);
+    const vid = visitorRef.current || getOrCreateChatVisitorId();
+    visitorRef.current = vid;
+    let cancelled = false;
+    const tick = async () => {
+      /* 목록 대기 중: 기한 지난 pending 배달 → 인박스 미읽음 반영 */
+      for (const c of characters) {
+        if (cancelled || !c.chatbot?.enabled) continue;
+        const id = String(c.id);
+        const cached = peekOcChatThreadCache(id, vid);
+        const applyAt = cached?.pendingBehavior?.applyAt;
+        if (!applyAt || applyAt > Date.now()) continue;
+        try {
+          await tryDeliverPendingChat({
+            characterId: id,
+            visitorId: vid,
+            character: c,
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!cancelled) await refreshInbox();
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 4_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [characters, open, phoneView, refreshInbox]);
 
   useEffect(() => {
     const el = threadRef.current;
@@ -801,10 +845,10 @@ export function OcChatPanel({
       const seen =
         snap.skipSeen
           ? snap.lastSeenAt ?? stateRef.current.lastSeenAt
-          : openRef.current
+          : isViewingThread()
             ? Date.now()
             : (snap.lastSeenAt ?? stateRef.current.lastSeenAt);
-      if (!snap.skipSeen && openRef.current && activeCharIdRef.current === saveCharId) {
+      if (!snap.skipSeen && isViewingThread() && activeCharIdRef.current === saveCharId) {
         setLastSeenAt(seen);
       }
       const today = todayKeyLocal();
@@ -847,7 +891,7 @@ export function OcChatPanel({
       if (activeCharIdRef.current !== saveCharId) return;
       await saveOcChatThread(saveCharId, vid, next);
     },
-    [charId],
+    [charId, isViewingThread],
   );
 
   const playBehavior = useCallback(
@@ -1060,8 +1104,8 @@ export function OcChatPanel({
           freeGainToday: opts.freeGainToday,
           freeGainDate: opts.freeGainDate,
           meta: nextMeta,
-          skipSeen: !openRef.current,
-          lastSeenAt: !openRef.current ? stateRef.current.lastSeenAt : undefined,
+          skipSeen: !isViewingThread(),
+          lastSeenAt: !isViewingThread() ? stateRef.current.lastSeenAt : undefined,
         });
 
         const waitMs = Math.max(0, applyAt - Date.now());
@@ -1105,8 +1149,8 @@ export function OcChatPanel({
          * 순서 고정: (오프면) 온라인 표시 → 대기(미읽음 "1") → 읽음 → 타이핑 → 답장
          * wasOffline이면 applyAt에 온라인이 된 뒤의 텀이 이미 포함됨.
          */
-        if (openRef.current) setWaitingRead(true);
-        if (wasOffline && openRef.current) {
+        if (isViewingThread()) setWaitingRead(true);
+        if (wasOffline && isViewingThread()) {
           /* 초록불이 페인트된 뒤 읽음으로 넘어가게 한 프레임 양보 */
           await new Promise<void>((r) => {
             requestAnimationFrame(() => requestAnimationFrame(() => r()));
@@ -1117,7 +1161,7 @@ export function OcChatPanel({
           if ((await sleepWhileBurstQuiet(unreadFlashMs)) === 'regather') {
             return abortForRegather();
           }
-          await markReadNow();
+          if (isViewingThread()) await markReadNow();
           const rest = Math.max(0, waitMs - unreadFlashMs);
           if (rest > 0 && (await sleepWhileBurstQuiet(rest)) === 'regather') {
             return abortForRegather();
@@ -1129,7 +1173,7 @@ export function OcChatPanel({
           if (untilRead > 0 && (await sleepWhileBurstQuiet(untilRead)) === 'regather') {
             return abortForRegather();
           }
-          if (openRef.current) await markReadNow();
+          if (isViewingThread()) await markReadNow();
           if (readLeadMs > 0 && (await sleepWhileBurstQuiet(readLeadMs)) === 'regather') {
             return abortForRegather();
           }
@@ -1418,8 +1462,8 @@ export function OcChatPanel({
                       messages: lines.slice(i + 1),
                     },
             },
-            skipSeen: !openRef.current,
-            lastSeenAt: !openRef.current ? stateRef.current.lastSeenAt : undefined,
+            skipSeen: !isViewingThread(),
+            lastSeenAt: !isViewingThread() ? stateRef.current.lastSeenAt : undefined,
           });
           if (i < lines.length - 1 || sticker) {
             if ((await sleepWhileBurstQuiet(splitBubbleGapMs())) === 'regather') {
@@ -1500,7 +1544,7 @@ export function OcChatPanel({
             freeGainToday: opts.freeGainToday,
             freeGainDate: opts.freeGainDate,
             meta: nextMeta,
-            skipSeen: !openRef.current,
+            skipSeen: !isViewingThread(),
           });
           setBusy(false);
           return 'ok';
@@ -1531,8 +1575,8 @@ export function OcChatPanel({
           freeGainToday: opts.freeGainToday,
           freeGainDate: opts.freeGainDate,
           meta: nextMeta,
-          skipSeen: !openRef.current,
-          lastSeenAt: !openRef.current ? stateRef.current.lastSeenAt : undefined,
+          skipSeen: !isViewingThread(),
+          lastSeenAt: !isViewingThread() ? stateRef.current.lastSeenAt : undefined,
         });
         setBusy(false);
         return 'ok';
@@ -1540,17 +1584,21 @@ export function OcChatPanel({
         replyLockRef.current = false;
         setBusy(false);
         setWaitingRead(false);
-        /* 연출 종료 — 창이 닫혀 있고 pending이 남았으면 타이머에 맡김 */
+        /* 연출 종료 — 스레드를 안 보고 있으면 pending 타이머에 맡김 */
         const stillPending = stateRef.current.meta.pendingBehavior;
         setOcChatPendingUiOwned(playCharId, vid, false);
-        if (!openRef.current && stillPending?.applyAt) {
+        if (!isViewingThread() && stillPending?.applyAt) {
           scheduleOcChatPendingDelivery(playCharId, vid, stillPending.applyAt, characterRef.current,
             stillPending.id,
           );
         }
+        /* 목록에 있으면 미읽음 뱃지 즉시 반영 */
+        if (openRef.current && phoneViewRef.current === 'list') {
+          void refreshInbox();
+        }
       }
     },
-    [character, charId, persistSnapshot, stillOnChar],
+    [character, charId, isViewingThread, persistSnapshot, refreshInbox, stillOnChar],
   );
 
   useLayoutEffect(() => {
@@ -2256,14 +2304,14 @@ export function OcChatPanel({
     updateScrollUI,
   ]);
 
-  /* 스레드 메시지 변화 시 인박스 미리보기 갱신 (연타 저장으로 스택/폭주 방지) */
+  /* 스레드 메시지 변화 시 인박스 미리보기·미읽음 갱신 (목록 대기 포함) */
   useEffect(() => {
-    if (!open || phoneView !== 'thread') return;
+    if (!open) return;
     const t = window.setTimeout(() => {
       void refreshInbox();
     }, 400);
     return () => window.clearTimeout(t);
-  }, [messages.length, open, phoneView, refreshInbox, charId]);
+  }, [messages.length, open, refreshInbox, charId]);
 
   useEffect(() => {
     if (!open) return;
@@ -2779,7 +2827,7 @@ export function OcChatPanel({
         affection: aff,
         story: st,
         meta: nextMeta,
-        skipSeen: !openRef.current,
+        skipSeen: !isViewingThread(),
         characterId: sendCharId,
       });
       focusComposer();

@@ -147,6 +147,11 @@ type Props = {
   enterInstant?: boolean;
   /** 채팅 오버레이는 OcPageClient가 소유 — 상세는 peek/토스트만 */
   chatOpen?: boolean;
+  /**
+   * true면 상세 쪽 미읽음/토스트 억제 (해당 OC 스레드를 직접 보는 중).
+   * 목록만 켠 상태에서는 false — 답장 알림·배지 허용.
+   */
+  chatMuteAlerts?: boolean;
   onOpenChat?: () => void;
   onCloseChat?: () => void;
 };
@@ -219,6 +224,7 @@ export function OcCharacterDetail({
   onTouchHintDismiss,
   enterInstant = false,
   chatOpen = false,
+  chatMuteAlerts = false,
   onOpenChat,
 }: Props) {
   const router = useRouter();
@@ -991,12 +997,14 @@ export function OcCharacterDetail({
   const chatEnabled = Boolean(character.chatbot?.enabled);
   const chatOpenRef = useRef(chatOpen);
   chatOpenRef.current = chatOpen;
+  const chatMuteAlertsRef = useRef(chatMuteAlerts);
+  chatMuteAlertsRef.current = chatMuteAlerts;
   /* 상세 진입 직후 쌓여 있던 미읽음 스팸 방지 — 이후 도착분만 메시지마다 큐 */
   const notifyBootstrappedRef = useRef(false);
 
   const maybeNotifyFromThread = useCallback(
     (thread: OcChatThread | null | undefined) => {
-      if (!thread || chatOpenRef.current) return;
+      if (!thread || chatMuteAlertsRef.current) return;
       const unread = collectUnreadAssistants(thread);
       if (!unread.length) return;
       const charId = String(character.id);
@@ -1025,7 +1033,7 @@ export function OcCharacterDetail({
 
   const applyUnreadFromThread = useCallback(
     (thread: OcChatThread | null | undefined) => {
-      if (!thread || chatOpenRef.current) return;
+      if (!thread || chatMuteAlertsRef.current) return;
       const n = countCharUnread(thread);
       setChatUnread(n);
       if (n > 0) setChatAlertLatched(true);
@@ -1043,7 +1051,7 @@ export function OcCharacterDetail({
       setChatAlertLatched(false);
       return;
     }
-    if (chatOpen) {
+    if (chatMuteAlerts) {
       setChatUnread(0);
       setChatAlertLatched(false);
       return;
@@ -1058,23 +1066,23 @@ export function OcCharacterDetail({
       setChatUnread(0);
       setChatAlertLatched(false);
     }
-    // chatOpen은 상위 소유 — 캐릭터 전환 시 배지만 재계산
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit chatOpen
+    // chatMuteAlerts는 상위 소유 — 캐릭터 전환 시 배지만 재계산
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit chatMuteAlerts
   }, [character.id, chatEnabled]);
 
   useEffect(() => {
-    if (chatOpen) {
+    if (chatMuteAlerts) {
       setChatUnread(0);
       setChatAlertLatched(false);
       setChatNotifyQueue([]);
       return;
     }
     if (chatUnread > 0) setChatAlertLatched(true);
-  }, [chatOpen, chatUnread]);
+  }, [chatMuteAlerts, chatUnread]);
 
   useEffect(() => {
-    if (!chatEnabled || chatOpen) {
-      if (chatOpen) setChatUnread(0);
+    if (!chatEnabled || chatMuteAlerts) {
+      if (chatMuteAlerts) setChatUnread(0);
       return;
     }
     const vid = getOrCreateChatVisitorId();
@@ -1092,10 +1100,10 @@ export function OcCharacterDetail({
           visitorId: vid,
           character,
         });
-        if (cancelled || chatOpenRef.current) return;
+        if (cancelled || chatMuteAlertsRef.current) return;
         applyUnreadFromThread(peekOcChatThreadCache(charId, vid));
         const thread = await loadOcChatThread(charId, vid);
-        if (cancelled || chatOpenRef.current) return;
+        if (cancelled || chatMuteAlertsRef.current) return;
         applyUnreadFromThread(thread);
       } catch {
         /* ignore */
@@ -1103,12 +1111,12 @@ export function OcCharacterDetail({
     })();
 
     return subscribeOcChatThread(charId, vid, (thread) => {
-      if (cancelled || chatOpenRef.current) return;
+      if (cancelled || chatMuteAlertsRef.current) return;
       applyUnreadFromThread(thread);
     });
-  }, [applyUnreadFromThread, character, character.id, chatEnabled, chatOpen]);
+  }, [applyUnreadFromThread, character, character.id, chatEnabled, chatMuteAlerts]);
 
-  /* 예약된 답장 배달 — 창이 닫혀 있어도 주기적으로 확인 (미읽음 배지) */
+  /* 예약된 답장 배달 — 스레드를 직접 안 볼 때도 주기적으로 확인 (미읽음 배지) */
   useEffect(() => {
     if (!chatEnabled) return;
     const vid = getOrCreateChatVisitorId();
@@ -1125,14 +1133,14 @@ export function OcCharacterDetail({
     }
     let cancelled = false;
     const tick = () => {
-      if (cancelled || chatOpenRef.current) return;
+      if (cancelled || chatMuteAlertsRef.current) return;
       void tryDeliverPendingChat({
         characterId: charId,
         visitorId: vid,
         character,
       })
         .then((added) => {
-          if (cancelled || chatOpenRef.current || added <= 0) return;
+          if (cancelled || chatMuteAlertsRef.current || added <= 0) return;
           applyUnreadFromThread(peekOcChatThreadCache(charId, vid));
         })
         .catch(() => {});
@@ -1143,7 +1151,7 @@ export function OcCharacterDetail({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [applyUnreadFromThread, character, chatEnabled, chatOpen]);
+  }, [applyUnreadFromThread, character, chatEnabled, chatMuteAlerts]);
 
   /* 호감 높고 오래 조용하면 선톡 (하루 1회 시도) */
   useEffect(() => {

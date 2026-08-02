@@ -101,6 +101,7 @@ export function OcPageClient() {
   /** 채팅 오버레이 — 상세 remount와 분리해 OC 전환 시에도 유지 */
   const [chatOpen, setChatOpen] = useState(false);
   const [chatCharacterId, setChatCharacterId] = useState<string | null>(null);
+  const [chatPhoneView, setChatPhoneView] = useState<'list' | 'thread'>('thread');
 
   useEffect(() => {
     document.body.style.opacity = '1';
@@ -262,6 +263,7 @@ export function OcPageClient() {
 
   const closeChat = useCallback(() => {
     setChatOpen(false);
+    setChatPhoneView('thread');
   }, []);
 
   /** 목록으로/브라우저 뒤로 — 채팅이 열려 있으면 먼저 닫고, 그다음 상세 레이어 */
@@ -420,6 +422,7 @@ export function OcPageClient() {
   const openChatForCharacter = useCallback((c: OcCharacter) => {
     if (!c.chatbot?.enabled) return;
     setChatCharacterId(String(c.id));
+    setChatPhoneView('thread');
     setChatOpen(true);
   }, []);
 
@@ -886,6 +889,11 @@ export function OcPageClient() {
             touchHintDismissed={touchHintDismissed}
             onTouchHintDismiss={() => setTouchHintDismissed(true)}
             chatOpen={chatOpen}
+            chatMuteAlerts={
+              chatOpen &&
+              chatPhoneView === 'thread' &&
+              String(chatCharacterId || '') === String(liveDetail.id)
+            }
             onOpenChat={() => {
               if (liveDetail) openChatForCharacter(liveDetail);
             }}
@@ -900,6 +908,7 @@ export function OcPageClient() {
           characters={characters}
           onClose={closeChat}
           onSelectCharacter={switchChatToCharacter}
+          onPhoneViewChange={setChatPhoneView}
         />
       ) : null}
 
