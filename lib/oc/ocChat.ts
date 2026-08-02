@@ -443,6 +443,61 @@ export function getOrCreateChatVisitorId(): string {
   }
 }
 
+const AFF_TOAST_PENDING_PREFIX = 'lh_oc_chat_aff_toast:';
+
+function affToastPendingKey(characterId: string, visitorId: string): string {
+  return `${AFF_TOAST_PENDING_PREFIX}${characterId}::${visitorId}`;
+}
+
+/** 스레드를 안 볼 때 쌓인 호감 토스트 (다시 들어오면 합산 표시) */
+export function peekPendingAffectionToast(
+  characterId: string,
+  visitorId: string,
+): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const raw = sessionStorage.getItem(affToastPendingKey(characterId, visitorId));
+    const n = Number(raw);
+    return Number.isFinite(n) && n !== 0 ? Math.trunc(n) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function queuePendingAffectionToast(
+  characterId: string,
+  visitorId: string,
+  delta: number,
+): void {
+  if (typeof window === 'undefined' || !delta) return;
+  const id = String(characterId || '').trim();
+  const vid = String(visitorId || '').trim();
+  if (!id || !vid) return;
+  try {
+    const next = peekPendingAffectionToast(id, vid) + Math.trunc(delta);
+    const key = affToastPendingKey(id, vid);
+    if (!next) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, String(next));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 대기 중 호감 토스트를 꺼내고 비움 */
+export function takePendingAffectionToast(
+  characterId: string,
+  visitorId: string,
+): number {
+  const n = peekPendingAffectionToast(characterId, visitorId);
+  if (typeof window === 'undefined') return n;
+  try {
+    sessionStorage.removeItem(affToastPendingKey(characterId, visitorId));
+  } catch {
+    /* ignore */
+  }
+  return n;
+}
+
 /** 대화 기록은 자르지 않음 */
 export function trimChatMessages(messages: OcChatMessage[]): OcChatMessage[] {
   return messages;

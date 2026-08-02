@@ -66,12 +66,14 @@ import {
   peekOcChatThreadCache,
   pendingLinesAlreadyAtTail,
   postOcChat,
+  queuePendingAffectionToast,
   resetOcChatThreadForVisitor,
   saveOcChatThread,
   scheduleOcChatPendingDelivery,
   setOcChatPendingUiOwned,
   sleepMs,
   subscribeOcChatThreadCache,
+  takePendingAffectionToast,
   tryDeliverPendingChat,
   writeOcChatThreadCache,
   type OcChatInboxItem,
@@ -430,13 +432,39 @@ export function OcChatPanel({
     }
   }
 
-  const flashAffectionToast = useCallback((delta: number) => {
+  const showAffectionToastNow = useCallback((delta: number) => {
     if (!delta) return;
-    /* id로 리마운트해 애니메이션/표시를 매번 다시 시작 */
     setAffToast({ delta, id: Date.now() });
     window.clearTimeout(affToastTimer.current);
     affToastTimer.current = window.setTimeout(() => setAffToast(null), 3000);
   }, []);
+
+  const flashAffectionToast = useCallback(
+    (delta: number) => {
+      if (!delta) return;
+      /*
+       * 스레드를 보고 있을 때만 즉시 표시.
+       * 목록·채팅 닫힘·다른 화면이면 쌓아 두었다가 다시 스레드 진입 시 표시.
+       */
+      if (!isViewingThread()) {
+        const vid = visitorRef.current || getOrCreateChatVisitorId();
+        visitorRef.current = vid;
+        queuePendingAffectionToast(activeCharIdRef.current || charId, vid, delta);
+        return;
+      }
+      showAffectionToastNow(delta);
+    },
+    [charId, isViewingThread, showAffectionToastNow],
+  );
+
+  /* 스레드로 돌아오면 못 본 호감 토스트 합산 표시 */
+  useEffect(() => {
+    if (!open || phoneView !== 'thread' || !threadReady) return;
+    const vid = visitorRef.current || getOrCreateChatVisitorId();
+    visitorRef.current = vid;
+    const pending = takePendingAffectionToast(charId, vid);
+    if (pending) showAffectionToastNow(pending);
+  }, [open, phoneView, threadReady, charId, showAffectionToastNow]);
 
   const startEpisode = useMemo(
     () => resolveStartEpisode(character.chatbot),
@@ -1887,7 +1915,8 @@ export function OcChatPanel({
         if (neglect.decay > 0) {
           affectionNow = neglect.affection;
           nextMeta = { ...nextMeta, neglectCheckedAt: neglect.neglectCheckedAt };
-          flashAffectionToast(-neglect.decay);
+          /* 로드 직후 threadReady 전 — 대기열에 넣고 스레드 준비 후 토스트 */
+          queuePendingAffectionToast(loadCharId, visitorRef.current, -neglect.decay);
         }
         /* setMeta/setStory는 아래에서 한 번에 — 중간 깜빡임 방지 */
 
