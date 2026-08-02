@@ -255,6 +255,7 @@ export function OcChatAlertHost({
         return due[i] ?? null;
       }
 
+      /* due 없으면 원격 폴링 빈도 낮춤 — 캐시 있는 OC만 가끔 확인 */
       const cached = pool.filter((c) => Boolean(peekOcChatThreadCache(String(c.id), vid)));
       const use = cached.length ? cached : pool;
       const i = remoteCursorRef.current % use.length;
@@ -264,6 +265,9 @@ export function OcChatAlertHost({
 
     const syncOne = async (c: OcCharacter) => {
       if (remoteInflightRef.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       remoteInflightRef.current = true;
       const id = String(c.id);
       try {
@@ -288,6 +292,7 @@ export function OcChatAlertHost({
               characterId: id,
               visitorId: vid,
               character: c,
+              reconcileRemote: true,
             });
           }
         }
@@ -301,13 +306,16 @@ export function OcChatAlertHost({
 
     const tickRemote = () => {
       if (cancelled || remoteInflightRef.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       const c = pickNext();
       if (c) void syncOne(c);
     };
 
-    /* 목록이면 더 자주 — 새 메시지 팝업 타이밍 */
-    const intervalMs = phoneView === 'list' ? 2_500 : 3_500;
-    const first = window.setTimeout(tickRemote, 200);
+    /* 목록·스레드 모두 느리게 — Worker 과부하(503) 방지. 로컬 타이머가 기한 배달 담당 */
+    const intervalMs = phoneView === 'list' ? 12_000 : 18_000;
+    const first = window.setTimeout(tickRemote, 1_200);
     const timer = window.setInterval(tickRemote, intervalMs);
     return () => {
       cancelled = true;

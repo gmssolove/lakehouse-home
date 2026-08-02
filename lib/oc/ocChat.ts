@@ -2265,6 +2265,12 @@ export async function tryDeliverPendingChat(params: {
   expectPendingId?: string;
   /** UI 핸드오프(창 닫힘 등) — uiOwned여도 배달 */
   force?: boolean;
+  /**
+   * true면 로컬에 기한 pending이 없을 때도 remote load.
+   * 폴링 경로에서는 끄고(기본), AlertHost 보정·강제 인계만 켠다.
+   * (예전: 폴링마다 remote → Worker 503)
+   */
+  reconcileRemote?: boolean;
 }): Promise<number> {
   const key = pendingDeliveryKey(params.characterId, params.visitorId);
   if (!params.force && uiOwnedPendingKeys.has(key)) return 0;
@@ -2297,8 +2303,7 @@ export async function tryDeliverPendingChat(params: {
 
     /*
      * 1) 로컬 캐시가 이미 기한이면 즉시 배달 → 알림/미리보기가 네트워크를 기다리지 않음.
-     *    (pendingClearedAt 으로 remote merge가 옛 예약을 되살리지 않음)
-     * 2) 이어서 remote와 합쳐 누락·교체분만 보정.
+     * 2) reconcileRemote일 때만 remote 보정 (폴링은 로컬만 — Worker 503 방지).
      */
     let added = 0;
     const cached = peekOcChatThreadCache(params.characterId, params.visitorId);
@@ -2306,11 +2311,12 @@ export async function tryDeliverPendingChat(params: {
       added = await commitDue(cached);
     }
 
-    /*
-     * 로컬에서 이미 배달했으면 remote 대기를 생략 — Worker 연쇄 로드·503 완화.
-     * (remote 전용 pending은 아래 경로 / AlertHost 폴링이 담당)
-     */
     if (added > 0) return added;
+
+    const wantRemote =
+      params.reconcileRemote === true ||
+      (params.force === true && Boolean(params.expectPendingId));
+    if (!wantRemote) return 0;
 
     const remote = await loadOcChatThread(params.characterId, params.visitorId);
     const latest = mergeOcChatThreads(

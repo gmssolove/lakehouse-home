@@ -130,7 +130,30 @@ export function ambientPresenceChance(now = Date.now()): number {
   return HOUR_ONLINE_WEIGHT[kstHour(now)] ?? 0.4;
 }
 
-export function rollAmbientPresence(now = Date.now()): OcChatPresence {
+/** 최근 대화·읽음 직후 온라인 유지 (읽음→오프→온 깜빡임 방지) */
+export const AMBIENT_ONLINE_STICKY_MS = 4 * 60_000;
+
+/**
+ * 앰비언트 presence.
+ * 이미 online이고 최근 상호작용이 있으면 offline으로 떨어지지 않음.
+ */
+export function rollAmbientPresence(
+  now = Date.now(),
+  opts?: {
+    current?: OcChatPresence;
+    lastInteractionAt?: number;
+    presenceUpdatedAt?: number;
+  },
+): OcChatPresence {
+  const current = opts?.current;
+  const anchor = Math.max(
+    typeof opts?.lastInteractionAt === 'number' ? opts.lastInteractionAt : 0,
+    typeof opts?.presenceUpdatedAt === 'number' ? opts.presenceUpdatedAt : 0,
+  );
+  const since = anchor > 0 ? now - anchor : Number.POSITIVE_INFINITY;
+  if (current === 'online' && since < AMBIENT_ONLINE_STICKY_MS) {
+    return 'online';
+  }
   return Math.random() < ambientPresenceChance(now) ? 'online' : 'offline';
 }
 

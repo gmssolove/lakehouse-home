@@ -663,11 +663,12 @@ export function OcChatPanel({
     const vid = visitorRef.current || getOrCreateChatVisitorId();
     visitorRef.current = vid;
     let cancelled = false;
-    let remoteIdx = 0;
-    let remoteBusy = false;
 
-    /* 목록: 로컬 due pending만 자주 확인 (원격 전원 일괄 load 금지 — Worker 503 원인) */
+    /* 목록: 로컬 due pending만 확인 (원격은 AlertHost — 이중 폴링이 Worker 503 원인) */
     const tickLocal = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       for (const c of characters) {
         if (cancelled || !c.chatbot?.enabled) continue;
         const id = String(c.id);
@@ -687,51 +688,11 @@ export function OcChatPanel({
       if (!cancelled) await refreshInbox({ remote: false });
     };
 
-    /* 원격은 한 명씩·느리게 (AlertHost와 중복되어도 inflight로 자연 합쳐짐) */
-    const tickRemoteOne = async () => {
-      if (cancelled || remoteBusy) return;
-      const bots = characters.filter((c) => c.chatbot?.enabled);
-      if (!bots.length) return;
-      const c = bots[remoteIdx % bots.length]!;
-      remoteIdx += 1;
-      remoteBusy = true;
-      try {
-        const id = String(c.id);
-        const thread = await loadOcChatThread(id, vid);
-        if (cancelled) return;
-        const applyAt = thread.pendingBehavior?.applyAt;
-        if (applyAt) {
-          scheduleOcChatPendingDelivery(
-            id,
-            vid,
-            applyAt,
-            c,
-            thread.pendingBehavior?.id,
-          );
-          if (applyAt <= Date.now()) {
-            await tryDeliverPendingChat({
-              characterId: id,
-              visitorId: vid,
-              character: c,
-            });
-          }
-        }
-        if (!cancelled) await refreshInbox({ remote: false });
-      } catch {
-        /* ignore */
-      } finally {
-        remoteBusy = false;
-      }
-    };
-
     void tickLocal();
-    void tickRemoteOne();
-    const localTimer = window.setInterval(() => void tickLocal(), 2_000);
-    const remoteTimer = window.setInterval(() => void tickRemoteOne(), 8_000);
+    const localTimer = window.setInterval(() => void tickLocal(), 3_000);
     return () => {
       cancelled = true;
       window.clearInterval(localTimer);
-      window.clearInterval(remoteTimer);
     };
   }, [characters, open, phoneView, refreshInbox]);
 
@@ -1035,6 +996,8 @@ export function OcChatPanel({
       let deliveredAssistant = false;
       const deliveredIds = new Set<string>();
       const playEpoch = opts.expectEpoch ?? burstEpochRef.current;
+      /** 이번 연출에서 이미 읽음을 찍었으면, 직후 연타도 바로 읽음 표시 */
+      let didMarkReadThisPlay = false;
       replyLockRef.current = true;
       const vid = visitorRef.current || getOrCreateChatVisitorId();
       visitorRef.current = vid;
@@ -1050,6 +1013,34 @@ export function OcChatPanel({
       const lateBurstPending = () =>
         hasLateUserMessages(stateRef.current.messages, flushIncludedIdsRef.current) ||
         burstEpochRef.current !== playEpoch;
+
+      /** 화면 보고 읽던 중 추가된 유저 말도 읽음 처리 (재응답은 regather가 담당) */
+      const markWatchingReads = async (): Promise<void> => {
+        if (!didMarkReadThisPlay || !stillOnChar(playCharId)) return;
+        if (nextMeta.presence !== 'online') return;
+        const latest = stateRef.current.messages;
+        const marked = markUserMessagesRead(latest);
+        if (marked === latest) return;
+        msgs = marked;
+        applyMessages(marked);
+        nextMeta = {
+          ...nextMeta,
+          lastInteractionAt: Date.now(),
+          presence: 'online',
+          presenceUpdatedAt: nextMeta.presenceUpdatedAt || Date.now(),
+        };
+        if (alive()) setMeta(nextMeta);
+        await persistSnapshot({
+          messages: marked,
+          affection: opts.affection,
+          story: opts.story,
+          freeGainToday: opts.freeGainToday,
+          freeGainDate: opts.freeGainDate,
+          meta: nextMeta,
+          characterId: playCharId,
+          allowInactive: true,
+        });
+      };
 
       /**
        * 다른 OC로 떠났으면 UI 연출 대신 백그라운드 배달로 인계.
@@ -1115,12 +1106,19 @@ export function OcChatPanel({
         const end = Date.now() + Math.max(0, Math.round(ms));
         while (Date.now() < end) {
           /* 이탈은 regather → abortForRegather가 백그라운드 인계 */
-          if (!stillOnChar(playCharId) || lateBurstPending()) return 'regather';
+          if (!stillOnChar(playCharId) || lateBurstPending()) {
+            if (lateBurstPending()) await markWatchingReads();
+            return 'regather';
+          }
+          if (didMarkReadThisPlay) await markWatchingReads();
           const slice = Math.min(180, end - Date.now());
           if (slice <= 0) break;
           await sleepMs(slice);
         }
-        if (!stillOnChar(playCharId) || lateBurstPending()) return 'regather';
+        if (!stillOnChar(playCharId) || lateBurstPending()) {
+          if (lateBurstPending()) await markWatchingReads();
+          return 'regather';
+        }
         return 'ok';
       };
 
@@ -1130,6 +1128,8 @@ export function OcChatPanel({
           await handoffPendingToBackground();
           return 'regather';
         }
+        /* 이미 읽던 중 연타 — 새 말도 읽음으로 찍고 재응답 */
+        await markWatchingReads();
         cancelOcChatPendingDelivery(playCharId, vid);
         /* 이번 연출에서 붙인 assistant만 제거 — 이후 최신 버스트로 한 번만 재응답 */
         const rolled = stateRef.current.messages.filter((m) => !deliveredIds.has(m.id));
@@ -1322,9 +1322,17 @@ export function OcChatPanel({
             };
             setMeta(nextMeta);
           }
+          didMarkReadThisPlay = true;
           const cur = markUserMessagesRead(stateRef.current.messages);
           msgs = cur;
           applyMessages(cur);
+          nextMeta = {
+            ...nextMeta,
+            lastInteractionAt: Date.now(),
+            presence: 'online',
+            presenceUpdatedAt: Date.now(),
+          };
+          if (alive()) setMeta(nextMeta);
           await persistSnapshot({
             messages: cur,
             affection: opts.affection,
@@ -1419,9 +1427,17 @@ export function OcChatPanel({
 
         /* 열려 있으면: 읽음 → (추가 메시지 오면 재응답) → 타이핑 → 말풍선 */
         const absorbReads = async (lingerRounds = 3): Promise<'ok' | 'regather'> => {
+          didMarkReadThisPlay = true;
           let cur = markUserMessagesRead(stateRef.current.messages);
           msgs = cur;
           applyMessages(cur);
+          nextMeta = {
+            ...nextMeta,
+            lastInteractionAt: Date.now(),
+            presence: 'online',
+            presenceUpdatedAt: Date.now(),
+          };
+          if (alive()) setMeta(nextMeta);
           await persistSnapshot({
             messages: cur,
             affection: opts.affection,
@@ -1429,9 +1445,14 @@ export function OcChatPanel({
             freeGainToday: opts.freeGainToday,
             freeGainDate: opts.freeGainDate,
             meta: nextMeta,
+            characterId: playCharId,
+            allowInactive: true,
           });
           for (let i = 0; i < lingerRounds; i++) {
-            if (lateBurstPending()) return 'regather';
+            if (lateBurstPending()) {
+              await markWatchingReads();
+              return 'regather';
+            }
             if ((await sleepWhileBurstQuiet(320 + Math.round(Math.random() * 280))) === 'regather') {
               return 'regather';
             }
@@ -1440,7 +1461,10 @@ export function OcChatPanel({
             const hasUnread = latest.some((m) => m.role === 'user' && !m.readAt);
             if (!hasUnread) break;
             /* flush 시작 이후 새 유저 말이면 읽기만 하지 말고 재응답 */
-            if (lateBurstPending()) return 'regather';
+            if (lateBurstPending()) {
+              await markWatchingReads();
+              return 'regather';
+            }
             cur = markUserMessagesRead(latest);
             msgs = cur;
             applyMessages(cur);
@@ -1451,9 +1475,15 @@ export function OcChatPanel({
               freeGainToday: opts.freeGainToday,
               freeGainDate: opts.freeGainDate,
               meta: nextMeta,
+              characterId: playCharId,
+              allowInactive: true,
             });
           }
-          return lateBurstPending() ? 'regather' : 'ok';
+          if (lateBurstPending()) {
+            await markWatchingReads();
+            return 'regather';
+          }
+          return 'ok';
         };
 
         if ((await absorbReads(3)) === 'regather') {
@@ -2312,11 +2342,16 @@ export function OcChatPanel({
     if (!open || inStory) return;
     const tick = () => {
       if (replyLockRef.current || busy || waitingRead) return;
-      const next = rollAmbientPresence();
-      if (next === stateRef.current.meta.presence) return;
+      const cur = stateRef.current.meta;
+      const next = rollAmbientPresence(Date.now(), {
+        current: cur.presence,
+        lastInteractionAt: cur.lastInteractionAt,
+        presenceUpdatedAt: cur.presenceUpdatedAt,
+      });
+      if (next === cur.presence) return;
       if (!stillOnChar(charId)) return;
       const patched: MetaState = {
-        ...stateRef.current.meta,
+        ...cur,
         presence: next,
         presenceUpdatedAt: Date.now(),
       };

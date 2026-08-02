@@ -1137,6 +1137,10 @@ export function OcCharacterDetail({
     let cancelled = false;
     const tick = () => {
       if (cancelled) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      /* 로컬 기한만 — remote는 tryDeliver 기본 경로에서 생략 */
       void tryDeliverPendingChat({
         characterId: charId,
         visitorId: vid,
@@ -1151,7 +1155,7 @@ export function OcCharacterDetail({
         .catch(() => {});
     };
     tick();
-    const id = window.setInterval(tick, 1500);
+    const id = window.setInterval(tick, 4_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
