@@ -75,18 +75,26 @@ export function OcChatAlertHost({
   const chatOpenRef = useRef(chatOpen);
   chatOpenRef.current = chatOpen;
   const bootstrappedRef = useRef(new Set<string>());
+  const remoteCursorRef = useRef(0);
 
   const enqueueFromThread = useCallback(
     (character: OcCharacter, thread: OcChatThread | null | undefined) => {
       if (!chatOpenRef.current || !thread) return;
       const charId = String(character.id);
+      const unread = collectUnreadAssistants(thread);
+
+      /*
+       * 스레드를 직접 보고 있으면 토스트 없이 읽은 것으로 표시.
+       * (목록으로 돌아왔을 때 이미 본 답장이 팝업으로 재등장하지 않게)
+       */
       if (mutedRef.current && String(mutedRef.current) === charId) {
+        for (const m of unread) markNotifiedMessage(charId, m.id);
+        bootstrappedRef.current.add(charId);
         setQueue((q) => q.filter((x) => String(x.characterId || '') !== charId));
         return;
       }
-      const unread = collectUnreadAssistants(thread);
+
       if (!unread.length) {
-        /* 읽음 처리됨 — 남은 토스트도 제거 */
         setQueue((q) => q.filter((x) => String(x.characterId || '') !== charId));
         return;
       }
@@ -112,11 +120,25 @@ export function OcChatAlertHost({
     [],
   );
 
+  const scanAllCached = useCallback(() => {
+    if (!chatOpenRef.current) return;
+    const vid = getOrCreateChatVisitorId();
+    for (const c of chatbotChars) {
+      enqueueFromThread(c, peekOcChatThreadCache(String(c.id), vid));
+    }
+  }, [chatbotChars, enqueueFromThread]);
+
   useEffect(() => {
     if (!mutedCharacterId) return;
     const id = String(mutedCharacterId);
     setQueue((q) => q.filter((x) => String(x.characterId || '') !== id));
   }, [mutedCharacterId]);
+
+  /* 목록으로 나오면( mute 해제 ) 캐시 기준으로 토스트 재스캔 */
+  useEffect(() => {
+    if (!chatOpen || mutedCharacterId) return;
+    scanAllCached();
+  }, [chatOpen, mutedCharacterId, scanAllCached]);
 
   useEffect(() => {
     if (chatOpen) return;
@@ -124,6 +146,27 @@ export function OcChatAlertHost({
     bootstrappedRef.current = new Set();
   }, [chatOpen]);
 
+  const deliverDueFromCache = useCallback(
+    (c: OcCharacter, vid: string) => {
+      const id = String(c.id);
+      const cached = peekOcChatThreadCache(id, vid);
+      const applyAt = cached?.pendingBehavior?.applyAt;
+      if (!applyAt || applyAt > Date.now()) return;
+      void tryDeliverPendingChat({
+        characterId: id,
+        visitorId: vid,
+        character: c,
+      })
+        .then((added) => {
+          if (added <= 0) return;
+          enqueueFromThread(c, peekOcChatThreadCache(id, vid));
+        })
+        .catch(() => {});
+    },
+    [enqueueFromThread],
+  );
+
+  /** 로컬 캐시 타이머 — 상세를 안 연 OC도 applyAt이 캐시에 있으면 배달 */
   useEffect(() => {
     if (!chatbotChars.length) return;
     const vid = getOrCreateChatVisitorId();
@@ -145,22 +188,7 @@ export function OcChatAlertHost({
 
     const tick = () => {
       if (cancelled) return;
-      for (const c of chatbotChars) {
-        const id = String(c.id);
-        const cached = peekOcChatThreadCache(id, vid);
-        const applyAt = cached?.pendingBehavior?.applyAt;
-        if (!applyAt || applyAt > Date.now()) continue;
-        void tryDeliverPendingChat({
-          characterId: id,
-          visitorId: vid,
-          character: c,
-        })
-          .then((added) => {
-            if (cancelled || added <= 0) return;
-            enqueueFromThread(c, peekOcChatThreadCache(id, vid));
-          })
-          .catch(() => {});
-      }
+      for (const c of chatbotChars) deliverDueFromCache(c, vid);
     };
     tick();
     const timer = window.setInterval(tick, 1_500);
@@ -168,44 +196,74 @@ export function OcChatAlertHost({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [chatbotChars, enqueueFromThread]);
+  }, [chatbotChars, deliverDueFromCache]);
 
-  /* 채팅 열릴 때 다른 OC remote pending도 동기화 */
+  /**
+   * 원격 pending 폴링 — 캐시에 없는 OC(상세를 안 연 캐릭터)도 배달.
+   * 채팅 열림: 빠르게 / 닫힘: 느리게 한 명씩 순회.
+   */
   useEffect(() => {
-    if (!chatOpen || !chatbotChars.length) return;
+    if (!chatbotChars.length) return;
     const vid = getOrCreateChatVisitorId();
     let cancelled = false;
-    void (async () => {
-      for (const c of chatbotChars) {
+
+    const syncOne = async (c: OcCharacter) => {
+      const id = String(c.id);
+      try {
+        const thread = await loadOcChatThread(id, vid);
         if (cancelled) return;
-        const id = String(c.id);
-        try {
-          const thread = await loadOcChatThread(id, vid);
-          if (cancelled) return;
-          const applyAt = thread.pendingBehavior?.applyAt;
-          if (!applyAt) continue;
-          scheduleOcChatPendingDelivery(
-            id,
-            vid,
-            applyAt,
-            c,
-            thread.pendingBehavior?.id,
-          );
-          if (applyAt <= Date.now()) {
-            const added = await tryDeliverPendingChat({
-              characterId: id,
-              visitorId: vid,
-              character: c,
-            });
-            if (added > 0) enqueueFromThread(c, peekOcChatThreadCache(id, vid));
-          }
-        } catch {
-          /* ignore */
+        const applyAt = thread.pendingBehavior?.applyAt;
+        if (!applyAt) {
+          enqueueFromThread(c, peekOcChatThreadCache(id, vid));
+          return;
         }
+        scheduleOcChatPendingDelivery(
+          id,
+          vid,
+          applyAt,
+          c,
+          thread.pendingBehavior?.id,
+        );
+        if (applyAt <= Date.now()) {
+          const added = await tryDeliverPendingChat({
+            characterId: id,
+            visitorId: vid,
+            character: c,
+          });
+          if (cancelled) return;
+          if (added > 0) enqueueFromThread(c, peekOcChatThreadCache(id, vid));
+          else enqueueFromThread(c, peekOcChatThreadCache(id, vid));
+        } else {
+          enqueueFromThread(c, peekOcChatThreadCache(id, vid));
+        }
+      } catch {
+        /* ignore */
       }
-    })();
+    };
+
+    const tickRemote = () => {
+      if (cancelled || !chatbotChars.length) return;
+      const i = remoteCursorRef.current % chatbotChars.length;
+      remoteCursorRef.current = i + 1;
+      const c = chatbotChars[i];
+      if (c) void syncOne(c);
+    };
+
+    /* 채팅 열면 전원 한 바퀴 빠르게 */
+    if (chatOpen) {
+      void (async () => {
+        for (const c of chatbotChars) {
+          if (cancelled) return;
+          await syncOne(c);
+        }
+      })();
+    }
+
+    const ms = chatOpen ? 2_500 : 10_000;
+    const timer = window.setInterval(tickRemote, ms);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [chatOpen, chatbotChars, enqueueFromThread]);
 

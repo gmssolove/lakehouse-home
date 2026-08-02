@@ -638,7 +638,8 @@ export function OcChatPanel({
     setShowScrollFab(false);
   }, [charId, open]);
 
-  useEffect(() => {
+  /* useLayoutEffect — 부모 mutedCharacterId가 한 박자 늦어 목록에서 토스트가 씹히지 않게 */
+  useLayoutEffect(() => {
     if (!open) {
       onPhoneViewChange?.('thread');
       return;
@@ -1994,8 +1995,18 @@ export function OcChatPanel({
 
         if (cancelled || !stillOnChar(loadCharId)) return;
 
-        const seenNow = Date.now();
-        setLastSeenAt(seenNow);
+        /*
+         * 스레드를 보고 있을 때만 읽음 처리.
+         * 목록만 연 상태에서도 lastSeenAt=now 하면 미읽음·알림 토스트가 즉시 사라짐.
+         */
+        const viewingThread = openRef.current && phoneViewRef.current === 'thread';
+        const seenNow = viewingThread
+          ? Date.now()
+          : typeof thread.lastSeenAt === 'number'
+            ? thread.lastSeenAt
+            : stateRef.current.lastSeenAt || 0;
+        if (viewingThread) setLastSeenAt(seenNow);
+        else if (typeof thread.lastSeenAt === 'number') setLastSeenAt(thread.lastSeenAt);
         setAffection(affectionNow);
         setMeta(nextMeta);
         setStory(nextStory);
@@ -2016,13 +2027,14 @@ export function OcChatPanel({
           firstAt: nextMessages[0]?.at,
           lastAt: nextMessages[nextMessages.length - 1]?.at,
           clearedAt: thread.clearedAt,
+          viewingThread,
         });
         writeOcChatThreadCache(loadCharId, visitorRef.current, {
           ...thread,
           messages: nextMessages,
           affection: affectionNow,
           story: nextStory,
-          lastSeenAt: seenNow,
+          lastSeenAt: seenNow || undefined,
           pendingBehavior: pending,
           updatedAt: Date.now(),
         });
@@ -2041,7 +2053,7 @@ export function OcChatPanel({
             freeGainDate: thread.freeGainDate || todayKeyLocal(),
             freeGainToday: thread.freeGainToday || 0,
             freeLossToday: nextMeta.freeLossToday,
-            lastSeenAt: seenNow,
+            lastSeenAt: seenNow || undefined,
             moodNote: nextMeta.moodNote,
             moodDate: nextMeta.moodNote ? todayKeyLocal() : undefined,
             turnsToday: nextMeta.turnsToday,
@@ -2404,6 +2416,21 @@ export function OcChatPanel({
       }
       if (phoneView === 'thread') {
         setPhoneView('list');
+        onPhoneViewChange?.('list');
+        if (!replyLockRef.current && !flushLockRef.current) {
+          const vid = visitorRef.current || getOrCreateChatVisitorId();
+          setOcChatPendingUiOwned(charId, vid, false);
+          const pending = stateRef.current.meta.pendingBehavior;
+          if (pending?.applyAt) {
+            scheduleOcChatPendingDelivery(
+              charId,
+              vid,
+              pending.applyAt,
+              characterRef.current,
+              pending.id,
+            );
+          }
+        }
         void refreshInbox();
         return;
       }
@@ -3207,6 +3234,7 @@ export function OcChatPanel({
               characters={characters}
               onSelect={(next) => {
                 setPhoneView('thread');
+                onPhoneViewChange?.('thread');
                 jumpBottomOnEnterRef.current = true;
                 onSelectCharacter?.(next);
               }}
@@ -3221,6 +3249,26 @@ export function OcChatPanel({
             aria-label="채팅 목록"
             onClick={() => {
               setPhoneView('list');
+              onPhoneViewChange?.('list');
+              /*
+               * 목록으로 나가면 숨은 스레드 연출에 UI 소유를 붙잡지 않음.
+               * (연출 중이면 replyLock이 잡고, 끝나면 finally에서 이미 해제)
+               * 소유가 남으면 AlertHost/타이머 배달·토스트가 막힘.
+               */
+              if (!replyLockRef.current && !flushLockRef.current) {
+                const vid = visitorRef.current || getOrCreateChatVisitorId();
+                setOcChatPendingUiOwned(charId, vid, false);
+                const pending = stateRef.current.meta.pendingBehavior;
+                if (pending?.applyAt) {
+                  scheduleOcChatPendingDelivery(
+                    charId,
+                    vid,
+                    pending.applyAt,
+                    characterRef.current,
+                    pending.id,
+                  );
+                }
+              }
               void refreshInbox();
             }}
           >
