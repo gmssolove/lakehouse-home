@@ -540,19 +540,28 @@ export function OcChatPanel({
     [scrollToEnd],
   );
 
-  const refreshInbox = useCallback(async () => {
+  const inboxFetchGenRef = useRef(0);
+
+  const refreshInbox = useCallback(async (opts?: { remote?: boolean }) => {
     const vid = visitorRef.current || getOrCreateChatVisitorId();
     visitorRef.current = vid;
     const chatbotIds = characters
       .filter((c) => c.chatbot?.enabled)
       .map((c) => String(c.id));
-    const local = collectLocalOcChatInbox(vid, chatbotIds);
-    setInboxItems((prev) => mergeOcChatInboxItems(prev, local));
+    const readLocal = () => collectLocalOcChatInbox(vid, chatbotIds);
+    /* 로컬은 즉시·단조 병합 — 미리보기 깜빡임 방지 */
+    setInboxItems((prev) => mergeOcChatInboxItems(prev, readLocal()));
+    if (opts?.remote === false) return;
+
+    const gen = ++inboxFetchGenRef.current;
     try {
       const remote = await fetchOcChatInbox(vid);
-      setInboxItems(mergeOcChatInboxItems(remote, local));
+      if (gen !== inboxFetchGenRef.current) return;
+      /* await 이후 최신 로컬을 다시 읽어, 늦게 도착한 옛 remote가 덮지 않게 */
+      setInboxItems((prev) => mergeOcChatInboxItems(prev, remote, readLocal()));
     } catch {
-      setInboxItems(local);
+      if (gen !== inboxFetchGenRef.current) return;
+      setInboxItems((prev) => mergeOcChatInboxItems(prev, readLocal()));
     }
   }, [characters]);
 
@@ -1592,9 +1601,9 @@ export function OcChatPanel({
             stillPending.id,
           );
         }
-        /* 목록에 있으면 미읽음 뱃지 즉시 반영 */
+        /* 목록에 있으면 미읽음 뱃지 즉시 반영 (로컬만 — remote 레이스 방지) */
         if (openRef.current && phoneViewRef.current === 'list') {
-          void refreshInbox();
+          void refreshInbox({ remote: false });
         }
       }
     },
@@ -2304,12 +2313,12 @@ export function OcChatPanel({
     updateScrollUI,
   ]);
 
-  /* 스레드 메시지 변화 시 인박스 미리보기·미읽음 갱신 (목록 대기 포함) */
+  /* 스레드 메시지 변화 시 인박스 로컬 미리보기·미읽음만 갱신 (remote는 목록 폴링) */
   useEffect(() => {
     if (!open) return;
     const t = window.setTimeout(() => {
-      void refreshInbox();
-    }, 400);
+      void refreshInbox({ remote: false });
+    }, 200);
     return () => window.clearTimeout(t);
   }, [messages.length, open, refreshInbox, charId]);
 

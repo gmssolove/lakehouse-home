@@ -532,19 +532,34 @@ export function inboxItemFromThread(
   };
 }
 
-/** 서버 inbox + 로컬 캐시를 lastAt 기준으로 병합 (스레드 있는 것만) */
+/** 서버 inbox + 로컬 캐시를 lastAt 기준으로 병합 (스레드 있는 것만). 더 오래된 항목으로 덮지 않음. */
 export function mergeOcChatInboxItems(
-  remote: OcChatInboxItem[],
-  local: OcChatInboxItem[],
+  ...lists: OcChatInboxItem[][]
 ): OcChatInboxItem[] {
   const map = new Map<string, OcChatInboxItem>();
-  for (const item of [...remote, ...local]) {
-    const id = String(item.characterId);
-    const prev = map.get(id);
-    if (!prev || item.lastAt > prev.lastAt) {
-      map.set(id, { ...item, characterId: id });
-    } else if (item.lastAt === prev.lastAt && item.unread > prev.unread) {
-      map.set(id, { ...prev, unread: item.unread, preview: item.preview || prev.preview });
+  for (const list of lists) {
+    for (const item of list) {
+      const id = String(item.characterId);
+      const prev = map.get(id);
+      if (!prev) {
+        map.set(id, { ...item, characterId: id });
+        continue;
+      }
+      if (item.lastAt > prev.lastAt) {
+        map.set(id, { ...item, characterId: id });
+        continue;
+      }
+      if (item.lastAt < prev.lastAt) continue;
+      /* lastAt 동일 — unread/updatedAt만 보강. preview는 비어 있을 때만 채움(문구 깜빡임 방지) */
+      const nextUnread = Math.max(prev.unread, item.unread);
+      const nextUpdated = Math.max(prev.updatedAt || 0, item.updatedAt || 0);
+      map.set(id, {
+        ...prev,
+        characterId: id,
+        unread: nextUnread,
+        updatedAt: nextUpdated || prev.lastAt,
+        preview: prev.preview || item.preview,
+      });
     }
   }
   return [...map.values()].sort((a, b) => b.lastAt - a.lastAt);
