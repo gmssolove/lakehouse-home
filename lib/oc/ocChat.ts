@@ -2281,13 +2281,19 @@ export async function tryDeliverPendingChat(params: {
       added = await commitDue(cached);
     }
 
+    /*
+     * 로컬에서 이미 배달했으면 remote 대기를 생략 — Worker 연쇄 로드·503 완화.
+     * (remote 전용 pending은 아래 경로 / AlertHost 폴링이 담당)
+     */
+    if (added > 0) return added;
+
     const remote = await loadOcChatThread(params.characterId, params.visitorId);
     const latest = mergeOcChatThreads(
       peekOcChatThreadCache(params.characterId, params.visitorId),
       remote,
     );
     if (matchesExpect(latest.pendingBehavior)) {
-      added = Math.max(added, await commitDue(latest));
+      added = await commitDue(latest);
     }
     return added;
   })();

@@ -57,6 +57,9 @@ type Props = {
 /**
  * 모든 챗봇 OC의 pending 배달 + (채팅 열림 시) 알림.
  * A 상세·목록을 켜 둔 동안 B 메시지/알림이 죽지 않게 함.
+ *
+ * 원격 폴링은 채팅이 열려 있을 때만 · 한 명씩 · 느리게 —
+ * OC 페이지만 켜 둔 채 전원 load 하면 Worker 503을 유발함.
  */
 export function OcChatAlertHost({
   characters,
@@ -76,6 +79,7 @@ export function OcChatAlertHost({
   chatOpenRef.current = chatOpen;
   const bootstrappedRef = useRef(new Set<string>());
   const remoteCursorRef = useRef(0);
+  const remoteInflightRef = useRef(false);
 
   const enqueueFromThread = useCallback(
     (character: OcCharacter, thread: OcChatThread | null | undefined) => {
@@ -83,10 +87,6 @@ export function OcChatAlertHost({
       const charId = String(character.id);
       const unread = collectUnreadAssistants(thread);
 
-      /*
-       * 스레드를 직접 보고 있으면 토스트 없이 읽은 것으로 표시.
-       * (목록으로 돌아왔을 때 이미 본 답장이 팝업으로 재등장하지 않게)
-       */
       if (mutedRef.current && String(mutedRef.current) === charId) {
         for (const m of unread) markNotifiedMessage(charId, m.id);
         bootstrappedRef.current.add(charId);
@@ -134,7 +134,6 @@ export function OcChatAlertHost({
     setQueue((q) => q.filter((x) => String(x.characterId || '') !== id));
   }, [mutedCharacterId]);
 
-  /* 목록으로 나오면( mute 해제 ) 캐시 기준으로 토스트 재스캔 */
   useEffect(() => {
     if (!chatOpen || mutedCharacterId) return;
     scanAllCached();
@@ -166,7 +165,7 @@ export function OcChatAlertHost({
     [enqueueFromThread],
   );
 
-  /** 로컬 캐시 타이머 — 상세를 안 연 OC도 applyAt이 캐시에 있으면 배달 */
+  /** 로컬 캐시만 — 원격 hit 없음. 상세를 연 적 있어 캐시에 pending이 있을 때 배달 */
   useEffect(() => {
     if (!chatbotChars.length) return;
     const vid = getOrCreateChatVisitorId();
@@ -191,7 +190,7 @@ export function OcChatAlertHost({
       for (const c of chatbotChars) deliverDueFromCache(c, vid);
     };
     tick();
-    const timer = window.setInterval(tick, 1_500);
+    const timer = window.setInterval(tick, 2_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -199,70 +198,60 @@ export function OcChatAlertHost({
   }, [chatbotChars, deliverDueFromCache]);
 
   /**
-   * 원격 pending 폴링 — 캐시에 없는 OC(상세를 안 연 캐릭터)도 배달.
-   * 채팅 열림: 빠르게 / 닫힘: 느리게 한 명씩 순회.
+   * 원격 pending — 채팅 오버레이가 열려 있을 때만.
+   * 전원 일괄 load 금지 · 한 번에 한 OC · 동시 1요청.
    */
   useEffect(() => {
-    if (!chatbotChars.length) return;
+    if (!chatOpen || !chatbotChars.length) return;
     const vid = getOrCreateChatVisitorId();
     let cancelled = false;
 
     const syncOne = async (c: OcCharacter) => {
+      if (remoteInflightRef.current) return;
+      remoteInflightRef.current = true;
       const id = String(c.id);
       try {
         const thread = await loadOcChatThread(id, vid);
         if (cancelled) return;
         const applyAt = thread.pendingBehavior?.applyAt;
-        if (!applyAt) {
-          enqueueFromThread(c, peekOcChatThreadCache(id, vid));
-          return;
+        if (applyAt) {
+          scheduleOcChatPendingDelivery(
+            id,
+            vid,
+            applyAt,
+            c,
+            thread.pendingBehavior?.id,
+          );
+          if (applyAt <= Date.now()) {
+            await tryDeliverPendingChat({
+              characterId: id,
+              visitorId: vid,
+              character: c,
+            });
+          }
         }
-        scheduleOcChatPendingDelivery(
-          id,
-          vid,
-          applyAt,
-          c,
-          thread.pendingBehavior?.id,
-        );
-        if (applyAt <= Date.now()) {
-          const added = await tryDeliverPendingChat({
-            characterId: id,
-            visitorId: vid,
-            character: c,
-          });
-          if (cancelled) return;
-          if (added > 0) enqueueFromThread(c, peekOcChatThreadCache(id, vid));
-          else enqueueFromThread(c, peekOcChatThreadCache(id, vid));
-        } else {
-          enqueueFromThread(c, peekOcChatThreadCache(id, vid));
-        }
+        if (!cancelled) enqueueFromThread(c, peekOcChatThreadCache(id, vid));
       } catch {
         /* ignore */
+      } finally {
+        remoteInflightRef.current = false;
       }
     };
 
     const tickRemote = () => {
-      if (cancelled || !chatbotChars.length) return;
+      if (cancelled || !chatbotChars.length || remoteInflightRef.current) return;
       const i = remoteCursorRef.current % chatbotChars.length;
       remoteCursorRef.current = i + 1;
       const c = chatbotChars[i];
       if (c) void syncOne(c);
     };
 
-    /* 채팅 열면 전원 한 바퀴 빠르게 */
-    if (chatOpen) {
-      void (async () => {
-        for (const c of chatbotChars) {
-          if (cancelled) return;
-          await syncOne(c);
-        }
-      })();
-    }
-
-    const ms = chatOpen ? 2_500 : 10_000;
-    const timer = window.setInterval(tickRemote, ms);
+    /* 열자마자 전원 돌리지 않음 — 첫 틱만 약간 앞당김 */
+    const first = window.setTimeout(tickRemote, 400);
+    const timer = window.setInterval(tickRemote, 8_000);
     return () => {
       cancelled = true;
+      window.clearTimeout(first);
       window.clearInterval(timer);
     };
   }, [chatOpen, chatbotChars, enqueueFromThread]);

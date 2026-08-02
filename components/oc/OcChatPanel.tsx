@@ -652,38 +652,11 @@ export function OcChatPanel({
     const vid = visitorRef.current || getOrCreateChatVisitorId();
     visitorRef.current = vid;
     let cancelled = false;
-    /* 목록 진입 시 다른 OC remote pending도 끌어와 예약/즉시 배달 */
-    void (async () => {
-      for (const c of characters) {
-        if (cancelled || !c.chatbot?.enabled) continue;
-        const id = String(c.id);
-        try {
-          const thread = await loadOcChatThread(id, vid);
-          if (cancelled) return;
-          const applyAt = thread.pendingBehavior?.applyAt;
-          if (!applyAt) continue;
-          scheduleOcChatPendingDelivery(
-            id,
-            vid,
-            applyAt,
-            c,
-            thread.pendingBehavior?.id,
-          );
-          if (applyAt <= Date.now()) {
-            await tryDeliverPendingChat({
-              characterId: id,
-              visitorId: vid,
-              character: c,
-            });
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-      if (!cancelled) await refreshInbox({ remote: false });
-    })();
+    let remoteIdx = 0;
+    let remoteBusy = false;
 
-    const tick = async () => {
+    /* 목록: 로컬 due pending만 자주 확인 (원격 전원 일괄 load 금지 — Worker 503 원인) */
+    const tickLocal = async () => {
       for (const c of characters) {
         if (cancelled || !c.chatbot?.enabled) continue;
         const id = String(c.id);
@@ -702,10 +675,52 @@ export function OcChatPanel({
       }
       if (!cancelled) await refreshInbox({ remote: false });
     };
-    const id = window.setInterval(() => void tick(), 1_500);
+
+    /* 원격은 한 명씩·느리게 (AlertHost와 중복되어도 inflight로 자연 합쳐짐) */
+    const tickRemoteOne = async () => {
+      if (cancelled || remoteBusy) return;
+      const bots = characters.filter((c) => c.chatbot?.enabled);
+      if (!bots.length) return;
+      const c = bots[remoteIdx % bots.length]!;
+      remoteIdx += 1;
+      remoteBusy = true;
+      try {
+        const id = String(c.id);
+        const thread = await loadOcChatThread(id, vid);
+        if (cancelled) return;
+        const applyAt = thread.pendingBehavior?.applyAt;
+        if (applyAt) {
+          scheduleOcChatPendingDelivery(
+            id,
+            vid,
+            applyAt,
+            c,
+            thread.pendingBehavior?.id,
+          );
+          if (applyAt <= Date.now()) {
+            await tryDeliverPendingChat({
+              characterId: id,
+              visitorId: vid,
+              character: c,
+            });
+          }
+        }
+        if (!cancelled) await refreshInbox({ remote: false });
+      } catch {
+        /* ignore */
+      } finally {
+        remoteBusy = false;
+      }
+    };
+
+    void tickLocal();
+    void tickRemoteOne();
+    const localTimer = window.setInterval(() => void tickLocal(), 2_000);
+    const remoteTimer = window.setInterval(() => void tickRemoteOne(), 8_000);
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      window.clearInterval(localTimer);
+      window.clearInterval(remoteTimer);
     };
   }, [characters, open, phoneView, refreshInbox]);
 
