@@ -73,6 +73,8 @@
 }
 
 .oc-chat-aff-toast {
+  --oc-chat-aff-in-ms: 280ms;
+  --oc-chat-aff-out-ms: 280ms;
   position: absolute;
   /* 헤더(~62px) 바로 아래 — 스레드 위에 분명히 보이게 */
   top: 72px;
@@ -88,11 +90,16 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   pointer-events: none;
-  /* 기본 불투명 — reduced-motion으로 duration≈0이 되어도 안 사라지게
-     (예전 both+끝 opacity:0 조합이면 토스트가 즉시 투명해짐) */
   opacity: 1;
-  animation: ocChatAffToast 2.8s ease-out forwards;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.oc-chat-aff-toast.is-enter {
+  animation: ocChatAffToastIn var(--oc-chat-aff-in-ms) ease-out forwards;
+}
+
+.oc-chat-aff-toast.is-leaving {
+  animation: ocChatAffToastOut var(--oc-chat-aff-out-ms) ease-in forwards;
 }
 
 .oc-chat-aff-toast__icon {
@@ -119,23 +126,27 @@
   border: 1px solid rgba(180, 100, 90, 0.4);
 }
 
-@keyframes ocChatAffToast {
+/* 인 — 아래에서 살짝 떠오르며 등장 */
+@keyframes ocChatAffToastIn {
   0% {
     opacity: 0;
     transform: translateX(-50%) translateY(8px) scale(0.96);
   }
-  10% {
+  100% {
     opacity: 1;
     transform: translateX(-50%) translateY(0) scale(1);
   }
-  75% {
+}
+
+/* 아웃 — 인과 동일 경로 역재생 */
+@keyframes ocChatAffToastOut {
+  0% {
     opacity: 1;
     transform: translateX(-50%) translateY(0) scale(1);
   }
   100% {
-    /* 언마운트는 JS 타이머 — 끝 프레임을 투명으로 두면 reduced-motion에서 즉시 안 보임 */
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.96);
   }
 }
 
@@ -1235,6 +1246,10 @@
     animation: none !important;
     opacity: 1 !important;
     transform: translateX(-50%) translateY(0) !important;
+  }
+
+  .oc-chat-aff-toast.is-leaving {
+    opacity: 0 !important;
   }
 
   .oc-chat-stack .oc-chat-screen {

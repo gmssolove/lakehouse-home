@@ -318,7 +318,11 @@ export function OcChatPanel({
   const [waitingRead, setWaitingRead] = useState(false);
   const [awaitingChoice, setAwaitingChoice] = useState(false);
   const [error, setError] = useState('');
-  const [affToast, setAffToast] = useState<{ delta: number; id: number } | null>(null);
+  const [affToast, setAffToast] = useState<{
+    delta: number;
+    id: number;
+    leaving?: boolean;
+  } | null>(null);
   const [panelAnim, setPanelAnim] = useState<'in' | 'out' | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -437,9 +441,15 @@ export function OcChatPanel({
 
   const showAffectionToastNow = useCallback((delta: number) => {
     if (!delta) return;
-    setAffToast({ delta, id: Date.now() });
     window.clearTimeout(affToastTimer.current);
-    affToastTimer.current = window.setTimeout(() => setAffToast(null), 3000);
+    setAffToast({ delta, id: Date.now(), leaving: false });
+    /* 유지 ~4.5s 후 아웃(인 280ms와 동일) → 언마운트 */
+    const holdMs = 4500;
+    const leaveMs = 280;
+    affToastTimer.current = window.setTimeout(() => {
+      setAffToast((cur) => (cur ? { ...cur, leaving: true } : null));
+      affToastTimer.current = window.setTimeout(() => setAffToast(null), leaveMs + 40);
+    }, holdMs);
   }, []);
 
   const flashAffectionToast = useCallback(
@@ -3194,7 +3204,9 @@ export function OcChatPanel({
         {affToast ? (
           <div
             key={affToast.id}
-            className={`oc-chat-aff-toast${affToast.delta > 0 ? ' is-up' : ' is-down'}`}
+            className={`oc-chat-aff-toast${affToast.delta > 0 ? ' is-up' : ' is-down'}${
+              affToast.leaving ? ' is-leaving' : ' is-enter'
+            }`}
             role="status"
             aria-live="polite"
             aria-label={
@@ -3202,6 +3214,13 @@ export function OcChatPanel({
                 ? `호감 +${affToast.delta}`
                 : `호감 ${affToast.delta}`
             }
+            onAnimationEnd={(e) => {
+              if (e.target !== e.currentTarget) return;
+              if (!affToast.leaving) return;
+              if (!String(e.animationName || '').includes('ocChatAffToastOut')) return;
+              window.clearTimeout(affToastTimer.current);
+              setAffToast(null);
+            }}
           >
             {affToast.delta > 0 ? (
               <svg className="oc-chat-aff-toast__icon" viewBox="0 0 24 24" aria-hidden>
