@@ -50,6 +50,7 @@ import {
   peekOcChatThreadCache,
   scheduleOcChatPendingDelivery,
   subscribeOcChatThread,
+  subscribeOcChatThreadCache,
   tryDeliverPendingChat,
   tryDeliverProactiveChat,
   type OcChatThread,
@@ -1036,8 +1037,9 @@ export function OcCharacterDetail({
       if (!thread || chatMuteAlertsRef.current) return;
       const n = countCharUnread(thread);
       setChatUnread(n);
-      if (n > 0) setChatAlertLatched(true);
-      maybeNotifyFromThread(thread);
+      /* 읽음(0)이면 래치도 해제 — 확인 후에도 핸드폰 알림이 남는 문제 방지 */
+      setChatAlertLatched(n > 0);
+      if (n > 0) maybeNotifyFromThread(thread);
     },
     [maybeNotifyFromThread],
   );
@@ -1077,7 +1079,10 @@ export function OcCharacterDetail({
       setChatNotifyQueue([]);
       return;
     }
-    if (chatUnread > 0) setChatAlertLatched(true);
+    if (chatUnread <= 0) {
+      setChatAlertLatched(false);
+      setChatNotifyQueue([]);
+    }
   }, [chatMuteAlerts, chatUnread]);
 
   useEffect(() => {
@@ -1133,25 +1138,38 @@ export function OcCharacterDetail({
     }
     let cancelled = false;
     const tick = () => {
-      if (cancelled || chatMuteAlertsRef.current) return;
+      if (cancelled) return;
       void tryDeliverPendingChat({
         characterId: charId,
         visitorId: vid,
         character,
       })
         .then((added) => {
-          if (cancelled || chatMuteAlertsRef.current || added <= 0) return;
+          if (cancelled || added <= 0) return;
+          /* 알림/배지만 mute — 배달은 항상 수행 */
+          if (chatMuteAlertsRef.current) return;
           applyUnreadFromThread(peekOcChatThreadCache(charId, vid));
         })
         .catch(() => {});
     };
     tick();
-    const id = window.setInterval(tick, 4000);
+    const id = window.setInterval(tick, 1500);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [applyUnreadFromThread, character, chatEnabled, chatMuteAlerts]);
+  }, [applyUnreadFromThread, character, chatEnabled]);
+
+  /* 로컬 캐시 즉시 → 배지/알림 (채팅 닫혀 있을 때) */
+  useEffect(() => {
+    if (!chatEnabled || chatMuteAlerts) return;
+    const vid = getOrCreateChatVisitorId();
+    const charId = String(character.id);
+    return subscribeOcChatThreadCache((id, visitorId, thread) => {
+      if (visitorId !== vid || String(id) !== charId) return;
+      applyUnreadFromThread(thread);
+    });
+  }, [applyUnreadFromThread, character.id, chatEnabled, chatMuteAlerts]);
 
   /* 호감 높고 오래 조용하면 선톡 (하루 1회 시도) */
   useEffect(() => {

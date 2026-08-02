@@ -15,6 +15,8 @@ export type OcChatNotifyKind = 'reply' | 'message';
 
 export type OcChatNotifyPayload = {
   id: string;
+  /** 읽음 후 해당 OC 토스트만 지우기 위함 */
+  characterId?: string;
   name: string;
   /** 「OO님이 답장/메시지를 보냈습니다」 — aria / 향후 타이틀용 */
   title: string;
@@ -74,7 +76,7 @@ export function buildOcChatNotifyTitle(name: string, kind: OcChatNotifyKind): st
 }
 
 export function buildOcChatNotifyPayload(
-  character: Pick<OcCharacter, 'name' | 'personalColor' | 'chatbot'>,
+  character: Pick<OcCharacter, 'id' | 'name' | 'personalColor' | 'chatbot'>,
   msg: { id: string; content?: string; kind?: string },
   messages?: Array<{ id: string; role?: string; kind?: string }>,
 ): OcChatNotifyPayload {
@@ -84,6 +86,7 @@ export function buildOcChatNotifyPayload(
     : ('message' as OcChatNotifyKind);
   return {
     id: msg.id,
+    characterId: character.id ? String(character.id) : undefined,
     name,
     title: buildOcChatNotifyTitle(name, kind),
     text: previewText(msg),
@@ -150,20 +153,28 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
       doneOnceRef.current = false;
       return;
     }
-    if (shownIdRef.current === payload.id) return;
-    shownIdRef.current = payload.id;
-    doneOnceRef.current = false;
-    setLeaving(false);
-    setVisible(true);
-    setAnimKey((k) => k + 1);
-    playNotifySfx(payload.sfxUrl);
+    const id = payload.id;
+    const isNew = shownIdRef.current !== id;
+    if (isNew) {
+      shownIdRef.current = id;
+      doneOnceRef.current = false;
+      setLeaving(false);
+      setVisible(true);
+      setAnimKey((k) => k + 1);
+      playNotifySfx(payload.sfxUrl);
+    }
 
-    /* 진행바 전부 닳은 뒤 아웃 */
+    /*
+     * startLeave 등 deps 변경으로 effect가 다시 돌아도 타이머를 다시 건다.
+     * (예전: 같은 id면 early return → cleanup이 타이머만 지워 토스트가 안 사라짐)
+     */
     window.clearTimeout(leaveTimer.current);
     window.clearTimeout(doneTimer.current);
-    leaveTimer.current = window.setTimeout(() => {
-      startLeave(payload.id);
-    }, OC_CHAT_NOTIFY_MS);
+    if (!doneOnceRef.current) {
+      leaveTimer.current = window.setTimeout(() => {
+        startLeave(id);
+      }, OC_CHAT_NOTIFY_MS);
+    }
 
     return () => {
       window.clearTimeout(leaveTimer.current);

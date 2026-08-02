@@ -71,6 +71,7 @@ import {
   scheduleOcChatPendingDelivery,
   setOcChatPendingUiOwned,
   sleepMs,
+  subscribeOcChatThreadCache,
   tryDeliverPendingChat,
   writeOcChatThreadCache,
   type OcChatInboxItem,
@@ -585,6 +586,17 @@ export function OcChatPanel({
     void refreshInbox();
   }, [open, refreshInbox]);
 
+  /* 로컬 스레드 갱신 = 목록 미리보기 즉시 (알림과 같은 타이밍) */
+  useEffect(() => {
+    if (!open) return;
+    const vid = visitorRef.current || getOrCreateChatVisitorId();
+    visitorRef.current = vid;
+    return subscribeOcChatThreadCache((_characterId, visitorId) => {
+      if (visitorId !== vid) return;
+      void refreshInbox({ remote: false });
+    });
+  }, [open, refreshInbox]);
+
   useEffect(() => {
     if (!open) return;
     jumpBottomOnEnterRef.current = true;
@@ -608,8 +620,38 @@ export function OcChatPanel({
     const vid = visitorRef.current || getOrCreateChatVisitorId();
     visitorRef.current = vid;
     let cancelled = false;
+    /* 목록 진입 시 다른 OC remote pending도 끌어와 예약/즉시 배달 */
+    void (async () => {
+      for (const c of characters) {
+        if (cancelled || !c.chatbot?.enabled) continue;
+        const id = String(c.id);
+        try {
+          const thread = await loadOcChatThread(id, vid);
+          if (cancelled) return;
+          const applyAt = thread.pendingBehavior?.applyAt;
+          if (!applyAt) continue;
+          scheduleOcChatPendingDelivery(
+            id,
+            vid,
+            applyAt,
+            c,
+            thread.pendingBehavior?.id,
+          );
+          if (applyAt <= Date.now()) {
+            await tryDeliverPendingChat({
+              characterId: id,
+              visitorId: vid,
+              character: c,
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!cancelled) await refreshInbox({ remote: false });
+    })();
+
     const tick = async () => {
-      /* 목록 대기 중: 기한 지난 pending 배달 → 인박스 미읽음 반영 */
       for (const c of characters) {
         if (cancelled || !c.chatbot?.enabled) continue;
         const id = String(c.id);
@@ -626,10 +668,9 @@ export function OcChatPanel({
           /* ignore */
         }
       }
-      if (!cancelled) await refreshInbox();
+      if (!cancelled) await refreshInbox({ remote: false });
     };
-    void tick();
-    const id = window.setInterval(() => void tick(), 4_000);
+    const id = window.setInterval(() => void tick(), 1_500);
     return () => {
       cancelled = true;
       window.clearInterval(id);

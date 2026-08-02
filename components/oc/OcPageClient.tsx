@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
+import { OcChatAlertHost } from '@/components/oc/OcChatAlertHost';
 import { OcChatPanel } from '@/components/oc/OcChatPanel';
 import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
 import { EntrySplash } from '@/components/shared/EntrySplash';
@@ -889,17 +890,24 @@ export function OcPageClient() {
             touchHintDismissed={touchHintDismissed}
             onTouchHintDismiss={() => setTouchHintDismissed(true)}
             chatOpen={chatOpen}
-            chatMuteAlerts={
-              chatOpen &&
-              chatPhoneView === 'thread' &&
-              String(chatCharacterId || '') === String(liveDetail.id)
-            }
+            chatMuteAlerts={chatOpen}
             onOpenChat={() => {
               if (liveDetail) openChatForCharacter(liveDetail);
             }}
           />
         )}
       </div>
+
+      <OcChatAlertHost
+        characters={characters}
+        chatOpen={chatOpen}
+        mutedCharacterId={
+          chatOpen && chatPhoneView === 'thread' ? chatCharacterId : null
+        }
+        onOpenCharacter={(c) => {
+          openChatForCharacter(c);
+        }}
+      />
 
       {chatCharacter?.chatbot?.enabled ? (
         <OcChatPanel

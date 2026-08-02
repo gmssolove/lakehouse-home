@@ -323,7 +323,42 @@ export function writeOcChatThreadCache(
   visitorId: string,
   thread: OcChatThread,
 ): void {
-  writeOcChatThreadCacheRaw(characterId, visitorId, stripUndefinedDeep(normalizeChatThread(thread)));
+  const normalized = stripUndefinedDeep(normalizeChatThread(thread));
+  writeOcChatThreadCacheRaw(characterId, visitorId, normalized);
+  emitOcChatThreadCache(characterId, visitorId, normalizeChatThread(normalized));
+}
+
+type OcChatThreadCacheListener = (
+  characterId: string,
+  visitorId: string,
+  thread: OcChatThread,
+) => void;
+
+const threadCacheListeners = new Set<OcChatThreadCacheListener>();
+
+function emitOcChatThreadCache(
+  characterId: string,
+  visitorId: string,
+  thread: OcChatThread,
+): void {
+  if (typeof window === 'undefined') return;
+  for (const fn of threadCacheListeners) {
+    try {
+      fn(characterId, visitorId, thread);
+    } catch {
+      /* listener errors must not break saves */
+    }
+  }
+}
+
+/** 로컬 캐시 즉시 반영 구독 (목록 미리보기·알림 동기화) */
+export function subscribeOcChatThreadCache(
+  listener: OcChatThreadCacheListener,
+): () => void {
+  threadCacheListeners.add(listener);
+  return () => {
+    threadCacheListeners.delete(listener);
+  };
 }
 
 const pendingDeliveryTimers = new Map<string, number>();
@@ -621,15 +656,16 @@ export function mergeOcChatInboxItems(
         continue;
       }
       if (item.lastAt < prev.lastAt) continue;
-      /* lastAt 동일 — unread/updatedAt만 보강. preview는 비어 있을 때만 채움(문구 깜빡임 방지) */
-      const nextUnread = Math.max(prev.unread, item.unread);
-      const nextUpdated = Math.max(prev.updatedAt || 0, item.updatedAt || 0);
+      /* lastAt 동일 — 더 최신 updatedAt을 신뢰 (읽음 후 unread 0이 max로 안 죽게) */
+      const preferItem = (item.updatedAt || 0) >= (prev.updatedAt || 0);
+      const newer = preferItem ? item : prev;
+      const older = preferItem ? prev : item;
       map.set(id, {
-        ...prev,
         characterId: id,
-        unread: nextUnread,
-        updatedAt: nextUpdated || prev.lastAt,
-        preview: prev.preview || item.preview,
+        lastAt: prev.lastAt,
+        preview: newer.preview || older.preview,
+        unread: Math.max(0, newer.unread),
+        updatedAt: Math.max(prev.updatedAt || 0, item.updatedAt || 0) || prev.lastAt,
       });
     }
   }
