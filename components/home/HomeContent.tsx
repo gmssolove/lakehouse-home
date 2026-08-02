@@ -1,18 +1,11 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import type { HomePageId } from '@/components/layout/LeftNav';
-import { GuestBookPanel } from '@/components/home/GuestBookPanel';
 import { BannerTile } from '@/components/home/BannerTile';
 import { NoticeBody } from '@/components/home/NoticeBody';
-import { TrpgScenarioList } from '@/components/home/TrpgScenarioList';
-import { CharArchivePanel } from '@/components/character/CharArchivePanel';
 import { MainGameStage } from '@/components/home/MainGameStage';
-import { RecordsDiaryPanel } from '@/components/records/RecordsDiaryPanel';
-import { ScrapTab } from '@/components/records/ScrapTab';
-import { ReviewTab } from '@/components/records/ReviewTab';
-import { GalleryTab } from '@/components/records/GalleryTab';
-import { QuoteTab } from '@/components/records/QuoteTab';
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { LakeScopeGate } from '@/components/lake/LakeScopeGate';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
@@ -20,6 +13,39 @@ import { UniverseAccordionCards, type SkewAccordionCard } from '@/components/hom
 import type { SitePost, TrpgScenario } from '@/lib/types/site-content';
 import type { LakeAccessScope } from '@/lib/types/secret-content';
 import type { User } from 'firebase/auth';
+
+const GuestBookPanel = dynamic(
+  () => import('@/components/home/GuestBookPanel').then((m) => m.GuestBookPanel),
+  { ssr: false },
+);
+const TrpgScenarioList = dynamic(
+  () => import('@/components/home/TrpgScenarioList').then((m) => m.TrpgScenarioList),
+  { ssr: false },
+);
+const CharArchivePanel = dynamic(
+  () => import('@/components/character/CharArchivePanel').then((m) => m.CharArchivePanel),
+  { ssr: false },
+);
+const RecordsDiaryPanel = dynamic(
+  () => import('@/components/records/RecordsDiaryPanel').then((m) => m.RecordsDiaryPanel),
+  { ssr: false },
+);
+const ScrapTab = dynamic(
+  () => import('@/components/records/ScrapTab').then((m) => m.ScrapTab),
+  { ssr: false },
+);
+const ReviewTab = dynamic(
+  () => import('@/components/records/ReviewTab').then((m) => m.ReviewTab),
+  { ssr: false },
+);
+const GalleryTab = dynamic(
+  () => import('@/components/records/GalleryTab').then((m) => m.GalleryTab),
+  { ssr: false },
+);
+const QuoteTab = dynamic(
+  () => import('@/components/records/QuoteTab').then((m) => m.QuoteTab),
+  { ssr: false },
+);
 
 type Props = {
   page: HomePageId;

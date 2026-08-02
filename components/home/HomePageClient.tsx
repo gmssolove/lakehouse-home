@@ -1,12 +1,11 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { AuthModal } from '@/components/auth/AuthModal';
-import { AdminOverlay } from '@/components/admin/AdminOverlay';
 import { HomeContent } from '@/components/home/HomeContent';
-import { ClickerWidget } from '@/components/home/ClickerWidget';
 import { BackgroundDecor } from '@/components/layout/BackgroundDecor';
 import { LeftNav, type HomePageId } from '@/components/layout/LeftNav';
 import { LakeAccessGateModal } from '@/components/lake/LakeAccessGateModal';
@@ -19,6 +18,16 @@ import { lakeNavigate, clearLakeRouteClasses } from '@/lib/lake/routeTransition'
 import { auth } from '@/lib/firebase/client';
 import { HOME_RECORDS_TABS, isHomeRecordsTabId } from '@/lib/records/sections';
 import type { TrpgScenario } from '@/lib/types/site-content';
+
+/* Admin·클리커는 홈 SSR 번들에서 제외 — Workers 간헐 500 완화 */
+const AdminOverlay = dynamic(
+  () => import('@/components/admin/AdminOverlay').then((m) => m.AdminOverlay),
+  { ssr: false },
+);
+const ClickerWidget = dynamic(
+  () => import('@/components/home/ClickerWidget').then((m) => m.ClickerWidget),
+  { ssr: false },
+);
 
 type AdminPhase = 'idle' | 'open' | 'closing';
 

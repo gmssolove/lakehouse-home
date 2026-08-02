@@ -17,10 +17,9 @@ import { LiveDevHud } from '@/components/dev/LiveDevHud';
 import { clearLakeRouteClasses, isLakeRouteEnterLocked, recoverStuckLakeRoute } from '@/lib/lake/routeTransition';
 import { installDomRemoveChildGuard } from '@/lib/lake/domRemoveChildGuard';
 
-installDomRemoveChildGuard();
-
 /** 하드 리프레시·이탈 중단 시 opacity:0 / leave 베일 고착("무한 로딩") 방지 */
 function forceLakeVisible() {
+  if (typeof document === 'undefined') return;
   const body = document.body;
   body.style.setProperty('opacity', '1', 'important');
   body.style.removeProperty('transform');
@@ -53,6 +52,10 @@ function forceLakeVisible() {
 
 function RouteBodyReset() {
   const pathname = usePathname();
+
+  useEffect(() => {
+    installDomRemoveChildGuard();
+  }, []);
 
   useLayoutEffect(() => {
     forceLakeVisible();
