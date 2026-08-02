@@ -37,6 +37,7 @@ import { createEmptyPair } from '@/lib/oc/pairDefaults';
 import { movePairInList, pairOrderMeta } from '@/lib/oc/pairOrder';
 import { AdminNavIcon } from '@/components/admin/AdminNavIcon';
 import { AdminListItem } from '@/components/ui/AdminListItem';
+import { setSiteContentEager } from '@/lib/site/siteContentEager';
 
 type Props = {
   phase: 'open' | 'closing';
@@ -54,6 +55,12 @@ export function AdminOverlay({ phase, onRequestClose, onClosed }: Props) {
   const [trpgEditId, setTrpgEditId] = useState<string | null>(null);
   const [ocEditId, setOcEditId] = useState<string | number | null>(null);
   const [pairEditId, setPairEditId] = useState<string | null>(null);
+
+  /* 어드민: 전체 섹션 무제한 구독 (limit 저장 덮어쓰기 방지) */
+  useEffect(() => {
+    setSiteContentEager(true);
+    return () => setSiteContentEager(false);
+  }, []);
 
   useEffect(() => {
     if (phase !== 'open') return;

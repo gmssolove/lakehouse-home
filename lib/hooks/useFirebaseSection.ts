@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { onValue, ref, set } from 'firebase/database';
+import { limitToLast, onValue, query, ref, set, type Query, type DatabaseReference } from 'firebase/database';
 import { db } from '@/lib/firebase/client';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 
@@ -22,7 +22,43 @@ function sameSnapshot<T>(a: T, b: T): boolean {
   }
 }
 
-export function useFirebaseSection<T>(path: string, defaultValue: T) {
+function asArrayIfObject<T>(val: T): T {
+  if (val && typeof val === 'object' && !Array.isArray(val)) {
+    const keys = Object.keys(val as object);
+    if (keys.length && keys.every((k) => /^\d+$/.test(k))) {
+      return Object.keys(val as object)
+        .sort((a, b) => Number(a) - Number(b))
+        .map((k) => (val as Record<string, unknown>)[k]) as T;
+    }
+  }
+  return val;
+}
+
+export type UseFirebaseSectionOptions = {
+  /** false면 Firebase 구독 없이 localStorage/default만 사용 */
+  enabled?: boolean;
+  /** RTDB limitToLast — 목록 섹션 용량 제한 */
+  limitToLast?: number;
+  /** Firebase 응답 대기 제한(ms). 초과 시 localStorage/default로 loaded 처리 */
+  timeoutMs?: number;
+  /**
+   * 엣지 캐시 API로 선하이드레이트 (예: /api/site-section/diary).
+   * onValue 실시간 구독 전에 부분 데이터를 빠르게 채움.
+   */
+  cacheUrl?: string | null;
+};
+
+export function useFirebaseSection<T>(
+  path: string,
+  defaultValue: T,
+  options: UseFirebaseSectionOptions = {},
+) {
+  const {
+    enabled = true,
+    limitToLast: limitN,
+    timeoutMs = 5000,
+    cacheUrl = null,
+  } = options;
   const storageKey = path.replace(/\//g, '_');
   const [data, setData] = useState<T>(defaultValue);
   const [loaded, setLoaded] = useState(false);
@@ -34,25 +70,78 @@ export function useFirebaseSection<T>(path: string, defaultValue: T) {
     setData((prev) => (sameSnapshot(prev, cached) ? prev : cached));
     setLoaded(true);
 
+    if (!enabled) {
+      return;
+    }
+
+    let cancelled = false;
     let unsub: (() => void) | undefined;
-    const timer = window.setTimeout(() => {
-      unsub = onValue(ref(db, path), (snap) => {
-        if (!snap.exists()) return;
-        const val = snap.val() as T;
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(val));
-        } catch {
-          /* quota / private mode */
+    let timeoutId = 0;
+
+    const applyVal = (raw: T) => {
+      if (cancelled) return;
+      const val = asArrayIfObject(raw);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(val));
+      } catch {
+        /* quota / private mode */
+      }
+      setData((prev) => (sameSnapshot(prev, val) ? prev : val));
+      setLoaded(true);
+    };
+
+    const hydrateFromCache = async () => {
+      if (!cacheUrl) return;
+      try {
+        const res = await fetch(cacheUrl, {
+          signal: AbortSignal.timeout(Math.min(timeoutMs, 4000)),
+        });
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as { data?: T };
+        if (json?.data !== undefined && json.data !== null) {
+          applyVal(json.data);
         }
-        setData((prev) => (sameSnapshot(prev, val) ? prev : val));
-      });
+      } catch {
+        /* cache miss / timeout — onValue 또는 local fallback */
+      }
+    };
+
+    const timer = window.setTimeout(() => {
+      void hydrateFromCache();
+
+      const base: DatabaseReference = ref(db, path);
+      const source: Query | DatabaseReference =
+        limitN != null && limitN > 0 ? query(base, limitToLast(limitN)) : base;
+
+      timeoutId = window.setTimeout(() => {
+        /* 타임아웃: localStorage/default 유지, UI 차단 해제. 구독은 유지해 늦게 오면 반영 */
+        if (!cancelled) setLoaded(true);
+      }, timeoutMs);
+
+      unsub = onValue(
+        source,
+        (snap) => {
+          window.clearTimeout(timeoutId);
+          if (!snap.exists()) {
+            setLoaded(true);
+            return;
+          }
+          applyVal(snap.val() as T);
+        },
+        () => {
+          window.clearTimeout(timeoutId);
+          setLoaded(true);
+        },
+      );
     }, 0);
 
     return () => {
+      cancelled = true;
       window.clearTimeout(timer);
+      window.clearTimeout(timeoutId);
       unsub?.();
     };
-  }, [path, storageKey]);
+  }, [path, storageKey, enabled, limitN, timeoutMs, cacheUrl]);
 
   const save = useCallback(
     async (next: T) => {

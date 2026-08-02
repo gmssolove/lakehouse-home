@@ -118,12 +118,17 @@ export function HomeContent({ page, leavingPage, user, isAdmin, onOpenAuth, onTi
   const blockClass = (id: HomePageId) =>
     `content-block${page === id ? ' active' : ''}${leavingPage === id && page !== id ? ' is-leaving' : ''}`;
 
+  const show = (id: HomePageId) => page === id || leavingPage === id;
+
   return (
     <div className="content-area">
+      {show('main') ? (
       <div className={blockClass('main')} id="page-main">
         <MainGameStage />
       </div>
+      ) : null}
 
+      {show('notice') ? (
       <div className={blockClass('notice')} id="page-notice">
         <div className="page-heading">Notice</div>
         <div className="page-sub">공지사항</div>
@@ -140,7 +145,9 @@ export function HomeContent({ page, leavingPage, user, isAdmin, onOpenAuth, onTi
           </div>
         </LakeScopeGate>
       </div>
+      ) : null}
 
+      {show('charArchive') ? (
       <div className={blockClass('charArchive')} id="page-char-archive">
         <div className="page-heading">Character Archive</div>
         <div className="page-sub">캐릭터 글 아카이브</div>
@@ -148,7 +155,9 @@ export function HomeContent({ page, leavingPage, user, isAdmin, onOpenAuth, onTi
           <CharArchivePanel user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} />
         </LakeScopeGate>
       </div>
+      ) : null}
 
+      {show('diary') ? (
       <div className={blockClass('diary')} id="page-diary">
         <LakeScopeGate scope="diary" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'diary'}>
           <RecordsDiaryPanel
@@ -161,37 +170,49 @@ export function HomeContent({ page, leavingPage, user, isAdmin, onOpenAuth, onTi
           />
         </LakeScopeGate>
       </div>
+      ) : null}
 
+      {show('scrap') ? (
       <div className={blockClass('scrap')} id="page-scrap">
         <LakeScopeGate scope="scrap" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'scrap'}>
           <ScrapTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'scrap'} />
         </LakeScopeGate>
       </div>
+      ) : null}
 
+      {show('review') ? (
       <div className={blockClass('review')} id="page-review">
         <LakeScopeGate scope="review" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'review'}>
           <ReviewTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'review'} />
         </LakeScopeGate>
       </div>
+      ) : null}
 
+      {show('gallery') ? (
       <div className={blockClass('gallery')} id="page-gallery">
         <LakeScopeGate scope="gallery" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'gallery'}>
           <GalleryTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'gallery'} />
         </LakeScopeGate>
       </div>
+      ) : null}
 
+      {show('quote') ? (
       <div className={blockClass('quote')} id="page-quote">
         <LakeScopeGate scope="quote" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'quote'}>
           <QuoteTab user={user} isAdmin={isAdmin} onOpenAuth={onOpenAuth} active={page === 'quote'} />
         </LakeScopeGate>
       </div>
+      ) : null}
 
+      {show('universe') ? (
       <div className={blockClass('universe')} id="page-universe">
         <div className="page-heading">Universe</div>
         <div className="page-sub">자작 세계관</div>
         <UniverseAccordionCards cards={site.universe} resolveHref={resolveUniverseHref} />
       </div>
+      ) : null}
 
+      {show('trpg') ? (
       <div className={blockClass('trpg')} id="page-trpg">
         <div className="page-heading">TRPG</div>
         <div className="page-sub">시나리오</div>
@@ -204,7 +225,9 @@ export function HomeContent({ page, leavingPage, user, isAdmin, onOpenAuth, onTi
           onOpenAuth={onOpenAuth}
         />
       </div>
+      ) : null}
 
+      {show('guest') ? (
       <div className={blockClass('guest')} id="page-guest">
         <LakeScopeGate scope="guest" isAdmin={isAdmin} loggedIn={!!user} onRequestLogin={onOpenAuth} active={page === 'guest'}>
           <GuestBookPanel
@@ -216,7 +239,9 @@ export function HomeContent({ page, leavingPage, user, isAdmin, onOpenAuth, onTi
           />
         </LakeScopeGate>
       </div>
+      ) : null}
 
+      {show('banner') ? (
       <div className={blockClass('banner')} id="page-banner">
         <div className="page-heading">Banner</div>
         <div className="page-sub">배너</div>
@@ -228,6 +253,7 @@ export function HomeContent({ page, leavingPage, user, isAdmin, onOpenAuth, onTi
           )}
         </div>
       </div>
+      ) : null}
     </div>
   );
 }
