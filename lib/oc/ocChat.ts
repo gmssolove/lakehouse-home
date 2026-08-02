@@ -2008,9 +2008,22 @@ export async function postOcChat(params: {
       msg,
     );
     if (!retryable) throw err;
-    await sleepMs(650);
-    if (params.signal?.aborted) throw err;
-    return await runOnce();
+    /* 일시 과부하 — 서버 폴백과 겹쳐도 클라이언트에서 한두 번 더 */
+    for (let i = 0; i < 2; i++) {
+      await sleepMs(700 * (i + 1));
+      if (params.signal?.aborted) throw err;
+      try {
+        return await runOnce();
+      } catch (err2) {
+        if (params.signal?.aborted) throw err2;
+        const msg2 = err2 instanceof Error ? err2.message : String(err2);
+        const again = /\(50[023]\)|\(429\)|서버 오류|Request not allowed|가로막|UNAVAILABLE|overloaded|잠시/i.test(
+          msg2,
+        );
+        if (!again || i === 1) throw err2;
+      }
+    }
+    throw err;
   }
 }
 

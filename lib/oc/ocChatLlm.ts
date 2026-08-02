@@ -90,6 +90,8 @@ const modelCooldownUntil = new Map<string, number>();
 let chatQuotaPressureUntil = 0;
 
 const SAME_MODEL_RETRIES = 2; /* 첫 시도 외 추가 재시도 횟수 */
+/** chat 과부하(503) 시 같은 모델(품질 유지)로 더 기다림 */
+const CHAT_OVERLOAD_SAME_MODEL_RETRIES = 3;
 const RETRY_WAIT_MIN_MS = 800;
 const RETRY_WAIT_CAP_MS = 12_000;
 const MODEL_COOLDOWN_CAP_MS = 120_000;
@@ -435,8 +437,9 @@ export async function callGemini(
       continue;
     }
 
-    /* 첫 시도 + SAME_MODEL_RETRIES — 429여도 바로 폴백하지 않음 */
-    const maxAttempts = 1 + SAME_MODEL_RETRIES;
+    /* chat은 과부하 대비 같은 모델 재시도 여유를 더 둠(폴백으로 품질 낮추지 않음) */
+    const maxAttempts =
+      1 + (priority === 'chat' ? CHAT_OVERLOAD_SAME_MODEL_RETRIES : SAME_MODEL_RETRIES);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const text = await callGeminiOnce(model, system, messages, {
@@ -467,26 +470,34 @@ export async function callGemini(
           /empty response/i.test(e.message);
         const info429 =
           e.upstreamStatus === 429 ? parseGemini429(e.upstreamBody) : null;
+        /* 과부하는 품질(모델) 유지 — 같은 모델만 더 기다려 재시도, Flash로 내리지 않음 */
+        const isOverload =
+          e.upstreamStatus === 503 ||
+          /UNAVAILABLE|overloaded|high demand/i.test(
+            `${e.message}\n${e.upstreamBody || ''}`,
+          );
 
         const retriesLeft = attempt < maxAttempts && retryable;
         /*
          * free-tier RPD(일일)는 수초 대기로 안 풀리는 경우가 많음 → 같은 모델 1회만 재시도.
          * RPM/기타 429는 최대 SAME_MODEL_RETRIES회.
+         * 503도 같은 모델 재시도(품질 유지). 폴백 모델로 바로 내리지 않음.
          */
         const allowRetry =
           retriesLeft &&
           !(info429?.kind === 'rpd' && info429.isFreeTier && attempt >= 2);
 
         if (allowRetry) {
-          /* RPD(일일) free-tier는 수십 초 대기로 풀리지 않음 — 짧게 1회만 확인 */
           const rawWait =
             info429?.kind === 'rpd' && info429.isFreeTier
               ? 2_000 * attempt
               : info429?.retryDelayMs
                 ? Math.min(info429.retryDelayMs, RETRY_WAIT_CAP_MS)
-                : e.upstreamStatus === 503 || e.upstreamStatus === 429
-                  ? 1500 * attempt
-                  : 400 * attempt;
+                : isOverload
+                  ? 2_000 * attempt
+                  : e.upstreamStatus === 429
+                    ? 1500 * attempt
+                    : 400 * attempt;
           const waitMs = clampRetryWaitMs(rawWait);
           console.warn('[oc-chat] gemini retry same model', {
             label: opts.logLabel || 'generate',
@@ -497,6 +508,7 @@ export async function callGemini(
             nextAttempt: attempt + 1,
             waitMs,
             status: e.upstreamStatus,
+            overload: isOverload,
             kind: info429?.kind,
             isFreeTier: info429?.isFreeTier,
             quotaId: info429?.quotaId,
@@ -523,7 +535,14 @@ export async function callGemini(
           );
         }
 
-        const tryNext = i < models.length - 1 && retryable;
+        /*
+         * chat 과부하(503): 품질 다른 폴백 모델로 내리지 않음.
+         * 쿼타/모델없음 등만 체인 다음으로.
+         */
+        const tryNext =
+          i < models.length - 1 &&
+          retryable &&
+          !(isOverload && priority === 'chat');
         console.warn('[oc-chat] gemini model failed', {
           label: opts.logLabel || 'generate',
           priority,
@@ -531,6 +550,7 @@ export async function callGemini(
           cascadeIndex: i,
           status: e.upstreamStatus,
           attempt,
+          overload: isOverload,
           kind: info429?.kind,
           isFreeTier: info429?.isFreeTier,
           quotaId: info429?.quotaId,
