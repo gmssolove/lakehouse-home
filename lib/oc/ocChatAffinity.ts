@@ -165,6 +165,51 @@ export function resolveAffinityTier(
   return hit || tiers[tiers.length - 1] || DEFAULT_AFFINITY_TIERS[0]!;
 }
 
+/** 0-based tier index (점수 구간). 없으면 마지막 구간 */
+export function resolveAffinityTierIndex(
+  affection: number,
+  cfg?: OcChatbotConfig | null,
+): number {
+  const v = clampAffection(affection);
+  const tiers = resolveAffinityTiers(cfg);
+  const idx = tiers.findIndex((t) => v >= t.min && v <= t.max);
+  if (idx >= 0) return idx;
+  return Math.max(0, tiers.length - 1);
+}
+
+/** 이전→새 점수에서 구간이 바뀌었는지 */
+export function didCrossAffinityTier(
+  prevAffection: number,
+  nextAffection: number,
+  cfg?: OcChatbotConfig | null,
+): boolean {
+  return (
+    resolveAffinityTierIndex(prevAffection, cfg) !==
+    resolveAffinityTierIndex(nextAffection, cfg)
+  );
+}
+
+/** 「카논과의 / 이브와의」 조사 */
+export function affinityNameParticle(name: string): '과의' | '와의' {
+  const n = name.trim() || '캐릭터';
+  const code = n.charCodeAt(n.length - 1);
+  if (code >= 0xac00 && code <= 0xd7a3) {
+    return (code - 0xac00) % 28 !== 0 ? '과의' : '와의';
+  }
+  return '와의';
+}
+
+export function affinityTierChangeLead(
+  name: string,
+  direction: 'up' | 'down',
+): string {
+  const n = name.trim() || '캐릭터';
+  const particle = affinityNameParticle(n);
+  return direction === 'up'
+    ? `${n}${particle} 관계가 발전했어요`
+    : `${n}${particle} 관계가 멀어졌어요`;
+}
+
 /** 라벨 + 은은한 점 — 단계가 올라갈수록 점 개수 증가 (3,4,5…) */
 export function resolveAffinityDots(
   affection: number,

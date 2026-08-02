@@ -98,7 +98,14 @@ import {
 } from '@/lib/oc/ocChatVerify';
 import type { OcChatEpisode, OcChatEpisodeChoice, OcCharacter } from '@/lib/types/character';
 import { newId } from '@/lib/types/site-content';
+import { OcChatAffinityTierToast } from '@/components/oc/OcChatAffinityTierToast';
 import { OcChatInboxList } from '@/components/oc/OcChatInboxList';
+import {
+  buildAffinityTierToastPayload,
+  queuePendingAffinityTierToast,
+  takePendingAffinityTierToasts,
+  type OcChatAffinityTierToastPayload,
+} from '@/lib/oc/ocChatAffinityTierToastQueue';
 
 type Props = {
   open: boolean;
@@ -324,6 +331,10 @@ export function OcChatPanel({
     id: number;
     leaving?: boolean;
   } | null>(null);
+  /** 호감 단계 변화 토스트 큐 — 동시에 1개만 표시 */
+  const [tierToastQueue, setTierToastQueue] = useState<OcChatAffinityTierToastPayload[]>(
+    [],
+  );
   const [panelAnim, setPanelAnim] = useState<'in' | 'out' | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -412,6 +423,8 @@ export function OcChatPanel({
     memoryBootedRef.current = false;
     memorySummaryRef.current = undefined;
     memorySummaryThroughAtRef.current = undefined;
+    setTierToastQueue([]);
+    setAffToast(null);
     try {
       const vid = getOrCreateChatVisitorId();
       const cached = peekOcChatThreadCache(charId, vid);
@@ -471,6 +484,38 @@ export function OcChatPanel({
     [charId, isViewingThread, showAffectionToastNow],
   );
 
+  const enqueueAffinityTierToast = useCallback(
+    (payload: OcChatAffinityTierToastPayload) => {
+      if (!isViewingThread()) {
+        const vid = visitorRef.current || getOrCreateChatVisitorId();
+        visitorRef.current = vid;
+        queuePendingAffinityTierToast(activeCharIdRef.current || charId, vid, payload);
+        return;
+      }
+      setTierToastQueue((q) => [...q, payload]);
+    },
+    [charId, isViewingThread],
+  );
+
+  const flashAffinityTierToast = useCallback(
+    (prevAffection: number, nextAffection: number) => {
+      const payload = buildAffinityTierToastPayload({
+        name: characterRef.current.name || '캐릭터',
+        avatarUrl: resolveChatAvatarUrl(characterRef.current),
+        prevAffection,
+        nextAffection,
+        chatbot: characterRef.current.chatbot,
+      });
+      if (!payload) return;
+      enqueueAffinityTierToast(payload);
+    },
+    [enqueueAffinityTierToast],
+  );
+
+  const onAffinityTierToastDone = useCallback((id: string) => {
+    setTierToastQueue((q) => q.filter((p) => p.id !== id));
+  }, []);
+
   /* 스레드로 돌아오면 못 본 호감 토스트 합산 표시 */
   useEffect(() => {
     if (!open || phoneView !== 'thread' || !threadReady) return;
@@ -478,6 +523,10 @@ export function OcChatPanel({
     visitorRef.current = vid;
     const pending = takePendingAffectionToast(charId, vid);
     if (pending) showAffectionToastNow(pending);
+    const pendingTiers = takePendingAffinityTierToasts(charId, vid);
+    if (pendingTiers.length) {
+      setTierToastQueue((q) => [...q, ...pendingTiers]);
+    }
   }, [open, phoneView, threadReady, charId, showAffectionToastNow]);
 
   const startEpisode = useMemo(
@@ -2113,6 +2162,16 @@ export function OcChatPanel({
           nextMeta = { ...nextMeta, neglectCheckedAt: neglect.neglectCheckedAt };
           /* 로드 직후 threadReady 전 — 대기열에 넣고 스레드 준비 후 토스트 */
           queuePendingAffectionToast(loadCharId, visitorRef.current, -neglect.decay);
+          const tierPayload = buildAffinityTierToastPayload({
+            name: characterNow.name || '캐릭터',
+            avatarUrl: resolveChatAvatarUrl(characterNow),
+            prevAffection: thread.affection,
+            nextAffection: affectionNow,
+            chatbot: characterNow.chatbot,
+          });
+          if (tierPayload) {
+            queuePendingAffinityTierToast(loadCharId, visitorRef.current, tierPayload);
+          }
         }
         /* setMeta/setStory는 아래에서 한 번에 — 중간 깜빡임 방지 */
 
@@ -2661,6 +2720,7 @@ export function OcChatPanel({
             : -Math.min(-delta, Math.max(0, FREE_DAILY_LOSS_CAP - lossBase));
       const userLine = createChatMessage('user', choice.text.trim(), 'choice');
       const withUser = [...stateRef.current.messages, userLine];
+      const prevAffection = stateRef.current.affection;
       setMessages(withUser);
       setAffection(nextAffection);
       if (counted !== 0) {
@@ -2676,6 +2736,7 @@ export function OcChatPanel({
         }
         flashAffectionToast(counted);
       }
+      flashAffinityTierToast(prevAffection, nextAffection);
 
       const nextSceneId =
         choice.next === undefined || choice.next === null ? null : String(choice.next);
@@ -2716,7 +2777,7 @@ export function OcChatPanel({
         meta: touchMeta,
       });
     },
-    [activeEpisode, busy, flashAffectionToast, persistSnapshot, story, waitingRead],
+    [activeEpisode, busy, flashAffectionToast, flashAffinityTierToast, persistSnapshot, story, waitingRead],
   );
 
   const flushDebouncedChat = useCallback(async () => {
@@ -2979,10 +3040,12 @@ export function OcChatPanel({
           memorySummaryThroughAtRef.current = result.memorySummaryThroughAt;
         }
 
+        const prevAffection = stateRef.current.affection;
         setAffection(result.affection);
         setFreeGainToday(result.freeGainToday);
         setFreeGainDate(result.freeGainDate);
         if (result.affinityDelta !== 0) flashAffectionToast(result.affinityDelta);
+        flashAffinityTierToast(prevAffection, result.affection);
         {
           const sealed = markUserMessagesReadThroughLastAssistant(
             stateRef.current.messages,
@@ -3079,6 +3142,7 @@ export function OcChatPanel({
   }, [
     charId,
     flashAffectionToast,
+    flashAffinityTierToast,
     focusComposer,
     inStory,
     persistSnapshot,
@@ -3431,6 +3495,10 @@ export function OcChatPanel({
             </span>
           </div>
         ) : null}
+        <OcChatAffinityTierToast
+          payload={tierToastQueue[0] ?? null}
+          onDone={onAffinityTierToastDone}
+        />
         <div className={`oc-chat-stack${phoneView === 'thread' ? ' is-thread' : ''}`}>
           <div className="oc-chat-screen oc-chat-screen--list" aria-hidden={phoneView !== 'list'}>
             <header className="oc-chat-phone__head oc-chat-phone__head--list">
