@@ -407,12 +407,21 @@ export function scheduleOcChatPendingDelivery(
 ): void {
   if (typeof window === 'undefined') return;
   const key = pendingDeliveryKey(characterId, visitorId);
-  const prev = pendingDeliveryTimers.get(key);
-  if (prev) window.clearTimeout(prev);
-  if (!applyAt || uiOwnedPendingKeys.has(key)) {
+  if (uiOwnedPendingKeys.has(key)) {
+    const prev = pendingDeliveryTimers.get(key);
+    if (prev) window.clearTimeout(prev);
     pendingDeliveryTimers.delete(key);
     return;
   }
+  /*
+   * applyAt 없음 = pending 없는 일반 저장.
+   * 이미 잡혀 있는 배달 타이머를 취소하면 안 됨
+   * (봉인/presence 저장이 백그라운드 예약을 삼키던 버그).
+   */
+  if (!applyAt) return;
+
+  const prev = pendingDeliveryTimers.get(key);
+  if (prev) window.clearTimeout(prev);
   const delay = Math.max(0, applyAt - Date.now()) + 60;
   const id = window.setTimeout(() => {
     pendingDeliveryTimers.delete(key);
@@ -2482,6 +2491,68 @@ export function completeOcChatReplyInBackground(params: {
 
   backgroundReplyInflight.set(key, run);
   return run;
+}
+
+/**
+ * 숨은 탭·타이머 throttle 이후 복귀용 — due pending 배달 + 미응답 flush.
+ * 한꺼번에 Worker를 두드리지 않게 순차 처리.
+ */
+export async function resumeOcChatBackgroundWork(params: {
+  characters: Array<Pick<OcCharacter, 'id' | 'chatbot'>>;
+  visitorId: string;
+  /** true면 remote 보정 (탭 복귀·사이트 재진입) */
+  reconcileRemote?: boolean;
+}): Promise<void> {
+  const vid = String(params.visitorId || '').trim();
+  if (!vid) return;
+  const list = params.characters.filter((c) => c.chatbot?.enabled);
+  for (const c of list) {
+    const id = String(c.id);
+    try {
+      const cached = peekOcChatThreadCache(id, vid);
+      const due = (cached?.pendingBehavior?.applyAt || 0) <= Date.now();
+      if (cached?.pendingBehavior && due) {
+        await tryDeliverPendingChat({
+          characterId: id,
+          visitorId: vid,
+          character: c,
+          expectPendingId: cached.pendingBehavior.id,
+          force: true,
+          reconcileRemote: params.reconcileRemote === true,
+        });
+      } else if (cached?.pendingBehavior?.applyAt) {
+        scheduleOcChatPendingDelivery(
+          id,
+          vid,
+          cached.pendingBehavior.applyAt,
+          c,
+          cached.pendingBehavior.id,
+        );
+      } else if (params.reconcileRemote && cached) {
+        /* 로컬 캐시 있는 OC만 remote 보정 — 전 OC 폴링은 Worker 503 */
+        await tryDeliverPendingChat({
+          characterId: id,
+          visitorId: vid,
+          character: c,
+          reconcileRemote: true,
+        });
+      }
+
+      const thread = peekOcChatThreadCache(id, vid);
+      if (
+        thread &&
+        ocChatNeedsReplyToTrailingUsers(thread.messages, thread.pendingBehavior)
+      ) {
+        void completeOcChatReplyInBackground({
+          characterId: id,
+          visitorId: vid,
+          character: c,
+        });
+      }
+    } catch {
+      /* ignore per-character */
+    }
+  }
 }
 
 /**

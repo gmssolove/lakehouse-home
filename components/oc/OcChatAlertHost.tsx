@@ -6,9 +6,12 @@ import {
   type OcChatNotifyPayload,
 } from '@/components/oc/OcChatNotifyToast';
 import {
+  completeOcChatReplyInBackground,
   getOrCreateChatVisitorId,
   loadOcChatThread,
+  ocChatNeedsReplyToTrailingUsers,
   peekOcChatThreadCache,
+  resumeOcChatBackgroundWork,
   scheduleOcChatPendingDelivery,
   subscribeOcChatThreadCache,
   tryDeliverPendingChat,
@@ -229,11 +232,77 @@ export function OcChatAlertHost({
     };
     tick();
     const timer = window.setInterval(tick, 1_500);
+
+    /* pending 없이 미응답만 남은 OC — 수 초마다 백그라운드 flush */
+    const stuckTimer = window.setInterval(() => {
+      if (cancelled || !chatOpenRef.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      for (const c of chatbotChars) {
+        const id = String(c.id);
+        const t = peekOcChatThreadCache(id, vid);
+        if (!t) continue;
+        if (!ocChatNeedsReplyToTrailingUsers(t.messages, t.pendingBehavior)) continue;
+        void completeOcChatReplyInBackground({
+          characterId: id,
+          visitorId: vid,
+          character: c,
+        }).catch(() => {});
+      }
+    }, 8_000);
+
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      window.clearInterval(stuckTimer);
     };
   }, [chatbotChars, deliverDueFromCache]);
+
+  /* 탭/창 다시 보이면 즉시 배달·미응답 복구 (백그라운드 timer throttle 보정) */
+  useEffect(() => {
+    if (!chatbotChars.length) return;
+    const vid = getOrCreateChatVisitorId();
+    let running = false;
+    let wasHidden =
+      typeof document !== 'undefined' && document.visibilityState === 'hidden';
+
+    const run = (reconcileRemote: boolean) => {
+      if (running) return;
+      running = true;
+      void resumeOcChatBackgroundWork({
+        characters: chatbotChars,
+        visitorId: vid,
+        reconcileRemote,
+      })
+        .then(() => {
+          for (const c of chatbotChars) {
+            enqueueFromThread(c, peekOcChatThreadCache(String(c.id), vid));
+          }
+          if (chatOpenRef.current) armOcChatNotifySfx();
+        })
+        .finally(() => {
+          running = false;
+        });
+    };
+
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') {
+        wasHidden = true;
+        return;
+      }
+      if (!wasHidden) return;
+      wasHidden = false;
+      run(true);
+    };
+
+    document.addEventListener('visibilitychange', onVis);
+    /* 마운트: 로컬 due·미응답만 (전 OC remote는 503 유발) */
+    run(false);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [chatbotChars, enqueueFromThread]);
 
   useEffect(() => {
     if (!chatOpen || !chatbotChars.length) return;
