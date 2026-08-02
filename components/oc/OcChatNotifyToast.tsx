@@ -3,7 +3,7 @@
 import { resolveOcChatPointStyle, normalizeHex } from '@/lib/oc/characterTheme';
 import { resolveChatAvatarUrl } from '@/lib/oc/ocChatPrompt';
 import type { OcCharacter } from '@/lib/types/character';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 
 /** 진행바·유지 시간. CSS `--oc-chat-notify-ms` 와 맞출 것 */
@@ -99,13 +99,13 @@ export function buildOcChatNotifyPayload(
 
 export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [animKey, setAnimKey] = useState(0);
   const shownIdRef = useRef<string | null>(null);
   const doneOnceRef = useRef(false);
   const leaveTimer = useRef(0);
   const doneTimer = useRef(0);
+  const sfxRaf = useRef(0);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
@@ -114,7 +114,15 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
     doneOnceRef.current = true;
     window.clearTimeout(leaveTimer.current);
     window.clearTimeout(doneTimer.current);
-    setVisible(false);
+    if (sfxRaf.current) {
+      window.cancelAnimationFrame(sfxRaf.current);
+      sfxRaf.current = 0;
+    }
+    /*
+     * visible=false 로 한 프레임 비우지 않음.
+     * (예전: 소리만 먼저 나고 토스트 DOM이 다음 페인트에야 붙음)
+     * 큐에 다음이 있으면 payload만 바뀌고 바로 이어 표시.
+     */
     setLeaving(false);
     onDoneRef.current(id);
   }, []);
@@ -141,16 +149,21 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
     } as CSSProperties;
   }, [payload?.personalColor]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!payload) {
       shownIdRef.current = null;
-      setVisible(false);
       setLeaving(false);
       doneOnceRef.current = false;
+      window.clearTimeout(leaveTimer.current);
+      window.clearTimeout(doneTimer.current);
+      if (sfxRaf.current) {
+        window.cancelAnimationFrame(sfxRaf.current);
+        sfxRaf.current = 0;
+      }
       return;
     }
     const id = payload.id;
@@ -159,9 +172,19 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
       shownIdRef.current = id;
       doneOnceRef.current = false;
       setLeaving(false);
-      setVisible(true);
       setAnimKey((k) => k + 1);
-      playNotifySfx(payload.sfxUrl);
+      /*
+       * 토스트가 레이아웃·페인트된 뒤 효과음 — 소리만 먼저 나는 체감 방지.
+       * (useEffect + visible=false 조합이 원인였음)
+       */
+      if (sfxRaf.current) window.cancelAnimationFrame(sfxRaf.current);
+      const sfxUrl = payload.sfxUrl;
+      sfxRaf.current = window.requestAnimationFrame(() => {
+        sfxRaf.current = window.requestAnimationFrame(() => {
+          sfxRaf.current = 0;
+          playNotifySfx(sfxUrl);
+        });
+      });
     }
 
     /*
@@ -182,7 +205,14 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
     };
   }, [payload, startLeave]);
 
-  if (!mounted || !payload || !visible) return null;
+  useEffect(
+    () => () => {
+      if (sfxRaf.current) window.cancelAnimationFrame(sfxRaf.current);
+    },
+    [],
+  );
+
+  if (!mounted || !payload) return null;
 
   const ui = (
     <button

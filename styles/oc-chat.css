@@ -1069,8 +1069,9 @@
   text-align: left;
   font: inherit;
   overflow: hidden;
-  opacity: 0;
-  transform: translateX(-50%) translateY(-120%);
+  /* 애니 시작 전 한 프레임도 안 보이게 두지 않음 (효과음 선행 체감 방지) */
+  opacity: 0.92;
+  transform: translateX(-50%) translateY(-36%);
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
   transition: border-color 0.18s ease;
@@ -1081,7 +1082,8 @@
 }
 
 .oc-chat-notify.is-enter {
-  animation: oc-chat-notify-in 0.48s cubic-bezier(0.32, 0.9, 0.35, 1.15) forwards !important;
+  /* 첫 프레임부터 거의 보이게 — 효과음보다 토스트가 늦게 뜨는 체감 완화 */
+  animation: oc-chat-notify-in 0.32s cubic-bezier(0.32, 0.9, 0.35, 1.12) forwards !important;
 }
 
 .oc-chat-notify.is-leaving {
@@ -1089,16 +1091,16 @@
   pointer-events: none;
 }
 
-/* 인 — 바운스 슬라이드 다운 (기존 유지) */
+/* 인 — 바로 읽히게 등장 + 짧은 바운스 */
 @keyframes oc-chat-notify-in {
   0% {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-120%);
+    opacity: 0.92;
+    transform: translateX(-50%) translateY(-36%);
     filter: blur(0);
   }
-  72% {
+  70% {
     opacity: 1;
-    transform: translateX(-50%) translateY(3%);
+    transform: translateX(-50%) translateY(2%);
     filter: blur(0);
   }
   100% {

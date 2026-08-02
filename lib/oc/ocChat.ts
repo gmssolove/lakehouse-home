@@ -2256,34 +2256,40 @@ export async function tryDeliverPendingChat(params: {
       return (pending.applyAt || 0) <= Date.now();
     };
 
+    const commitDue = async (thread: OcChatThread): Promise<number> => {
+      if (!matchesExpect(thread.pendingBehavior)) return 0;
+      const result = applyDuePendingBehavior(thread, { character: params.character });
+      if (!result) return 0;
+      const msgs = dedupeRecentAssistantDuplicates(
+        dedupeAdjacentAssistantMessages(result.thread.messages),
+      );
+      await saveOcChatThread(params.characterId, params.visitorId, {
+        ...result.thread,
+        messages: msgs,
+      });
+      return result.added;
+    };
+
     /*
-     * 캐시만으로 먼저 배달하면, 직전 전송이 아직 캐시에 안 붙은 유저 말을
-     * 빠뜨린 채 저장할 수 있다. 항상 remote+최신 캐시를 합친 뒤 배달.
+     * 1) 로컬 캐시가 이미 기한이면 즉시 배달 → 알림/미리보기가 네트워크를 기다리지 않음.
+     *    (pendingClearedAt 으로 remote merge가 옛 예약을 되살리지 않음)
+     * 2) 이어서 remote와 합쳐 누락·교체분만 보정.
      */
+    let added = 0;
+    const cached = peekOcChatThreadCache(params.characterId, params.visitorId);
+    if (cached && matchesExpect(cached.pendingBehavior)) {
+      added = await commitDue(cached);
+    }
+
     const remote = await loadOcChatThread(params.characterId, params.visitorId);
-    const thread = mergeOcChatThreads(
+    const latest = mergeOcChatThreads(
       peekOcChatThreadCache(params.characterId, params.visitorId),
       remote,
     );
-    if (!matchesExpect(thread.pendingBehavior)) return 0;
-
-    /* load 중에 또 유저 말이 붙었으면 한 번 더 합침 */
-    const latest = mergeOcChatThreads(
-      peekOcChatThreadCache(params.characterId, params.visitorId),
-      thread,
-    );
-    if (!matchesExpect(latest.pendingBehavior)) return 0;
-
-    const result = applyDuePendingBehavior(latest, { character: params.character });
-    if (!result) return 0;
-    const msgs = dedupeRecentAssistantDuplicates(
-      dedupeAdjacentAssistantMessages(result.thread.messages),
-    );
-    await saveOcChatThread(params.characterId, params.visitorId, {
-      ...result.thread,
-      messages: msgs,
-    });
-    return result.added;
+    if (matchesExpect(latest.pendingBehavior)) {
+      added = Math.max(added, await commitDue(latest));
+    }
+    return added;
   })();
 
   pendingDeliveryInflight.set(key, run);
