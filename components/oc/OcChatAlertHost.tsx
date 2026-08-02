@@ -351,8 +351,12 @@ export function OcChatAlertHost({
     <OcChatNotifyToast
       payload={queue[0] ?? null}
       onDone={(id) => setQueue((q) => q.filter((x) => x.id !== id))}
-      onOpen={() => {
-        const c = openCharRef.current;
+      onOpen={(payload) => {
+        const id = payload.characterId ? String(payload.characterId) : '';
+        const c =
+          (id && chatbotChars.find((x) => String(x.id) === id)) ||
+          (id && characters.find((x) => String(x.id) === id)) ||
+          openCharRef.current;
         if (c) onOpenCharacter?.(c);
       }}
     />

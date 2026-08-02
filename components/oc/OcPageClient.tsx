@@ -906,7 +906,9 @@ export function OcPageClient() {
           chatOpen && chatPhoneView === 'thread' ? chatCharacterId : null
         }
         onOpenCharacter={(c) => {
-          openChatForCharacter(c);
+          /* 목록·다른 OC 스레드에 있어도 알림 OC의 스레드로 이동 */
+          setChatPhoneView('thread');
+          switchChatToCharacter(c);
         }}
       />
 
