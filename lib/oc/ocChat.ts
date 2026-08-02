@@ -1930,7 +1930,7 @@ function ocChatHttpErrorMessage(status: number, rawBody: string): string {
       return '채팅 API 키가 설정되지 않았습니다. 배포 환경 시크릿을 확인해 주세요.';
     }
     if (status === 503 || /UNAVAILABLE|overloaded|high demand/i.test(apiError)) {
-      return `서버가 잠시 바쁩니다. 잠시 후 다시 보내 주세요. (${status})`;
+      return 'AI_BUSY';
     }
     return status >= 500 ? `서버 오류: ${apiError}` : apiError;
   }
@@ -1943,7 +1943,7 @@ function ocChatHttpErrorMessage(status: number, rawBody: string): string {
     return `브라우저 보안 확인이 가로막았습니다 (${status}). 일반 창에서 새로고침 후 다시 시도해 주세요.`;
   }
   if (status === 503) {
-    return '서버가 잠시 바쁩니다. 잠시 후 다시 보내 주세요. (503)';
+    return 'AI_BUSY';
   }
   if (status === 429) {
     return '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.';
@@ -1965,6 +1965,12 @@ function parseOcChatJsonBody<T extends object>(rawBody: string, status: number):
   } catch {
     throw new Error(ocChatHttpErrorMessage(status, rawBody));
   }
+}
+
+/** UI에 띄우지 말고 조용히 재시도할 Gemini/엣지 일시 혼잡 */
+export function isOcChatTransientBusyError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err || '');
+  return /AI_BUSY|50[023]|UNAVAILABLE|overloaded|high demand|혼잡|잠시 바쁜/i.test(msg);
 }
 
 export async function postOcChat(params: {
@@ -2090,32 +2096,27 @@ export async function postOcChat(params: {
     };
   };
 
-  try {
-    return await runOnce();
-  } catch (err) {
-    if (params.signal?.aborted) throw err;
-    const msg = err instanceof Error ? err.message : String(err);
-    const retryable = /\(50[023]\)|\(429\)|서버 오류|Request not allowed|가로막|UNAVAILABLE|overloaded|잠시/i.test(
+  const isTransientChatPostError = (msg: string) =>
+    /50[023]|429|AI_BUSY|서버 오류|Request not allowed|가로막|UNAVAILABLE|overloaded|잠시|혼잡|다시 시도/i.test(
       msg,
     );
-    if (!retryable) throw err;
-    /* 일시 과부하 — 서버 폴백과 겹쳐도 클라이언트에서 한두 번 더 */
-    for (let i = 0; i < 2; i++) {
-      await sleepMs(700 * (i + 1));
+
+  /* Worker는 짧게 실패 → 같은 Pro 품질로 클라이언트에서 여러 번 재요청 */
+  const maxClientAttempts = 5;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxClientAttempts; attempt++) {
+    try {
+      return await runOnce();
+    } catch (err) {
+      lastErr = err;
       if (params.signal?.aborted) throw err;
-      try {
-        return await runOnce();
-      } catch (err2) {
-        if (params.signal?.aborted) throw err2;
-        const msg2 = err2 instanceof Error ? err2.message : String(err2);
-        const again = /\(50[023]\)|\(429\)|서버 오류|Request not allowed|가로막|UNAVAILABLE|overloaded|잠시/i.test(
-          msg2,
-        );
-        if (!again || i === 1) throw err2;
-      }
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!isTransientChatPostError(msg) || attempt === maxClientAttempts) throw err;
+      await sleepMs(900 * attempt);
+      if (params.signal?.aborted) throw err;
     }
-    throw err;
   }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr || '채팅 요청 실패'));
 }
 
 export async function postOcChatProactive(params: {

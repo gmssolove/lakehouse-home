@@ -90,10 +90,13 @@ const modelCooldownUntil = new Map<string, number>();
 let chatQuotaPressureUntil = 0;
 
 const SAME_MODEL_RETRIES = 2; /* 첫 시도 외 추가 재시도 횟수 */
-/** chat 과부하(503) 시 같은 모델(품질 유지)로 더 기다림 */
-const CHAT_OVERLOAD_SAME_MODEL_RETRIES = 3;
+/*
+ * chat 503: Worker 한 요청 안에서 Pro를 여러 번 길게 붙잡으면
+ * Cloudflare 제한으로 또 503이 난다 → 서버는 짧게, 클라이언트에서 여러 번 재요청.
+ */
+const CHAT_OVERLOAD_SAME_MODEL_RETRIES = 1;
 const RETRY_WAIT_MIN_MS = 800;
-const RETRY_WAIT_CAP_MS = 12_000;
+const RETRY_WAIT_CAP_MS = 8_000;
 const MODEL_COOLDOWN_CAP_MS = 120_000;
 const CHAT_PRESSURE_MS = 180_000;
 
@@ -494,7 +497,7 @@ export async function callGemini(
               : info429?.retryDelayMs
                 ? Math.min(info429.retryDelayMs, RETRY_WAIT_CAP_MS)
                 : isOverload
-                  ? 2_000 * attempt
+                  ? 900 * attempt
                   : e.upstreamStatus === 429
                     ? 1500 * attempt
                     : 400 * attempt;

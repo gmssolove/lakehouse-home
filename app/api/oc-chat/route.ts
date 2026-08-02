@@ -561,7 +561,7 @@ export async function POST(req: Request) {
           enableCache: true,
           logLabel: 'chat',
           priority: 'chat',
-          temperature: 0.75,
+          temperature: isEveCharacter(character) ? 0.82 : 0.75,
           onModelResolved: (info) => {
             chatModelRef.current = info;
           },

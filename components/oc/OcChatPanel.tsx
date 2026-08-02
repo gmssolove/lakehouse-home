@@ -63,6 +63,7 @@ import {
   countTrailingUserBurst,
   ocChatNeedsReplyToTrailingUsers,
   formatOcChatFirebaseError,
+  isOcChatTransientBusyError,
   peekOcChatThreadCache,
   pendingLinesAlreadyAtTail,
   postOcChat,
@@ -358,6 +359,8 @@ export function OcChatPanel({
   const replyLockRef = useRef(false);
   /** 언마운트 시 stale 없이 flush 호출 */
   const flushDebouncedChatRef = useRef<() => Promise<void>>(async () => {});
+  /** AI 혼잡 시 에러 문구 없이 재flush — 무한 루프 방지 */
+  const busySilentRetryRef = useRef(0);
   /** 현재 state가 어느 캐릭터 스레드인지 — 캐릭터 전환 시 오판 방지 */
   const bootstrappedCharIdRef = useRef(boot.bootstrapped ? String(character.id) : '');
   const stateRef = useRef({
@@ -2776,17 +2779,32 @@ export function OcChatPanel({
           trailingBurst,
           path: discardedApiCount > 0 ? 'regathered_then_ok' : 'single_pass',
         });
+        busySilentRetryRef.current = 0;
         break;
       }
     } catch (err) {
       if (
-        !(
-          (typeof DOMException !== 'undefined' &&
-            err instanceof DOMException &&
-            err.name === 'AbortError') ||
-          (err instanceof Error && err.name === 'AbortError')
-        )
+        (typeof DOMException !== 'undefined' &&
+          err instanceof DOMException &&
+          err.name === 'AbortError') ||
+        (err instanceof Error && err.name === 'AbortError')
       ) {
+        /* abort — 무시 */
+      } else if (isOcChatTransientBusyError(err)) {
+        /* 혼잡 문구 금지 — 읽음/대기 UI만 유지하고 조용히 재시도 */
+        console.warn('[oc-chat] busy, silent retry', err);
+        if (busySilentRetryRef.current < 4 && openRef.current && stillOnChar(flushCharId)) {
+          busySilentRetryRef.current += 1;
+          pendingFlushRef.current = true;
+          const wait = 1_800 * busySilentRetryRef.current;
+          window.setTimeout(() => {
+            if (!openRef.current || !stillOnChar(flushCharId)) return;
+            void flushDebouncedChatRef.current();
+          }, wait);
+        } else {
+          busySilentRetryRef.current = 0;
+        }
+      } else {
         setError(formatOcChatFirebaseError(err, '전송 실패'));
       }
     } finally {
@@ -2949,7 +2967,11 @@ export function OcChatPanel({
         preview: text.slice(0, 40),
       });
     } catch (err) {
-      setError(formatOcChatFirebaseError(err, '전송 실패'));
+      if (!isOcChatTransientBusyError(err)) {
+        setError(formatOcChatFirebaseError(err, '전송 실패'));
+      } else {
+        console.warn('[oc-chat] send busy (no toast)', err);
+      }
       focusComposer();
     }
   }, [
