@@ -39,6 +39,7 @@ import {
   behaviorToPending,
   cancelOcChatPendingDelivery,
   collectLocalOcChatInbox,
+  completeOcChatReplyInBackground,
   computePendingApplyAt,
   createChatMessage,
   chatDayKey,
@@ -65,6 +66,7 @@ import {
   formatOcChatFirebaseError,
   isOcChatTransientBusyError,
   mergeOcChatThreads,
+  parkOcChatBehaviorAsPending,
   peekOcChatThreadCache,
   pendingLinesAlreadyAtTail,
   postOcChat,
@@ -1011,12 +1013,24 @@ export function OcChatPanel({
         presence: mergedMeta.presence,
         presenceUpdatedAt: mergedMeta.presenceUpdatedAt,
         recentActions: mergedMeta.recentActions,
-        memorySummary: memorySummaryRef.current,
-        memorySummaryThroughAt: memorySummaryThroughAtRef.current,
+        /* 다른 OC로 떠난 저장이면 현재(새 OC) memoryRef를 덮어쓰지 않음 */
+        memorySummary:
+          activeCharIdRef.current === saveCharId
+            ? memorySummaryRef.current
+            : peekOcChatThreadCache(saveCharId, vid)?.memorySummary,
+        memorySummaryThroughAt:
+          activeCharIdRef.current === saveCharId
+            ? memorySummaryThroughAtRef.current
+            : peekOcChatThreadCache(saveCharId, vid)?.memorySummaryThroughAt,
       };
-      /* 초기화·OC 전환 이후의 옛 persist는 저장하지 않음 */
+      /* 초기화·OC 전환 이후의 옛 persist는 저장하지 않음 — allowInactive+characterId는 예외 */
       if (resetEpochRef.current !== epoch) return;
-      if (activeCharIdRef.current !== saveCharId) return;
+      if (
+        activeCharIdRef.current !== saveCharId &&
+        !(snap.allowInactive && snap.characterId)
+      ) {
+        return;
+      }
       await saveOcChatThread(saveCharId, vid, next);
     },
     [charId, isViewingThread],
@@ -1909,6 +1923,11 @@ export function OcChatPanel({
 
     /* OC 전환: in-flight 응답/저장이 다음 OC state에 섞이지 않게 즉시 중단 */
     if (switching) {
+      const prevNeedsReply = ocChatNeedsReplyToTrailingUsers(
+        stateRef.current.messages,
+        stateRef.current.meta.pendingBehavior,
+      );
+      const prevHadInflight = flushLockRef.current || replyLockRef.current;
       flushAbortRef.current?.abort();
       burstEpochRef.current += 1;
       window.clearTimeout(debounceTimer.current);
@@ -1958,9 +1977,9 @@ export function OcChatPanel({
         void saveOcChatThread(prevId, vid, sealedMerged).catch(() => {});
         setOcChatPendingUiOwned(prevId, vid, false);
         const handoffPending = sealedMerged.pendingBehavior;
+        const prevChar =
+          characters?.find((c) => String(c.id) === String(prevId)) || undefined;
         if (handoffPending?.applyAt) {
-          const prevChar =
-            characters?.find((c) => String(c.id) === String(prevId)) || undefined;
           scheduleOcChatPendingDelivery(
             prevId,
             vid,
@@ -1977,6 +1996,24 @@ export function OcChatPanel({
               force: true,
             }).catch(() => {});
           }
+        }
+        /*
+         * API abort / epoch discard로 pending이 안 생긴 채 떠나면
+         * 목록에서 영영 안 오고, A 재진입 때만 반응하던 구멍.
+         */
+        if (
+          prevNeedsReply ||
+          prevHadInflight ||
+          ocChatNeedsReplyToTrailingUsers(
+            sealedMerged.messages,
+            sealedMerged.pendingBehavior,
+          )
+        ) {
+          void completeOcChatReplyInBackground({
+            characterId: prevId,
+            visitorId: vid,
+            character: prevChar,
+          }).catch(() => {});
         }
       } else {
         setOcChatPendingUiOwned(prevId, vid, false);
@@ -2943,6 +2980,18 @@ export function OcChatPanel({
               apiMs: Date.now() - apiStartedAt,
               path: 'overlapping_api_cancelled',
             });
+            /* 다른 OC로 떠나며 abort된 요청 — 백그라운드에서 다시 받아 pending 예약 */
+            if (!stillOnChar(flushCharId)) {
+              const leftChar =
+                characters?.find((c) => String(c.id) === String(flushCharId)) ||
+                characterRef.current;
+              void completeOcChatReplyInBackground({
+                characterId: flushCharId,
+                visitorId: visitorRef.current || getOrCreateChatVisitorId(),
+                character: leftChar,
+              }).catch(() => {});
+              return;
+            }
             pendingFlushRef.current = false;
             continue;
           }
@@ -2950,6 +2999,27 @@ export function OcChatPanel({
         }
 
         const apiMs = Date.now() - apiStartedAt;
+
+        /* OC 이탈 — UI 연출 대신 pending으로 주차 후 백그라운드 배달 */
+        if (!stillOnChar(flushCharId)) {
+          const leftChar =
+            characters?.find((c) => String(c.id) === String(flushCharId)) ||
+            characterRef.current;
+          await parkOcChatBehaviorAsPending({
+            characterId: flushCharId,
+            visitorId: visitorRef.current || getOrCreateChatVisitorId(),
+            character: leftChar,
+            behavior: result.behavior,
+            affection: result.affection,
+            freeGainToday: result.freeGainToday,
+            freeLossToday: result.freeLossToday,
+            freeGainDate: result.freeGainDate,
+            deltaReason: result.deltaReason,
+            memorySummary: result.memorySummary,
+            memorySummaryThroughAt: result.memorySummaryThroughAt,
+          });
+          return;
+        }
 
         /* API 대기 중 연타 → 불완전 응답 버리고 묶어서 재요청 */
         if (
@@ -3141,6 +3211,7 @@ export function OcChatPanel({
     }
   }, [
     charId,
+    characters,
     flashAffectionToast,
     flashAffinityTierToast,
     focusComposer,

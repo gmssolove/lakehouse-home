@@ -2253,6 +2253,237 @@ export function behaviorToPending(
   };
 }
 
+const backgroundReplyInflight = new Map<string, Promise<void>>();
+
+/**
+ * API 결과를 UI 연출 없이 pendingBehavior로 저장하고 타이머 배달.
+ * OC 전환·목록 이탈로 playBehavior를 못 돌릴 때 사용.
+ */
+export async function parkOcChatBehaviorAsPending(params: {
+  characterId: string;
+  visitorId: string;
+  character?: Pick<OcCharacter, 'chatbot'>;
+  behavior: OcChatBehavior;
+  /** 저장에 반영할 스레드 스냅샷 (없으면 캐시/원격 로드) */
+  thread?: OcChatThread;
+  affection?: number;
+  freeGainToday?: number;
+  freeLossToday?: number;
+  freeGainDate?: string;
+  deltaReason?: string;
+  memorySummary?: string;
+  memorySummaryThroughAt?: number;
+}): Promise<OcChatPendingBehavior | null> {
+  const id = String(params.characterId || '').trim();
+  const vid = String(params.visitorId || '').trim();
+  if (!id || !vid) return null;
+
+  setOcChatPendingUiOwned(id, vid, false);
+
+  let base =
+    params.thread ||
+    peekOcChatThreadCache(id, vid) ||
+    (await loadOcChatThread(id, vid));
+
+  /* 이미 예약이 있으면 그걸 스케줄만 하고 끝 */
+  if (
+    base.pendingBehavior &&
+    !ocChatNeedsReplyToTrailingUsers(base.messages, base.pendingBehavior)
+  ) {
+    scheduleOcChatPendingDelivery(
+      id,
+      vid,
+      base.pendingBehavior.applyAt,
+      params.character,
+      base.pendingBehavior.id,
+    );
+    if ((base.pendingBehavior.applyAt || 0) <= Date.now()) {
+      await tryDeliverPendingChat({
+        characterId: id,
+        visitorId: vid,
+        character: params.character,
+        expectPendingId: base.pendingBehavior.id,
+        force: true,
+      });
+    }
+    return base.pendingBehavior;
+  }
+
+  const wasOffline = base.presence !== 'online';
+  const applyAt = computePendingApplyAt(params.behavior, wasOffline);
+  const pending = behaviorToPending(params.behavior, applyAt);
+  const today = todayKeyLocal();
+  const reasons = [...(base.recentDeltaReasons || [])];
+  if (params.deltaReason && (params.behavior.affinityDelta || 0) !== 0) {
+    reasons.push(params.deltaReason);
+  }
+
+  const next: OcChatThread = {
+    ...base,
+    updatedAt: Date.now(),
+    affection:
+      typeof params.affection === 'number'
+        ? clampAffection(params.affection)
+        : base.affection,
+    freeGainToday:
+      typeof params.freeGainToday === 'number' ? params.freeGainToday : base.freeGainToday,
+    freeLossToday:
+      typeof params.freeLossToday === 'number' ? params.freeLossToday : base.freeLossToday,
+    freeGainDate: params.freeGainDate || base.freeGainDate || today,
+    pendingBehavior: pending,
+    moodNote: params.behavior.moodNote || base.moodNote,
+    recentDeltaReasons: reasons.slice(-8),
+    lastInteractionAt: Date.now(),
+    memorySummary:
+      typeof params.memorySummary === 'string'
+        ? params.memorySummary.trim() || undefined
+        : base.memorySummary,
+    memorySummaryThroughAt:
+      typeof params.memorySummaryThroughAt === 'number'
+        ? params.memorySummaryThroughAt
+        : base.memorySummaryThroughAt,
+  };
+
+  writeOcChatThreadCache(id, vid, mergeOcChatThreads(peekOcChatThreadCache(id, vid), next));
+  await saveOcChatThread(id, vid, next);
+  scheduleOcChatPendingDelivery(id, vid, pending.applyAt, params.character, pending.id);
+  if (pending.applyAt <= Date.now()) {
+    await tryDeliverPendingChat({
+      characterId: id,
+      visitorId: vid,
+      character: params.character,
+      expectPendingId: pending.id,
+      force: true,
+    });
+  }
+  console.info('[oc-chat] parked behavior as pending (background)', {
+    characterId: id,
+    applyAt: pending.applyAt,
+    due: pending.applyAt <= Date.now(),
+    action: pending.action,
+  });
+  return pending;
+}
+
+/**
+ * 미응답 유저 말이 남은 스레드를 백그라운드에서 post → pending 예약.
+ * OC를 떠난 뒤 abort로 API가 죽은 경우를 복구한다.
+ */
+export function completeOcChatReplyInBackground(params: {
+  characterId: string;
+  visitorId: string;
+  character?: Pick<OcCharacter, 'chatbot'>;
+}): Promise<void> {
+  const id = String(params.characterId || '').trim();
+  const vid = String(params.visitorId || '').trim();
+  if (!id || !vid) return Promise.resolve();
+  const key = pendingDeliveryKey(id, vid);
+  const existing = backgroundReplyInflight.get(key);
+  if (existing) return existing;
+
+  const run = (async () => {
+    setOcChatPendingUiOwned(id, vid, false);
+
+    /* playBehavior 핸드오프가 먼저 끝나게 잠깐 양보 */
+    await sleepMs(450);
+
+    let thread = peekOcChatThreadCache(id, vid) || (await loadOcChatThread(id, vid));
+
+    if (thread.pendingBehavior?.applyAt) {
+      scheduleOcChatPendingDelivery(
+        id,
+        vid,
+        thread.pendingBehavior.applyAt,
+        params.character,
+        thread.pendingBehavior.id,
+      );
+      if (thread.pendingBehavior.applyAt <= Date.now()) {
+        await tryDeliverPendingChat({
+          characterId: id,
+          visitorId: vid,
+          character: params.character,
+          expectPendingId: thread.pendingBehavior.id,
+          force: true,
+          reconcileRemote: true,
+        });
+        thread = peekOcChatThreadCache(id, vid) || (await loadOcChatThread(id, vid));
+      }
+    }
+
+    if (!ocChatNeedsReplyToTrailingUsers(thread.messages, thread.pendingBehavior)) {
+      return;
+    }
+
+    console.info('[oc-chat] background reply flush start', { characterId: id });
+
+    let result: OcChatApiResult;
+    try {
+      result = await postOcChat({
+        characterId: id,
+        visitorId: vid,
+        messages: thread.messages,
+        affection: thread.affection,
+        freeGainToday: thread.freeGainToday || 0,
+        freeLossToday: thread.freeLossToday || 0,
+        moodNote: thread.moodNote,
+        turnsToday: thread.turnsToday || 0,
+        hoursSinceLast: hoursSince(lastMessageAt(thread.messages)),
+        closedForToday: Boolean(thread.closedForToday),
+        recentDeltaReasons: thread.recentDeltaReasons,
+        presence: thread.presence,
+        recentActions: thread.recentActions,
+        memorySummary: thread.memorySummary,
+        memorySummaryThroughAt: thread.memorySummaryThroughAt,
+      });
+    } catch (err) {
+      if (isOcChatTransientBusyError(err)) {
+        window.setTimeout(() => {
+          void completeOcChatReplyInBackground(params);
+        }, 2500);
+      }
+      console.warn('[oc-chat] background reply flush failed', err);
+      return;
+    }
+
+    /* API 동안 다른 경로가 pending을 넣었으면 존중 */
+    const latest = peekOcChatThreadCache(id, vid) || thread;
+    if (!ocChatNeedsReplyToTrailingUsers(latest.messages, latest.pendingBehavior)) {
+      if (latest.pendingBehavior?.applyAt) {
+        scheduleOcChatPendingDelivery(
+          id,
+          vid,
+          latest.pendingBehavior.applyAt,
+          params.character,
+          latest.pendingBehavior.id,
+        );
+      }
+      return;
+    }
+
+    await parkOcChatBehaviorAsPending({
+      characterId: id,
+      visitorId: vid,
+      character: params.character,
+      behavior: result.behavior,
+      thread: latest,
+      affection: result.affection,
+      freeGainToday: result.freeGainToday,
+      freeLossToday: result.freeLossToday,
+      freeGainDate: result.freeGainDate,
+      deltaReason: result.deltaReason,
+      memorySummary: result.memorySummary,
+      memorySummaryThroughAt: result.memorySummaryThroughAt,
+    });
+  })().finally(() => {
+    if (backgroundReplyInflight.get(key) === run) {
+      backgroundReplyInflight.delete(key);
+    }
+  });
+
+  backgroundReplyInflight.set(key, run);
+  return run;
+}
+
 /**
  * 기한이 된 pendingBehavior를 스레드에 배달 (lastSeenAt 유지 → 미읽음 배지).
  * 창이 닫혀 있어도 동작. @returns 추가된 말풍선 수
