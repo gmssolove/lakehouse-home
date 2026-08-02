@@ -1989,10 +1989,8 @@ export function OcChatPanel({
             memorySummaryThroughAt: memorySummaryThroughAtRef.current,
           });
         } catch (saveErr) {
-          /* 로드는 성공했는데 저장만 실패하면 대화를 비우지 않는다 */
-          if (!cancelled && stillOnChar(loadCharId)) {
-            setError(formatOcChatFirebaseError(saveErr, '대화 저장에 실패했습니다'));
-          }
+          /* 로드 성공 후 lastSeen 동기화 실패는 대화 차단할 일 아님 — 재시도는 save 쪽이 함 */
+          console.warn('[oc-chat] post-load save', saveErr);
         }
 
         /* 나갔다 왔을 때 유저 말이 끝에 남아 있으면(예약 없음) 바로 응답 재개 */
@@ -2052,7 +2050,7 @@ export function OcChatPanel({
         freeGainToday: stateRef.current.freeGainToday,
         freeGainDate: stateRef.current.freeGainDate,
         meta: unlocked,
-      });
+      }).catch(() => {});
     };
     if (left <= 0) {
       unlock();
@@ -2102,7 +2100,7 @@ export function OcChatPanel({
         presence: patched.presence,
         presenceUpdatedAt: patched.presenceUpdatedAt,
         recentActions: patched.recentActions,
-      });
+      }).catch(() => {});
     };
     /* 열자마자 바로 굴리지 않음 — 첫 틱은 간격 뒤 */
     const id = window.setInterval(tick, 70_000);
@@ -2148,7 +2146,7 @@ export function OcChatPanel({
         messages: stateRef.current.messages,
         affection: stateRef.current.affection,
         story: doneStory,
-      });
+      }).catch(() => {});
     };
 
     if (!revealedRef.current.has(key)) {
@@ -2826,7 +2824,7 @@ export function OcChatPanel({
           freeGainDate: stateRef.current.freeGainDate,
           meta: stateRef.current.meta,
           characterId: sendCharId,
-        });
+        }).catch(() => {});
       }, flashMs);
     }
 

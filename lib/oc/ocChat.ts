@@ -161,6 +161,9 @@ export function formatOcChatFirebaseError(err: unknown, fallback = '채팅 저�
   if (/PERMISSION_DENIED|permission-denied|401|403/i.test(raw)) {
     return '채팅 저장 권한이 없습니다. 잠시 후 다시 열어 주세요.';
   }
+  if (/thread api save|동기화가 잠시|Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+    return '대화 서버 동기화가 잠시 지연됐어요. 이 기기에는 저장돼 있어요.';
+  }
   return raw.trim() || fallback;
 }
 
@@ -171,7 +174,15 @@ function isPermissionDeniedError(err: unknown): boolean {
   return /PERMISSION_DENIED|permission-denied|401|403/i.test(`${code} ${raw}`);
 }
 
-async function saveOcChatThreadViaApi(
+function isTransientThreadSaveFailure(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : String(err || '');
+  return (
+    /thread api save (408|425|429|500|502|503|504)\b/i.test(raw) ||
+    /Failed to fetch|NetworkError|Load failed|network/i.test(raw)
+  );
+}
+
+async function saveOcChatThreadViaApiOnce(
   characterId: string,
   visitorId: string,
   thread: OcChatThread,
@@ -192,6 +203,66 @@ async function saveOcChatThreadViaApi(
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error || `thread api save ${res.status}`);
   }
+}
+
+/** 503 등 일시 실패 재시도 */
+async function saveOcChatThreadViaApiWithRetry(
+  characterId: string,
+  visitorId: string,
+  thread: OcChatThread,
+  opts?: { replace?: boolean },
+): Promise<void> {
+  const maxAttempts = 4;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await saveOcChatThreadViaApiOnce(characterId, visitorId, thread, opts);
+      return;
+    } catch (e) {
+      lastErr = e;
+      if (!isTransientThreadSaveFailure(e) || attempt === maxAttempts - 1) break;
+      await sleepMs(400 * 2 ** attempt);
+    }
+  }
+  if (isTransientThreadSaveFailure(lastErr)) {
+    throw new Error('대화 서버 동기화가 잠시 지연됐어요. 이 기기에는 저장돼 있어요.');
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr || 'thread api save failed'));
+}
+
+type ApiSaveJob = {
+  characterId: string;
+  visitorId: string;
+  thread: OcChatThread;
+  opts?: { replace?: boolean };
+};
+
+/** 같은 스레드 연속 저장은 최신만 API로 — 503 폭주 완화 */
+const apiSaveQueues = new Map<string, { chain: Promise<void>; latest: ApiSaveJob | null }>();
+
+async function saveOcChatThreadViaApi(
+  characterId: string,
+  visitorId: string,
+  thread: OcChatThread,
+  opts?: { replace?: boolean },
+): Promise<void> {
+  const key = `${characterId}\0${visitorId}`;
+  let q = apiSaveQueues.get(key);
+  if (!q) {
+    q = { chain: Promise.resolve(), latest: null };
+    apiSaveQueues.set(key, q);
+  }
+  q.latest = { characterId, visitorId, thread, opts };
+  const run = async () => {
+    while (q!.latest) {
+      const job = q!.latest;
+      q!.latest = null;
+      await saveOcChatThreadViaApiWithRetry(job.characterId, job.visitorId, job.thread, job.opts);
+    }
+  };
+  const p = q.chain.then(run, run);
+  q.chain = p.catch(() => undefined);
+  await p;
 }
 
 async function deleteOcChatThreadViaApi(characterId: string, visitorId: string): Promise<void> {
@@ -1355,7 +1426,13 @@ export async function saveOcChatThread(
   );
 
   /* 주 저장소: R2 API — 서버에서 기존 스레드와 merge (replace 시 덮어쓰기) */
-  await saveOcChatThreadViaApi(characterId, visitorId, next, opts);
+  try {
+    await saveOcChatThreadViaApi(characterId, visitorId, next, opts);
+  } catch (e) {
+    /* 로컬은 이미 저장됨. 초기화(replace)만 실패를 올리고, 일반 동기화는 채팅을 막지 않음 */
+    if (opts?.replace) throw e;
+    console.warn('[oc-chat] remote save failed; kept local', e);
+  }
 
   /* Firebase는 best-effort — 실패해도 무시 */
   try {
