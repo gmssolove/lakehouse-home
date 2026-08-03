@@ -2161,7 +2161,8 @@ export function OcChatPanel({
     if (recoveredStory !== cached.story) {
       writeOcChatThreadCache(nextId, vid, { ...cached, story: recoveredStory });
     }
-  }, [open, charId, characters, syncDisplayAffection]);
+    /* characters는 dep에서 제외 — Firebase 스냅마다 스레드를 캐시로 덮어쓰면 채팅이 리셋되고 루프 위험이 큼 */
+  }, [open, charId, syncDisplayAffection]);
 
   useEffect(() => {
     if (!open) return;

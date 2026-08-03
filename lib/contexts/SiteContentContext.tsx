@@ -313,25 +313,24 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => subscribeSiteContentEager(setEager), []);
 
+  /* popstate만 감지 — history.replaceState 패치는 Next router와 맞물려
+   * navigated/update-depth 루프 → Application error 를 유발할 수 있음 */
   useEffect(() => {
-    const sync = () => setHomeTab(readHomeTab());
+    const sync = () => {
+      const next = readHomeTab();
+      setHomeTab((prev) => (prev === next ? prev : next));
+    };
     sync();
     window.addEventListener('popstate', sync);
-    /* HomePageClient가 history.replaceState로 ?p= 바꿀 때 */
-    const prev = history.replaceState.bind(history);
-    history.replaceState = function (...args) {
-      prev(...args);
-      sync();
-    };
-    const prevPush = history.pushState.bind(history);
-    history.pushState = function (...args) {
-      prevPush(...args);
-      sync();
-    };
+    /* 홈 ?p= 는 HomePageClient가 바꾸므로 짧은 폴링(홈에서만) */
+    let timer = 0;
+    const onHome = pathname === '/' || pathname === '';
+    if (onHome) {
+      timer = window.setInterval(sync, 400);
+    }
     return () => {
       window.removeEventListener('popstate', sync);
-      history.replaceState = prev;
-      history.pushState = prevPush;
+      if (timer) window.clearInterval(timer);
     };
   }, [pathname]);
 

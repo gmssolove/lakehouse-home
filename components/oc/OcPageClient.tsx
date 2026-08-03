@@ -103,6 +103,8 @@ export function OcPageClient() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatCharacterId, setChatCharacterId] = useState<string | null>(null);
   const [chatPhoneView, setChatPhoneView] = useState<'list' | 'thread'>('thread');
+  /** leave 후 ?c= 잔여로 빈 커버에 묶이지 않게 */
+  const [urlCharDismissed, setUrlCharDismissed] = useState(false);
   const chatSwitchTimerRef = useRef(0);
   const chatSwitchDebounceRef = useRef(0);
   const chatSwitchGenRef = useRef(0);
@@ -235,6 +237,7 @@ export function OcPageClient() {
       suppressUrlDetailOpenRef.current = true;
       scrubOcDeepLink();
       clearDetailView();
+      setUrlCharDismissed(true);
       window.setTimeout(() => {
         suppressUrlDetailOpenRef.current = false;
       }, 400);
@@ -265,6 +268,7 @@ export function OcPageClient() {
     router,
     scrubOcDeepLink,
     searchParams,
+    setUrlCharDismissed,
   ]);
 
   useEffect(() => {
@@ -285,12 +289,19 @@ export function OcPageClient() {
     }
     /*
      * 채팅 목록에서 고른 OC와 상세가 어긋난 채 닫히면 이전 상세로 "되돌아간" 것처럼 보임.
-     * chatCharacterId 기준으로 상세를 맞춘다.
+     * openDetail 호출은 BGM/URL 부수효과·호이스팅 이슈가 있어 상세만 맞춤.
      */
     const id = chatCharacterId;
     if (id && String(detailRef.current?.id) !== id) {
       const c = characters.find((ch) => String(ch.id) === id);
-      if (c) openDetail(c, -1, { skipIntro: true, instant: true, skipSplash: true });
+      if (c) {
+        setIntro(null);
+        setEntrySplash(null);
+        setDetail(c);
+        setAuIdx(-1);
+        setDetailInstant(true);
+        autoOpenedCharRef.current = id;
+      }
     }
   }, [chatCharacterId, characters]);
 
@@ -580,6 +591,7 @@ export function OcPageClient() {
     setIntro(null);
     setEntrySplash(null);
     setDetail(null);
+    autoOpenedCharRef.current = null;
     setPasswordGate(pending);
   }, [authReady, isAdmin, user, detail, auIdx]);
 
@@ -599,12 +611,14 @@ export function OcPageClient() {
 
     /*
      * leave 직후 ?c= 잔여 + autoOpened 동일 → 예전에 early return 만 해서
-     * urlCharPending(빈 커버)에 영원히 걸리는 무한로딩이 남았다. URL을 정리한다.
+     * urlCharPending(빈 커버)에 영원히 걸리는 무한로딩이 남았다.
+     * scrub를 매 effect마다 호출하면 router.replace 루프(Application error)가 난다.
+     * URL 정리는 leaveDetail이 담당 — 여기선 커버만 내린다.
      */
     if (autoOpenedCharRef.current === charId && !detail && !intro && !entrySplash) {
       bootCharRef.current = null;
       setBootCharCover(false);
-      if (fromUrl) scrubOcDeepLink();
+      setUrlCharDismissed(true);
       return;
     }
     if (detail || intro || entrySplash) return;
@@ -618,11 +632,12 @@ export function OcPageClient() {
     autoOpenedCharRef.current = charId;
     bootCharRef.current = null;
     setBootCharCover(false);
+    setUrlCharDismissed(false);
     const skipIntro = searchParams.get('direct') === '1';
     /* view=detail / from=trpg 여도 PV는 재생 — 관련 프로필 이동 시 대사 필요 */
     requestOpenDetail(c, -1, { skipIntro, instant: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from URL
-  }, [characters, searchParams, detail, intro, entrySplash, authReady, scrubOcDeepLink]);
+  }, [characters, searchParams, detail, intro, entrySplash, authReady]);
 
   /* 브라우저 back/forward로 ?c= 가 바뀌면 상세·채팅 대상을 soft 동기화 */
   useEffect(() => {
@@ -639,14 +654,14 @@ export function OcPageClient() {
         chatSwitchPendingIdRef.current = null;
         chatSwitchSuppressUrlRef.current = false;
         if (String(detail?.id) === pending) {
-          if (chatOpen) setChatCharacterId(pending);
+          if (chatOpen && chatCharacterId !== pending) setChatCharacterId(pending);
           return;
         }
         /* 상세가 아직 이전이면 pending 캐릭터로 맞춤 (stale 무시) */
         const want = characters.find((ch) => String(ch.id) === pending);
         if (want) {
           openDetail(want, -1, { skipIntro: true, instant: true, skipSplash: true });
-          if (chatOpen) setChatCharacterId(pending);
+          if (chatOpen && chatCharacterId !== pending) setChatCharacterId(pending);
         }
         return;
       }
@@ -658,7 +673,9 @@ export function OcPageClient() {
     if (chatSwitchSuppressUrlRef.current) return;
 
     if (String(detail?.id) === String(fromUrl)) {
-      if (chatOpen) setChatCharacterId(String(fromUrl));
+      if (chatOpen && chatCharacterId !== String(fromUrl)) {
+        setChatCharacterId(String(fromUrl));
+      }
       return;
     }
     const c = characters.find((ch) => String(ch.id) === String(fromUrl));
@@ -668,9 +685,9 @@ export function OcPageClient() {
     window.clearTimeout(chatSwitchDebounceRef.current);
     document.getElementById('detail-screen')?.classList.remove('is-chat-switch-fade');
     openDetail(c, -1, { skipIntro: true, instant: true, skipSplash: true });
-    if (chatOpen) setChatCharacterId(String(c.id));
+    if (chatOpen && chatCharacterId !== String(c.id)) setChatCharacterId(String(c.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync from URL only
-  }, [searchParams, characters, authReady, detail?.id, chatOpen, intro, entrySplash]);
+  }, [searchParams, characters, authReady, detail?.id, chatOpen, chatCharacterId, intro, entrySplash]);
 
   const detailImg = liveDetail ? charImg(liveDetail, auIdx) : null;
   const tipToastOc = useMemo(
@@ -680,7 +697,11 @@ export function OcPageClient() {
   const showArchiveTip = !detail && !intro && !entrySplash;
   /* URL/ soft-nav pending — 목록 깜빡임 방지 */
   const urlCharPending =
-    (Boolean(searchParams.get('c')) || bootCharCover) && !detail && !intro && !entrySplash;
+    (Boolean(searchParams.get('c')) || bootCharCover) &&
+    !detail &&
+    !intro &&
+    !entrySplash &&
+    !urlCharDismissed;
 
   return (
     <>
