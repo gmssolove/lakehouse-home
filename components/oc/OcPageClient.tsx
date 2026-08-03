@@ -607,26 +607,37 @@ export function OcPageClient() {
     const fromUrl = searchParams.get('c')?.trim();
     const fromStore = consumePendingOcCharId();
     const charId = fromUrl || fromStore || bootCharRef.current;
-    if (!charId || !characters.length) return;
+    if (!charId) return;
+
+    const dropPendingCover = () => {
+      bootCharRef.current = null;
+      setBootCharCover(false);
+      setUrlCharDismissed(true);
+      /* stale ?c= 만 한 번 정리 — 매 effect scrub 금지(Application error) */
+      if (fromUrl) scrubOcDeepLink();
+    };
+
+    /* 캐릭터 목록이 아직/비어 있으면 커버만 붙잡지 말고, 로드 끝났으면 해제 */
+    if (!characters.length) {
+      if (loaded) dropPendingCover();
+      return;
+    }
 
     /*
      * leave 직후 ?c= 잔여 + autoOpened 동일 → 예전에 early return 만 해서
      * urlCharPending(빈 커버)에 영원히 걸리는 무한로딩이 남았다.
      * scrub를 매 effect마다 호출하면 router.replace 루프(Application error)가 난다.
-     * URL 정리는 leaveDetail이 담당 — 여기선 커버만 내린다.
+     * URL 정리는 leaveDetail / dropPendingCover 가 담당.
      */
     if (autoOpenedCharRef.current === charId && !detail && !intro && !entrySplash) {
-      bootCharRef.current = null;
-      setBootCharCover(false);
-      setUrlCharDismissed(true);
+      dropPendingCover();
       return;
     }
     if (detail || intro || entrySplash) return;
 
     const c = characters.find((ch) => String(ch.id) === String(charId));
     if (!c) {
-      bootCharRef.current = null;
-      setBootCharCover(false);
+      dropPendingCover();
       return;
     }
     autoOpenedCharRef.current = charId;
@@ -637,7 +648,7 @@ export function OcPageClient() {
     /* view=detail / from=trpg 여도 PV는 재생 — 관련 프로필 이동 시 대사 필요 */
     requestOpenDetail(c, -1, { skipIntro, instant: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open once from URL
-  }, [characters, searchParams, detail, intro, entrySplash, authReady]);
+  }, [characters, searchParams, detail, intro, entrySplash, authReady, loaded, scrubOcDeepLink]);
 
   /* 브라우저 back/forward로 ?c= 가 바뀌면 상세·채팅 대상을 soft 동기화 */
   useEffect(() => {
