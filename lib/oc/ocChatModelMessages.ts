@@ -40,10 +40,20 @@ export function ocChatMessageToModelContent(m: InMsg): string {
   return raw;
 }
 
+function looksLikeQuestionLine(text: string): boolean {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  if (/[?？]/.test(t)) return true;
+  return /(뭐\s*해|뭐하|뭐\s*하고|어디|언제|누구|왜|어때|인가요|나요|까요|습니까|가요|해요\s*$|예요\s*$)/.test(
+    t,
+  );
+}
+
 /**
  * 최근 N개 대화를 모델용으로 정리.
  * - 빈 메시지 제거
  * - 같은 role 연속은 한 턴으로 합침 (Anthropic 교대 규칙 + 버스트 입력)
+ * - 유저 연타는 번호 매기고 마지막 줄에 최신 표시 → 질문 누락 완화
  * - 시각 힌트를 붙여 시간순 맥락 강화
  */
 export function prepareOcChatModelMessages(
@@ -58,21 +68,62 @@ export function prepareOcChatModelMessages(
   const sliced = messages.slice(-Math.max(1, max));
   const out: OcChatModelMessage[] = [];
 
+  type Part = { body: string; clock: string };
+  let pendingUserParts: Part[] = [];
+
+  const flushUserParts = () => {
+    if (!pendingUserParts.length) return;
+    const parts = pendingUserParts;
+    pendingUserParts = [];
+    let content: string;
+    if (parts.length === 1) {
+      const p = parts[0]!;
+      content = p.clock ? `[${p.clock}] ${p.body}` : p.body;
+    } else {
+      const lines = parts.map((p, i) => {
+        const head = p.clock ? `[${p.clock}] ` : '';
+        const isLast = i === parts.length - 1;
+        const mark = isLast
+          ? looksLikeQuestionLine(p.body)
+            ? ' ← 최신(질문·요청 — 반드시 반영)'
+            : ' ← 최신(반드시 반영)'
+          : '';
+        return `${i + 1}. ${head}${p.body}${mark}`;
+      });
+      content = [
+        '(유저가 연타로 보낸 말 — 아래를 한 턴으로 읽고 답할 것. 마지막 줄을 빠뜨리지 말 것)',
+        ...lines,
+      ].join('\n');
+    }
+    const last = out[out.length - 1];
+    if (last && last.role === 'user') {
+      last.content = `${last.content}\n${content}`;
+    } else {
+      out.push({ role: 'user', content });
+    }
+  };
+
   for (const m of sliced) {
     const role: 'user' | 'assistant' = m.role === 'assistant' ? 'assistant' : 'user';
     let body = ocChatMessageToModelContent(m);
     if (!body) continue;
-    if (withClock) {
-      const clock = clockLabel(m.at);
-      if (clock) body = `[${clock}] ${body}`;
+    const clock = withClock ? clockLabel(m.at) : '';
+
+    if (role === 'user') {
+      pendingUserParts.push({ body, clock });
+      continue;
     }
+
+    flushUserParts();
+    const line = clock ? `[${clock}] ${body}` : body;
     const last = out[out.length - 1];
-    if (last && last.role === role) {
-      last.content = `${last.content}\n${body}`;
+    if (last && last.role === 'assistant') {
+      last.content = `${last.content}\n${line}`;
     } else {
-      out.push({ role, content: body });
+      out.push({ role: 'assistant', content: line });
     }
   }
+  flushUserParts();
 
   const trimmed =
     out.length > maxModelTurns ? out.slice(-maxModelTurns) : out;

@@ -17,6 +17,7 @@ const VERIFY_SYSTEM = `당신은 대화 품질 검사기입니다. 사용자의 
 - 사용자가 한 말의 핵심(질문·요청·감정·되묻기)을 무시하는 경우
 - 연속 메시지 중 앞부분만 반영하고 가장 최근 유저 말을 무시하는 경우
 - 연속 메시지인데 마지막 말만 받고 앞 맥락(직전 유저 말의 핵심)을 통째로 무시하는 경우
+- 연속 메시지 마지막이 질문("뭐 해","어디야" 등)인데 앞선 말(쉴게요·감사 등)에만 답하고 질문을 내용으로 받지 않은 경우
 - 캐릭터의 직전 대사와 동일·거의 동일한 문장 골격(단어만 바꾼 동어반복 포함)을 다시 쓰는 경우
 - 유저가 직전 답을 되묻거나 설명을 요청했는데, 같은 문장만 반복하고 새 정보가 없는 경우
 
@@ -291,6 +292,70 @@ export function looksLikeIgnoredQuestionReply(
   return false;
 }
 
+/**
+ * 연타 마지막이 질문인데, 답이 앞선 말(쉴게요·감사 등)만 받고 질문을 놓친 경우.
+ * 예: ["맛있었어","이제 쉴려구요","뭐 하고 있었어요?"] → "푹 쉬어 / 내일 또" 만.
+ */
+export function looksLikeMissedBurstLastQuestion(
+  recentUserBurst: string[] | undefined,
+  candidateMessages: string[],
+): boolean {
+  const burst = (recentUserBurst || []).map((m) => String(m || '').trim()).filter(Boolean);
+  if (burst.length < 2) return false;
+  const last = burst[burst.length - 1]!;
+  if (!looksLikeUserQuestion(last)) return false;
+
+  const joined = candidateMessages.map((m) => String(m || '').trim()).filter(Boolean).join(' ');
+  if (!joined) return false;
+
+  const isStatusAsk =
+    /(뭐\s*해|뭐하|뭐\s*하고|뭐하냐|뭐해요|뭐했어|뭐하고|어디\s*야|어디야|어떻게\s*지내)/.test(last);
+  /* 현황 답 단서 — 너무 짧은 조각(일·집)은 '내일/시집' 등에 걸려 오탐 */
+  const hasStatusAnswer =
+    /(그냥\s*(있|누워|앉아|봐|듣)|누워\s*있|앉아\s*있|보고\s*있|듣고\s*있|하는\s*중|집에서|밖에\s*있|학교|일하는|일\s*중|알바|게임|공부|자는\s*중|방금\s*깼|멍해|폰\s*보|톡하|쉬고\s*있|쉬던|있었어|하고\s*있|유튜브|넷플|만화)/.test(
+      joined,
+    );
+  const isClosingOrRestAck =
+    /(푹\s*쉬|쉬어|쉬자|내일\s*또|다음에|잘\s*자|자요|이만|끊|배부르|따뜻할\s*때)/.test(joined);
+
+  /* 현황 질문인데 마무리·휴식 응답만 */
+  if (isStatusAsk && isClosingOrRestAck && !hasStatusAnswer) return true;
+
+  /* 일반적인 마지막 질문: 답이 앞선 비질문 줄의 키워드만 메아리치고 질문 축이 없음 */
+  const earlier = burst.slice(0, -1).join(' ');
+  const lastAskAxes: RegExp[] = [
+    /뭐\s*해|뭐하|하고\s*있/,
+    /어디/,
+    /언제/,
+    /왜/,
+    /어때|어떻/,
+    /누구/,
+  ];
+  let lastHasAxis = false;
+  for (const re of lastAskAxes) {
+    if (re.test(last)) {
+      lastHasAxis = true;
+      break;
+    }
+  }
+  if (!lastHasAxis) return false;
+
+  /* 답에 질문 축 단서가 거의 없고, 앞 문장(쉴/맛있/고마) 축만 있으면 누락으로 본다 */
+  const replyHitsLastAxis = lastAskAxes.some((re) => re.test(last) && (
+    (re.source.includes('뭐') && hasStatusAnswer) ||
+    (re.source.includes('어디') && /(집|밖|학교|카페|방|여기|거기)/.test(joined)) ||
+    (re.source.includes('언제') && /(지금|아까|방금|나중에|내일|어제)/.test(joined)) ||
+    (re.source.includes('왜') && /(그냥|때문에|라서|같아서)/.test(joined)) ||
+    (re.source.includes('어때') && /(괜찮|좋아|별로|그냥|그럭)/.test(joined)) ||
+    (re.source.includes('누구') && /(나|친구|애|사람)/.test(joined))
+  ));
+  if (replyHitsLastAxis) return false;
+
+  const earlierRest = /(쉬|자|피곤|배부르|맛있|고마|감사)/.test(earlier);
+  if (earlierRest && isClosingOrRestAck) return true;
+  return false;
+}
+
 export function defaultVerifyModel(): string {
   return (process.env.ANTHROPIC_VERIFY_MODEL || 'claude-haiku-4-5-20251001').trim();
 }
@@ -309,7 +374,12 @@ export async function verifyOcChatRelevance(opts: {
   const last = String(opts.lastUserMessage || '').trim();
   if (!last) return true;
 
+  const burst = (opts.recentUserBurst || [])
+    .map((m) => String(m || '').trim())
+    .filter(Boolean);
+
   if (looksLikeIgnoredQuestionReply(last, msgs)) return false;
+  if (looksLikeMissedBurstLastQuestion(burst, msgs)) return false;
   if (isStackedNearDuplicateBubbles(msgs)) return false;
 
   const recentAsst = (opts.recentAssistantMessages || [])
@@ -320,14 +390,11 @@ export async function verifyOcChatRelevance(opts: {
     return false;
   }
 
-  const burst = (opts.recentUserBurst || [])
-    .map((m) => String(m || '').trim())
-    .filter(Boolean);
   const burstBlock =
     burst.length > 1
       ? `사용자가 연속으로 보낸 메시지(한 턴 전체 맥락):
 ${burst.map((m, i) => `${i + 1}. "${m}"`).join('\n')}
-답변은 위 메시지들을 모두 반영한 한 번의 반응이어야 합니다. 앞부분만 받거나 마지막만 받아도 "no".
+답변은 위 메시지들을 모두 반영한 한 번의 반응이어야 합니다. 특히 마지막 줄이 질문·요청이면 반드시 내용으로 답해야 합니다. 앞부분만 받거나 마지막만 받아도 "no".
 `
       : '';
   const recentBlock =
@@ -400,7 +467,10 @@ export function buildOcChatRetryUserNotice(
   const burst = (recentUserBurst || []).map((m) => String(m || '').trim()).filter(Boolean);
   if (burst.length > 1) {
     const listed = burst.map((m, i) => `${i + 1}) "${m.slice(0, 120)}"`).join(' ');
-    return `[시스템 알림: 방금 답변이 연속 메시지 전체 맥락을 반영하지 못했습니다(${listed}). 앞·뒤 메시지를 모두 읽고 한 번의 자연스러운 답으로 다시 쓰세요. 마지막만·앞부분만 편향 금지. JSON만 출력.]`;
+    const lastQ = looksLikeUserQuestion(burst[burst.length - 1] || '')
+      ? ' 특히 마지막 질문이 있으면 그 내용에 반드시 답하고, 앞선 말(쉴게요·감사 등)만으로 대화를 끝내지 마세요.'
+      : '';
+    return `[시스템 알림: 방금 답변이 연속 메시지 전체 맥락을 반영하지 못했습니다(${listed}). 앞·뒤 메시지를 모두 읽고 한 번의 자연스러운 답으로 다시 쓰세요. 마지막만·앞부분만 편향 금지.${lastQ} JSON만 출력.]`;
   }
   return `[시스템 알림: 방금 답변이 사용자 이번 턴("${last}")과 맥락이 맞지 않았거나, 직전 대사를 반복했거나, 문장이 끊겼습니다. 같은 문장 반복 금지. 유저 말 핵심에 맞게 캐릭터답게 새로 짧게 답하세요. 되묻기·설명 요청이면 새 정보를 한 줄이라도 보태세요. JSON만 출력.]`;
 }
