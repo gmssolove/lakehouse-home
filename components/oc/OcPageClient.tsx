@@ -14,6 +14,7 @@ import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useOcData } from '@/lib/hooks/useOcData';
+import { useOcUserPresenceTracker } from '@/lib/hooks/useOcUserPresenceTracker';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
 import { displayCategory, isTrpgCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
@@ -144,6 +145,12 @@ export function OcPageClient() {
     if (!detail) return null;
     return characters.find((c) => String(c.id) === String(detail.id)) ?? detail;
   }, [characters, detail]);
+
+  /* OC 상세(인트로·스플래시 포함) 체류 중 유저 presence heartbeat */
+  useOcUserPresenceTracker({
+    active: Boolean(detail || intro || entrySplash),
+    viewingCharacterId: activeCharacter?.id ?? null,
+  });
 
   const clearDetailView = useCallback(() => {
     splashPendingRef.current = null;

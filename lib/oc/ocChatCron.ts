@@ -112,6 +112,14 @@ async function callProactiveApi(opts: {
   proactiveKind: OcChatProactiveKind;
 }): Promise<{ reachOut: boolean; messages: string[]; moodNote?: string }> {
   const lastAt = lastMessageAt(opts.thread.messages);
+  let userPresence: unknown = undefined;
+  try {
+    const { loadOcUserPresenceFromR2 } = await import('@/lib/oc/ocChatUserPresenceStore');
+    const { resolveOcUserPresence } = await import('@/lib/oc/ocChatUserPresence');
+    userPresence = resolveOcUserPresence(await loadOcUserPresenceFromR2(opts.visitorId));
+  } catch {
+    userPresence = undefined;
+  }
   const res = await fetch(`${opts.origin}/api/oc-chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -132,6 +140,9 @@ async function callProactiveApi(opts: {
       hoursSinceLast: hoursSince(lastAt),
       proactiveKind: opts.proactiveKind,
       openThreads: opts.thread.openThreads,
+      memorySummary: opts.thread.memorySummary,
+      userMemory: opts.thread.userMemory,
+      userPresence,
     }),
   });
   const text = await res.text();

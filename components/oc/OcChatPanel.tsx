@@ -649,6 +649,92 @@ export function OcChatPanel({
     [isNearBottom],
   );
 
+  /**
+   * 캐시에만 쌓인 배달분 → 열린 스레드 UI 반영.
+   * (replyLock 중 구독이 스킵되거나 handoff 직후 화면이 안 바뀌던 구멍)
+   */
+  const syncOpenThreadFromCache = useCallback(
+    (opts?: { characterId?: string; markSeen?: boolean; force?: boolean }) => {
+      if (!openRef.current) return false;
+      const id = String(opts?.characterId || activeCharIdRef.current || '');
+      if (!id || activeCharIdRef.current !== id) return false;
+      const vid = visitorRef.current || getOrCreateChatVisitorId();
+      visitorRef.current = vid;
+      const cached = peekOcChatThreadCache(id, vid);
+      if (!cached?.messages?.length) return false;
+      const ui = stateRef.current.messages;
+      const uiIds = new Set(ui.map((m) => m.id));
+      const hasMissing = cached.messages.some((m) => !uiIds.has(m.id));
+      const longer = cached.messages.length > ui.length;
+      const lastDiffers =
+        Boolean(cached.messages.length && ui.length) &&
+        cached.messages[cached.messages.length - 1]?.id !== ui[ui.length - 1]?.id;
+      const pendingCleared =
+        Boolean(stateRef.current.meta.pendingBehavior) && !cached.pendingBehavior;
+      if (!opts?.force && !hasMissing && !longer && !lastDiffers && !pendingCleared) {
+        return false;
+      }
+      const affectionNow =
+        typeof cached.affection === 'number'
+          ? clampAffection(cached.affection)
+          : stateRef.current.affection;
+      const nextMeta: MetaState = {
+        ...stateRef.current.meta,
+        moodNote: cached.moodNote ?? stateRef.current.meta.moodNote,
+        turnsToday: cached.turnsToday ?? stateRef.current.meta.turnsToday,
+        ...closedFieldsFromUntil(cached.closedUntil ?? stateRef.current.meta.closedUntil),
+        pendingBehavior: cached.pendingBehavior,
+        pendingClearedAt: cached.pendingClearedAt ?? stateRef.current.meta.pendingClearedAt,
+        lastProactiveDate: cached.lastProactiveDate ?? stateRef.current.meta.lastProactiveDate,
+        freeLossToday: cached.freeLossToday ?? stateRef.current.meta.freeLossToday,
+        recentDeltaReasons: cached.recentDeltaReasons ?? stateRef.current.meta.recentDeltaReasons,
+        lastInteractionAt: cached.lastInteractionAt ?? stateRef.current.meta.lastInteractionAt,
+        neglectCheckedAt: cached.neglectCheckedAt ?? stateRef.current.meta.neglectCheckedAt,
+        presence:
+          cached.presence === 'online' || cached.presence === 'offline'
+            ? cached.presence
+            : stateRef.current.meta.presence,
+        presenceUpdatedAt:
+          typeof cached.presenceUpdatedAt === 'number'
+            ? cached.presenceUpdatedAt
+            : stateRef.current.meta.presenceUpdatedAt,
+        recentActions: cached.recentActions ?? stateRef.current.meta.recentActions,
+      };
+      const onThread = phoneViewRef.current === 'thread';
+      const markSeen = opts?.markSeen !== false && onThread;
+      const seenNow = markSeen ? Date.now() : stateRef.current.lastSeenAt;
+      setMessages(cached.messages);
+      setAffection(affectionNow);
+      if (pendingDisplayAffectionRef.current == null) setDisplayAffection(affectionNow);
+      setMeta(nextMeta);
+      if (cached.story) setStory(cached.story);
+      if (markSeen) setLastSeenAt(seenNow);
+      stateRef.current = {
+        ...stateRef.current,
+        messages: cached.messages,
+        affection: affectionNow,
+        story: cached.story ?? stateRef.current.story,
+        lastSeenAt: seenNow,
+        meta: nextMeta,
+      };
+      if (onThread) {
+        jumpBottomOnEnterRef.current = true;
+        requestAnimationFrame(() => {
+          scrollToEnd({ force: true, smooth: true });
+        });
+        if (markSeen) {
+          writeOcChatThreadCache(id, vid, {
+            ...cached,
+            lastSeenAt: seenNow,
+            updatedAt: Math.max(cached.updatedAt || 0, seenNow),
+          });
+        }
+      }
+      return true;
+    },
+    [scrollToEnd],
+  );
+
   const onMessagesAppended = useCallback(
     (added: number) => {
       if (added <= 0) return;
@@ -720,92 +806,92 @@ export function OcChatPanel({
     return subscribeOcChatThreadCache((characterId, visitorId) => {
       if (visitorId !== vid) return;
       void refreshInbox({ remote: false });
-      /*
-       * AlertHost/백그라운드 배달이 캐시만 갱신하면 React messages는 옛 상태.
-       * 목록: 숨은 스레드도 맞춤 (읽음 X).
-       * 스레드: 보고 있는 방이면 말풍선 반영 (연출 중 replyLock이면 건드리지 않음).
-       */
       if (String(characterId) !== String(activeCharIdRef.current)) return;
       const onList = phoneViewRef.current === 'list';
       const onThread = phoneViewRef.current === 'thread';
       if (!onList && !onThread) return;
-      if (onThread && replyLockRef.current) return;
-      const cached = peekOcChatThreadCache(characterId, visitorId);
-      if (!cached?.messages?.length) return;
-      const ui = stateRef.current.messages;
-      const uiIds = new Set(ui.map((m) => m.id));
-      const hasMissing = cached.messages.some((m) => !uiIds.has(m.id));
-      const longer = cached.messages.length > ui.length;
-      const lastDiffers =
-        Boolean(cached.messages.length && ui.length) &&
-        cached.messages[cached.messages.length - 1]?.id !== ui[ui.length - 1]?.id;
-      if (!hasMissing && !longer && !lastDiffers) {
-        /* 메시지 동일해도 pending 해제만 캐시에 반영된 경우 meta 동기화 */
-        if (
-          onThread &&
-          stateRef.current.meta.pendingBehavior &&
-          !cached.pendingBehavior
-        ) {
-          const cleared = { ...stateRef.current.meta, pendingBehavior: undefined };
-          setMeta(cleared);
-          stateRef.current = { ...stateRef.current, meta: cleared };
-        }
+      /*
+       * 연출 중(replyLock)에도 캐시에 없는 id가 생기면 반영.
+       * (handoff/AlertHost가 replyLock 중에 배달하면 구독만으로 구멍이 남음)
+       */
+      syncOpenThreadFromCache({
+        characterId: String(characterId),
+        markSeen: onThread,
+      });
+    });
+  }, [open, refreshInbox, syncOpenThreadFromCache]);
+
+  /* 탭이 다시 보이면 캐시/기한 pending을 열린 방에 바로 맞춤 */
+  useEffect(() => {
+    if (!open) return;
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      const id = activeCharIdRef.current;
+      const vid = visitorRef.current || getOrCreateChatVisitorId();
+      const pending =
+        stateRef.current.meta.pendingBehavior ||
+        peekOcChatThreadCache(id, vid)?.pendingBehavior;
+      if (pending?.applyAt && pending.applyAt <= Date.now() && !replyLockRef.current) {
+        setOcChatPendingUiOwned(id, vid, false);
+        void tryDeliverPendingChat({
+          characterId: id,
+          visitorId: vid,
+          character: characterRef.current,
+          expectPendingId: pending.id,
+          force: true,
+        })
+          .catch(() => {})
+          .finally(() => {
+            syncOpenThreadFromCache({
+              characterId: id,
+              markSeen: phoneViewRef.current === 'thread',
+            });
+          });
         return;
       }
-      const affectionNow =
-        typeof cached.affection === 'number'
-          ? clampAffection(cached.affection)
-          : stateRef.current.affection;
-      const nextMeta: MetaState = {
-        ...stateRef.current.meta,
-        moodNote: cached.moodNote ?? stateRef.current.meta.moodNote,
-        turnsToday: cached.turnsToday ?? stateRef.current.meta.turnsToday,
-        ...closedFieldsFromUntil(cached.closedUntil ?? stateRef.current.meta.closedUntil),
-        pendingBehavior: cached.pendingBehavior,
-        pendingClearedAt: cached.pendingClearedAt ?? stateRef.current.meta.pendingClearedAt,
-        lastProactiveDate: cached.lastProactiveDate ?? stateRef.current.meta.lastProactiveDate,
-        freeLossToday: cached.freeLossToday ?? stateRef.current.meta.freeLossToday,
-        recentDeltaReasons: cached.recentDeltaReasons ?? stateRef.current.meta.recentDeltaReasons,
-        lastInteractionAt: cached.lastInteractionAt ?? stateRef.current.meta.lastInteractionAt,
-        neglectCheckedAt: cached.neglectCheckedAt ?? stateRef.current.meta.neglectCheckedAt,
-        presence:
-          cached.presence === 'online' || cached.presence === 'offline'
-            ? cached.presence
-            : stateRef.current.meta.presence,
-        presenceUpdatedAt:
-          typeof cached.presenceUpdatedAt === 'number'
-            ? cached.presenceUpdatedAt
-            : stateRef.current.meta.presenceUpdatedAt,
-        recentActions: cached.recentActions ?? stateRef.current.meta.recentActions,
-      };
-      const seenNow = onThread ? Date.now() : stateRef.current.lastSeenAt;
-      setMessages(cached.messages);
-      setAffection(affectionNow);
-      if (pendingDisplayAffectionRef.current == null) setDisplayAffection(affectionNow);
-      setMeta(nextMeta);
-      if (cached.story) setStory(cached.story);
-      if (onThread) setLastSeenAt(seenNow);
-      stateRef.current = {
-        ...stateRef.current,
-        messages: cached.messages,
-        affection: affectionNow,
-        story: cached.story ?? stateRef.current.story,
-        lastSeenAt: seenNow,
-        meta: nextMeta,
-      };
-      if (onThread) {
-        jumpBottomOnEnterRef.current = true;
-        requestAnimationFrame(() => {
-          scrollToEnd({ force: true, smooth: true });
-        });
-        writeOcChatThreadCache(characterId, visitorId, {
-          ...cached,
-          lastSeenAt: seenNow,
-          updatedAt: Math.max(cached.updatedAt || 0, seenNow),
-        });
+      syncOpenThreadFromCache({
+        characterId: id,
+        markSeen: phoneViewRef.current === 'thread',
+      });
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [open, syncOpenThreadFromCache]);
+
+  /*
+   * 열린 스레드 워치독: AlertHost가 캐시에만 넣은 답을 UI가 놓치면 1.5s 안에 맞춤.
+   * replyLock 중에는 배달을 훔치지 않고, 캐시가 앞서면 화면만 맞춤.
+   */
+  useEffect(() => {
+    if (!open || phoneView !== 'thread') return;
+    const tick = () => {
+      const id = activeCharIdRef.current;
+      const vid = visitorRef.current || getOrCreateChatVisitorId();
+      const cached = peekOcChatThreadCache(id, vid);
+      const pending =
+        cached?.pendingBehavior || stateRef.current.meta.pendingBehavior;
+      const due = Boolean(pending?.applyAt && pending.applyAt <= Date.now());
+      if (due && !replyLockRef.current) {
+        setOcChatPendingUiOwned(id, vid, false);
+        void tryDeliverPendingChat({
+          characterId: id,
+          visitorId: vid,
+          character: characterRef.current,
+          expectPendingId: pending?.id,
+          force: true,
+        })
+          .catch(() => {})
+          .finally(() => {
+            syncOpenThreadFromCache({ characterId: id, markSeen: true });
+          });
+        return;
       }
-    });
-  }, [open, refreshInbox, scrollToEnd]);
+      syncOpenThreadFromCache({ characterId: id, markSeen: true });
+    };
+    tick();
+    const t = window.setInterval(tick, 1_500);
+    return () => window.clearInterval(t);
+  }, [open, phoneView, charId, syncOpenThreadFromCache]);
 
   useEffect(() => {
     if (!open) return;
@@ -1281,6 +1367,14 @@ export function OcChatPanel({
             visitorId: vid,
             character,
             expectPendingId: pending.id,
+            force: true,
+          });
+        }
+        /* handoff 직후 replyLock이 아직 true라 구독 동기화가 스킵될 수 있음 → 직접 반영 */
+        if (stillOnChar(playCharId) && openRef.current) {
+          syncOpenThreadFromCache({
+            characterId: playCharId,
+            markSeen: phoneViewRef.current === 'thread',
             force: true,
           });
         }
@@ -2063,8 +2157,27 @@ export function OcChatPanel({
               character: stillOnChar(playCharId) ? characterRef.current : character,
               expectPendingId: stillPending.id,
               force: true,
-            }).catch(() => {});
+            })
+              .catch(() => {})
+              .finally(() => {
+                if (stillOnChar(playCharId) && openRef.current) {
+                  syncOpenThreadFromCache({
+                    characterId: playCharId,
+                    markSeen: phoneViewRef.current === 'thread',
+                  });
+                }
+              });
+          } else if (stillOnChar(playCharId) && openRef.current) {
+            syncOpenThreadFromCache({
+              characterId: playCharId,
+              markSeen: phoneViewRef.current === 'thread',
+            });
           }
+        } else if (stillOnChar(playCharId) && openRef.current) {
+          syncOpenThreadFromCache({
+            characterId: playCharId,
+            markSeen: phoneViewRef.current === 'thread',
+          });
         }
         /* 목록에 있으면 미읽음 뱃지 즉시 반영 (로컬만 — remote 레이스 방지) */
         if (openRef.current && phoneViewRef.current === 'list') {
@@ -2072,7 +2185,15 @@ export function OcChatPanel({
         }
       }
     },
-    [character, charId, isViewingThread, persistSnapshot, refreshInbox, stillOnChar],
+    [
+      character,
+      charId,
+      isViewingThread,
+      persistSnapshot,
+      refreshInbox,
+      stillOnChar,
+      syncOpenThreadFromCache,
+    ],
   );
 
   useLayoutEffect(() => {

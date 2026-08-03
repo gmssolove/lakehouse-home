@@ -51,6 +51,10 @@ import {
   clearOcChatReliableTimeout,
   setOcChatReliableTimeout,
 } from '@/lib/oc/ocChatReliableTimer';
+import {
+  peekOcUserPresenceLocal,
+  resolveOcUserPresence,
+} from '@/lib/oc/ocChatUserPresence';
 
 export const OC_CHAT_VISITOR_KEY = 'lh_oc_chat_visitor';
 /** API/모델에 넘기는 최근 대화 말풍선 수 (~18턴 왕복). 비용 상한. */
@@ -2141,6 +2145,7 @@ export async function postOcChat(params: {
     memorySummaryThroughAt: params.memorySummaryThroughAt,
     userMemory: params.userMemory,
     userMemoryThroughAt: params.userMemoryThroughAt,
+    userPresence: resolveOcUserPresence(peekOcUserPresenceLocal(params.visitorId)),
   };
 
   const runOnce = async (): Promise<OcChatApiResult> => {

@@ -52,6 +52,12 @@ import {
   parseOcChatUserMemoryOutput,
   shouldScanOcChatUserMemory,
 } from '@/lib/oc/ocChatUserMemory';
+import {
+  normalizeOcUserPresenceSnap,
+  resolveOcUserPresence,
+  type OcUserPresenceSnap,
+} from '@/lib/oc/ocChatUserPresence';
+import { loadOcUserPresenceFromR2 } from '@/lib/oc/ocChatUserPresenceStore';
 import type { OcCharacter } from '@/lib/types/character';
 
 export const runtime = 'nodejs';
@@ -96,6 +102,7 @@ type Body = {
   memorySummaryThroughAt?: number;
   userMemory?: string;
   userMemoryThroughAt?: number;
+  userPresence?: OcUserPresenceSnap | null;
 };
 
 type RateBucket = { count: number; resetAt: number };
@@ -433,6 +440,23 @@ function httpStatusForChatError(err: unknown, message: string): number {
   return 502;
 }
 
+async function resolveRequestUserPresence(
+  visitorId: string,
+  bodyPresence: unknown,
+): Promise<OcUserPresenceSnap> {
+  const fromBody =
+    bodyPresence && typeof bodyPresence === 'object'
+      ? resolveOcUserPresence(normalizeOcUserPresenceSnap(bodyPresence))
+      : null;
+  if (fromBody && fromBody.lastHeartbeatAt > 0) return fromBody;
+  try {
+    const fromR2 = await loadOcUserPresenceFromR2(visitorId);
+    return resolveOcUserPresence(fromR2);
+  } catch {
+    return resolveOcUserPresence(fromBody);
+  }
+}
+
 export async function POST(req: Request) {
   let body: Body;
   try {
@@ -519,6 +543,10 @@ export async function POST(req: Request) {
       const proactiveUserMemory = compactOcChatUserMemory(
         String(body.userMemory || proactiveStored?.userMemory || '').trim(),
       );
+      const userPresence = await resolveRequestUserPresence(
+        visitorId,
+        body.userPresence,
+      );
       const system = buildOcChatProactivePromptParts(character, {
         affection: affectionIn,
         moodNote,
@@ -530,6 +558,7 @@ export async function POST(req: Request) {
         openThreads,
         memorySummary: proactiveStored?.memorySummary,
         userMemory: proactiveUserMemory || undefined,
+        userPresence,
       });
       const raw = await callChatModel(
         system,
@@ -668,6 +697,10 @@ export async function POST(req: Request) {
       Number.isFinite(body.userMemoryThroughAt)
         ? body.userMemoryThroughAt
         : storedThread?.userMemoryThroughAt;
+    const userPresence = await resolveRequestUserPresence(
+      visitorId,
+      body.userPresence,
+    );
 
     const system = buildOcChatSystemPromptParts(character, {
       affection: affectionIn,
@@ -683,6 +716,7 @@ export async function POST(req: Request) {
       recentActions: recentActions as OcChatRecentAction[],
       memorySummary: memorySummary || undefined,
       userMemory: userMemory || undefined,
+      userPresence,
     });
     const historyIn = messages.map((m) => ({
       role: m.role,
