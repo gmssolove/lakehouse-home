@@ -22,6 +22,10 @@ import {
   setOcChatReliableTimeout,
 } from '@/lib/oc/ocChatReliableTimer';
 import { armOcChatNotifySfx } from '@/lib/oc/ocChatNotifySfx';
+import {
+  armOcChatDesktopNotify,
+  requestOcChatDesktopNotifyPermission,
+} from '@/lib/oc/ocChatDesktopNotify';
 import type { OcCharacter } from '@/lib/types/character';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -166,6 +170,8 @@ export function OcChatAlertHost({
       return;
     }
     armOcChatNotifySfx();
+    requestOcChatDesktopNotifyPermission();
+    armOcChatDesktopNotify();
     const onList = phoneView === 'list';
     const enteredList = onList && !wasOnListRef.current;
     wasOnListRef.current = onList;

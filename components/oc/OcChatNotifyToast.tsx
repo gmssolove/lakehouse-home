@@ -2,6 +2,7 @@
 
 import { resolveOcChatPointStyle, normalizeHex } from '@/lib/oc/characterTheme';
 import { playOcChatNotifySfx } from '@/lib/oc/ocChatNotifySfx';
+import { showOcChatDesktopNotify } from '@/lib/oc/ocChatDesktopNotify';
 import { resolveChatAvatarUrl } from '@/lib/oc/ocChatPrompt';
 import type { OcCharacter } from '@/lib/types/character';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -162,19 +163,35 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
       doneOnceRef.current = false;
       setLeaving(false);
       setAnimKey((k) => k + 1);
-      /*
-       * 토스트가 레이아웃·페인트된 뒤 효과음 — 소리만 먼저 나는 체감 방지.
-       * (useEffect + visible=false 조합이 원인였음)
-       */
       if (sfxRaf.current) window.cancelAnimationFrame(sfxRaf.current);
       const sfxUrl = payload.sfxUrl;
-      sfxRaf.current = window.requestAnimationFrame(() => {
+      const fireSfx = () => {
+        playOcChatNotifySfx(sfxUrl);
+        /* 다른 탭을 보는 중 — OS 알림(시스템 소리). 포그라운드는 페이지 토스트만 */
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          showOcChatDesktopNotify({
+            title: payload.title,
+            body: payload.text,
+            icon: payload.avatarUrl,
+            tag: `oc-chat-${payload.id}`,
+            onClick: () => onOpen?.(payload),
+          });
+        }
+      };
+      /*
+       * 숨은 탭에서는 rAF가 거의 안 돌아서 소리/알림이 포그라운드 복귀까지 밀림.
+       * → 백그라운드는 즉시, 보일 때만 더블 rAF로 페인트와 맞춤.
+       */
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        fireSfx();
+      } else {
         sfxRaf.current = window.requestAnimationFrame(() => {
-          sfxRaf.current = 0;
-          /* 백그라운드면 큐잉 후 포그라운드에서 재생 */
-          playOcChatNotifySfx(sfxUrl);
+          sfxRaf.current = window.requestAnimationFrame(() => {
+            sfxRaf.current = 0;
+            fireSfx();
+          });
         });
-      });
+      }
     }
 
     /*
@@ -208,7 +225,7 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
       window.clearTimeout(leaveTimer.current);
       /* doneTimer는 startLeave가 잡은 퇴장 타이머 — payload 유지 중엔 건드리지 않음 */
     };
-  }, [payload, startLeave]);
+  }, [payload, startLeave, onOpen]);
 
   useEffect(
     () => () => {

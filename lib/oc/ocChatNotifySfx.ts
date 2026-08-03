@@ -1,6 +1,6 @@
 /**
- * 채팅 알림 SFX — 백그라운드 탭/자동재생 정책에서도 최대한 들리게.
- * 유저 제스처로 Audio를 unlock 하고, 실패분은 탭이 다시 보일 때 재시도.
+ * 채팅 알림 SFX — 다른 탭(숨은 문서)에서도 재생 시도.
+ * 실패분만 큐에 넣고, 탭이 다시 보일 때 재시도.
  */
 
 let unlockedEl: HTMLAudioElement | null = null;
@@ -63,15 +63,9 @@ function playUrl(url: string): Promise<boolean> {
 
 export async function flushPendingNotifySfx() {
   if (flushing) return;
-  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-    return;
-  }
   flushing = true;
   try {
     while (pendingUrls.length) {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        break;
-      }
       const url = pendingUrls.shift();
       if (!url) break;
       const ok = await playUrl(url);
@@ -85,16 +79,14 @@ export async function flushPendingNotifySfx() {
   }
 }
 
-/** 토스트와 함께 호출. 백그라운드면 큐에 넣고 포그라운드에서 재생 */
+/**
+ * 토스트와 함께 호출.
+ * 숨은 탭에서도 즉시 재생 시도(예전엔 큐만 넣고 포그라운드에서만 울림).
+ */
 export function playOcChatNotifySfx(url: string | undefined) {
   const src = (url || '').trim();
   if (!src || typeof window === 'undefined') return;
   ensureUnlockListeners();
-
-  if (document.visibilityState === 'hidden') {
-    if (!pendingUrls.includes(src)) pendingUrls.push(src);
-    return;
-  }
 
   void playUrl(src).then((ok) => {
     if (!ok && !pendingUrls.includes(src)) {

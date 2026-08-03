@@ -1137,10 +1137,7 @@ export function OcCharacterDetail({
     let cancelled = false;
     const tick = () => {
       if (cancelled) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
-      /* 로컬 기한만 — remote는 tryDeliver 기본 경로에서 생략 */
+      /* 로컬 기한만 — remote는 tryDeliver 기본 경로에서 생략. 숨은 탭에서도 배달 */
       void tryDeliverPendingChat({
         characterId: charId,
         visitorId: vid,
