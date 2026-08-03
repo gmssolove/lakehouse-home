@@ -47,6 +47,10 @@ import {
   peekOcChatThreadCacheRaw,
   writeOcChatThreadCacheRaw,
 } from '@/lib/oc/ocChatLocalCache';
+import {
+  clearOcChatReliableTimeout,
+  setOcChatReliableTimeout,
+} from '@/lib/oc/ocChatReliableTimer';
 
 export const OC_CHAT_VISITOR_KEY = 'lh_oc_chat_visitor';
 /** API/모델에 넘기는 최근 대화 말풍선 수 (~18턴 왕복). 비용 상한. */
@@ -378,7 +382,7 @@ export function cancelOcChatPendingDelivery(
   if (typeof window === 'undefined') return;
   const key = pendingDeliveryKey(characterId, visitorId);
   const prev = pendingDeliveryTimers.get(key);
-  if (prev) window.clearTimeout(prev);
+  if (prev) clearOcChatReliableTimeout(prev);
   pendingDeliveryTimers.delete(key);
 }
 
@@ -409,7 +413,7 @@ export function scheduleOcChatPendingDelivery(
   const key = pendingDeliveryKey(characterId, visitorId);
   if (uiOwnedPendingKeys.has(key)) {
     const prev = pendingDeliveryTimers.get(key);
-    if (prev) window.clearTimeout(prev);
+    if (prev) clearOcChatReliableTimeout(prev);
     pendingDeliveryTimers.delete(key);
     return;
   }
@@ -421,9 +425,10 @@ export function scheduleOcChatPendingDelivery(
   if (!applyAt) return;
 
   const prev = pendingDeliveryTimers.get(key);
-  if (prev) window.clearTimeout(prev);
+  if (prev) clearOcChatReliableTimeout(prev);
   const delay = Math.max(0, applyAt - Date.now()) + 60;
-  const id = window.setTimeout(() => {
+  /* Worker 타이머 — 숨은 탭에서 메인 setTimeout throttle 회피 */
+  const id = setOcChatReliableTimeout(() => {
     pendingDeliveryTimers.delete(key);
     if (uiOwnedPendingKeys.has(key)) return;
     void tryDeliverPendingChat({
@@ -802,8 +807,11 @@ export function formatChatDayLabel(at: number): string {
 
 /** 연속 메시지 모아 응답 — 기본 대기 ms */
 export const OC_CHAT_SEND_DEBOUNCE_MS = 1800;
-/** 짧은 이모티콘·리액션 직후 대기 (더 짧게 묶음) */
-export const OC_CHAT_REACTION_DEBOUNCE_MS = 850;
+/**
+ * 짧은 리액션(ㅋㅋ 등) 직후 대기.
+ * 너무 짧으면(옛 850ms) 이어서 치는 질문이 앞 턴과 갈라져 마지막 질문이 씹힘.
+ */
+export const OC_CHAT_REACTION_DEBOUNCE_MS = 2000;
 /** API/연출 중 연타로 재요청할 때 추가 침묵 대기 (전체 debounce 재적용 금지) */
 export const OC_CHAT_REGATHER_QUIET_MS = 650;
 /** API/연출 중 버스트가 커졌을 때 최대 재요청 횟수 */
@@ -828,10 +836,11 @@ export function looksLikeShortReaction(text: string): boolean {
   return false;
 }
 
-/** 마지막 유저 말 기준 debounce */
+/** 마지막 유저 말 기준 debounce — 리액션도 질문 연타를 위해 짧게 끊지 않음 */
 export function resolveOcChatSendDebounceMs(lastUserText?: string): number {
+  /* 리액션이어도 SEND 이상 대기 (질문에 이어 치기 여유) */
   return looksLikeShortReaction(lastUserText || '')
-    ? OC_CHAT_REACTION_DEBOUNCE_MS
+    ? Math.max(OC_CHAT_REACTION_DEBOUNCE_MS, OC_CHAT_SEND_DEBOUNCE_MS)
     : OC_CHAT_SEND_DEBOUNCE_MS;
 }
 

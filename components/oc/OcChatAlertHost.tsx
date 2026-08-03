@@ -17,6 +17,10 @@ import {
   tryDeliverPendingChat,
   type OcChatThread,
 } from '@/lib/oc/ocChat';
+import {
+  clearOcChatReliableTimeout,
+  setOcChatReliableTimeout,
+} from '@/lib/oc/ocChatReliableTimer';
 import { armOcChatNotifySfx } from '@/lib/oc/ocChatNotifySfx';
 import type { OcCharacter } from '@/lib/types/character';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -231,31 +235,42 @@ export function OcChatAlertHost({
       for (const c of chatbotChars) deliverDueFromCache(c, vid);
     };
     tick();
-    const timer = window.setInterval(tick, 1_500);
+    /* Worker 타이머 체인 — 숨은 탭에서 setInterval throttle 회피 */
+    let dueHandle = 0;
+    const armDue = () => {
+      dueHandle = setOcChatReliableTimeout(() => {
+        tick();
+        if (!cancelled) armDue();
+      }, 1_500);
+    };
+    armDue();
 
-    /* pending 없이 미응답만 남은 OC — 수 초마다 백그라운드 flush */
-    const stuckTimer = window.setInterval(() => {
-      if (cancelled || !chatOpenRef.current) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
-      for (const c of chatbotChars) {
-        const id = String(c.id);
-        const t = peekOcChatThreadCache(id, vid);
-        if (!t) continue;
-        if (!ocChatNeedsReplyToTrailingUsers(t.messages, t.pendingBehavior)) continue;
-        void completeOcChatReplyInBackground({
-          characterId: id,
-          visitorId: vid,
-          character: c,
-        }).catch(() => {});
-      }
-    }, 8_000);
+    /* pending 없이 미응답만 남은 OC — 수 초마다 백그라운드 flush (숨은 탭도 유지) */
+    let stuckHandle = 0;
+    const armStuck = () => {
+      stuckHandle = setOcChatReliableTimeout(() => {
+        if (!cancelled && chatOpenRef.current) {
+          for (const c of chatbotChars) {
+            const id = String(c.id);
+            const t = peekOcChatThreadCache(id, vid);
+            if (!t) continue;
+            if (!ocChatNeedsReplyToTrailingUsers(t.messages, t.pendingBehavior)) continue;
+            void completeOcChatReplyInBackground({
+              characterId: id,
+              visitorId: vid,
+              character: c,
+            }).catch(() => {});
+          }
+        }
+        if (!cancelled) armStuck();
+      }, 8_000);
+    };
+    armStuck();
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
-      window.clearInterval(stuckTimer);
+      clearOcChatReliableTimeout(dueHandle);
+      clearOcChatReliableTimeout(stuckHandle);
     };
   }, [chatbotChars, deliverDueFromCache]);
 
@@ -334,9 +349,6 @@ export function OcChatAlertHost({
 
     const syncOne = async (c: OcCharacter) => {
       if (remoteInflightRef.current) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
       remoteInflightRef.current = true;
       const id = String(c.id);
       try {
@@ -375,14 +387,11 @@ export function OcChatAlertHost({
 
     const tickRemote = () => {
       if (cancelled || remoteInflightRef.current) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
       const c = pickNext();
       if (c) void syncOne(c);
     };
 
-    /* 목록·스레드 모두 느리게 — Worker 과부하(503) 방지. 로컬 타이머가 기한 배달 담당 */
+    /* 목록·스레드 느리게 — Worker 과부하(503) 방지. 숨은 탭에서도 폴링 유지 */
     const intervalMs = phoneView === 'list' ? 12_000 : 18_000;
     const first = window.setTimeout(tickRemote, 1_200);
     const timer = window.setInterval(tickRemote, intervalMs);

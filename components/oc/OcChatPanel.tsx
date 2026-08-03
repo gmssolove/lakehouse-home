@@ -737,9 +737,6 @@ export function OcChatPanel({
 
     /* 목록: 로컬 due pending만 확인 (원격은 AlertHost — 이중 폴링이 Worker 503 원인) */
     const tickLocal = async () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
       for (const c of characters) {
         if (cancelled || !c.chatbot?.enabled) continue;
         const id = String(c.id);
@@ -1187,9 +1184,17 @@ export function OcChatPanel({
       };
 
       /** 대기 중 연타·OC 이탈이면 중단 — 긴 responseDelay 동안 놓치던 구멍 */
-      const sleepWhileBurstQuiet = async (ms: number): Promise<'ok' | 'regather'> => {
+      const sleepWhileBurstQuiet = async (ms: number): Promise<'ok' | 'regather' | 'handoff'> => {
         const end = Date.now() + Math.max(0, Math.round(ms));
         while (Date.now() < end) {
+          /* 다른 앱/탭으로 숨으면 UI 연출 대신 백그라운드 배달 (메인 타이머 throttle 회피) */
+          if (
+            typeof document !== 'undefined' &&
+            document.visibilityState === 'hidden'
+          ) {
+            await handoffPendingToBackground();
+            return 'handoff';
+          }
           /* 이탈은 regather → abortForRegather가 백그라운드 인계 */
           if (!stillOnChar(playCharId) || lateBurstPending()) {
             if (lateBurstPending()) await markWatchingReads();
@@ -1199,6 +1204,13 @@ export function OcChatPanel({
           const slice = Math.min(180, end - Date.now());
           if (slice <= 0) break;
           await sleepMs(slice);
+        }
+        if (
+          typeof document !== 'undefined' &&
+          document.visibilityState === 'hidden'
+        ) {
+          await handoffPendingToBackground();
+          return 'handoff';
         }
         if (!stillOnChar(playCharId) || lateBurstPending()) {
           if (lateBurstPending()) await markWatchingReads();
@@ -1250,6 +1262,15 @@ export function OcChatPanel({
         return 'regather';
       };
 
+      /** handoff=이미 백그라운드 인계 → play 정상 종료 / regather=연타 재수집 */
+      const exitAfterWait = async (
+        r: 'ok' | 'regather' | 'handoff',
+      ): Promise<'ok' | 'regather' | null> => {
+        if (r === 'ok') return null;
+        if (r === 'handoff') return 'ok';
+        return abortForRegather();
+      };
+
       if (behavior.moodNote) {
         nextMeta = { ...nextMeta, moodNote: behavior.moodNote };
       }
@@ -1271,7 +1292,7 @@ export function OcChatPanel({
         text: string,
         events: OcChatTypingEvent[] | undefined,
         applyFluster: boolean,
-      ): Promise<'ok' | 'regather'> => {
+      ): Promise<'ok' | 'regather' | 'handoff'> => {
         const baseMs = typingDurationMs(text);
         const pauses =
           applyFluster && events?.length
@@ -1285,12 +1306,14 @@ export function OcChatPanel({
         const each = Math.max(400, Math.round(baseMs / segments));
         for (let i = 0; i < segments; i++) {
           setBusy(true);
-          if ((await sleepWhileBurstQuiet(each)) === 'regather') return 'regather';
+          const w = await sleepWhileBurstQuiet(each);
+          if (w !== 'ok') return w;
           if (i < pauses.length) {
             const p = pauses[i]!;
             setBusy(false);
             const pauseMs = Math.round(Math.min(4, Math.max(0.2, p.durationSeconds)) * 1000);
-            if ((await sleepWhileBurstQuiet(pauseMs)) === 'regather') return 'regather';
+            const w2 = await sleepWhileBurstQuiet(pauseMs);
+            if (w2 !== 'ok') return w2;
           }
         }
         setBusy(true);
@@ -1339,13 +1362,17 @@ export function OcChatPanel({
           const wait = Math.max(0, applyAt - Date.now());
           if (nextMeta.presence === 'online' && openRef.current) {
             setWaitingRead(true);
-            if ((await sleepWhileBurstQuiet(Math.min(wait, 2800))) === 'regather') {
-              setWaitingRead(false);
-              return abortForRegather();
+            {
+              const __w = await exitAfterWait(await sleepWhileBurstQuiet(Math.min(wait, 2800)));
+              if (__w) {
+                setWaitingRead(false);
+                return __w;
+              }
             }
             setWaitingRead(false);
-          } else if ((await sleepWhileBurstQuiet(Math.min(wait, 1800))) === 'regather') {
-            return abortForRegather();
+          } else {
+            const __w = await exitAfterWait(await sleepWhileBurstQuiet(Math.min(wait, 1800)));
+            if (__w) return __w;
           }
           if (lateBurstPending()) {
             return abortForRegather();
@@ -1443,24 +1470,25 @@ export function OcChatPanel({
         }
         if (fastRead) {
           const unreadFlashMs = rollFastUnreadVisibleMs();
-          if ((await sleepWhileBurstQuiet(unreadFlashMs)) === 'regather') {
-            return abortForRegather();
-          }
+          { const __w = await exitAfterWait(await sleepWhileBurstQuiet(unreadFlashMs)); if (__w) return __w; }
           if (isViewingThread() && stillOnChar(playCharId)) await markReadNow();
           const rest = Math.max(0, waitMs - unreadFlashMs);
-          if (rest > 0 && (await sleepWhileBurstQuiet(rest)) === 'regather') {
-            return abortForRegather();
+          if (rest > 0) {
+            const __w = await exitAfterWait(await sleepWhileBurstQuiet(rest));
+            if (__w) return __w;
           }
         } else {
           const readLeadMs =
             waitMs > 1400 ? Math.min(700, Math.floor(waitMs * 0.14)) : 0;
           const untilRead = Math.max(0, waitMs - readLeadMs);
-          if (untilRead > 0 && (await sleepWhileBurstQuiet(untilRead)) === 'regather') {
-            return abortForRegather();
+          if (untilRead > 0) {
+            const __w = await exitAfterWait(await sleepWhileBurstQuiet(untilRead));
+            if (__w) return __w;
           }
           if (isViewingThread() && stillOnChar(playCharId)) await markReadNow();
-          if (readLeadMs > 0 && (await sleepWhileBurstQuiet(readLeadMs)) === 'regather') {
-            return abortForRegather();
+          if (readLeadMs > 0) {
+            const __w = await exitAfterWait(await sleepWhileBurstQuiet(readLeadMs));
+            if (__w) return __w;
           }
         }
 
@@ -1511,7 +1539,7 @@ export function OcChatPanel({
         }
 
         /* 열려 있으면: 읽음 → (추가 메시지 오면 재응답) → 타이핑 → 말풍선 */
-        const absorbReads = async (lingerRounds = 3): Promise<'ok' | 'regather'> => {
+        const absorbReads = async (lingerRounds = 3): Promise<'ok' | 'regather' | 'handoff'> => {
           didMarkReadThisPlay = true;
           let cur = markUserMessagesRead(stateRef.current.messages);
           msgs = cur;
@@ -1538,8 +1566,9 @@ export function OcChatPanel({
               await markWatchingReads();
               return 'regather';
             }
-            if ((await sleepWhileBurstQuiet(320 + Math.round(Math.random() * 280))) === 'regather') {
-              return 'regather';
+            {
+              const wr = await sleepWhileBurstQuiet(320 + Math.round(Math.random() * 280));
+              if (wr !== 'ok') return wr;
             }
             if (!openRef.current) break;
             const latest = stateRef.current.messages;
@@ -1571,12 +1600,11 @@ export function OcChatPanel({
           return 'ok';
         };
 
-        if ((await absorbReads(3)) === 'regather') {
-          return abortForRegather();
+        {
+          const __ar = await exitAfterWait(await absorbReads(3));
+          if (__ar) return __ar;
         }
-        if ((await sleepWhileBurstQuiet(220)) === 'regather') {
-          return abortForRegather();
-        }
+        { const __w = await exitAfterWait(await sleepWhileBurstQuiet(220)); if (__w) return __w; }
 
         if (lateBurstPending()) {
           return abortForRegather();
@@ -1585,8 +1613,9 @@ export function OcChatPanel({
         if (behavior.action === 'read_only') {
           setWaitingRead(false);
           /* 읽씹 직후에도 바로 온 말은 재응답 */
-          if ((await absorbReads(2)) === 'regather') {
-            return abortForRegather();
+          {
+            const __ar = await exitAfterWait(await absorbReads(2));
+            if (__ar) return __ar;
           }
           if (lateBurstPending()) {
             return abortForRegather();
@@ -1607,8 +1636,9 @@ export function OcChatPanel({
 
         setWaitingRead(false);
         /* 타이핑 들어가기 직전에도 화면 보고 있는 동안 온 말 → 재응답 */
-        if ((await absorbReads(1)) === 'regather') {
-          return abortForRegather();
+        {
+          const __ar = await exitAfterWait(await absorbReads(1));
+          if (__ar) return __ar;
         }
         if (lateBurstPending()) {
           return abortForRegather();
@@ -1714,10 +1744,10 @@ export function OcChatPanel({
           }
           const included = flushIncludedIdsRef.current;
           const line = lines[i]!;
-          if ((await playLengthTyping(line, behavior.typingIndicatorEvents, i === 0)) === 'regather') {
+          { const __pt = await exitAfterWait(await playLengthTyping(line, behavior.typingIndicatorEvents, i === 0)); if (__pt) {
             setBusy(false);
-            return abortForRegather();
-          }
+            return __pt;
+          } }
           if (lateBurstPending()) {
             setBusy(false);
             return abortForRegather();
@@ -1775,9 +1805,8 @@ export function OcChatPanel({
             lastSeenAt: !isViewingThread() ? stateRef.current.lastSeenAt : undefined,
           });
           if (i < lines.length - 1 || sticker) {
-            if ((await sleepWhileBurstQuiet(splitBubbleGapMs())) === 'regather') {
-              return abortForRegather();
-            }
+            const __w = await exitAfterWait(await sleepWhileBurstQuiet(splitBubbleGapMs()));
+            if (__w) return __w;
           }
         }
 
@@ -1812,9 +1841,14 @@ export function OcChatPanel({
             return abortForRegather();
           }
           setBusy(true);
-          if ((await sleepWhileBurstQuiet(typingDurationMs('스티커'))) === 'regather') {
-            setBusy(false);
-            return abortForRegather();
+          {
+            const __w = await exitAfterWait(
+              await sleepWhileBurstQuiet(typingDurationMs('스티커')),
+            );
+            if (__w) {
+              setBusy(false);
+              return __w;
+            }
           }
           if (lateBurstPending()) {
             setBusy(false);

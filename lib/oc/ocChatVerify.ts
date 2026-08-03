@@ -17,7 +17,8 @@ const VERIFY_SYSTEM = `당신은 대화 품질 검사기입니다. 사용자의 
 - 사용자가 한 말의 핵심(질문·요청·감정·되묻기)을 무시하는 경우
 - 연속 메시지 중 앞부분만 반영하고 가장 최근 유저 말을 무시하는 경우
 - 연속 메시지인데 마지막 말만 받고 앞 맥락(직전 유저 말의 핵심)을 통째로 무시하는 경우
-- 연속 메시지 마지막이 질문("뭐 해","어디야" 등)인데 앞선 말(쉴게요·감사 등)에만 답하고 질문을 내용으로 받지 않은 경우
+- 연속 메시지 마지막이 질문("뭐 해","매점 있어요?" 등)인데 앞선 말(쉴게요·ㅋㅋ·감사 등)에만 답하고 질문을 내용으로 받지 않은 경우
+- 유저가 물은 내용(장소·유무·사실)과 무관한 화제로만 답한 경우
 - 캐릭터의 직전 대사와 동일·거의 동일한 문장 골격(단어만 바꾼 동어반복 포함)을 다시 쓰는 경우
 - 유저가 직전 답을 되묻거나 설명을 요청했는데, 같은 문장만 반복하고 새 정보가 없는 경우
 
@@ -293,8 +294,9 @@ export function looksLikeIgnoredQuestionReply(
 }
 
 /**
- * 연타 마지막이 질문인데, 답이 앞선 말(쉴게요·감사 등)만 받고 질문을 놓친 경우.
+ * 연타 마지막이 질문인데, 답이 앞선 말(쉴게요·ㅋㅋ·감사 등)만 받고 질문을 놓친 경우.
  * 예: ["맛있었어","이제 쉴려구요","뭐 하고 있었어요?"] → "푹 쉬어 / 내일 또" 만.
+ * 예: ["ㅋㅋㅋㅋ","매점도 있어요?"] → "뭘 그렇게 웃어" 만.
  */
 export function looksLikeMissedBurstLastQuestion(
   recentUserBurst: string[] | undefined,
@@ -307,6 +309,9 @@ export function looksLikeMissedBurstLastQuestion(
 
   const joined = candidateMessages.map((m) => String(m || '').trim()).filter(Boolean).join(' ');
   if (!joined) return false;
+
+  const earlier = burst.slice(0, -1).join(' ');
+  const earlierParts = burst.slice(0, -1);
 
   const isStatusAsk =
     /(뭐\s*해|뭐하|뭐\s*하고|뭐하냐|뭐해요|뭐했어|뭐하고|어디\s*야|어디야|어떻게\s*지내)/.test(last);
@@ -321,8 +326,31 @@ export function looksLikeMissedBurstLastQuestion(
   /* 현황 질문인데 마무리·휴식 응답만 */
   if (isStatusAsk && isClosingOrRestAck && !hasStatusAnswer) return true;
 
+  const lastTokens = extractAskContentTokens(last);
+  const replyHitsLast = replyTouchesAskTokens(joined, lastTokens);
+  const isExistAsk = /(있|없).{0,6}[요까]|인가요|나요\s*$|까요\s*$|[?？]/.test(last);
+  const hasExistAnswer =
+    /(있어|없어|있긴|없긴|있지|없지|있네|없네|응\s*|어\s*|아니|몰라|글쎄|있지도|없지도)/.test(joined);
+
+  const earlierIsMostlyFiller = earlierParts.every(
+    (m) => looksLikeFillerOrLaughLine(m) || (!looksLikeUserQuestion(m) && m.length <= 36),
+  );
+  const earlierLaugh = looksLikeFillerOrLaughLine(earlier) || /ㅋ|ㅎ|웃/.test(earlier);
+  const replyToLaugh = /(웃|ㅋ+|뭘\s*그렇게|뭐가\s*웃|왜\s*웃)/.test(joined);
+
+  /* 앞이 ㅋㅋ·짧은 잡담이고 마지막 질문 내용(매점·학교 등)이 답에 전무 */
+  if (!replyHitsLast && earlierIsMostlyFiller) {
+    if (isExistAsk && !hasExistAnswer) return true;
+    if (lastTokens.length >= 1) return true;
+  }
+
+  /* 답이 웃/앞 말만 받고 마지막 질문 토큰을 안 건드림 */
+  if (!replyHitsLast && earlierLaugh && replyToLaugh) {
+    if (isExistAsk && !hasExistAnswer) return true;
+    if (lastTokens.length >= 1) return true;
+  }
+
   /* 일반적인 마지막 질문: 답이 앞선 비질문 줄의 키워드만 메아리치고 질문 축이 없음 */
-  const earlier = burst.slice(0, -1).join(' ');
   const lastAskAxes: RegExp[] = [
     /뭐\s*해|뭐하|하고\s*있/,
     /어디/,
@@ -338,7 +366,12 @@ export function looksLikeMissedBurstLastQuestion(
       break;
     }
   }
-  if (!lastHasAxis) return false;
+  if (!lastHasAxis) {
+    /* 축 없는 일반 질문(있어요?/매점?) — 위에서 이미 처리. 여기선 휴식+마무리만 */
+    const earlierRest = /(쉬|자|피곤|배부르|맛있|고마|감사)/.test(earlier);
+    if (earlierRest && isClosingOrRestAck && !replyHitsLast) return true;
+    return false;
+  }
 
   /* 답에 질문 축 단서가 거의 없고, 앞 문장(쉴/맛있/고마) 축만 있으면 누락으로 본다 */
   const replyHitsLastAxis = lastAskAxes.some((re) => re.test(last) && (
@@ -354,6 +387,84 @@ export function looksLikeMissedBurstLastQuestion(
   const earlierRest = /(쉬|자|피곤|배부르|맛있|고마|감사)/.test(earlier);
   if (earlierRest && isClosingOrRestAck) return true;
   return false;
+}
+
+/** 질문인데 답에 내용 토큰·있어요/없어요가 전혀 없으면 탈락 (단독 턴 포함) */
+export function looksLikeOffTopicQuestionReply(
+  lastUserMessage: string,
+  candidateMessages: string[],
+): boolean {
+  const last = String(lastUserMessage || '').trim();
+  if (!looksLikeUserQuestion(last)) return false;
+  const joined = candidateMessages.map((m) => String(m || '').trim()).filter(Boolean).join(' ');
+  if (!joined) return false;
+
+  const tokens = extractAskContentTokens(last);
+  if (replyTouchesAskTokens(joined, tokens)) return false;
+
+  const isExistAsk = /(있|없).{0,6}[요까]|인가요|[?？]/.test(last);
+  const hasExistAnswer =
+    /(있어|없어|있긴|없긴|있지|없지|있네|없네|응|어|아니|몰라|글쎄)/.test(joined);
+  if (isExistAsk && !hasExistAnswer && tokens.length >= 1) return true;
+
+  /* 실질 명사 2개 이상인데 답에 하나도 없으면 딴소리로 본다 */
+  if (tokens.length >= 2) return true;
+  return false;
+}
+
+function looksLikeFillerOrLaughLine(text: string): boolean {
+  const t = String(text || '').trim();
+  if (!t) return true;
+  if (/^(ㅋ+|ㅎ+|ㅠ+|ㅜ+|ㅇㅇ|응|어|웅|헐|와|오+|아+|네|ㅎㅎ|ㅋㅋ)+$/i.test(t)) return true;
+  if (t.length <= 28 && /^[ㅋㅎㅠㅜㅇ\s~!.]+$/i.test(t)) return true;
+  return false;
+}
+
+/** 질문에서 내용 토큰(매점·학교 등) 추출 — 조사·어미·대명사 제거 */
+function extractAskContentTokens(text: string): string[] {
+  let t = String(text || '').trim();
+  t = t.replace(/[?？!！.,,~…·]+/g, ' ');
+  t = t.replace(
+    /(있어요|있나요|없을까요|할까요|인가요|할까요|해요|예요|이죠|까요|나요|습니까|인가|은가|죠|요)\s*$/g,
+    ' ',
+  );
+  t = t.replace(/(은|는|이|가|을|를|의|에|도|만|와|과|으로|로|한테|께|부터|까지)\s*/g, ' ');
+  const stop = new Set([
+    '나',
+    '너',
+    '내',
+    '네',
+    '그',
+    '저',
+    '뭐',
+    '어디',
+    '언제',
+    '왜',
+    '어떻게',
+    '누구',
+    '진짜',
+    '좀',
+    '너무',
+    '그냥',
+    '혹시',
+    '그럼',
+    '근데',
+    '그리고',
+  ]);
+  return [
+    ...new Set(
+      t
+        .split(/\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 2 && !stop.has(s) && !/^[ㅋㅎㅠㅜ]+$/.test(s)),
+    ),
+  ];
+}
+
+function replyTouchesAskTokens(joined: string, tokens: string[]): boolean {
+  if (!tokens.length) return false;
+  const j = joined.replace(/\s+/g, '');
+  return tokens.some((tok) => tok.length >= 2 && (joined.includes(tok) || j.includes(tok)));
 }
 
 export function defaultVerifyModel(): string {
@@ -380,6 +491,7 @@ export async function verifyOcChatRelevance(opts: {
 
   if (looksLikeIgnoredQuestionReply(last, msgs)) return false;
   if (looksLikeMissedBurstLastQuestion(burst, msgs)) return false;
+  if (looksLikeOffTopicQuestionReply(last, msgs)) return false;
   if (isStackedNearDuplicateBubbles(msgs)) return false;
 
   const recentAsst = (opts.recentAssistantMessages || [])
