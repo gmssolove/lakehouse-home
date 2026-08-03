@@ -3,7 +3,8 @@
 ## OC AI 챗봇
 
 - **기본**: `.env.local`에 `GEMINI_API_KEY` + `OC_CHAT_PROVIDER=gemini`
-  - 모델: `GEMINI_MODEL=gemini-3.1-pro-preview` → 실패 시 `GEMINI_FALLBACK_MODEL=gemini-3.6-flash` → `GEMINI_LITE_MODEL=gemini-3.5-flash-lite`
+ - 채팅 모델: `GEMINI_MODEL=gemini-3.1-pro-preview` **고정** (Flash/Lite 폴백 없음 — 실패 시 에러)
+ - verify/memory(aux)만 `GEMINI_LITE_MODEL` 등 경량 모델 사용
 - Claude는 **API 별도 결제** 필요 (앱 구독과 무관). 결제 후 `OC_CHAT_PROVIDER=anthropic`
 - 캐릭터 수정 → 프로필 → **챗봇** 탭에서 ON + 말투/샘플
 - 대화 기록: Firebase `lhdata/oc_chat_threads/{characterId}/{visitorId}`

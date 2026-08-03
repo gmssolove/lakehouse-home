@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { countCharUnread, previewFromChatMessage } from '@/lib/oc/ocChat';
+import { inboxItemFromThread } from '@/lib/oc/ocChat';
 import { listOcChatThreadsFromR2 } from '@/lib/oc/ocChatThreadStore';
 
 export const runtime = 'nodejs';
@@ -21,23 +21,7 @@ export async function GET(req: Request) {
     const all = await listOcChatThreadsFromR2();
     const items = all
       .filter((row) => String(row.visitorId) === visitorId)
-      .map((row) => {
-        const messages = row.thread?.messages || [];
-        if (!messages.length) return null;
-        const last = messages[messages.length - 1]!;
-        const lastAt = typeof last.at === 'number' ? last.at : 0;
-        if (!lastAt) return null;
-        return {
-          characterId: String(row.characterId),
-          lastAt,
-          preview: previewFromChatMessage(last),
-          unread: countCharUnread(row.thread),
-          updatedAt:
-            typeof row.thread.updatedAt === 'number' && row.thread.updatedAt > 0
-              ? row.thread.updatedAt
-              : lastAt,
-        };
-      })
+      .map((row) => inboxItemFromThread(String(row.characterId), row.thread))
       .filter((x): x is NonNullable<typeof x> => !!x)
       .sort((a, b) => b.lastAt - a.lastAt);
     return NextResponse.json({ ok: true, items });

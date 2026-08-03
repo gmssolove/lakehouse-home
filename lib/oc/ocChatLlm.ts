@@ -1,6 +1,7 @@
 /**
  * OC 챗 LLM 호출 — Gemini 기본, Anthropic 선택.
- * Gemini: 최고 성능 모델 → 폴백 체인.
+ * 채팅(chat): GEMINI_MODEL(Pro) 고정 — Flash/Lite로 내리지 않음. 실패 시 에러.
+ * aux(verify/memory): lite 체인 허용.
  */
 
 import {
@@ -213,19 +214,13 @@ export function resolveOcChatProvider(): OcChatLlmProvider {
 }
 
 /**
- * 최고 성능 → 안정 Flash → 경량 Lite
- * (2026-07 API: 3.1 Pro Preview → 3.6 Flash → 3.5 Flash-Lite → 3.1 Flash-Lite)
+ * 채팅용 모델 — Pro(GEMINI_MODEL)만. Flash/Lite 폴백 없음.
+ * (품질 유지를 위해 실패해도 다른 모델로 내리지 않음)
  */
 export function geminiModelChain(explicit?: string): string[] {
   if (explicit?.trim()) return [explicit.trim()];
   const primary = (process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview').trim();
-  const fallback = (process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.6-flash').trim();
-  const lite = (process.env.GEMINI_LITE_MODEL || 'gemini-3.5-flash-lite').trim();
-  const out: string[] = [];
-  for (const m of [primary, fallback, lite, 'gemini-3.1-flash-lite']) {
-    if (m && !out.includes(m)) out.push(m);
-  }
-  return out.length ? out : ['gemini-3.6-flash'];
+  return primary ? [primary] : ['gemini-3.1-pro-preview'];
 }
 
 /**
@@ -270,8 +265,8 @@ export function geminiVerifyModel(): string {
 /** verify/memory 등 aux 호출을 잠시 쉴지 — 채팅 쿼타 보호 */
 export function shouldSkipGeminiAuxWork(): boolean {
   if (Date.now() < chatQuotaPressureUntil) return true;
-  const chatModels = geminiModelChain().slice(0, 2);
-  return chatModels.some((m) => isGeminiModelCooling(m));
+  const chatModel = geminiModelChain()[0];
+  return Boolean(chatModel && isGeminiModelCooling(chatModel));
 }
 
 function systemToText(system: string | OcChatSystemPromptParts): string {
@@ -429,7 +424,11 @@ export async function callGemini(
 
   for (let i = 0; i < models.length; i++) {
     const model = models[i]!;
-    if (isGeminiModelCooling(model)) {
+    /*
+     * chat은 Pro 고정 — 쿨다운이어도 Flash로 건너뛰지 않고 그대로 시도(실패 시 에러).
+     * aux만 쿨다운 모델을 스킵해 다음(lite)으로.
+     */
+    if (priority !== 'chat' && isGeminiModelCooling(model)) {
       console.warn('[oc-chat] gemini skip cooling model', {
         label: opts.logLabel || 'generate',
         model,
@@ -440,7 +439,7 @@ export async function callGemini(
       continue;
     }
 
-    /* chat은 과부하 대비 같은 모델 재시도 여유를 더 둠(폴백으로 품질 낮추지 않음) */
+    /* chat은 같은 Pro만 재시도. 다른 모델로 내리지 않음 */
     const maxAttempts =
       1 + (priority === 'chat' ? CHAT_OVERLOAD_SAME_MODEL_RETRIES : SAME_MODEL_RETRIES);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -473,7 +472,6 @@ export async function callGemini(
           /empty response/i.test(e.message);
         const info429 =
           e.upstreamStatus === 429 ? parseGemini429(e.upstreamBody) : null;
-        /* 과부하는 품질(모델) 유지 — 같은 모델만 더 기다려 재시도, Flash로 내리지 않음 */
         const isOverload =
           e.upstreamStatus === 503 ||
           /UNAVAILABLE|overloaded|high demand/i.test(
@@ -483,8 +481,7 @@ export async function callGemini(
         const retriesLeft = attempt < maxAttempts && retryable;
         /*
          * free-tier RPD(일일)는 수초 대기로 안 풀리는 경우가 많음 → 같은 모델 1회만 재시도.
-         * RPM/기타 429는 최대 SAME_MODEL_RETRIES회.
-         * 503도 같은 모델 재시도(품질 유지). 폴백 모델로 바로 내리지 않음.
+         * 그 외는 같은 모델만 재시도. chat은 절대 Flash/Lite로 내리지 않음.
          */
         const allowRetry =
           retriesLeft &&
@@ -522,7 +519,6 @@ export async function callGemini(
           continue;
         }
 
-        /* 이 모델은 포기 — 이후 요청이 같은 모델을 바로 두드리지 않게 쿨다운 */
         if (e.upstreamStatus === 429 && priority === 'chat') {
           markChatQuotaPressure(info429);
         }
@@ -538,14 +534,9 @@ export async function callGemini(
           );
         }
 
-        /*
-         * chat 과부하(503): 품질 다른 폴백 모델로 내리지 않음.
-         * 쿼타/모델없음 등만 체인 다음으로.
-         */
+        /* chat: 체인 다음(Flash 등)으로 절대 안 감. aux만 다음 모델 허용 */
         const tryNext =
-          i < models.length - 1 &&
-          retryable &&
-          !(isOverload && priority === 'chat');
+          priority !== 'chat' && i < models.length - 1 && retryable;
         console.warn('[oc-chat] gemini model failed', {
           label: opts.logLabel || 'generate',
           priority,

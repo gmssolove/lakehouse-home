@@ -720,11 +720,53 @@ export function previewFromChatMessage(m: OcChatMessage | undefined): string {
   return text.slice(0, 120);
 }
 
+/**
+ * 초기화 직후 자동 인사만 남은 스레드 — 목록 미리보기·미읽음은 비운다.
+ * (유저가 한 마디라도 보내거나 OC가 추가 답을 하면 그때부터 표시)
+ */
+export function isOcChatInboxBootstrapOnly(thread: OcChatThread): boolean {
+  const clearedAt =
+    typeof thread.clearedAt === 'number' && thread.clearedAt > 0
+      ? thread.clearedAt
+      : 0;
+  if (!clearedAt) return false;
+  const msgs = Array.isArray(thread.messages) ? thread.messages : [];
+  if (!msgs.length) return true;
+  if (msgs.some((m) => m.role === 'user')) return false;
+  if (msgs.length > 1) return false;
+  const only = msgs[0]!;
+  if (only.role !== 'assistant') return false;
+  if ((only.kind || 'chat') === 'narration') return false;
+  return true;
+}
+
 export function inboxItemFromThread(
   characterId: string,
   thread: OcChatThread | null | undefined,
 ): OcChatInboxItem | null {
-  if (!thread?.messages?.length) return null;
+  if (!thread) return null;
+  const clearedAt =
+    typeof thread.clearedAt === 'number' && thread.clearedAt > 0
+      ? thread.clearedAt
+      : 0;
+  const updatedAt =
+    typeof thread.updatedAt === 'number' && thread.updatedAt > 0
+      ? thread.updatedAt
+      : 0;
+
+  /* 초기화 후 비어 있거나 자동 인사만 — 옛 미리보기/뱃지를 덮어쓸 stub */
+  if (!thread.messages?.length || isOcChatInboxBootstrapOnly(thread)) {
+    if (!clearedAt) return null;
+    const at = Math.max(clearedAt, updatedAt);
+    return {
+      characterId: String(characterId),
+      lastAt: at,
+      preview: '',
+      unread: 0,
+      updatedAt: at,
+    };
+  }
+
   const last = thread.messages[thread.messages.length - 1]!;
   const lastAt = typeof last.at === 'number' ? last.at : 0;
   if (!lastAt) return null;
@@ -733,10 +775,7 @@ export function inboxItemFromThread(
     lastAt,
     preview: previewFromChatMessage(last),
     unread: countCharUnread(thread),
-    updatedAt:
-      typeof thread.updatedAt === 'number' && thread.updatedAt > 0
-        ? thread.updatedAt
-        : lastAt,
+    updatedAt: updatedAt > 0 ? updatedAt : lastAt,
   };
 }
 
@@ -757,27 +796,50 @@ export function mergeOcChatInboxItems(
         map.set(id, { ...item, characterId: id });
         continue;
       }
-      if (item.lastAt < prev.lastAt) continue;
-      /* lastAt 동일 — 더 최신 updatedAt을 신뢰 */
+      if (item.lastAt < prev.lastAt) {
+        /*
+         * lastAt 이 뒤져도 updatedAt 이 더 새롭고 미리보기·미읽음이 비어 있으면
+         * 초기화 stub 로 취급해 옛 목록을 덮는다.
+         */
+        const itemAt = item.updatedAt || 0;
+        const prevAt = prev.updatedAt || 0;
+        if (
+          itemAt > prevAt &&
+          !item.preview &&
+          item.unread === 0
+        ) {
+          map.set(id, {
+            characterId: id,
+            lastAt: item.lastAt,
+            preview: '',
+            unread: 0,
+            updatedAt: itemAt,
+          });
+        }
+        continue;
+      }
+      /* lastAt 동일 — 더 최신 updatedAt을 신뢰하되, 미읽음은 min (읽음이 이김) */
       const preferItem = (item.updatedAt || 0) >= (prev.updatedAt || 0);
       const newer = preferItem ? item : prev;
       const older = preferItem ? prev : item;
-      let unread = Math.max(0, newer.unread);
+      const unread = Math.min(
+        Math.max(0, newer.unread),
+        Math.max(0, older.unread),
+      );
       /*
-       * 읽음 후 remote stale unread 가 되살아나는 것 방지:
-       * 같은 lastAt 에서 한쪽이 0이고 updatedAt 이 뒤지지 않으면 0 유지.
+       * 미리보기: 한쪽이 빈 문자열(초기화)이고 updatedAt 이 뒤지지 않으면 빈 값 유지.
+       * newer.preview || older.preview 는 빈 문자열을 옛 미리보기로 되살림.
        */
-      if (newer.unread === 0 || older.unread === 0) {
-        const zeroSide = newer.unread === 0 ? newer : older;
-        const otherSide = newer.unread === 0 ? older : newer;
-        if ((zeroSide.updatedAt || 0) + 50 >= (otherSide.updatedAt || 0)) {
-          unread = 0;
-        }
+      let preview = newer.preview;
+      if (!preview && (newer.updatedAt || 0) + 50 >= (older.updatedAt || 0)) {
+        preview = '';
+      } else if (!preview) {
+        preview = older.preview;
       }
       map.set(id, {
         characterId: id,
         lastAt: prev.lastAt,
-        preview: newer.preview || older.preview,
+        preview,
         unread,
         updatedAt: Math.max(prev.updatedAt || 0, item.updatedAt || 0) || prev.lastAt,
       });

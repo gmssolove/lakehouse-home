@@ -728,11 +728,18 @@ export function OcChatPanel({
             lastSeenAt: seenNow,
             updatedAt: Math.max(cached.updatedAt || 0, seenNow),
           });
+          /* 목록 뱃지 즉시 갱신 — 읽음(min unread)이 stale remote 보다 우선 */
+          const chatbotIds = characters
+            .filter((c) => c.chatbot?.enabled)
+            .map((c) => String(c.id));
+          setInboxItems((prev) =>
+            mergeOcChatInboxItems(prev, collectLocalOcChatInbox(vid, chatbotIds)),
+          );
         }
       }
       return true;
     },
-    [scrollToEnd],
+    [characters, scrollToEnd],
   );
 
   const onMessagesAppended = useCallback(
@@ -1074,6 +1081,18 @@ export function OcChatPanel({
       clearedAt: wipedAt,
     };
     writeOcChatThreadCache(charId, vid, wiped);
+    /* 목록 미리보기·뱃지 즉시 비움 (merge가 옛 항목을 붙잡지 않게 stub 강제) */
+    setInboxItems((prev) =>
+      mergeOcChatInboxItems(prev, [
+        {
+          characterId: charId,
+          lastAt: wipedAt,
+          preview: '',
+          unread: 0,
+          updatedAt: wipedAt,
+        },
+      ]),
+    );
 
     try {
       await resetOcChatThreadForVisitor(charId, vid);
@@ -1081,6 +1100,17 @@ export function OcChatPanel({
       const sealed = { ...wiped, updatedAt: Date.now() };
       writeOcChatThreadCache(charId, vid, sealed);
       await saveOcChatThread(charId, vid, sealed, { replace: true });
+      setInboxItems((prev) =>
+        mergeOcChatInboxItems(prev, [
+          {
+            characterId: charId,
+            lastAt: sealed.updatedAt,
+            preview: '',
+            unread: 0,
+            updatedAt: sealed.updatedAt,
+          },
+        ]),
+      );
       void alert('채팅을 초기화했습니다.', '완료');
     } catch (e) {
       const msg = formatOcChatFirebaseError(e, '초기화에 실패했습니다');
@@ -4071,7 +4101,27 @@ export function OcChatPanel({
                   pending.id,
                 );
               }
-              void refreshInbox();
+              /* 읽음 시각을 캐시·목록에 확정 — 뱃지 잔류 방지 */
+              const seenNow = Math.max(stateRef.current.lastSeenAt || 0, Date.now());
+              setLastSeenAt(seenNow);
+              stateRef.current = { ...stateRef.current, lastSeenAt: seenNow };
+              const cached = peekOcChatThreadCache(charId, vid);
+              if (cached) {
+                writeOcChatThreadCache(charId, vid, {
+                  ...cached,
+                  lastSeenAt: seenNow,
+                  updatedAt: Math.max(cached.updatedAt || 0, seenNow),
+                });
+              }
+              void refreshInbox({ remote: false });
+              void persistSnapshot({
+                messages: stateRef.current.messages,
+                affection: stateRef.current.affection,
+                story: stateRef.current.story,
+                lastSeenAt: seenNow,
+                skipSeen: true,
+                meta: stateRef.current.meta,
+              });
             }}
           >
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
