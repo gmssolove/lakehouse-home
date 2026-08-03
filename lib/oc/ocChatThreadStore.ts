@@ -121,6 +121,8 @@ export async function saveOcChatThreadToR2(
     openThreads: toSave.openThreads,
     memorySummary: toSave.memorySummary,
     memorySummaryThroughAt: toSave.memorySummaryThroughAt,
+    userMemory: toSave.userMemory,
+    userMemoryThroughAt: toSave.userMemoryThroughAt,
     clearedAt: toSave.clearedAt,
     pendingClearedAt: toSave.pendingClearedAt,
   });

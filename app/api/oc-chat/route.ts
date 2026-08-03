@@ -41,6 +41,17 @@ import {
   shouldRefreshOcChatMemory,
   mergeOcChatMemorySummaries,
 } from '@/lib/oc/ocChatMemory';
+import {
+  buildOcChatUserMemoryRefreshSystemPrompt,
+  buildOcChatUserMemoryRefreshUserPrompt,
+  compactOcChatUserMemory,
+  formatOcChatUserMemoryTranscript,
+  lastOcChatUserMessageAt,
+  mergeOcChatUserMemory,
+  ocChatUserMessagesSince,
+  parseOcChatUserMemoryOutput,
+  shouldScanOcChatUserMemory,
+} from '@/lib/oc/ocChatUserMemory';
 import type { OcCharacter } from '@/lib/types/character';
 
 export const runtime = 'nodejs';
@@ -83,6 +94,8 @@ type Body = {
   openThreads?: Array<{ id?: string; summary?: string }>;
   memorySummary?: string;
   memorySummaryThroughAt?: number;
+  userMemory?: string;
+  userMemoryThroughAt?: number;
 };
 
 type RateBucket = { count: number; resetAt: number };
@@ -176,6 +189,8 @@ async function maybeRefreshMemorySummary(opts: {
   stored: OcChatThread | null;
   memorySummary?: string;
   memorySummaryThroughAt?: number;
+  /** false면 R2 저장 생략 (호출측에서 합쳐 저장) */
+  persist?: boolean;
 }): Promise<{ memorySummary?: string; memorySummaryThroughAt?: number }> {
   const messages = opts.stored?.messages || [];
   const existingSummary = String(opts.memorySummary || opts.stored?.memorySummary || '').trim();
@@ -250,7 +265,7 @@ async function maybeRefreshMemorySummary(opts: {
       cold.reduce((max, m) => Math.max(max, typeof m.at === 'number' ? m.at : 0), 0) ||
       Date.now();
 
-    if (opts.stored) {
+    if (opts.persist !== false && opts.stored) {
       try {
         await saveOcChatThreadToR2(opts.characterId, opts.visitorId, {
           ...opts.stored,
@@ -276,6 +291,131 @@ async function maybeRefreshMemorySummary(opts: {
     return {
       memorySummary: existingSummary || undefined,
       memorySummaryThroughAt: throughAt,
+    };
+  }
+}
+
+async function maybeRefreshUserMemory(opts: {
+  characterId: string;
+  visitorId: string;
+  stored: OcChatThread | null;
+  /** 이번 요청에 포함된 메시지 (라이브 창) */
+  requestMessages: ChatIn[];
+  userMemory?: string;
+  userMemoryThroughAt?: number;
+  persist?: boolean;
+}): Promise<{ userMemory?: string; userMemoryThroughAt?: number }> {
+  const existing = compactOcChatUserMemory(
+    String(opts.userMemory || opts.stored?.userMemory || '').trim(),
+  );
+  const throughAt =
+    typeof opts.userMemoryThroughAt === 'number'
+      ? opts.userMemoryThroughAt
+      : opts.stored?.userMemoryThroughAt;
+
+  const pool = (opts.stored?.messages?.length ? opts.stored.messages : opts.requestMessages) as ChatIn[];
+  const fresh = ocChatUserMessagesSince(pool, throughAt);
+  const nextThrough =
+    lastOcChatUserMessageAt(fresh) ||
+    lastOcChatUserMessageAt(pool) ||
+    throughAt;
+
+  if (!fresh.length) {
+    return {
+      userMemory: existing || undefined,
+      userMemoryThroughAt: throughAt,
+    };
+  }
+
+  /* 잡담만이면 LLM 없이 커서만 전진 */
+  if (!shouldScanOcChatUserMemory(fresh)) {
+    return {
+      userMemory: existing || undefined,
+      userMemoryThroughAt: nextThrough,
+    };
+  }
+
+  if (shouldSkipGeminiAuxWork()) {
+    console.warn('[oc-chat] skip userMemory refresh (protect chat quota)', {
+      characterId: opts.characterId,
+      visitorId: opts.visitorId.slice(0, 8),
+    });
+    return {
+      userMemory: existing || undefined,
+      userMemoryThroughAt: throughAt,
+    };
+  }
+
+  const transcript = formatOcChatUserMemoryTranscript(fresh);
+  if (!transcript.trim()) {
+    return {
+      userMemory: existing || undefined,
+      userMemoryThroughAt: nextThrough,
+    };
+  }
+
+  try {
+    const auxModels = geminiAuxModelChain();
+    const raw = await callOcChatLlm(
+      buildOcChatUserMemoryRefreshSystemPrompt(),
+      [
+        {
+          role: 'user',
+          content: buildOcChatUserMemoryRefreshUserPrompt({
+            existingMemory: existing,
+            transcript,
+          }),
+        },
+      ],
+      {
+        maxTokens: 320,
+        temperature: 0.15,
+        thinkingLevel: 'minimal',
+        enableCache: false,
+        logLabel: 'user-memory',
+        priority: 'aux',
+        geminiModels: auxModels,
+        model:
+          process.env.ANTHROPIC_LITE_MODEL ||
+          process.env.ANTHROPIC_VERIFY_MODEL ||
+          'claude-haiku-4-5-20251001',
+      },
+    );
+    const chunk = parseOcChatUserMemoryOutput(raw);
+    const merged = chunk
+      ? mergeOcChatUserMemory(existing, chunk)
+      : existing;
+    const finalMem = compactOcChatUserMemory(merged) || undefined;
+
+    if (opts.persist !== false && opts.stored) {
+      try {
+        await saveOcChatThreadToR2(opts.characterId, opts.visitorId, {
+          ...opts.stored,
+          userMemory: finalMem,
+          userMemoryThroughAt: nextThrough,
+          updatedAt: Date.now(),
+        });
+      } catch (e) {
+        console.warn('[oc-chat] userMemory R2 save failed', e);
+      }
+    }
+
+    console.info('[oc-chat] userMemory refreshed', {
+      characterId: opts.characterId,
+      visitorId: opts.visitorId.slice(0, 8),
+      fresh: fresh.length,
+      memoryLen: finalMem?.length || 0,
+    });
+
+    return {
+      userMemory: finalMem,
+      userMemoryThroughAt: nextThrough,
+    };
+  } catch (e) {
+    console.warn('[oc-chat] userMemory refresh failed', e);
+    return {
+      userMemory: existing || undefined,
+      userMemoryThroughAt: throughAt,
     };
   }
 }
@@ -370,6 +510,15 @@ export async function POST(req: Request) {
             .filter((t) => t.summary)
             .slice(0, 8)
         : undefined;
+      let proactiveStored: OcChatThread | null = null;
+      try {
+        proactiveStored = await loadOcChatThreadFromR2(characterId, visitorId);
+      } catch {
+        proactiveStored = null;
+      }
+      const proactiveUserMemory = compactOcChatUserMemory(
+        String(body.userMemory || proactiveStored?.userMemory || '').trim(),
+      );
       const system = buildOcChatProactivePromptParts(character, {
         affection: affectionIn,
         moodNote,
@@ -379,6 +528,8 @@ export async function POST(req: Request) {
         worldLines,
         proactiveKind,
         openThreads,
+        memorySummary: proactiveStored?.memorySummary,
+        userMemory: proactiveUserMemory || undefined,
       });
       const raw = await callChatModel(
         system,
@@ -509,6 +660,14 @@ export async function POST(req: Request) {
       Number.isFinite(body.memorySummaryThroughAt)
         ? body.memorySummaryThroughAt
         : storedThread?.memorySummaryThroughAt;
+    const userMemory = compactOcChatUserMemory(
+      String(body.userMemory || storedThread?.userMemory || '').trim(),
+    );
+    const userMemoryThroughAt =
+      typeof body.userMemoryThroughAt === 'number' &&
+      Number.isFinite(body.userMemoryThroughAt)
+        ? body.userMemoryThroughAt
+        : storedThread?.userMemoryThroughAt;
 
     const system = buildOcChatSystemPromptParts(character, {
       affection: affectionIn,
@@ -523,6 +682,7 @@ export async function POST(req: Request) {
       presence,
       recentActions: recentActions as OcChatRecentAction[],
       memorySummary: memorySummary || undefined,
+      userMemory: userMemory || undefined,
     });
     const historyIn = messages.map((m) => ({
       role: m.role,
@@ -627,13 +787,48 @@ export async function POST(req: Request) {
     /* delta는 점수 바닥(0)에 막혀도 일일 손실·토스트용으로 그대로 반환 */
     const replyText = behavior.messages.join('\n') || '';
 
-    const memoryOut = await maybeRefreshMemorySummary({
-      characterId,
-      visitorId,
-      stored: storedThread,
-      memorySummary: memorySummary || undefined,
-      memorySummaryThroughAt,
-    });
+    const [memoryOut, userMemoryOut] = await Promise.all([
+      maybeRefreshMemorySummary({
+        characterId,
+        visitorId,
+        stored: storedThread,
+        memorySummary: memorySummary || undefined,
+        memorySummaryThroughAt,
+        persist: false,
+      }),
+      maybeRefreshUserMemory({
+        characterId,
+        visitorId,
+        stored: storedThread,
+        requestMessages: messages,
+        userMemory: userMemory || undefined,
+        userMemoryThroughAt,
+        persist: false,
+      }),
+    ]);
+
+    if (storedThread) {
+      const memChanged =
+        memoryOut.memorySummary !== (memorySummary || undefined) ||
+        memoryOut.memorySummaryThroughAt !== memorySummaryThroughAt;
+      const userChanged =
+        userMemoryOut.userMemory !== (userMemory || undefined) ||
+        userMemoryOut.userMemoryThroughAt !== userMemoryThroughAt;
+      if (memChanged || userChanged) {
+        try {
+          await saveOcChatThreadToR2(characterId, visitorId, {
+            ...storedThread,
+            memorySummary: memoryOut.memorySummary,
+            memorySummaryThroughAt: memoryOut.memorySummaryThroughAt,
+            userMemory: userMemoryOut.userMemory,
+            userMemoryThroughAt: userMemoryOut.userMemoryThroughAt,
+            updatedAt: Date.now(),
+          });
+        } catch (e) {
+          console.warn('[oc-chat] memory fields R2 save failed', e);
+        }
+      }
+    }
 
     const headers = new Headers();
     if (chatModelResolved) {
@@ -654,6 +849,8 @@ export async function POST(req: Request) {
         deltaReason: behavior.deltaReason,
         memorySummary: memoryOut.memorySummary,
         memorySummaryThroughAt: memoryOut.memorySummaryThroughAt,
+        userMemory: userMemoryOut.userMemory,
+        userMemoryThroughAt: userMemoryOut.userMemoryThroughAt,
         llm: chatModelResolved,
       },
       { headers },

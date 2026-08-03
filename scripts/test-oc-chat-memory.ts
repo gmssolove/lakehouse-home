@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import {
   capOcChatMemorySummary,
+  compactOcChatMemorySummary,
   mergeOcChatMemorySummaries,
   ocChatColdMessages,
   ocChatUncoveredColdMessages,
@@ -40,5 +41,10 @@ assert.ok(capped.startsWith('…'));
 const merged = mergeOcChatMemorySummaries('유저는 랑코.', '밴드부 응원 중.');
 assert.ok(merged.includes('랑코'));
 assert.ok(merged.includes('밴드'));
+
+const parts = Array.from({ length: 20 }, (_, i) => `옛사실${i}${'다'.repeat(30)}`).join(' / ');
+const compacted = compactOcChatMemorySummary(parts);
+assert.ok(compacted.length <= OC_CHAT_MEMORY_MAX_CHARS + 1);
+assert.ok(compacted.includes('옛사실19') || compacted.includes('옛사실18'));
 
 console.log('ocChatMemory tests passed');

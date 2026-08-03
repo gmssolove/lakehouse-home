@@ -98,6 +98,12 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
   const sfxRaf = useRef(0);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
+  const payloadRef = useRef(payload);
+  payloadRef.current = payload;
+  const leavingRef = useRef(false);
+  leavingRef.current = leaving;
 
   const finish = useCallback((id: string) => {
     if (doneOnceRef.current) return;
@@ -114,12 +120,15 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
      * 큐에 다음이 있으면 payload만 바뀌고 바로 이어 표시.
      */
     setLeaving(false);
+    leavingRef.current = false;
     onDoneRef.current(id);
   }, []);
 
   const startLeave = useCallback(
     (id: string) => {
+      if (doneOnceRef.current) return;
       setLeaving(true);
+      leavingRef.current = true;
       window.clearTimeout(doneTimer.current);
       doneTimer.current = window.setTimeout(() => {
         finish(id);
@@ -127,6 +136,8 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
     },
     [finish],
   );
+  const startLeaveRef = useRef(startLeave);
+  startLeaveRef.current = startLeave;
 
   const pointStyle = useMemo(() => {
     const base = resolveOcChatPointStyle(payload?.personalColor);
@@ -143,10 +154,17 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
     setMounted(true);
   }, []);
 
+  /*
+   * payload.id 가 바뀔 때만 타이머를 건다.
+   * onOpen/startLeave 를 deps에 넣으면 부모 리렌더마다 cleanup → 타이머 리셋 →
+   * CSS 게이지는 끝났는데 토스트가 안 사라지는 버그가 난다.
+   */
+  const payloadId = payload?.id ?? null;
   useLayoutEffect(() => {
-    if (!payload) {
+    if (!payloadId) {
       shownIdRef.current = null;
       setLeaving(false);
+      leavingRef.current = false;
       doneOnceRef.current = false;
       window.clearTimeout(leaveTimer.current);
       window.clearTimeout(doneTimer.current);
@@ -156,60 +174,57 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
       }
       return;
     }
-    const id = payload.id;
-    const isNew = shownIdRef.current !== id;
-    if (isNew) {
-      shownIdRef.current = id;
-      doneOnceRef.current = false;
-      setLeaving(false);
-      setAnimKey((k) => k + 1);
-      if (sfxRaf.current) window.cancelAnimationFrame(sfxRaf.current);
-      const sfxUrl = payload.sfxUrl;
-      const fireSfx = () => {
-        playOcChatNotifySfx(sfxUrl);
-        /* 다른 탭을 보는 중 — OS 알림(시스템 소리). 포그라운드는 페이지 토스트만 */
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-          showOcChatDesktopNotify({
-            title: payload.title,
-            body: payload.text,
-            icon: payload.avatarUrl,
-            tag: `oc-chat-${payload.id}`,
-            onClick: () => onOpen?.(payload),
-          });
-        }
-      };
-      /*
-       * 숨은 탭에서는 rAF가 거의 안 돌아서 소리/알림이 포그라운드 복귀까지 밀림.
-       * → 백그라운드는 즉시, 보일 때만 더블 rAF로 페인트와 맞춤.
-       */
+
+    const id = payloadId;
+    shownIdRef.current = id;
+    doneOnceRef.current = false;
+    setLeaving(false);
+    leavingRef.current = false;
+    setAnimKey((k) => k + 1);
+
+    if (sfxRaf.current) window.cancelAnimationFrame(sfxRaf.current);
+    const current = payloadRef.current;
+    const fireSfx = () => {
+      if (!current || current.id !== id) return;
+      playOcChatNotifySfx(current.sfxUrl);
+      /* 다른 탭을 보는 중 — OS 알림(시스템 소리). 포그라운드는 페이지 토스트만 */
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        fireSfx();
-      } else {
-        sfxRaf.current = window.requestAnimationFrame(() => {
-          sfxRaf.current = window.requestAnimationFrame(() => {
-            sfxRaf.current = 0;
-            fireSfx();
-          });
+        showOcChatDesktopNotify({
+          title: current.title,
+          body: current.text,
+          icon: current.avatarUrl,
+          tag: `oc-chat-${current.id}`,
+          onClick: () => {
+            const p = payloadRef.current;
+            if (p) onOpenRef.current?.(p);
+          },
         });
       }
-    }
-
+    };
     /*
-     * startLeave 등 deps 변경으로 effect가 다시 돌아도 타이머를 다시 건다.
-     * (예전: 같은 id면 early return → cleanup이 타이머만 지워 토스트가 안 사라짐)
+     * 숨은 탭에서는 rAF가 거의 안 돌아서 소리/알림이 포그라운드 복귀까지 밀림.
+     * → 백그라운드는 즉시, 보일 때만 더블 rAF로 페인트와 맞춤.
      */
-    window.clearTimeout(leaveTimer.current);
-    window.clearTimeout(doneTimer.current);
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      fireSfx();
+    } else {
+      sfxRaf.current = window.requestAnimationFrame(() => {
+        sfxRaf.current = window.requestAnimationFrame(() => {
+          sfxRaf.current = 0;
+          fireSfx();
+        });
+      });
+    }
 
     const armHoldTimer = () => {
       window.clearTimeout(leaveTimer.current);
-      if (doneOnceRef.current) return;
+      if (doneOnceRef.current || leavingRef.current) return;
       /* 숨은 탭에서는 유지 타이머 정지 — 돌아오면 다시 셈 */
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
         return;
       }
       leaveTimer.current = window.setTimeout(() => {
-        startLeave(id);
+        startLeaveRef.current(id);
       }, OC_CHAT_NOTIFY_MS);
     };
 
@@ -223,9 +238,13 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
     return () => {
       document.removeEventListener('visibilitychange', onVis);
       window.clearTimeout(leaveTimer.current);
-      /* doneTimer는 startLeave가 잡은 퇴장 타이머 — payload 유지 중엔 건드리지 않음 */
+      window.clearTimeout(doneTimer.current);
+      if (sfxRaf.current) {
+        window.cancelAnimationFrame(sfxRaf.current);
+        sfxRaf.current = 0;
+      }
     };
-  }, [payload, startLeave, onOpen]);
+  }, [payloadId]);
 
   useEffect(
     () => () => {
@@ -251,7 +270,7 @@ export function OcChatNotifyToast({ payload, onDone, onOpen }: Props) {
         finish(payload.id);
       }}
       onClick={() => {
-        onOpen?.(payload);
+        onOpenRef.current?.(payload);
         window.clearTimeout(leaveTimer.current);
         startLeave(payload.id);
       }}

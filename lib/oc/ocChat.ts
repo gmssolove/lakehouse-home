@@ -120,6 +120,10 @@ export type OcChatThread = {
   memorySummary?: string;
   /** memorySummary에 반영된 마지막 메시지 at */
   memorySummaryThroughAt?: number;
+  /** 유저가 밝힌 지속 사실 (이름·취향·관계 등) */
+  userMemory?: string;
+  /** userMemory에 반영된 마지막 유저 메시지 at */
+  userMemoryThroughAt?: number;
   /** 대화 초기화 시각 — merge 시 이 이후의 짧은 스레드가 옛 긴 기록을 되살리지 않게 */
   clearedAt?: number;
   /** 이 시각 이전에 만든 pending은 merge에서 무시(배달·abort·취소) */
@@ -1109,6 +1113,11 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     typeof o.memorySummaryThroughAt === 'number' && Number.isFinite(o.memorySummaryThroughAt)
       ? o.memorySummaryThroughAt
       : undefined;
+  const userMemory = String(o.userMemory || '').trim().slice(0, 500) || undefined;
+  const userMemoryThroughAt =
+    typeof o.userMemoryThroughAt === 'number' && Number.isFinite(o.userMemoryThroughAt)
+      ? o.userMemoryThroughAt
+      : undefined;
   const clearedAt =
     typeof o.clearedAt === 'number' && Number.isFinite(o.clearedAt) && o.clearedAt > 0
       ? o.clearedAt
@@ -1156,6 +1165,8 @@ export function normalizeChatThread(raw: unknown): OcChatThread {
     openThreads,
     memorySummary,
     memorySummaryThroughAt,
+    userMemory,
+    userMemoryThroughAt,
     clearedAt,
     pendingClearedAt,
   };
@@ -1334,6 +1345,8 @@ export function mergeOcChatThreads(
       updatedAt: Math.max(na.updatedAt || 0, nb.updatedAt || 0),
       memorySummary: cleared.memorySummary,
       memorySummaryThroughAt: cleared.memorySummaryThroughAt,
+      userMemory: cleared.userMemory,
+      userMemoryThroughAt: cleared.userMemoryThroughAt,
     });
   }
 
@@ -1367,6 +1380,12 @@ export function mergeOcChatThreads(
         : nb.memorySummary || na.memorySummary,
     memorySummaryThroughAt:
       Math.max(na.memorySummaryThroughAt || 0, nb.memorySummaryThroughAt || 0) || undefined,
+    userMemory:
+      (na.userMemoryThroughAt || 0) >= (nb.userMemoryThroughAt || 0)
+        ? na.userMemory || nb.userMemory
+        : nb.userMemory || na.userMemory,
+    userMemoryThroughAt:
+      Math.max(na.userMemoryThroughAt || 0, nb.userMemoryThroughAt || 0) || undefined,
     clearedAt: undefined,
     pendingClearedAt,
   });
@@ -1559,6 +1578,8 @@ export async function saveOcChatThread(
     openThreads: protectedThread.openThreads,
     memorySummary: protectedThread.memorySummary,
     memorySummaryThroughAt: protectedThread.memorySummaryThroughAt,
+    userMemory: protectedThread.userMemory,
+    userMemoryThroughAt: protectedThread.userMemoryThroughAt,
     clearedAt: protectedThread.clearedAt,
     pendingClearedAt: protectedThread.pendingClearedAt,
   };
@@ -1940,6 +1961,8 @@ export type OcChatApiResult = {
   deltaReason?: string;
   memorySummary?: string;
   memorySummaryThroughAt?: number;
+  userMemory?: string;
+  userMemoryThroughAt?: number;
 };
 
 export type OcChatProactiveResult = {
@@ -2057,6 +2080,8 @@ export async function postOcChat(params: {
   recentActions?: OcChatThread['recentActions'];
   memorySummary?: string;
   memorySummaryThroughAt?: number;
+  userMemory?: string;
+  userMemoryThroughAt?: number;
   signal?: AbortSignal;
 }): Promise<OcChatApiResult> {
   type OcChatPostJson = {
@@ -2070,6 +2095,8 @@ export async function postOcChat(params: {
     deltaReason?: string;
     memorySummary?: string;
     memorySummaryThroughAt?: number;
+    userMemory?: string;
+    userMemoryThroughAt?: number;
     error?: string;
   };
 
@@ -2112,6 +2139,8 @@ export async function postOcChat(params: {
     ),
     memorySummary: params.memorySummary,
     memorySummaryThroughAt: params.memorySummaryThroughAt,
+    userMemory: params.userMemory,
+    userMemoryThroughAt: params.userMemoryThroughAt,
   };
 
   const runOnce = async (): Promise<OcChatApiResult> => {
@@ -2161,6 +2190,15 @@ export async function postOcChat(params: {
         Number.isFinite(data.memorySummaryThroughAt)
           ? data.memorySummaryThroughAt
           : params.memorySummaryThroughAt,
+      userMemory:
+        typeof data.userMemory === 'string' && data.userMemory.trim()
+          ? data.userMemory.trim().slice(0, 500)
+          : params.userMemory,
+      userMemoryThroughAt:
+        typeof data.userMemoryThroughAt === 'number' &&
+        Number.isFinite(data.userMemoryThroughAt)
+          ? data.userMemoryThroughAt
+          : params.userMemoryThroughAt,
     };
   };
 
@@ -2314,6 +2352,8 @@ export async function parkOcChatBehaviorAsPending(params: {
   deltaReason?: string;
   memorySummary?: string;
   memorySummaryThroughAt?: number;
+  userMemory?: string;
+  userMemoryThroughAt?: number;
 }): Promise<OcChatPendingBehavior | null> {
   const id = String(params.characterId || '').trim();
   const vid = String(params.visitorId || '').trim();
@@ -2383,6 +2423,14 @@ export async function parkOcChatBehaviorAsPending(params: {
       typeof params.memorySummaryThroughAt === 'number'
         ? params.memorySummaryThroughAt
         : base.memorySummaryThroughAt,
+    userMemory:
+      typeof params.userMemory === 'string'
+        ? params.userMemory.trim() || undefined
+        : base.userMemory,
+    userMemoryThroughAt:
+      typeof params.userMemoryThroughAt === 'number'
+        ? params.userMemoryThroughAt
+        : base.userMemoryThroughAt,
   };
 
   writeOcChatThreadCache(id, vid, mergeOcChatThreads(peekOcChatThreadCache(id, vid), next));
@@ -2482,6 +2530,8 @@ export function completeOcChatReplyInBackground(params: {
         recentActions: thread.recentActions,
         memorySummary: thread.memorySummary,
         memorySummaryThroughAt: thread.memorySummaryThroughAt,
+        userMemory: thread.userMemory,
+        userMemoryThroughAt: thread.userMemoryThroughAt,
       });
     } catch (err) {
       if (isOcChatTransientBusyError(err)) {
@@ -2521,6 +2571,8 @@ export function completeOcChatReplyInBackground(params: {
       deltaReason: result.deltaReason,
       memorySummary: result.memorySummary,
       memorySummaryThroughAt: result.memorySummaryThroughAt,
+      userMemory: result.userMemory,
+      userMemoryThroughAt: result.userMemoryThroughAt,
     });
   })().finally(() => {
     if (backgroundReplyInflight.get(key) === run) {

@@ -88,6 +88,33 @@ export function capOcChatMemorySummary(
   return `…${trimmed.trim()}`;
 }
 
+/**
+ * 500자 초과 시 " / "·";" 항목 중 앞(오래된)부터 제거 후 재압축.
+ */
+export function compactOcChatMemorySummary(
+  text: string,
+  maxChars = OC_CHAT_MEMORY_MAX_CHARS,
+): string {
+  const cleaned = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  if (cleaned.length <= maxChars) return cleaned;
+
+  const parts = cleaned
+    .split(/\s*[/|;]\s*/)
+    .map((p) => p.replace(/^…+/, '').trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) return capOcChatMemorySummary(cleaned, maxChars);
+
+  const kept = [...parts];
+  while (kept.length > 1 && kept.join(' / ').length > maxChars) {
+    kept.shift();
+  }
+  return capOcChatMemorySummary(kept.join(' / '), maxChars);
+}
+
 /** 기존 요약 + 신규 요약을 합친 뒤 길이 상한 */
 export function mergeOcChatMemorySummaries(
   existing: string | undefined,
@@ -96,14 +123,15 @@ export function mergeOcChatMemorySummaries(
 ): string {
   const a = String(existing || '').trim();
   const b = String(incoming || '').trim();
-  if (!a) return capOcChatMemorySummary(b, maxChars);
-  if (!b) return capOcChatMemorySummary(a, maxChars);
-  if (a.includes(b)) return capOcChatMemorySummary(a, maxChars);
-  return capOcChatMemorySummary(`${a} / ${b}`, maxChars);
+  if (!a) return compactOcChatMemorySummary(b, maxChars);
+  if (!b) return compactOcChatMemorySummary(a, maxChars);
+  if (a.includes(b)) return compactOcChatMemorySummary(a, maxChars);
+  if (b.includes(a)) return compactOcChatMemorySummary(b, maxChars);
+  return compactOcChatMemorySummary(`${a} / ${b}`, maxChars);
 }
 
 export function ocChatMemoryPromptLines(summary: string | undefined): string[] {
-  const s = String(summary || '').trim();
+  const s = compactOcChatMemorySummary(String(summary || '').trim());
   if (!s) return [];
   return [
     '이전 대화 요약 (장기 기억 — 최근 말풍선 창 밖 내용):',
@@ -153,5 +181,5 @@ export function parseOcChatMemorySummaryOutput(raw: string): string {
     t = t.replace(/^```[a-zA-Z]*\n?/, '').replace(/```$/, '').trim();
   }
   t = t.replace(/^["「]|["」]$/g, '').trim();
-  return capOcChatMemorySummary(t);
+  return compactOcChatMemorySummary(t);
 }

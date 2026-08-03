@@ -376,6 +376,8 @@ export function OcChatPanel({
   const flushIncludedIdsRef = useRef<Set<string>>(new Set());
   const memorySummaryRef = useRef<string | undefined>(undefined);
   const memorySummaryThroughAtRef = useRef<number | undefined>(undefined);
+  const userMemoryRef = useRef<string | undefined>(undefined);
+  const userMemoryThroughAtRef = useRef<number | undefined>(undefined);
   const memoryBootedRef = useRef(false);
   const openRef = useRef(open);
   const replyLockRef = useRef(false);
@@ -429,6 +431,8 @@ export function OcChatPanel({
     memoryBootedRef.current = false;
     memorySummaryRef.current = undefined;
     memorySummaryThroughAtRef.current = undefined;
+    userMemoryRef.current = undefined;
+    userMemoryThroughAtRef.current = undefined;
     setTierToastQueue([]);
     setAffToast(null);
     pendingDisplayAffectionRef.current = null;
@@ -438,6 +442,10 @@ export function OcChatPanel({
       if (cached?.memorySummary) memorySummaryRef.current = cached.memorySummary;
       if (typeof cached?.memorySummaryThroughAt === 'number') {
         memorySummaryThroughAtRef.current = cached.memorySummaryThroughAt;
+      }
+      if (cached?.userMemory) userMemoryRef.current = cached.userMemory;
+      if (typeof cached?.userMemoryThroughAt === 'number') {
+        userMemoryThroughAtRef.current = cached.userMemoryThroughAt;
       }
     } catch {
       /* ignore */
@@ -454,6 +462,10 @@ export function OcChatPanel({
       if (cached?.memorySummary) memorySummaryRef.current = cached.memorySummary;
       if (typeof cached?.memorySummaryThroughAt === 'number') {
         memorySummaryThroughAtRef.current = cached.memorySummaryThroughAt;
+      }
+      if (cached?.userMemory) userMemoryRef.current = cached.userMemory;
+      if (typeof cached?.userMemoryThroughAt === 'number') {
+        userMemoryThroughAtRef.current = cached.userMemoryThroughAt;
       }
     } catch {
       /* ignore */
@@ -700,16 +712,100 @@ export function OcChatPanel({
     void refreshInbox();
   }, [open, refreshInbox]);
 
-  /* 로컬 스레드 갱신 = 목록 미리보기 즉시 (알림과 같은 타이밍) */
+  /* 로컬 스레드 갱신 = 목록 미리보기 + (열려 있는 방) 말풍선 즉시 반영 */
   useEffect(() => {
     if (!open) return;
     const vid = visitorRef.current || getOrCreateChatVisitorId();
     visitorRef.current = vid;
-    return subscribeOcChatThreadCache((_characterId, visitorId) => {
+    return subscribeOcChatThreadCache((characterId, visitorId) => {
       if (visitorId !== vid) return;
       void refreshInbox({ remote: false });
+      /*
+       * AlertHost/백그라운드 배달이 캐시만 갱신하면 React messages는 옛 상태.
+       * 목록: 숨은 스레드도 맞춤 (읽음 X).
+       * 스레드: 보고 있는 방이면 말풍선 반영 (연출 중 replyLock이면 건드리지 않음).
+       */
+      if (String(characterId) !== String(activeCharIdRef.current)) return;
+      const onList = phoneViewRef.current === 'list';
+      const onThread = phoneViewRef.current === 'thread';
+      if (!onList && !onThread) return;
+      if (onThread && replyLockRef.current) return;
+      const cached = peekOcChatThreadCache(characterId, visitorId);
+      if (!cached?.messages?.length) return;
+      const ui = stateRef.current.messages;
+      const uiIds = new Set(ui.map((m) => m.id));
+      const hasMissing = cached.messages.some((m) => !uiIds.has(m.id));
+      const longer = cached.messages.length > ui.length;
+      const lastDiffers =
+        Boolean(cached.messages.length && ui.length) &&
+        cached.messages[cached.messages.length - 1]?.id !== ui[ui.length - 1]?.id;
+      if (!hasMissing && !longer && !lastDiffers) {
+        /* 메시지 동일해도 pending 해제만 캐시에 반영된 경우 meta 동기화 */
+        if (
+          onThread &&
+          stateRef.current.meta.pendingBehavior &&
+          !cached.pendingBehavior
+        ) {
+          const cleared = { ...stateRef.current.meta, pendingBehavior: undefined };
+          setMeta(cleared);
+          stateRef.current = { ...stateRef.current, meta: cleared };
+        }
+        return;
+      }
+      const affectionNow =
+        typeof cached.affection === 'number'
+          ? clampAffection(cached.affection)
+          : stateRef.current.affection;
+      const nextMeta: MetaState = {
+        ...stateRef.current.meta,
+        moodNote: cached.moodNote ?? stateRef.current.meta.moodNote,
+        turnsToday: cached.turnsToday ?? stateRef.current.meta.turnsToday,
+        ...closedFieldsFromUntil(cached.closedUntil ?? stateRef.current.meta.closedUntil),
+        pendingBehavior: cached.pendingBehavior,
+        pendingClearedAt: cached.pendingClearedAt ?? stateRef.current.meta.pendingClearedAt,
+        lastProactiveDate: cached.lastProactiveDate ?? stateRef.current.meta.lastProactiveDate,
+        freeLossToday: cached.freeLossToday ?? stateRef.current.meta.freeLossToday,
+        recentDeltaReasons: cached.recentDeltaReasons ?? stateRef.current.meta.recentDeltaReasons,
+        lastInteractionAt: cached.lastInteractionAt ?? stateRef.current.meta.lastInteractionAt,
+        neglectCheckedAt: cached.neglectCheckedAt ?? stateRef.current.meta.neglectCheckedAt,
+        presence:
+          cached.presence === 'online' || cached.presence === 'offline'
+            ? cached.presence
+            : stateRef.current.meta.presence,
+        presenceUpdatedAt:
+          typeof cached.presenceUpdatedAt === 'number'
+            ? cached.presenceUpdatedAt
+            : stateRef.current.meta.presenceUpdatedAt,
+        recentActions: cached.recentActions ?? stateRef.current.meta.recentActions,
+      };
+      const seenNow = onThread ? Date.now() : stateRef.current.lastSeenAt;
+      setMessages(cached.messages);
+      setAffection(affectionNow);
+      if (pendingDisplayAffectionRef.current == null) setDisplayAffection(affectionNow);
+      setMeta(nextMeta);
+      if (cached.story) setStory(cached.story);
+      if (onThread) setLastSeenAt(seenNow);
+      stateRef.current = {
+        ...stateRef.current,
+        messages: cached.messages,
+        affection: affectionNow,
+        story: cached.story ?? stateRef.current.story,
+        lastSeenAt: seenNow,
+        meta: nextMeta,
+      };
+      if (onThread) {
+        jumpBottomOnEnterRef.current = true;
+        requestAnimationFrame(() => {
+          scrollToEnd({ force: true, smooth: true });
+        });
+        writeOcChatThreadCache(characterId, visitorId, {
+          ...cached,
+          lastSeenAt: seenNow,
+          updatedAt: Math.max(cached.updatedAt || 0, seenNow),
+        });
+      }
     });
-  }, [open, refreshInbox]);
+  }, [open, refreshInbox, scrollToEnd]);
 
   useEffect(() => {
     if (!open) return;
@@ -831,6 +927,8 @@ export function OcChatPanel({
     setRelationAnim(null);
     memorySummaryRef.current = undefined;
     memorySummaryThroughAtRef.current = undefined;
+    userMemoryRef.current = undefined;
+    userMemoryThroughAtRef.current = undefined;
 
     const ep = resolveStartEpisode(character.chatbot);
     let nextMessages: OcChatMessage[] = [];
@@ -881,6 +979,8 @@ export function OcChatPanel({
       pendingBehavior: undefined,
       memorySummary: undefined,
       memorySummaryThroughAt: undefined,
+      userMemory: undefined,
+      userMemoryThroughAt: undefined,
       lastSeenAt: 0,
       turnsToday: 0,
       turnsDate: todayKeyLocal(),
@@ -1042,6 +1142,14 @@ export function OcChatPanel({
           activeCharIdRef.current === saveCharId
             ? memorySummaryThroughAtRef.current
             : peekOcChatThreadCache(saveCharId, vid)?.memorySummaryThroughAt,
+        userMemory:
+          activeCharIdRef.current === saveCharId
+            ? userMemoryRef.current
+            : peekOcChatThreadCache(saveCharId, vid)?.userMemory,
+        userMemoryThroughAt:
+          activeCharIdRef.current === saveCharId
+            ? userMemoryThroughAtRef.current
+            : peekOcChatThreadCache(saveCharId, vid)?.userMemoryThroughAt,
       };
       /* 초기화·OC 전환 이후의 옛 persist는 저장하지 않음 — allowInactive+characterId는 예외 */
       if (resetEpochRef.current !== epoch) return;
@@ -1931,34 +2039,32 @@ export function OcChatPanel({
         setWaitingRead(false);
         /* 연출 종료 — 스레드를 안 보고 있으면 pending 타이머에 맡김 */
         setOcChatPendingUiOwned(playCharId, vid, false);
-        const cachedPending = peekOcChatThreadCache(playCharId, vid)?.pendingBehavior;
-        const stillPending =
-          cachedPending || stateRef.current.meta.pendingBehavior;
-        if (stillPending?.applyAt && !stillOnChar(playCharId)) {
+        /*
+         * 같은 방을 보고 있으면 stateRef.meta 가 진실 (성공 시 pending 이미 클리어).
+         * 캐시만 보면 persist 직전 stale pending으로 답을 한 번 더 붙일 수 있음.
+         * 다른 OC로 떠난 뒤에만 캐시 fallback.
+         */
+        const stillPending = stillOnChar(playCharId)
+          ? stateRef.current.meta.pendingBehavior
+          : peekOcChatThreadCache(playCharId, vid)?.pendingBehavior ||
+            stateRef.current.meta.pendingBehavior;
+        if (stillPending?.applyAt) {
           scheduleOcChatPendingDelivery(
             playCharId,
             vid,
             stillPending.applyAt,
-            character,
+            stillOnChar(playCharId) ? characterRef.current : character,
             stillPending.id,
           );
           if (stillPending.applyAt <= Date.now()) {
             void tryDeliverPendingChat({
               characterId: playCharId,
               visitorId: vid,
-              character,
+              character: stillOnChar(playCharId) ? characterRef.current : character,
               expectPendingId: stillPending.id,
               force: true,
             }).catch(() => {});
           }
-        } else if (!isViewingThread() && stillPending?.applyAt) {
-          scheduleOcChatPendingDelivery(
-            playCharId,
-            vid,
-            stillPending.applyAt,
-            characterRef.current,
-            stillPending.id,
-          );
         }
         /* 목록에 있으면 미읽음 뱃지 즉시 반영 (로컬만 — remote 레이스 방지) */
         if (openRef.current && phoneViewRef.current === 'list') {
@@ -2026,6 +2132,8 @@ export function OcChatPanel({
           recentActions: sealedMeta.recentActions,
           memorySummary: memorySummaryRef.current,
           memorySummaryThroughAt: memorySummaryThroughAtRef.current,
+          userMemory: userMemoryRef.current,
+          userMemoryThroughAt: userMemoryThroughAtRef.current,
         };
         /* 캐시에 이미 있는 pending을 봉인이 지우지 않게 merge */
         const prevCached = peekOcChatThreadCache(prevId, vid);
@@ -2077,6 +2185,8 @@ export function OcChatPanel({
       }
       memorySummaryRef.current = undefined;
       memorySummaryThroughAtRef.current = undefined;
+      userMemoryRef.current = undefined;
+      userMemoryThroughAtRef.current = undefined;
       revealedRef.current = new Set();
     }
 
@@ -2085,6 +2195,10 @@ export function OcChatPanel({
     if (cached?.memorySummary) memorySummaryRef.current = cached.memorySummary;
     if (typeof cached?.memorySummaryThroughAt === 'number') {
       memorySummaryThroughAtRef.current = cached.memorySummaryThroughAt;
+    }
+    if (cached?.userMemory) userMemoryRef.current = cached.userMemory;
+    if (typeof cached?.userMemoryThroughAt === 'number') {
+      userMemoryThroughAtRef.current = cached.userMemoryThroughAt;
     }
 
     const ensureStory = (
@@ -2400,6 +2514,10 @@ export function OcChatPanel({
         if (typeof thread.memorySummaryThroughAt === 'number') {
           memorySummaryThroughAtRef.current = thread.memorySummaryThroughAt;
         }
+        if (thread.userMemory) userMemoryRef.current = thread.userMemory;
+        if (typeof thread.userMemoryThroughAt === 'number') {
+          userMemoryThroughAtRef.current = thread.userMemoryThroughAt;
+        }
 
         try {
           if (!stillOnChar(loadCharId)) return;
@@ -2430,6 +2548,8 @@ export function OcChatPanel({
             recentActions: nextMeta.recentActions,
             memorySummary: memorySummaryRef.current,
             memorySummaryThroughAt: memorySummaryThroughAtRef.current,
+            userMemory: userMemoryRef.current,
+            userMemoryThroughAt: userMemoryThroughAtRef.current,
           });
         } catch (saveErr) {
           /* 로드 성공 후 lastSeen 동기화 실패는 대화 차단할 일 아님 — 재시도는 save 쪽이 함 */
@@ -2472,6 +2592,127 @@ export function OcChatPanel({
       window.clearTimeout(storyTimer.current);
     };
   }, [charId, open, stillOnChar]);
+
+  /*
+   * 목록→스레드: charId가 같아도 로드 effect가 다시 안 돌아
+   * (알림으로 캐시에만 쌓인 메시지)가 화면에 안 나오는 구멍.
+   * 채팅창을 닫았다 열면 open dep로 로드가 다시 돌아서 보이던 증상.
+   */
+  useEffect(() => {
+    if (!open || phoneView !== 'thread') return;
+    const loadCharId = charId;
+    const vid = visitorRef.current || getOrCreateChatVisitorId();
+    visitorRef.current = vid;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await tryDeliverPendingChat({
+          characterId: loadCharId,
+          visitorId: vid,
+          character: characterRef.current,
+          force: true,
+        });
+      } catch {
+        /* 배달 실패해도 캐시 동기화는 진행 */
+      }
+      if (
+        cancelled ||
+        activeCharIdRef.current !== loadCharId ||
+        phoneViewRef.current !== 'thread' ||
+        !openRef.current
+      ) {
+        return;
+      }
+
+      const cached = peekOcChatThreadCache(loadCharId, vid);
+      if (!cached?.messages?.length) return;
+
+      const ui = stateRef.current.messages;
+      const uiIds = new Set(ui.map((m) => m.id));
+      const hasMissing = cached.messages.some((m) => !uiIds.has(m.id));
+      const longer = cached.messages.length > ui.length;
+      const lastDiffers =
+        Boolean(cached.messages.length && ui.length) &&
+        cached.messages[cached.messages.length - 1]?.id !== ui[ui.length - 1]?.id;
+
+      const seenNow = Date.now();
+      if (!hasMissing && !longer && !lastDiffers) {
+        /* 메시지는 최신 — 읽음만 반영 */
+        setLastSeenAt(seenNow);
+        stateRef.current = { ...stateRef.current, lastSeenAt: seenNow };
+        writeOcChatThreadCache(loadCharId, vid, {
+          ...cached,
+          lastSeenAt: seenNow,
+          updatedAt: Math.max(cached.updatedAt || 0, seenNow),
+        });
+        void refreshInbox({ remote: false });
+        return;
+      }
+
+      const nextMessages = cached.messages;
+      const affectionNow =
+        typeof cached.affection === 'number'
+          ? clampAffection(cached.affection)
+          : stateRef.current.affection;
+      const nextMeta: MetaState = {
+        ...stateRef.current.meta,
+        moodNote: cached.moodNote ?? stateRef.current.meta.moodNote,
+        turnsToday: cached.turnsToday ?? stateRef.current.meta.turnsToday,
+        ...closedFieldsFromUntil(cached.closedUntil ?? stateRef.current.meta.closedUntil),
+        pendingBehavior: cached.pendingBehavior,
+        pendingClearedAt: cached.pendingClearedAt ?? stateRef.current.meta.pendingClearedAt,
+        lastProactiveDate: cached.lastProactiveDate ?? stateRef.current.meta.lastProactiveDate,
+        freeLossToday: cached.freeLossToday ?? stateRef.current.meta.freeLossToday,
+        recentDeltaReasons: cached.recentDeltaReasons ?? stateRef.current.meta.recentDeltaReasons,
+        lastInteractionAt: cached.lastInteractionAt ?? stateRef.current.meta.lastInteractionAt,
+        neglectCheckedAt: cached.neglectCheckedAt ?? stateRef.current.meta.neglectCheckedAt,
+        presence:
+          cached.presence === 'online' || cached.presence === 'offline'
+            ? cached.presence
+            : stateRef.current.meta.presence,
+        presenceUpdatedAt:
+          typeof cached.presenceUpdatedAt === 'number'
+            ? cached.presenceUpdatedAt
+            : stateRef.current.meta.presenceUpdatedAt,
+        recentActions: cached.recentActions ?? stateRef.current.meta.recentActions,
+      };
+      setMessages(nextMessages);
+      setAffection(affectionNow);
+      if (pendingDisplayAffectionRef.current == null) setDisplayAffection(affectionNow);
+      setMeta(nextMeta);
+      if (cached.story) setStory(cached.story);
+      setLastSeenAt(seenNow);
+      stateRef.current = {
+        ...stateRef.current,
+        messages: nextMessages,
+        affection: affectionNow,
+        story: cached.story ?? stateRef.current.story,
+        lastSeenAt: seenNow,
+        meta: nextMeta,
+      };
+      writeOcChatThreadCache(loadCharId, vid, {
+        ...cached,
+        messages: nextMessages,
+        lastSeenAt: seenNow,
+        updatedAt: Date.now(),
+      });
+      jumpBottomOnEnterRef.current = true;
+      requestAnimationFrame(() => {
+        scrollToEnd({ force: true, smooth: false });
+      });
+      void refreshInbox({ remote: false });
+      console.info('[oc-chat-ui] thread resync after list', {
+        characterId: loadCharId,
+        messageCount: nextMessages.length,
+        hadMissing: hasMissing,
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, phoneView, charId, refreshInbox, scrollToEnd]);
 
   /* end_for_today 쿨다운 만료 시 구분선 해제 */
   useEffect(() => {
@@ -3043,6 +3284,8 @@ export function OcChatPanel({
             recentActions: metaSnap.recentActions,
             memorySummary: memorySummaryRef.current,
             memorySummaryThroughAt: memorySummaryThroughAtRef.current,
+            userMemory: userMemoryRef.current,
+            userMemoryThroughAt: userMemoryThroughAtRef.current,
             signal: ac.signal,
           });
         } catch (err) {
@@ -3093,6 +3336,8 @@ export function OcChatPanel({
             deltaReason: result.deltaReason,
             memorySummary: result.memorySummary,
             memorySummaryThroughAt: result.memorySummaryThroughAt,
+            userMemory: result.userMemory,
+            userMemoryThroughAt: result.userMemoryThroughAt,
           });
           return;
         }
@@ -3184,6 +3429,12 @@ export function OcChatPanel({
         }
         if (typeof result.memorySummaryThroughAt === 'number') {
           memorySummaryThroughAtRef.current = result.memorySummaryThroughAt;
+        }
+        if (typeof result.userMemory === 'string') {
+          userMemoryRef.current = result.userMemory.trim() || undefined;
+        }
+        if (typeof result.userMemoryThroughAt === 'number') {
+          userMemoryThroughAtRef.current = result.userMemoryThroughAt;
         }
 
         const prevAffection = stateRef.current.affection;

@@ -18,6 +18,7 @@ import {
   type OcChatRecentAction,
 } from '@/lib/oc/ocChatPresence';
 import { ocChatMemoryPromptLines } from '@/lib/oc/ocChatMemory';
+import { ocChatUserMemoryPromptLines } from '@/lib/oc/ocChatUserMemory';
 import { stickerCatalogPromptLines } from '@/lib/oc/ocChatStickers';
 import type {
   OcCharacter,
@@ -101,6 +102,8 @@ export type OcChatPromptOpts = {
   openThreads?: Array<{ id?: string; summary: string }>;
   /** 최근 창 밖 장기 기억 요약 */
   memorySummary?: string;
+  /** 유저가 밝힌 지속 사실 (이름·취향 등) */
+  userMemory?: string;
 };
 function typingStyleLines(style: OcChatTypingStyle | undefined): string[] {
   const baseline = style?.baseline || 'steady';
@@ -393,6 +396,8 @@ export function buildOcChatSystemPromptParts(
     '',
     ...ocChatMemoryPromptLines(opts.memorySummary),
     '',
+    ...ocChatUserMemoryPromptLines(opts.userMemory),
+    '',
     ...liveContextBehaviorRules(live),
     '',
     ...(opts.worldLines && opts.worldLines.length ? opts.worldLines : []),
@@ -463,6 +468,10 @@ export function buildOcChatProactivePromptParts(
       : '- 미해결 용건(openThreads): 없음',
     `- 마지막 대화 후 대략 ${hours}시간`,
     mood ? `- 최근 기분: ${mood}` : '',
+    '',
+    ...ocChatMemoryPromptLines(opts.memorySummary),
+    '',
+    ...ocChatUserMemoryPromptLines(opts.userMemory),
     '',
     ...liveContextBehaviorRules(live),
     '',
