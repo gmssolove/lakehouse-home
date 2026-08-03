@@ -149,7 +149,7 @@ export function OcPageClient() {
   /* OC 상세(인트로·스플래시 포함) 체류 중 유저 presence heartbeat */
   useOcUserPresenceTracker({
     active: Boolean(detail || intro || entrySplash),
-    viewingCharacterId: activeCharacter?.id ?? null,
+    viewingCharacterId: activeCharacter?.id != null ? String(activeCharacter.id) : null,
   });
 
   const clearDetailView = useCallback(() => {
