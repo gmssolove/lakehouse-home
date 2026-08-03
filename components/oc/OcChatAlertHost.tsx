@@ -8,6 +8,7 @@ import {
 import {
   completeOcChatReplyInBackground,
   getOrCreateChatVisitorId,
+  isOcChatReplyBusy,
   loadOcChatThread,
   ocChatNeedsReplyToTrailingUsers,
   peekOcChatThreadCache,
@@ -258,6 +259,7 @@ export function OcChatAlertHost({
         if (!cancelled && chatOpenRef.current) {
           for (const c of chatbotChars) {
             const id = String(c.id);
+            if (isOcChatReplyBusy(id, vid)) continue;
             const t = peekOcChatThreadCache(id, vid);
             if (!t) continue;
             if (!ocChatNeedsReplyToTrailingUsers(t.messages, t.pendingBehavior)) continue;

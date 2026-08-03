@@ -75,6 +75,7 @@ import {
   saveOcChatThread,
   scheduleOcChatPendingDelivery,
   setOcChatPendingUiOwned,
+  setOcChatReplyGenerationInflight,
   sleepMs,
   subscribeOcChatThreadCache,
   takePendingAffectionToast,
@@ -2915,6 +2916,9 @@ export function OcChatPanel({
     flushLockRef.current = true;
     pendingFlushRef.current = false;
     const flushStartedAt = Date.now();
+    const flushVid = visitorRef.current || getOrCreateChatVisitorId();
+    visitorRef.current = flushVid;
+    setOcChatReplyGenerationInflight(flushCharId, flushVid, true);
 
     const lastUserText = () => {
       const msgs = stateRef.current.messages;
@@ -3249,6 +3253,11 @@ export function OcChatPanel({
       }
     } finally {
       flushLockRef.current = false;
+      setOcChatReplyGenerationInflight(
+        flushCharId,
+        visitorRef.current || getOrCreateChatVisitorId(),
+        false,
+      );
       if (flushAbortRef.current) {
         flushAbortRef.current = null;
       }
@@ -3259,24 +3268,16 @@ export function OcChatPanel({
       const lateUsers = trail.filter(
         (m) => m.role === 'user' && !includedAtStart.has(m.id),
       );
-      const trailingNeedsReply = ocChatNeedsReplyToTrailingUsers(
-        trail,
-        stateRef.current.meta.pendingBehavior,
-      );
       /*
-       * 이탈만으로 pendingFlush가 켜진 뒤, 이미 assistant 답이 붙었는데
-       * 또 flush하면 비슷한 답 2~5연타가 쌓임. 실제 새 유저 말이 있을 때만 재요청.
+       * 이탈·pendingFlush·trailingNeedsReply만으로 재flush하면 같은 유저 말에 답 2~5연타.
+       * flush 이후 새로 온 유저 말이 있을 때만 다시 묶는다.
        */
-      const needsAgain =
-        lateUsers.length > 0 ||
-        trailingNeedsReply ||
-        (pendingFlushRef.current && countTrailingUserBurst(trail) > 0);
+      const needsAgain = lateUsers.length > 0;
       pendingFlushRef.current = false;
       if (needsAgain) {
         console.info('[oc-chat-ui] schedule trailing flush', {
           lateUserCount: lateUsers.length,
           trailingBurst: countTrailingUserBurst(trail),
-          trailingNeedsReply,
           userBurstAtStart,
           waitMs: Math.max(
             0,

@@ -100,16 +100,24 @@ export function looksLikeShortBackchannel(text: string): boolean {
   if (!compact) return true;
   if (compact.length > 18) return false;
   if (
-    /^(아+|어+|음+|응+|ㅇㅇ|ㅇㅋ|그래요?|그치|그렇구나|그렇네|그런가|그랬구나|그랬네|맞아|맞아요|알겠어|알았어|아하|헐|하+|ㅋ+|ㅎ+|오+|와+|네+|예+|흠+|흐음|오키|okay|ok|그쳐|응응|아아|음음|그래그래)/.test(
+    /^(아+|어+|음+|응+|ㅇㅇ|ㅇㅋ|그래요?|그치|그렇구나|그렇네|그런가|그랬구나|그랬네|맞아|맞아요|알겠어|알았어|알겠다고|알겠|아하|헐|하+|ㅋ+|ㅎ+|오+|와+|네+|예+|흠+|흐음|오키|okay|ok|그쳐|응응|아아|음음|그래그래)/.test(
       compact,
     )
   ) {
     return true;
   }
   if (
-    /(그렇구나|그렇네|그랬구나|편하긴|좋지|좋아|괜찮아|알겠어|맞아|그렇긴해|그렇지|그거야|그런가)/.test(
+    /(그렇구나|그렇네|그랬구나|편하긴|좋지|좋아|괜찮아|알겠어|알겠다고|알겠|알았어|맞아|그렇긴해|그렇지|그거야|그런가)/.test(
       compact,
     )
+  ) {
+    return true;
+  }
+  /* "아유 알겠어" "응 알았어~" 처럼 맞장구 위주 짧은 문장 */
+  if (
+    compact.length <= 16 &&
+    /(알겠|알았)/.test(compact) &&
+    !/(아이스크림|빵|매점|학교|맛|어디|뭐해|뭐하)/.test(compact)
   ) {
     return true;
   }
@@ -154,9 +162,9 @@ export function areNearDuplicateLines(a: string, b: string): boolean {
     /일어|깼|기상|깨어/,
     /멍|몽롱|졸|피곤|잠/,
     /뭐해|뭐하|무슨일|왜/,
-    /밥|먹|배고/,
+    /밥|먹|배고|아이스크림|빵/,
     /학교|수업|일가|출근/,
-    /미안|죄송|괜찮아|고마|감사/,
+    /미안|죄송|괜찮아|고마|감사|알겠|알았/,
   ];
   let sharedAxes = 0;
   for (const re of axes) {
@@ -212,8 +220,12 @@ export function collapseSameIntentShortBubbles(messages: string[]): string[] {
 
   const fillers = lines.filter(looksLikeShortBackchannel);
   const content = lines.filter((m) => !looksLikeShortBackchannel(m));
-  if (fillers.length >= 2 && content.length >= 1) {
-    lines = content;
+  if (fillers.length >= 1 && content.length >= 1) {
+    /* 맞장구는 최대 1개만 남기고 본문·질문 우선 */
+    const bestFiller = fillers.reduce((a, b) =>
+      Array.from(b).length > Array.from(a).length ? b : a,
+    );
+    lines = content.length >= 2 ? content : [bestFiller, ...content];
   }
 
   const kept: string[] = [];

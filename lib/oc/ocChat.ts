@@ -368,11 +368,36 @@ export function subscribeOcChatThreadCache(
 const pendingDeliveryTimers = new Map<string, number>();
 /** 채팅창이 열려 playBehavior가 연출 중일 때 백그라운드 타이머 배달 금지 */
 const uiOwnedPendingKeys = new Set<string>();
+/** flush API·연출 진행 중 — stuck timer가 같은 유저 말에 또 post 하지 않게 */
+const replyGenerationInflight = new Set<string>();
+/** 백그라운드 postOcChat 진행 중 */
+const backgroundReplyInflight = new Map<string, Promise<void>>();
 /** 같은 스레드 pending 배달 동시 실행 합치기 */
 const pendingDeliveryInflight = new Map<string, Promise<number>>();
 
 function pendingDeliveryKey(characterId: string, visitorId: string): string {
   return `${characterId}::${visitorId}`;
+}
+
+export function setOcChatReplyGenerationInflight(
+  characterId: string,
+  visitorId: string,
+  on: boolean,
+): void {
+  const key = pendingDeliveryKey(characterId, visitorId);
+  if (on) replyGenerationInflight.add(key);
+  else replyGenerationInflight.delete(key);
+}
+
+/** UI 연출·API flush·백그라운드 post 중이면 true — 중복 응답 방지 */
+export function isOcChatReplyBusy(characterId: string, visitorId: string): boolean {
+  const key = pendingDeliveryKey(characterId, visitorId);
+  return (
+    uiOwnedPendingKeys.has(key) ||
+    replyGenerationInflight.has(key) ||
+    backgroundReplyInflight.has(key) ||
+    pendingDeliveryInflight.has(key)
+  );
 }
 
 export function cancelOcChatPendingDelivery(
@@ -2271,8 +2296,6 @@ export function behaviorToPending(
   };
 }
 
-const backgroundReplyInflight = new Map<string, Promise<void>>();
-
 /**
  * API 결과를 UI 연출 없이 pendingBehavior로 저장하고 타이머 배달.
  * OC 전환·목록 이탈로 playBehavior를 못 돌릴 때 사용.
@@ -2400,10 +2423,17 @@ export function completeOcChatReplyInBackground(params: {
   if (existing) return existing;
 
   const run = (async () => {
-    setOcChatPendingUiOwned(id, vid, false);
+    /* UI가 연출/flush 중이면 끼어들지 않음 — 중복 답장 원인 */
+    if (uiOwnedPendingKeys.has(key) || replyGenerationInflight.has(key)) {
+      return;
+    }
 
     /* playBehavior 핸드오프가 먼저 끝나게 잠깐 양보 */
     await sleepMs(450);
+
+    if (uiOwnedPendingKeys.has(key) || replyGenerationInflight.has(key)) {
+      return;
+    }
 
     let thread = peekOcChatThreadCache(id, vid) || (await loadOcChatThread(id, vid));
 
@@ -2550,6 +2580,7 @@ export async function resumeOcChatBackgroundWork(params: {
       const thread = peekOcChatThreadCache(id, vid);
       if (
         thread &&
+        !isOcChatReplyBusy(id, vid) &&
         ocChatNeedsReplyToTrailingUsers(thread.messages, thread.pendingBehavior)
       ) {
         void completeOcChatReplyInBackground({
