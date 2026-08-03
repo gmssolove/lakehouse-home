@@ -316,6 +316,9 @@ export function OcChatPanel({
 
   const [messages, setMessages] = useState<OcChatMessage[]>(() => boot.messages);
   const [affection, setAffection] = useState(() => boot.affection);
+  /** 하트 관계 패널 수치 — ±알약 토스트가 뜬 뒤에만 갱신 (선반영 금지) */
+  const [displayAffection, setDisplayAffection] = useState(() => boot.affection);
+  const pendingDisplayAffectionRef = useRef<number | null>(null);
   const [story, setStory] = useState<OcChatStoryState | undefined>(() => boot.story);
   const [freeGainToday, setFreeGainToday] = useState(() => boot.freeGainToday);
   const [freeGainDate, setFreeGainDate] = useState(() => boot.freeGainDate);
@@ -427,6 +430,7 @@ export function OcChatPanel({
     memorySummaryThroughAtRef.current = undefined;
     setTierToastQueue([]);
     setAffToast(null);
+    pendingDisplayAffectionRef.current = null;
     try {
       const vid = getOrCreateChatVisitorId();
       const cached = peekOcChatThreadCache(charId, vid);
@@ -455,10 +459,25 @@ export function OcChatPanel({
     }
   }
 
+  const syncDisplayAffection = useCallback((next: number) => {
+    pendingDisplayAffectionRef.current = null;
+    setDisplayAffection(clampAffection(next));
+  }, []);
+
+  const deferDisplayAffectionUntilToast = useCallback((next: number) => {
+    pendingDisplayAffectionRef.current = clampAffection(next);
+  }, []);
+
   const showAffectionToastNow = useCallback((delta: number) => {
     if (!delta) return;
     window.clearTimeout(affToastTimer.current);
     setAffToast({ delta, id: Date.now(), leaving: false });
+    /* 알약 state 반영 후 다음 프레임에 하트 수치 — 토스트보다 먼저 올라가지 않게 */
+    const pending = pendingDisplayAffectionRef.current;
+    if (pending != null) {
+      pendingDisplayAffectionRef.current = null;
+      requestAnimationFrame(() => setDisplayAffection(pending));
+    }
     /* 유지 ~4.5s 후 아웃(인 280ms와 동일) → 언마운트 */
     const holdMs = 4500;
     const leaveMs = 280;
@@ -474,6 +493,7 @@ export function OcChatPanel({
       /*
        * 스레드를 보고 있을 때만 즉시 표시.
        * 목록·채팅 닫힘·다른 화면이면 쌓아 두었다가 다시 스레드 진입 시 표시.
+       * (대기 중엔 displayAffection도 올리지 않음 — showAffectionToastNow에서 커밋)
        */
       if (!isViewingThread()) {
         const vid = visitorRef.current || getOrCreateChatVisitorId();
@@ -543,7 +563,7 @@ export function OcChatPanel({
     threadReady &&
     story != null &&
     needsStoryMode(character, story.completedEpisodeIds);
-  const affinityTier = resolveAffinityTier(affection, character.chatbot);
+  const affinityTier = resolveAffinityTier(displayAffection, character.chatbot);
   const activeEpisode: OcChatEpisode | null =
     inStory && startEpisode ? startEpisode : null;
   const activeScene =
@@ -800,6 +820,7 @@ export function OcChatPanel({
     };
     revealedRef.current = new Set();
     setAffection(0);
+    syncDisplayAffection(0);
     setStory(undefined);
     setFreeGainToday(0);
     setFreeGainDate(todayKeyLocal());
@@ -892,6 +913,7 @@ export function OcChatPanel({
     confirm,
     focusComposer,
     resetting,
+    syncDisplayAffection,
     waitingRead,
   ]);
 
@@ -2079,6 +2101,7 @@ export function OcChatPanel({
       setMessages([]);
       setStory(undefined);
       setAffection(0);
+      syncDisplayAffection(0);
       setFreeGainToday(0);
       setFreeGainDate(todayKeyLocal());
       setLastSeenAt(0);
@@ -2118,6 +2141,7 @@ export function OcChatPanel({
     };
     setMessages(cached.messages);
     setAffection(cached.affection || 0);
+    syncDisplayAffection(cached.affection || 0);
     setStory(recoveredStory);
     setFreeGainToday(cached.freeGainToday || 0);
     setFreeGainDate(cached.freeGainDate || todayKeyLocal());
@@ -2137,7 +2161,7 @@ export function OcChatPanel({
     if (recoveredStory !== cached.story) {
       writeOcChatThreadCache(nextId, vid, { ...cached, story: recoveredStory });
     }
-  }, [open, charId, characters]);
+  }, [open, charId, characters, syncDisplayAffection]);
 
   useEffect(() => {
     if (!open) return;
@@ -2197,7 +2221,9 @@ export function OcChatPanel({
         if (neglect.decay > 0) {
           affectionNow = neglect.affection;
           nextMeta = { ...nextMeta, neglectCheckedAt: neglect.neglectCheckedAt };
-          /* 로드 직후 threadReady 전 — 대기열에 넣고 스레드 준비 후 토스트 */
+          /* 로드 직후 threadReady 전 — 대기열에 넣고 스레드 준비 후 토스트.
+           * 하트 수치는 알약 전까지 감소 전 값 유지 */
+          pendingDisplayAffectionRef.current = affectionNow;
           queuePendingAffectionToast(loadCharId, visitorRef.current, -neglect.decay);
           const tierPayload = buildAffinityTierToastPayload({
             name: characterNow.name || '캐릭터',
@@ -2209,6 +2235,8 @@ export function OcChatPanel({
           if (tierPayload) {
             queuePendingAffinityTierToast(loadCharId, visitorRef.current, tierPayload);
           }
+        } else {
+          pendingDisplayAffectionRef.current = null;
         }
         /* setMeta/setStory는 아래에서 한 번에 — 중간 깜빡임 방지 */
 
@@ -2296,6 +2324,12 @@ export function OcChatPanel({
         if (viewingThread) setLastSeenAt(seenNow);
         else if (typeof thread.lastSeenAt === 'number') setLastSeenAt(thread.lastSeenAt);
         setAffection(affectionNow);
+        /* 방치 감소 알약이 대기 중이면 표시 수치는 감소 전 유지 */
+        if (pendingDisplayAffectionRef.current != null) {
+          setDisplayAffection(clampAffection(thread.affection));
+        } else {
+          setDisplayAffection(affectionNow);
+        }
         setMeta(nextMeta);
         setStory(nextStory);
         setMessages(nextMessages);
@@ -2771,7 +2805,10 @@ export function OcChatPanel({
             freeLossToday: lossBase + -counted,
           }));
         }
+        deferDisplayAffectionUntilToast(nextAffection);
         flashAffectionToast(counted);
+      } else {
+        syncDisplayAffection(nextAffection);
       }
       flashAffinityTierToast(prevAffection, nextAffection);
 
@@ -2814,7 +2851,7 @@ export function OcChatPanel({
         meta: touchMeta,
       });
     },
-    [activeEpisode, busy, flashAffectionToast, flashAffinityTierToast, persistSnapshot, story, waitingRead],
+    [activeEpisode, busy, deferDisplayAffectionUntilToast, flashAffectionToast, flashAffinityTierToast, persistSnapshot, story, syncDisplayAffection, waitingRead],
   );
 
   const flushDebouncedChat = useCallback(async () => {
@@ -3114,7 +3151,12 @@ export function OcChatPanel({
         setAffection(result.affection);
         setFreeGainToday(result.freeGainToday);
         setFreeGainDate(result.freeGainDate);
-        if (result.affinityDelta !== 0) flashAffectionToast(result.affinityDelta);
+        if (result.affinityDelta !== 0) {
+          deferDisplayAffectionUntilToast(result.affection);
+          flashAffectionToast(result.affinityDelta);
+        } else {
+          syncDisplayAffection(result.affection);
+        }
         flashAffinityTierToast(prevAffection, result.affection);
         {
           const sealed = markUserMessagesReadThroughLastAssistant(
@@ -3212,6 +3254,7 @@ export function OcChatPanel({
   }, [
     charId,
     characters,
+    deferDisplayAffectionUntilToast,
     flashAffectionToast,
     flashAffinityTierToast,
     focusComposer,
@@ -3219,6 +3262,7 @@ export function OcChatPanel({
     persistSnapshot,
     playBehavior,
     stillOnChar,
+    syncDisplayAffection,
   ]);
 
   const send = useCallback(async () => {
@@ -3904,7 +3948,7 @@ export function OcChatPanel({
             </div>
             <div className="oc-chat-relation__headline">
               <span className="oc-chat-relation__label">{affinityTier.label}</span>
-              <span className="oc-chat-relation__score">· {affection}</span>
+              <span className="oc-chat-relation__score">· {displayAffection}</span>
             </div>
             {affinityTier.relationNote ? (
               <p className="oc-chat-relation__note">{affinityTier.relationNote}</p>
