@@ -1,6 +1,6 @@
 /**
  * OC 챗 LLM 호출 — Gemini 기본, Anthropic 선택.
- * 채팅(chat): GEMINI_MODEL(Pro) 고정 — Flash/Lite로 내리지 않음. 실패 시 에러.
+ * 채팅(chat): GEMINI_MODEL 단일 고정(기본 3.6 Flash) — 체인 폴백 없음. 실패 시 에러.
  * aux(verify/memory): lite 체인 허용.
  */
 
@@ -214,13 +214,13 @@ export function resolveOcChatProvider(): OcChatLlmProvider {
 }
 
 /**
- * 채팅용 모델 — Pro(GEMINI_MODEL)만. Flash/Lite 폴백 없음.
- * (품질 유지를 위해 실패해도 다른 모델로 내리지 않음)
+ * 채팅용 모델 — GEMINI_MODEL 하나만 (기본 gemini-3.6-flash).
+ * 실패해도 다른 모델로 내리지 않음.
  */
 export function geminiModelChain(explicit?: string): string[] {
   if (explicit?.trim()) return [explicit.trim()];
-  const primary = (process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview').trim();
-  return primary ? [primary] : ['gemini-3.1-pro-preview'];
+  const primary = (process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
+  return primary ? [primary] : ['gemini-3.6-flash'];
 }
 
 /**
@@ -375,10 +375,19 @@ async function callGeminiOnce(
   }
 
   if (!res.ok) {
-    const detail =
+    let detail =
       data.error?.message?.trim() ||
       rawText.trim().slice(0, 500) ||
       `HTTP ${res.status}`;
+    if (
+      res.status === 429 &&
+      /generate_content_free_tier|free_tier_requests[\s\S]*limit:\s*0/i.test(
+        `${detail}\n${rawText}`,
+      )
+    ) {
+      detail =
+        'Gemini 무료 할당량 초과(limit: 0). Google AI Studio 결제/쿼타를 확인해 주세요.';
+    }
     throw new OcChatUpstreamError(`Gemini ${res.status}: ${detail}`, res.status, rawText, 'gemini');
   }
 
@@ -425,7 +434,7 @@ export async function callGemini(
   for (let i = 0; i < models.length; i++) {
     const model = models[i]!;
     /*
-     * chat은 Pro 고정 — 쿨다운이어도 Flash로 건너뛰지 않고 그대로 시도(실패 시 에러).
+     * chat은 단일 모델 고정 — 쿨다운이어도 체인으로 건너뛰지 않고 그대로 시도(실패 시 에러).
      * aux만 쿨다운 모델을 스킵해 다음(lite)으로.
      */
     if (priority !== 'chat' && isGeminiModelCooling(model)) {
@@ -439,7 +448,7 @@ export async function callGemini(
       continue;
     }
 
-    /* chat은 같은 Pro만 재시도. 다른 모델로 내리지 않음 */
+    /* chat은 같은 모델만 재시도. 다른 모델로 내리지 않음 */
     const maxAttempts =
       1 + (priority === 'chat' ? CHAT_OVERLOAD_SAME_MODEL_RETRIES : SAME_MODEL_RETRIES);
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -481,7 +490,7 @@ export async function callGemini(
         const retriesLeft = attempt < maxAttempts && retryable;
         /*
          * free-tier RPD(일일)는 수초 대기로 안 풀리는 경우가 많음 → 같은 모델 1회만 재시도.
-         * 그 외는 같은 모델만 재시도. chat은 절대 Flash/Lite로 내리지 않음.
+         * 그 외는 같은 모델만 재시도. chat은 체인 다음 모델로 내리지 않음.
          */
         const allowRetry =
           retriesLeft &&
@@ -534,7 +543,7 @@ export async function callGemini(
           );
         }
 
-        /* chat: 체인 다음(Flash 등)으로 절대 안 감. aux만 다음 모델 허용 */
+        /* chat: 체인 다음으로 절대 안 감. aux만 다음 모델 허용 */
         const tryNext =
           priority !== 'chat' && i < models.length - 1 && retryable;
         console.warn('[oc-chat] gemini model failed', {

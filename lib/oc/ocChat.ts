@@ -2086,6 +2086,13 @@ function ocChatHttpErrorMessage(status: number, rawBody: string): string {
     if (/API_KEY|키가 없/i.test(apiError)) {
       return '채팅 API 키가 설정되지 않았습니다. 배포 환경 시크릿을 확인해 주세요.';
     }
+    if (
+      /generate_content_free_tier|free_tier_requests.*limit:\s*0|Quota exceeded.*gemini-3\.1-pro/i.test(
+        apiError,
+      )
+    ) {
+      return 'Gemini 무료 할당량이 없습니다(limit: 0). Google AI Studio에서 결제/쿼타를 확인해 주세요.';
+    }
     if (status === 503 || /UNAVAILABLE|overloaded|high demand/i.test(apiError)) {
       return 'AI_BUSY';
     }

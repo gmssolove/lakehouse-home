@@ -63,7 +63,8 @@ jobs:
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
           R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          # 채팅 단일 모델 — GitHub secret보다 이 값을 우선 (Pro 무료 limit:0 회피)
+          GEMINI_MODEL: gemini-3.6-flash
           GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL }}
           GEMINI_LITE_MODEL: ${{ secrets.GEMINI_LITE_MODEL }}
           GEMINI_VERIFY_MODEL: ${{ secrets.GEMINI_VERIFY_MODEL }}

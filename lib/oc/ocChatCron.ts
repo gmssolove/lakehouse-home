@@ -4,11 +4,19 @@ import {
   rollProactiveSend,
   todayKeyLocal,
 } from '@/lib/oc/ocChatAffinity';
-import { hoursSince, PROACTIVE_IDLE_MS } from '@/lib/oc/ocChatBehavior';
+import {
+  hoursSince,
+  parseOcChatBehavior,
+  PROACTIVE_IDLE_MS,
+  type OcChatBehavior,
+} from '@/lib/oc/ocChatBehavior';
 import {
   applyDuePendingBehavior,
+  behaviorToPending,
+  computePendingApplyAt,
   createChatMessage,
   lastMessageAt,
+  ocChatNeedsReplyToTrailingUsers,
   OC_CHAT_API_HISTORY,
   type OcChatThread,
 } from '@/lib/oc/ocChat';
@@ -65,11 +73,17 @@ export type OcChatProactiveKind = 'task' | 'emotion';
 
 const MAX_PENDING_PER_TICK = 40;
 const MAX_PROACTIVE_PER_TICK = 3;
+/** API 실패·탭 닫힘으로 유저 말만 남은 스레드 복구 (채팅창 안 열어도) */
+const MAX_TRAILING_REPLY_PER_TICK = 4;
+/** 라이브 flush와 경합 피하려고 최소 이 시간 지난 trailing만 */
+const TRAILING_REPLY_MIN_AGE_MS = 90_000;
 
 export type OcChatCronResult = {
   pendingScanned: number;
   pendingDelivered: number;
   pendingBubbles: number;
+  trailingScanned: number;
+  trailingRecovered: number;
   proactiveScanned: number;
   proactiveSent: number;
   proactiveSkippedRoll: number;
@@ -100,8 +114,115 @@ function originFromRequest(reqUrl: string): string {
   try {
     return new URL(reqUrl).origin;
   } catch {
-    return 'https://lakehouse.me.jp';
+    return 'https://lakehouse.me.kr';
   }
+}
+
+function trailingUserLastAt(thread: OcChatThread): number {
+  const msgs = thread.messages || [];
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (!m || (m.kind || 'chat') === 'narration') continue;
+    if (m.role !== 'user') break;
+    if (typeof m.at === 'number' && m.at > 0) return m.at;
+  }
+  return lastMessageAt(msgs) || 0;
+}
+
+async function callChatReplyApi(opts: {
+  origin: string;
+  characterId: string;
+  visitorId: string;
+  thread: OcChatThread;
+}): Promise<{
+  behavior: OcChatBehavior;
+  affection: number;
+  freeGainToday: number;
+  freeLossToday: number;
+  freeGainDate?: string;
+  deltaReason?: string;
+  memorySummary?: string;
+  memorySummaryThroughAt?: number;
+  userMemory?: string;
+  userMemoryThroughAt?: number;
+}> {
+  const lastAt = lastMessageAt(opts.thread.messages);
+  let userPresence: unknown = undefined;
+  try {
+    const { loadOcUserPresenceFromR2 } = await import('@/lib/oc/ocChatUserPresenceStore');
+    const { resolveOcUserPresence } = await import('@/lib/oc/ocChatUserPresence');
+    userPresence = resolveOcUserPresence(await loadOcUserPresenceFromR2(opts.visitorId));
+  } catch {
+    userPresence = undefined;
+  }
+  const res = await fetch(`${opts.origin}/api/oc-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      characterId: opts.characterId,
+      visitorId: opts.visitorId,
+      messages: opts.thread.messages.slice(-OC_CHAT_API_HISTORY).map((m) => ({
+        role: m.role,
+        content: m.content,
+        at: m.at,
+        kind: m.kind,
+        stickerId: m.stickerId,
+        stickerUrl: m.stickerUrl,
+      })),
+      affection: opts.thread.affection,
+      freeGainToday: opts.thread.freeGainToday || 0,
+      freeLossToday: opts.thread.freeLossToday || 0,
+      moodNote: opts.thread.moodNote,
+      turnsToday: opts.thread.turnsToday || 0,
+      hoursSinceLast: hoursSince(lastAt),
+      closedForToday: Boolean(opts.thread.closedForToday),
+      recentDeltaReasons: opts.thread.recentDeltaReasons,
+      presence: opts.thread.presence,
+      recentActions: opts.thread.recentActions,
+      memorySummary: opts.thread.memorySummary,
+      memorySummaryThroughAt: opts.thread.memorySummaryThroughAt,
+      userMemory: opts.thread.userMemory,
+      userMemoryThroughAt: opts.thread.userMemoryThroughAt,
+      userPresence,
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`chat api ${res.status}: ${text.slice(0, 220)}`);
+  }
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error('chat api invalid json');
+  }
+  const behavior = parseOcChatBehavior(JSON.stringify(data.behavior ?? data));
+  return {
+    behavior,
+    affection:
+      typeof data.affection === 'number' ? data.affection : opts.thread.affection,
+    freeGainToday:
+      typeof data.freeGainToday === 'number'
+        ? data.freeGainToday
+        : opts.thread.freeGainToday || 0,
+    freeLossToday:
+      typeof data.freeLossToday === 'number'
+        ? data.freeLossToday
+        : opts.thread.freeLossToday || 0,
+    freeGainDate:
+      typeof data.freeGainDate === 'string' ? data.freeGainDate : opts.thread.freeGainDate,
+    deltaReason:
+      typeof data.deltaReason === 'string' ? data.deltaReason : behavior.deltaReason,
+    memorySummary:
+      typeof data.memorySummary === 'string' ? data.memorySummary : undefined,
+    memorySummaryThroughAt:
+      typeof data.memorySummaryThroughAt === 'number'
+        ? data.memorySummaryThroughAt
+        : undefined,
+    userMemory: typeof data.userMemory === 'string' ? data.userMemory : undefined,
+    userMemoryThroughAt:
+      typeof data.userMemoryThroughAt === 'number' ? data.userMemoryThroughAt : undefined,
+  };
 }
 
 async function callProactiveApi(opts: {
@@ -169,7 +290,7 @@ async function callProactiveApi(opts: {
   };
 }
 
-/** Cron: deliver due pending replies and proactive pings while offline */
+/** Cron: deliver due pending replies, recover stuck trailing users, proactive pings */
 export async function runOcChatCronTick(opts: {
   requestUrl: string;
 }): Promise<OcChatCronResult> {
@@ -177,6 +298,8 @@ export async function runOcChatCronTick(opts: {
     pendingScanned: 0,
     pendingDelivered: 0,
     pendingBubbles: 0,
+    trailingScanned: 0,
+    trailingRecovered: 0,
     proactiveScanned: 0,
     proactiveSent: 0,
     proactiveSkippedRoll: 0,
@@ -217,6 +340,72 @@ export async function runOcChatCronTick(opts: {
     }
   }
 
+  // 1.5) 유저 말만 남고 pending 없음 → 채팅창 안 열어도 API 재요청
+  for (const ref of refs) {
+    if (result.trailingRecovered >= MAX_TRAILING_REPLY_PER_TICK) break;
+    const character = charById.get(ref.characterId);
+    if (!character?.chatbot?.enabled) continue;
+    const thread = ref.thread;
+    if (needsStoryMode(character, thread.story?.completedEpisodeIds)) continue;
+    if (thread.closedForToday) continue;
+    if (!ocChatNeedsReplyToTrailingUsers(thread.messages, thread.pendingBehavior)) {
+      continue;
+    }
+    const lastUserAt = trailingUserLastAt(thread);
+    if (!lastUserAt || now - lastUserAt < TRAILING_REPLY_MIN_AGE_MS) continue;
+
+    result.trailingScanned += 1;
+    try {
+      const reply = await callChatReplyApi({
+        origin,
+        characterId: ref.characterId,
+        visitorId: ref.visitorId,
+        thread,
+      });
+      if (
+        !ocChatNeedsReplyToTrailingUsers(ref.thread.messages, ref.thread.pendingBehavior)
+      ) {
+        continue;
+      }
+      const wasOffline = ref.thread.presence !== 'online';
+      const applyAt = computePendingApplyAt(reply.behavior, wasOffline);
+      const pending = behaviorToPending(reply.behavior, applyAt);
+      const reasons = [...(ref.thread.recentDeltaReasons || [])];
+      if (reply.deltaReason && (reply.behavior.affinityDelta || 0) !== 0) {
+        reasons.push(reply.deltaReason);
+      }
+      let next: OcChatThread = {
+        ...ref.thread,
+        updatedAt: Date.now(),
+        affection: reply.affection,
+        freeGainToday: reply.freeGainToday,
+        freeLossToday: reply.freeLossToday,
+        freeGainDate: reply.freeGainDate || ref.thread.freeGainDate || today,
+        pendingBehavior: pending,
+        moodNote: reply.behavior.moodNote || ref.thread.moodNote,
+        recentDeltaReasons: reasons.slice(-8),
+        lastInteractionAt: Date.now(),
+        memorySummary: reply.memorySummary ?? ref.thread.memorySummary,
+        memorySummaryThroughAt:
+          reply.memorySummaryThroughAt ?? ref.thread.memorySummaryThroughAt,
+        userMemory: reply.userMemory ?? ref.thread.userMemory,
+        userMemoryThroughAt:
+          reply.userMemoryThroughAt ?? ref.thread.userMemoryThroughAt,
+      };
+      if (applyAt <= Date.now()) {
+        const applied = applyDuePendingBehavior(next, { character, now: Date.now() });
+        if (applied) next = applied.thread;
+      }
+      await persistCronThread(ref.characterId, ref.visitorId, next);
+      ref.thread = next;
+      result.trailingRecovered += 1;
+    } catch (e) {
+      result.errors.push(
+        `trailing ${ref.characterId}/${ref.visitorId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
   // 2) proactive reach-out (affection + idle + once/day)
   for (const ref of refs) {
     if (result.proactiveSent >= MAX_PROACTIVE_PER_TICK) break;
@@ -230,6 +419,9 @@ export async function runOcChatCronTick(opts: {
     const lastAt = lastMessageAt(thread.messages);
     if (!lastAt || now - lastAt < PROACTIVE_IDLE_MS) continue;
     if (!thread.messages.some((m) => m.role === 'user')) continue;
+    if (ocChatNeedsReplyToTrailingUsers(thread.messages, thread.pendingBehavior)) {
+      continue;
+    }
 
     result.proactiveScanned += 1;
 
