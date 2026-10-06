@@ -793,10 +793,6 @@ export function OcPageClient() {
         }
       />
 
-      {!detail && !intro && !entrySplash && !urlCharPending ? (
-        <div className="oc-archive-bottom-fade" aria-hidden="true" />
-      ) : null}
-
       <div className={`layout oc-archive-layout${sidebarOpen ? ' is-sidebar-open' : ''}${detail || intro || entrySplash || urlCharPending ? ' is-detail-cover' : ''}`}>
         <button
           type="button"

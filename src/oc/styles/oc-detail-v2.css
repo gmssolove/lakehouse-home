@@ -51,13 +51,9 @@
   min-height: 0 !important;
   overflow: hidden !important;
   padding-top: 1.35rem !important;
-  padding-bottom: 0 !important;
   position: relative !important;
-  border-bottom: 0 !important;
-  border-bottom-left-radius: 0 !important;
-  border-bottom-right-radius: 0 !important;
-  -webkit-mask-image: none;
-  mask-image: none;
+  border: 1px solid rgba(215, 169, 130, 0.24) !important;
+  border-radius: 28px !important;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
@@ -74,8 +70,20 @@
 }
 
 .oc-archive-layout .main-content::after {
-  content: none !important;
-  display: none !important;
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  height: 36px;
+  z-index: 6;
+  pointer-events: none;
+  border-radius: 0 0 26px 26px;
+  background: linear-gradient(to top, rgba(10, 12, 11, 0.32), transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, transparent 100%);
 }
 
 .oc-archive-heading {
