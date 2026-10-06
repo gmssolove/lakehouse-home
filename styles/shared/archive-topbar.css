@@ -49,20 +49,25 @@ body .archive-layout .layout.oc-archive-layout .main-content::after {
   content: '' !important;
   display: block !important;
   position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 10px;
-  height: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 88px;
   z-index: 6;
   pointer-events: none;
   border: 0 !important;
-  border-radius: 0 !important;
+  border-radius: 0 0 27px 27px !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   -webkit-mask-image: none !important;
   mask-image: none !important;
-  background: linear-gradient(to top, rgba(10, 12, 11, 0.4), transparent);
+  background: linear-gradient(
+    to top,
+    rgba(10, 12, 11, 0.7) 0%,
+    rgba(10, 12, 11, 0.32) 42%,
+    transparent 100%
+  ) !important;
 }
 
 body .archive-layout .layout.oc-archive-layout .oc-archive-heading {

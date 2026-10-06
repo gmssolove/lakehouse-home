@@ -72,20 +72,25 @@
 .oc-archive-layout .main-content::after {
   content: '';
   position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 10px;
-  height: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 88px;
   z-index: 6;
   pointer-events: none;
   border: 0;
-  border-radius: 0;
+  border-radius: 0 0 27px 27px;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   -webkit-mask-image: none;
   mask-image: none;
-  background: linear-gradient(to top, rgba(10, 12, 11, 0.4), transparent);
+  background: linear-gradient(
+    to top,
+    rgba(10, 12, 11, 0.7) 0%,
+    rgba(10, 12, 11, 0.32) 42%,
+    transparent 100%
+  );
 }
 
 .oc-archive-heading {

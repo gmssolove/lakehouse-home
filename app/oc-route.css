@@ -68,14 +68,19 @@ html body .archive-layout .layout.oc-archive-layout > .main-content {
 html body .archive-layout .layout.oc-archive-layout > .main-content::after {
   content: '' !important;
   display: block !important;
-  left: 18px !important;
-  right: 18px !important;
-  bottom: 10px !important;
-  height: 48px !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 88px !important;
   border: 0 !important;
-  border-radius: 0 !important;
+  border-radius: 0 0 27px 27px !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  background: linear-gradient(to top, rgba(10, 12, 11, 0.4), transparent) !important;
+  background: linear-gradient(
+    to top,
+    rgba(10, 12, 11, 0.7) 0%,
+    rgba(10, 12, 11, 0.32) 42%,
+    transparent 100%
+  ) !important;
 }
