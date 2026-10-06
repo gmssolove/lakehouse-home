@@ -85,6 +85,8 @@ export function PairSlantHero({
                 fit={cover.fit}
                 pos={cover.pos}
                 imgClassName="pair-banner__img"
+                size="hero"
+                eager
               />
             ) : (
               <div className="pair-banner__placeholder">

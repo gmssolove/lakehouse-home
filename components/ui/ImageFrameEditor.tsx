@@ -271,6 +271,8 @@ export function ImageFrameEditor({
           pos={pos}
           className={viewportClassName}
           imgClassName={imgClassName}
+          size="full"
+          eager
         />
       </div>
       {!stageMode ? (

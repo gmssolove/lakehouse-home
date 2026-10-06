@@ -298,6 +298,8 @@ export function ClickerWidget({
                         frame={btn.imgFrame}
                         fit={cutout ? 'contain' : 'cover'}
                         pos={cutout ? 'center center' : 'center top'}
+                        size="thumb"
+                        eager
                       />
                     </span>
                   ) : (

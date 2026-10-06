@@ -18,6 +18,7 @@ import { ImageFileField } from '@/components/ui/ImageFileField';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 import { newId, type ReviewItem } from '@/lib/types/site-content';
 import type { WithSecret } from '@/lib/types/secret-content';
 
@@ -597,7 +598,7 @@ export function ReviewTab({ user, isAdmin, onOpenAuth, onSave, active = true }: 
             >
               <div className="lh-review__cover">
                 {item.coverUrl ? (
-                  <img src={item.coverUrl} alt="" loading="lazy" decoding="async" />
+                  <img src={displayImageUrl(item.coverUrl, 'card')} alt="" loading="lazy" decoding="async" />
                 ) : (
                   <div className="lh-review__cover-empty">{item.title[0] || '?'}</div>
                 )}

@@ -65,8 +65,40 @@ function fileHeaders(object) {
   headers.set('etag', object.httpEtag);
   headers.set('Accept-Ranges', 'bytes');
   /* immutable 제거 — Range 지원 배포 후 브라우저가 옛 응답을 영원히 붙잡지 않게 */
-  headers.set('Cache-Control', 'public, max-age=86400');
+  /* 키에 timestamp+uuid — 내용이 바뀌지 않음 */
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
   return headers;
+}
+
+function pickImageFormat(request, raw) {
+  const f = String(raw || '').toLowerCase();
+  if (f === 'webp' || f === 'avif' || f === 'jpeg' || f === 'jpg') {
+    return f === 'jpg' ? 'jpeg' : f;
+  }
+  const accept = request.headers.get('Accept') || '';
+  if (accept.includes('image/avif')) return 'avif';
+  if (accept.includes('image/webp')) return 'webp';
+  return 'jpeg';
+}
+
+function outputMime(format) {
+  if (format === 'avif') return 'image/avif';
+  if (format === 'jpeg') return 'image/jpeg';
+  return 'image/webp';
+}
+
+async function transformR2Image(env, object, width, quality, format) {
+  if (!env.IMAGES || !object || !object.body) return null;
+  const contentType = (object.httpMetadata && object.httpMetadata.contentType) || '';
+  if (!contentType.startsWith('image/') || /gif|svg/i.test(contentType)) return null;
+  try {
+    const result = await env.IMAGES.input(object.body)
+      .transform({ width, fit: 'scale-down' })
+      .output({ format: outputMime(format), quality });
+    return await result.response();
+  } catch {
+    return null;
+  }
 }
 
 /** HTMLAudioElement seek needs Accept-Ranges + 206 Content-Range */
@@ -84,8 +116,29 @@ async function serveFile(request, env) {
   }
 
   const hasRange = request.headers.has('Range');
-  const object = await env.R2_BUCKET.get(key, hasRange ? { range: request.headers } : undefined);
+  const wantW = Number(url.searchParams.get('w') || 0);
+  const canResize =
+    request.method === 'GET' && !hasRange && Number.isFinite(wantW) && wantW >= 16;
+
+  let object = await env.R2_BUCKET.get(key, hasRange ? { range: request.headers } : undefined);
   if (!object) return json({ error: 'not found' }, 404);
+
+  if (canResize && env.IMAGES) {
+    const quality = Math.min(90, Math.max(40, Number(url.searchParams.get('q') || 72)));
+    const width = Math.min(2400, Math.round(wantW));
+    const format = pickImageFormat(request, url.searchParams.get('f'));
+    const transformed = await transformR2Image(env, object, width, quality, format);
+    if (transformed && transformed.ok) {
+      const headers = new Headers(transformed.headers);
+      Object.entries(CORS_HEADERS).forEach(([k, v]) => headers.set(k, v));
+      headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      headers.set('Vary', 'Accept');
+      return new Response(transformed.body, { status: 200, headers });
+    }
+    /* 스트림을 이미 소비했을 수 있음 → 원본 재조회 */
+    object = await env.R2_BUCKET.get(key);
+    if (!object) return json({ error: 'not found' }, 404);
+  }
 
   const headers = fileHeaders(object);
 

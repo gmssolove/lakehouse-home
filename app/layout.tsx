@@ -48,6 +48,7 @@ const playfair = Playfair_Display({
   weight: ['400', '500'],
   variable: '--font-playfair',
   display: 'swap',
+  preload: false,
 });
 
 const cormorant = Cormorant_Garamond({
@@ -56,6 +57,7 @@ const cormorant = Cormorant_Garamond({
   weight: ['400', '500', '600'],
   variable: '--font-cormorant',
   display: 'swap',
+  preload: false,
 });
 
 const cormorantUpright = Cormorant_Upright({
@@ -63,6 +65,7 @@ const cormorantUpright = Cormorant_Upright({
   weight: ['400', '500', '600'],
   variable: '--font-cormorant-upright',
   display: 'swap',
+  preload: false,
 });
 
 const imFell = IM_Fell_English({
@@ -71,6 +74,7 @@ const imFell = IM_Fell_English({
   weight: ['400'],
   variable: '--font-im-fell',
   display: 'swap',
+  preload: false,
 });
 
 const marcellus = Marcellus({
@@ -78,6 +82,7 @@ const marcellus = Marcellus({
   weight: ['400'],
   variable: '--font-marcellus',
   display: 'swap',
+  preload: false,
 });
 
 const pinyon = Pinyon_Script({
@@ -85,6 +90,7 @@ const pinyon = Pinyon_Script({
   weight: ['400'],
   variable: '--font-pinyon',
   display: 'swap',
+  preload: false,
 });
 
 const mySoul = My_Soul({
@@ -92,6 +98,7 @@ const mySoul = My_Soul({
   weight: ['400'],
   variable: '--font-my-soul',
   display: 'swap',
+  preload: false,
 });
 
 const gowunDodum = Gowun_Dodum({
@@ -99,6 +106,7 @@ const gowunDodum = Gowun_Dodum({
   weight: ['400'],
   variable: '--font-gowun-dodum',
   display: 'swap',
+  preload: false,
 });
 
 const quicksand = Quicksand({
@@ -106,6 +114,7 @@ const quicksand = Quicksand({
   weight: ['400', '500'],
   variable: '--font-quicksand',
   display: 'swap',
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -148,10 +157,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Admin 파비콘 — 동일 출처 /favicon.ico (api/site-favicon 프록시). localStorage 불필요 */}
         <link rel="icon" href="/favicon.ico" type="image/png" data-lake-favicon="1" />
-        {/* Tabler Icons webfont — 서식 에디터 단색 아이콘 */}
+        {/* Tabler Icons — 렌더 블로킹 방지 */}
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
+          media="print"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var l=document.querySelector('link[href*="tabler-icons"]');if(!l)return;function go(){l.media='all';}l.addEventListener('load',go);if(l.sheet)go();setTimeout(go,2500);})();`,
+          }}
         />
       </head>
       <body suppressHydrationWarning>

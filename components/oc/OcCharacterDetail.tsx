@@ -18,6 +18,7 @@ import { OcVnDialogue, useVnDialogue } from '@/components/oc/OcVnDialogue';
 import { emptyFloatingQuote, normalizeFloatingQuotes } from '@/lib/oc/floatingQuotes';
 import { applyCharacterTheme, characterHasBgmTheme, clearCharacterTheme, resolveCharacterTheme } from '@/lib/oc/characterTheme';
 import { formatGalleryCredit, gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 import { displayCategory, isTrpgCategory } from '@/lib/oc/categories';
 import { buildDetailProfileRows, formatCardTag, formatStatDigits, parseStatPercent } from '@/lib/oc/profile';
 import { OcRichText } from '@/lib/oc/richText';
@@ -1643,7 +1644,7 @@ export function OcCharacterDetail({
                   className="oc-acc-gallery-item"
                   onClick={() => setGalleryLightbox(item)}
                 >
-                  <img src={gallerySrc(item)} alt="" />
+                  <img src={displayImageUrl(gallerySrc(item), 'thumb')} alt="" loading="lazy" decoding="async" />
                 </button>
               );
             })}

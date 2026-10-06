@@ -61,6 +61,8 @@ function ArtMedia({
       fit="cover"
       pos="center center"
       className="pair-intro-v2__art-frame"
+      size="hero"
+      eager
     />
   );
 }

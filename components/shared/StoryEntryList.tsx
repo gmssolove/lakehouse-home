@@ -9,6 +9,7 @@ import { scrollPanelToTop } from '@/lib/lake/scrollPanelToTop';
 import { SecretLockIcon } from '@/components/ui/SecretLockBadge';
 import type { SiteAccessSettings } from '@/lib/types/secret-content';
 import type { StoryEntry } from '@/lib/types/character';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 
 const DEFAULT_PAGE_SIZE = 12;
 
@@ -167,10 +168,11 @@ export function StoryEntryList({
             frame={entry.thumbnailFrame}
             fit="cover"
             className="lh-story-row__thumb-frame"
+            size="thumb"
           />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="" />
+          <img src={displayImageUrl(src, 'thumb')} alt="" loading="lazy" decoding="async" />
         )}
       </span>
     );

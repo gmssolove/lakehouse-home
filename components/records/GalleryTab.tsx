@@ -10,6 +10,7 @@ import { useSaveToast } from '@/components/ui/SaveToast';
 import { ImageFileField } from '@/components/ui/ImageFileField';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { newId, type GalleryComment, type GalleryCommentReply, type GalleryItem } from '@/lib/types/site-content';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 
 type Props = {
   user: User | null;
@@ -723,7 +724,12 @@ export function GalleryTab({ user, isAdmin, onOpenAuth, active = true }: Props) 
                 onClick={() => openDetail(item.id)}
               >
                 {item.img?.trim() ? (
-                  <img src={item.img} alt={item.title?.trim() || ''} loading="lazy" decoding="async" />
+                  <img
+                    src={displayImageUrl(item.img, 'card')}
+                    alt={item.title?.trim() || ''}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   <span className="lh-gallery__thumb-empty" aria-hidden="true" />
                 )}

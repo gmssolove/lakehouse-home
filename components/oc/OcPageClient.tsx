@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcChatAlertHost } from '@/components/oc/OcChatAlertHost';
@@ -71,6 +71,54 @@ function charImg(c: OcCharacter, auIdx: number) {
     frame: c.imgFrame,
   };
 }
+
+const OcArchiveCard = memo(function OcArchiveCard({
+  character: c,
+  index: i,
+  eager,
+  onOpen,
+}: {
+  character: OcCharacter;
+  index: number;
+  eager: boolean;
+  onOpen: (c: OcCharacter) => void;
+}) {
+  const stars = '★'.repeat(c.stars || 5) + '☆'.repeat(5 - (c.stars || 5));
+  const cardTag = formatCardTag(c.tag);
+  return (
+    <div className="char-card" onClick={() => onOpen(c)}>
+      {c.img ? (
+        <ImageFrameView
+          src={c.img}
+          frame={c.imgFrame}
+          fit="cover"
+          pos={c.imgPos || 'center top'}
+          className="char-card-img-wrap"
+          imgClassName="char-card-img"
+          size="card"
+          eager={eager}
+        />
+      ) : (
+        <div className="char-card-placeholder">{ROMANS[i] ?? ''}</div>
+      )}
+      <div className="char-card-hover">
+        {c.nameSub && <div className="hover-sub">{c.nameSub}</div>}
+        <div className="hover-name">{c.name}</div>
+        {cardTag && <div className="hover-tag">{cardTag}</div>}
+      </div>
+      <div className="char-card-bottom">
+        <div className="char-card-stars">{stars}</div>
+        {c.nameSub && <div className="char-card-role">{c.nameSub}</div>}
+        <div className="char-card-name">{c.name}</div>
+        {cardTag && (
+          <div className="char-card-tags">
+            <span className="char-card-tag">{cardTag}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export function OcPageClient() {
   const router = useRouter();
@@ -590,6 +638,12 @@ export function OcPageClient() {
     setPasswordGate({ character: c, au, skipIntro: opts?.skipIntro });
   }
 
+  const openCardRef = useRef<(c: OcCharacter) => void>(() => {});
+  openCardRef.current = (c) => requestOpenDetail(c, -1);
+  const onOpenCard = useCallback((c: OcCharacter) => {
+    openCardRef.current(c);
+  }, []);
+
   /* 비밀글 상세를 연 뒤 로그아웃되면 닫고 게이트로 */
   useEffect(() => {
     if (!authReady || isAdmin || user) return;
@@ -873,41 +927,15 @@ export function OcPageClient() {
                 — 캐릭터가 없습니다 —
               </div>
             ) : (
-              filtered.map((c, i) => {
-                const stars = '★'.repeat(c.stars || 5) + '☆'.repeat(5 - (c.stars || 5));
-                const cardTag = formatCardTag(c.tag);
-                return (
-                  <div key={c.id} className="char-card" onClick={() => requestOpenDetail(c, -1)}>
-                    {c.img ? (
-                      <ImageFrameView
-                        src={c.img}
-                        frame={c.imgFrame}
-                        fit="cover"
-                        pos={c.imgPos || 'center top'}
-                        className="char-card-img-wrap"
-                        imgClassName="char-card-img"
-                      />
-                    ) : (
-                      <div className="char-card-placeholder">{ROMANS[i] ?? ''}</div>
-                    )}
-                    <div className="char-card-hover">
-                      {c.nameSub && <div className="hover-sub">{c.nameSub}</div>}
-                      <div className="hover-name">{c.name}</div>
-                      {cardTag && <div className="hover-tag">{cardTag}</div>}
-                    </div>
-                    <div className="char-card-bottom">
-                      <div className="char-card-stars">{stars}</div>
-                      {c.nameSub && <div className="char-card-role">{c.nameSub}</div>}
-                      <div className="char-card-name">{c.name}</div>
-                      {cardTag && (
-                        <div className="char-card-tags">
-                          <span className="char-card-tag">{cardTag}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+              filtered.map((c, i) => (
+                <OcArchiveCard
+                  key={c.id}
+                  character={c}
+                  index={i}
+                  eager={i < 8}
+                  onOpen={onOpenCard}
+                />
+              ))
             )}
           </div>
         </div>

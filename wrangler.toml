@@ -7,7 +7,10 @@ compatibility_date = "2025-06-17"
 binding = "R2_BUCKET"
 bucket_name = "lakehouse-images"
 
-# PUBLIC_BASE_URL???ｌ쑝硫??낅줈???묐떟 URL??洹??꾨찓?몄쑝濡?留뚮뱾?댁쭛?덈떎.
-# ?? https://img.lakehouse.me.kr
+# PUBLIC_BASE_URL을 넣으면 업로드 응답 URL을 그 도메인으로 만듭니다.
+# 예: https://img.lakehouse.me.kr
 # [vars]
 # PUBLIC_BASE_URL = "https://img.lakehouse.me.kr"
+
+[images]
+binding = "IMAGES"

@@ -53,6 +53,7 @@ function TrpgCard({
               pos={item.thumbnailPos || 'center center'}
               className="trpg-card__media-frame"
               imgClassName="trpg-card__media-img"
+              size="card"
             />
           ) : (
             <div className="trpg-card__media-fallback">{item.title}</div>
@@ -90,6 +91,7 @@ function TrpgCard({
                   pos={portrait.pos}
                   className="trpg-card__hover-portrait-frame"
                   imgClassName="trpg-card__hover-portrait-img"
+                  size="thumb"
                 />
               </div>
             ) : null}

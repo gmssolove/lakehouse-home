@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { memo, type CSSProperties } from 'react';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { pairCardSub, pairCardTitle, pairCover } from '@/lib/oc/pairCover';
 import { preloadPairStandImages } from '@/lib/oc/pairStandPreload';
@@ -10,6 +10,69 @@ type Props = {
   pairs: PairItem[];
   onOpen: (pair: PairItem) => void;
 };
+
+const PairArchiveCard = memo(function PairArchiveCard({
+  pair,
+  eager,
+  onOpen,
+}: {
+  pair: PairItem;
+  eager: boolean;
+  onOpen: (pair: PairItem) => void;
+}) {
+  const cover = pairCover(pair);
+  const title = pairCardTitle(pair);
+  const sub = pairCardSub(pair);
+  const tag = pair.keywords?.find((k) => k.trim())?.trim() || pair.relation?.trim() || '';
+  const accent = pair.color?.trim() || '';
+
+  return (
+    <div
+      className="char-card"
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(pair)}
+      onPointerEnter={() => preloadPairStandImages(pair)}
+      onFocus={() => preloadPairStandImages(pair)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen(pair);
+        }
+      }}
+      style={accent ? ({ '--pair-card-accent': accent } as CSSProperties) : undefined}
+    >
+      {cover.src ? (
+        <ImageFrameView
+          src={cover.src}
+          frame={cover.frame}
+          fit={(cover.fit as CSSProperties['objectFit']) || 'cover'}
+          pos={cover.pos || 'center top'}
+          className="char-card-img-wrap"
+          imgClassName="char-card-img"
+          size="card"
+          eager={eager}
+        />
+      ) : (
+        <div className="char-card-placeholder">{title[0] || 'P'}</div>
+      )}
+      <div className="char-card-hover">
+        {sub ? <div className="hover-sub">{sub}</div> : null}
+        <div className="hover-name">{title}</div>
+        {tag ? <div className="hover-tag">{tag}</div> : null}
+      </div>
+      <div className="char-card-bottom">
+        {sub ? <div className="char-card-role">{sub}</div> : null}
+        <div className="char-card-name">{title}</div>
+        {tag ? (
+          <div className="char-card-tags">
+            <span className="char-card-tag">{tag}</span>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+});
 
 export function PairRevolveStage({ pairs, onOpen }: Props) {
   const list = Array.isArray(pairs) ? pairs : [];
@@ -36,59 +99,9 @@ export function PairRevolveStage({ pairs, onOpen }: Props) {
 
   return (
     <div className="card-grid" id="pair-grid">
-      {list.map((pair) => {
-        const cover = pairCover(pair);
-        const title = pairCardTitle(pair);
-        const sub = pairCardSub(pair);
-        const tag = pair.keywords?.find((k) => k.trim())?.trim() || pair.relation?.trim() || '';
-        const accent = pair.color?.trim() || '';
-
-        return (
-          <div
-            key={pair.id}
-            className="char-card"
-            role="button"
-            tabIndex={0}
-            onClick={() => onOpen(pair)}
-            onPointerEnter={() => preloadPairStandImages(pair)}
-            onFocus={() => preloadPairStandImages(pair)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onOpen(pair);
-              }
-            }}
-            style={accent ? ({ '--pair-card-accent': accent } as CSSProperties) : undefined}
-          >
-            {cover.src ? (
-              <ImageFrameView
-                src={cover.src}
-                frame={cover.frame}
-                fit={(cover.fit as CSSProperties['objectFit']) || 'cover'}
-                pos={cover.pos || 'center top'}
-                className="char-card-img-wrap"
-                imgClassName="char-card-img"
-              />
-            ) : (
-              <div className="char-card-placeholder">{title[0] || 'P'}</div>
-            )}
-            <div className="char-card-hover">
-              {sub ? <div className="hover-sub">{sub}</div> : null}
-              <div className="hover-name">{title}</div>
-              {tag ? <div className="hover-tag">{tag}</div> : null}
-            </div>
-            <div className="char-card-bottom">
-              {sub ? <div className="char-card-role">{sub}</div> : null}
-              <div className="char-card-name">{title}</div>
-              {tag ? (
-                <div className="char-card-tags">
-                  <span className="char-card-tag">{tag}</span>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        );
-      })}
+      {list.map((pair, i) => (
+        <PairArchiveCard key={pair.id} pair={pair} eager={i < 8} onOpen={onOpen} />
+      ))}
     </div>
   );
 }

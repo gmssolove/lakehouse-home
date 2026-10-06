@@ -461,6 +461,8 @@ export function TrpgScenarioPageClient({ id }: Props) {
                     pos={view.thumbnailPos || 'center center'}
                     className="trpg-scenario-page__hero-frame"
                     imgClassName="trpg-scenario-page__hero-img"
+                    size="hero"
+                    eager
                   />
                 ) : (
                   <div className="trpg-scenario-page__hero-fallback">{view.title}</div>

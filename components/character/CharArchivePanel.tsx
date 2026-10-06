@@ -3,6 +3,7 @@
 import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 import type { User } from 'firebase/auth';
 
 const KIND_LABEL: Record<string, string> = {
@@ -40,7 +41,13 @@ export function CharArchivePanel({ user, isAdmin, onOpenAuth }: Props) {
         >
           <article className="lh-char-archive-card">
             {item.coverUrl ? (
-              <img src={item.coverUrl} alt="" className="lh-char-archive-card__cover" />
+              <img
+                src={displayImageUrl(item.coverUrl, 'card')}
+                alt=""
+                className="lh-char-archive-card__cover"
+                loading="lazy"
+                decoding="async"
+              />
             ) : null}
             <div className="lh-char-archive-card__body">
               <span className="lh-char-archive-card__kind">{KIND_LABEL[item.kind] ?? item.kind}</span>

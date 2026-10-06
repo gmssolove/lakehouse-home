@@ -2,6 +2,7 @@
 
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { framedImageStyle } from '@/lib/shared/imageFrame';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 import type {
   TrpgPlayerExpression,
   TrpgPlayerExpressionKind,
@@ -71,6 +72,7 @@ export function InvestigatorCardImage({ player }: { player: TrpgPlayerProfile })
       pos={src.imgPos || 'center top'}
       className="inv-card__frame"
       imgClassName="inv-card__img"
+      size="card"
     />
   );
 }
@@ -98,7 +100,7 @@ export function InvestigatorPortraitImage({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="ph-img__photo"
-          src={src.img}
+          src={displayImageUrl(src.img, 'hero')}
           alt={src.name}
           draggable={false}
           referrerPolicy="no-referrer"
@@ -119,6 +121,7 @@ export function InvestigatorPortraitImage({
       pos={src.imgPos || 'center bottom'}
       className={`ph-img ph-img--framed${className ? ` ${className}` : ''}`}
       imgClassName="ph-img__photo"
+      size="hero"
     />
   );
 }

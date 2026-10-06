@@ -1,7 +1,9 @@
 'use client';
 
 import {
+  memo,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -14,6 +16,10 @@ import {
   normalizeImageFrame,
   type ImageFrame,
 } from '@/lib/shared/imageFrame';
+import {
+  displayImageUrl,
+  type DisplayImagePreset,
+} from '@/lib/media/displayImageUrl';
 
 type Props = {
   src: string;
@@ -23,6 +29,10 @@ type Props = {
   pos?: string;
   className?: string;
   imgClassName?: string;
+  /** 목록 카드는 card, 상세 히어로는 hero */
+  size?: DisplayImagePreset;
+  /** 첫 화면 카드 — 즉시 로드 */
+  eager?: boolean;
 };
 
 type NatSize = { w: number; h: number };
@@ -32,7 +42,7 @@ type BoxSize = { w: number; h: number };
  * cover 모드: 항상 측정 레이아웃 한 경로 (scale≥1·&lt;1 분기 없음 → 쏠림/틈 재발 방지)
  * 그 외 fit: object-fit + frame transform
  */
-export function ImageFrameView({
+export const ImageFrameView = memo(function ImageFrameView({
   src,
   alt = '',
   frame,
@@ -40,14 +50,19 @@ export function ImageFrameView({
   pos = 'center top',
   className = '',
   imgClassName = '',
+  size = 'full',
+  eager = false,
 }: Props) {
   const { scale, x, y, bottomBlur } = normalizeImageFrame(frame);
   const rootRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [box, setBox] = useState<BoxSize | null>(null);
   const [nat, setNat] = useState<NatSize | null>(null);
+  const [inView, setInView] = useState(eager);
 
   const useCoverLayout = (fit || 'cover') === 'cover';
+  const displaySrc = displayImageUrl(src, size);
+  const activeSrc = inView ? displaySrc : undefined;
 
   const readNat = useCallback((img: HTMLImageElement | null) => {
     if (!img) return;
@@ -55,6 +70,30 @@ export function ImageFrameView({
     const h = img.naturalHeight;
     if (w > 0 && h > 0) setNat((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
   }, []);
+
+  useEffect(() => {
+    if (eager) {
+      setInView(true);
+      return;
+    }
+    const el = rootRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '480px 0px', threshold: 0.01 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [eager, src]);
 
   useLayoutEffect(() => {
     if (!useCoverLayout) {
@@ -92,7 +131,7 @@ export function ImageFrameView({
     setNat(null);
     const img = imgRef.current;
     if (img?.complete && img.naturalWidth > 0) readNat(img);
-  }, [src, useCoverLayout, readNat]);
+  }, [displaySrc, useCoverLayout, readNat]);
 
   const onImgLoad = useCallback(
     (e: SyntheticEvent<HTMLImageElement>) => {
@@ -144,28 +183,17 @@ export function ImageFrameView({
           display: 'block',
           transform: 'none',
         }
-      : useCoverLayout
-        ? {
-            position: 'absolute' as const,
-            left: 0,
-            top: 0,
-            width: '100%',
-            height: '100%',
-            visibility: 'hidden' as const,
-            objectFit: 'cover' as const,
-            display: 'block',
-          }
-        : {
-            position: 'absolute' as const,
-            left: 0,
-            top: 0,
-            width: '100%',
-            height: '100%',
-            display: 'block',
-            objectFit: frameObjectFit(fit, scale),
-            objectPosition: pos || 'center top',
-            transform: 'none',
-          }
+      : {
+          position: 'absolute' as const,
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          objectFit: frameObjectFit(fit, scale),
+          objectPosition: pos || 'center top',
+          transform: 'none',
+        }
   ) as CSSProperties;
 
   return (
@@ -178,19 +206,22 @@ export function ImageFrameView({
         className={`image-frame-viewport__frame${transform ? ' has-frame-transform' : ''}`}
         style={frameStyle}
       >
-        <img
-          ref={imgRef}
-          className={`image-frame-viewport__img${imgClassName ? ` ${imgClassName}` : ''}${layout ? ' is-laid-out' : ''}`}
-          src={src}
-          alt={alt}
-          draggable={false}
-          referrerPolicy="no-referrer"
-          decoding="async"
-          loading="lazy"
-          onLoad={onImgLoad}
-          style={imgStyle}
-        />
+        {activeSrc ? (
+          <img
+            ref={imgRef}
+            className={`image-frame-viewport__img${imgClassName ? ` ${imgClassName}` : ''}${layout ? ' is-laid-out' : ''}`}
+            src={activeSrc}
+            alt={alt}
+            draggable={false}
+            referrerPolicy="no-referrer"
+            decoding="async"
+            loading={eager ? 'eager' : 'lazy'}
+            fetchPriority={eager ? 'high' : 'low'}
+            onLoad={onImgLoad}
+            style={imgStyle}
+          />
+        ) : null}
       </div>
     </div>
   );
-}
+});
