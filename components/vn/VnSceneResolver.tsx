@@ -182,6 +182,8 @@ export function VnSceneResolver({ sceneId }: Props) {
       : edit?.diceCutinList ?? scene?.diceCutinList ?? [];
 
     const maxOnStage = edit?.maxOnStage ?? scene?.maxOnStage ?? 3;
+    const stageOrder = edit?.stageOrder ?? scene?.stageOrder;
+    const stageSeatOrder = edit?.stageSeatOrder ?? scene?.stageSeatOrder;
     const menuTheme = edit?.menuTheme ?? scene?.menuTheme;
     const chapterLoading = Boolean(edit?.chapterLoading ?? scene?.chapterLoading);
     const diceRollSfx = edit?.diceRollSfx ?? scene?.diceRollSfx;
@@ -206,6 +208,8 @@ export function VnSceneResolver({ sceneId }: Props) {
       diceResultSfx,
       diceResultSfxByTone,
       maxOnStage,
+      stageOrder,
+      stageSeatOrder,
       menuTheme,
       chapterLoading: chapterLoading || undefined,
     });
@@ -444,6 +448,8 @@ function ScenarioVnPlayClient({
               diceResultSfxByTone:
                 edit?.diceResultSfxByTone ?? item.vnScene?.diceResultSfxByTone,
               maxOnStage: edit?.maxOnStage ?? item.vnScene?.maxOnStage,
+              stageOrder: edit?.stageOrder ?? item.vnScene?.stageOrder,
+              stageSeatOrder: edit?.stageSeatOrder ?? item.vnScene?.stageSeatOrder,
               tutorialSteps: edit?.tutorialSteps,
               menuTheme: edit?.menuTheme ?? item.vnScene?.menuTheme,
               chapterLoading: edit?.chapterLoading ?? item.vnScene?.chapterLoading,
@@ -462,6 +468,8 @@ function ScenarioVnPlayClient({
                   speakers: editPatched,
                   lines: edit?.lines ?? [],
                   maxOnStage: edit?.maxOnStage ?? 3,
+                  stageOrder: edit?.stageOrder,
+                  stageSeatOrder: edit?.stageSeatOrder,
                   menuTheme: edit?.menuTheme,
                   chapterLoading: edit?.chapterLoading,
                 },
@@ -588,6 +596,8 @@ function ScenarioVnPlayClient({
               diceResultSfxByTone:
                 edit?.diceResultSfxByTone ?? item.vnScene?.diceResultSfxByTone,
               maxOnStage: edit?.maxOnStage ?? item.vnScene?.maxOnStage,
+              stageOrder: edit?.stageOrder ?? item.vnScene?.stageOrder,
+              stageSeatOrder: edit?.stageSeatOrder ?? item.vnScene?.stageSeatOrder,
               tutorialSteps: edit?.tutorialSteps,
               menuTheme: edit?.menuTheme ?? item.vnScene?.menuTheme,
               chapterLoading: edit?.chapterLoading ?? item.vnScene?.chapterLoading,
@@ -607,6 +617,8 @@ function ScenarioVnPlayClient({
                   lines: edit?.lines ?? [],
                   handouts: patched,
                   maxOnStage: edit?.maxOnStage ?? 3,
+                  stageOrder: edit?.stageOrder,
+                  stageSeatOrder: edit?.stageSeatOrder,
                   menuTheme: edit?.menuTheme,
                   chapterLoading: edit?.chapterLoading,
                 },

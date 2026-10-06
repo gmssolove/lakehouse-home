@@ -328,6 +328,8 @@ export type TrpgScenario = WithSecret & {
     diceResultSfx?: string;
     diceResultSfxByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone;
     maxOnStage?: number | 'all';
+    stageOrder?: string[];
+    stageSeatOrder?: import('@/lib/vn/standPosBySlot').TrioSlot[];
     tutorialSteps?: import('@/components/vn/VnTutorial').VnTutorialStep[];
     /** VN 타이틀(메인) 화면 배경·블러 */
     menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;

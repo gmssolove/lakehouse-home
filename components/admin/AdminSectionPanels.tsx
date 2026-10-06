@@ -1603,6 +1603,8 @@ export function TrpgEditForm({
                       diceResultSfx: form.vnScene.diceResultSfx,
                       diceResultSfxByTone: form.vnScene.diceResultSfxByTone,
                       maxOnStage: form.vnScene.maxOnStage,
+                      stageOrder: form.vnScene.stageOrder,
+                      stageSeatOrder: form.vnScene.stageSeatOrder,
                       menuTheme: form.vnScene.menuTheme,
                       chapterLoading: form.vnScene.chapterLoading,
                     }

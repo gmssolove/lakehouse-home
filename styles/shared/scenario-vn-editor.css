@@ -329,11 +329,31 @@
   color: rgba(215, 169, 130, 0.65);
 }
 
-.svn-editor__maxstage-hint {
-  flex-basis: 100%;
+.svn-editor__seatorder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0 8px;
+}
+
+.svn-editor__seatorder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.svn-editor__seatorder-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 11px;
-  color: rgba(216, 213, 203, 0.5);
-  line-height: 1.5;
+  color: rgba(215, 169, 130, 0.72);
+}
+
+@media (max-width: 640px) {
+  .svn-editor__seatorder-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .svn-editor__savebar {

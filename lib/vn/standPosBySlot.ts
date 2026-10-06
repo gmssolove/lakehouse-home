@@ -145,6 +145,41 @@ export function seatIndexToSlot(seatIndex: number): TrioSlot {
   return 'right';
 }
 
+export function trioSlotToSeatIndex(slot: TrioSlot): number {
+  if (slot === 'left') return 0;
+  if (slot === 'center') return 1;
+  return 2;
+}
+
+/** 등장 순(1·2·3번째) → 왼/중/오. 기본은 왼→중→오 */
+export const DEFAULT_STAGE_SEAT_ORDER: TrioSlot[] = ['left', 'center', 'right'];
+
+export function normalizeStageSeatOrder(raw: unknown): TrioSlot[] | undefined {
+  if (!Array.isArray(raw) || raw.length < 3) return undefined;
+  const next: TrioSlot[] = [];
+  const seen = new Set<TrioSlot>();
+  for (let i = 0; i < 3; i++) {
+    const v = String(raw[i] || '').trim();
+    if (!isTrioSlot(v) || seen.has(v)) return undefined;
+    seen.add(v);
+    next.push(v);
+  }
+  if (
+    next[0] === 'left' &&
+    next[1] === 'center' &&
+    next[2] === 'right'
+  ) {
+    return undefined;
+  }
+  return next;
+}
+
+/** 빈 자리 채울 때 쓰는 좌석 인덱스 (3인 레인 + 군중 4·5) */
+export function stageSeatFillIndices(order?: TrioSlot[] | null): number[] {
+  const trio = order && order.length === 3 ? order : DEFAULT_STAGE_SEAT_ORDER;
+  return [...trio.map(trioSlotToSeatIndex), 3, 4];
+}
+
 /**
  * 재생용: 이 좌석에 앉았을 때 쓸 포즈.
  * X 는 항상 레인(±미세), 버전은 scale·y 위주.

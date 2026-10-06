@@ -10,6 +10,7 @@ import {
   resolveStandPoseForSlot,
   seatIndexToCrowdSlot,
   seatIndexToSlot,
+  stageSeatFillIndices,
   type StandSlot,
 } from '@/lib/vn/standPosBySlot';
 
@@ -293,6 +294,16 @@ export type ScenarioVnScene = {
   diceResultSfxByTone?: ScenarioVnDiceResultSfxByTone;
   /** 동시 등장 최대 인원 — 3 | 4 | 'all'(스프라이트 있는 화자 전원) */
   maxOnStage?: number | 'all';
+  /**
+   * 씬 기본 무대 자리 (왼쪽→오른쪽 / 1→N).
+   * 줄별 stageOrder가 있으면 그 줄부터 덮어씀.
+   */
+  stageOrder?: string[];
+  /**
+   * 등장 순(1·2·3번째)이 앉을 왼/중/오.
+   * 기본 왼→중→오. 줄별 자리 고정이 없을 때 placeOnStage가 이 순서로 빈 자리를 채움.
+   */
+  stageSeatOrder?: import('@/lib/vn/standPosBySlot').TrioSlot[];
   /** 타이틀(메인) 화면 배경·블러 */
   menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;
   /**
@@ -341,6 +352,20 @@ export function parseLineMaxOnStage(raw: unknown): VnMaxOnStage | undefined {
   const n = Number(raw);
   if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5) return n as VnMaxOnStage;
   return undefined;
+}
+
+/** 무대 자리/등장 순서 키 목록. 빈 칸 유지, 전부 공백이면 null */
+export function parseSpeakerKeyList(raw: unknown): string[] | null {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  const seen = new Set<string>();
+  const out = raw.map((item) => {
+    const k = String(item || '').trim();
+    if (!k) return '';
+    if (seen.has(k)) return '';
+    seen.add(k);
+    return k;
+  });
+  return out.some((k) => k) ? out : null;
 }
 
 /** 재생 시 실제 동시 등장 상한 */
@@ -468,6 +493,8 @@ export function toVnScene(
     diceResultSfxByTone?: ScenarioVnDiceResultSfxByTone;
     menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;
     chapterLoading?: boolean;
+    stageOrder?: string[];
+    stageSeatOrder?: import('@/lib/vn/standPosBySlot').TrioSlot[];
   },
 ): ScenarioVnScene {
   const max = normalizeVnMaxOnStage(opts?.maxOnStage);
@@ -487,6 +514,8 @@ export function toVnScene(
     diceResultSfx: opts?.diceResultSfx,
     diceResultSfxByTone: opts?.diceResultSfxByTone,
     maxOnStage: max,
+    stageOrder: parseSpeakerKeyList(opts?.stageOrder) ?? undefined,
+    stageSeatOrder: opts?.stageSeatOrder,
     menuTheme: opts?.menuTheme,
     chapterLoading: opts?.chapterLoading ? true : undefined,
   };
@@ -535,7 +564,13 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   }
 
   const maxOnStage = resolveMaxOnStage(scene.maxOnStage, scene.speakers);
-  /** 좌석 — 등장 순으로 앉힘(0 왼 → 1 중 → 2 오른). 한 번 앉으면 유지.
+  const seatFill = stageSeatFillIndices(scene.stageSeatOrder);
+  const sceneSeatKeys = parseSpeakerKeyList(scene.stageOrder);
+  const reservedSeats = new Set<number>();
+  sceneSeatKeys?.forEach((k, i) => {
+    if (k) reservedSeats.add(i);
+  });
+  /** 좌석 — 등장 순으로 앉힘. 한 번 앉으면 유지.
    * 정원 초과 시에만 ‘가장 오래 말 안 한’ 화자 교체 */
   const seats: (string | null)[] = Array.from({ length: maxOnStage }, () => null);
   /** 마지막으로 말한 줄 번호 — 클수록 최근 (퇴장 우선순위만) */
@@ -612,28 +647,36 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     seats.splice(0, seats.length, ...next);
   }
 
-  function parseSpeakerKeyList(raw: unknown): string[] | null {
-    if (!Array.isArray(raw) || !raw.length) return null;
-    const seen = new Set<string>();
-    const out = raw.map((item) => {
-      const k = String(item || '').trim();
-      if (!k) return '';
-      if (seen.has(k)) return '';
-      seen.add(k);
-      return k;
-    });
-    return out.some((k) => k) ? out : null;
-  }
-
   function placeOnStage(key: string) {
     lastIndex.set(key, lineIndex);
 
     /* 이미 무대에 있으면 자리 그대로 — 매 대사마다 재배치하지 않음 */
     if (seats.includes(key)) return;
 
-    const empty = seats.findIndex((s) => s == null);
-    if (empty >= 0) {
-      seats[empty] = key;
+    const pref = sceneSeatKeys?.findIndex((k) => k === key) ?? -1;
+    if (pref >= 0 && pref < seats.length) {
+      const occupant = seats[pref];
+      seats[pref] = key;
+      if (occupant && occupant !== key) {
+        const bump = seatFill.find(
+          (i) => i < seats.length && seats[i] == null && !reservedSeats.has(i),
+        );
+        if (bump != null) seats[bump] = occupant;
+      }
+      return;
+    }
+
+    const emptyIdx = seatFill.find(
+      (i) => i < seats.length && seats[i] == null && !reservedSeats.has(i),
+    );
+    if (emptyIdx != null) {
+      seats[emptyIdx] = key;
+      return;
+    }
+
+    const anyEmpty = seatFill.find((i) => i < seats.length && seats[i] == null);
+    if (anyEmpty != null) {
+      seats[anyEmpty] = key;
       return;
     }
 

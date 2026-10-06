@@ -34,7 +34,12 @@ import {
 } from './ScenarioVnStandEditor';
 import { ScenarioVnHandoutLayoutPreview } from './ScenarioVnHandoutLayoutPreview';
 import { DEFAULT_STAND_POSE } from '@/lib/vn/useStandPoseDrag';
-import { mergeStandPosBySlot } from '@/lib/vn/standPosBySlot';
+import {
+  DEFAULT_STAGE_SEAT_ORDER,
+  mergeStandPosBySlot,
+  normalizeStageSeatOrder,
+  type TrioSlot,
+} from '@/lib/vn/standPosBySlot';
 import {
   clampMenuBlur,
   DEFAULT_MENU_BLUR,
@@ -66,6 +71,8 @@ export type ScenarioVnEditable = {
   diceResultSfx?: string;
   diceResultSfxByTone?: ScenarioVnDiceResultSfxByTone;
   maxOnStage?: number | 'all';
+  stageOrder?: string[];
+  stageSeatOrder?: TrioSlot[];
   /** VN 공통 튜토리얼 단계 (GIF 예시 포함) */
   tutorialSteps?: VnTutorialStep[];
   /** 타이틀(메인) 화면 배경·블러 */
@@ -230,6 +237,10 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   const [maxOnStage, setMaxOnStage] = useState<VnMaxOnStage>(() =>
     normalizeVnMaxOnStage(initial?.maxOnStage),
   );
+  const [stageOrder, setStageOrder] = useState<string[]>(() => initial?.stageOrder ?? []);
+  const [stageSeatOrder, setStageSeatOrder] = useState<TrioSlot[]>(
+    () => normalizeStageSeatOrder(initial?.stageSeatOrder) ?? [...DEFAULT_STAGE_SEAT_ORDER],
+  );
   const [tab, setTab] = useState<
     'basic' | 'pl' | 'bg' | 'bgm' | 'ambient' | 'handout' | 'dice' | 'stand' | 'loading' | 'lines'
   >('basic');
@@ -268,6 +279,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   const tutorialStepsRef = useRef(tutorialSteps);
   const menuThemeRef = useRef(menuTheme);
   const maxOnStageRef = useRef(maxOnStage);
+  const stageOrderRef = useRef(stageOrder);
+  const stageSeatOrderRef = useRef(stageSeatOrder);
   const onDraftChangeRef = useRef(onDraftChange);
   speakersRef.current = speakers;
   linesRef.current = lines;
@@ -284,6 +297,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   tutorialStepsRef.current = tutorialSteps;
   menuThemeRef.current = menuTheme;
   maxOnStageRef.current = maxOnStage;
+  stageOrderRef.current = stageOrder;
+  stageSeatOrderRef.current = stageSeatOrder;
   onDraftChangeRef.current = onDraftChange;
 
   const buildSnapshot = useCallback(
@@ -318,6 +333,11 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
           return Object.keys(cleaned).length ? cleaned : undefined;
         })(),
         maxOnStage: maxOnStageRef.current,
+        stageOrder: (() => {
+          const raw = stageOrderRef.current;
+          return raw.some((k) => k.trim()) ? raw : undefined;
+        })(),
+        stageSeatOrder: normalizeStageSeatOrder(stageSeatOrderRef.current),
         tutorialSteps: tutorialStepsRef.current,
         menuTheme: menuThemeRef.current,
         chapterLoading: linesRef.current.some(
@@ -332,6 +352,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
         editable,
         vnScene: toVnScene(scenarioId, scenarioTitle, speakersNow, linesRef.current, {
           maxOnStage: maxOnStageRef.current,
+          stageOrder: editable.stageOrder,
+          stageSeatOrder: editable.stageSeatOrder,
           backgrounds: backgroundsRef.current,
           bgms: bgmsRef.current,
           ambients: ambientsRef.current,
@@ -355,7 +377,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   useEffect(() => {
     const { editable, vnScene } = buildSnapshot(false);
     onDraftChangeRef.current?.(editable, vnScene);
-  }, [speakers, lines, backgrounds, bgms, ambients, handouts, diceSfxList, diceCutinList, diceRollSfx, diceRollCutin, diceResultSfx, diceResultSfxByTone, maxOnStage, tutorialSteps, menuTheme, buildSnapshot]);
+  }, [speakers, lines, backgrounds, bgms, ambients, handouts, diceSfxList, diceCutinList, diceRollSfx, diceRollCutin, diceResultSfx, diceResultSfxByTone, maxOnStage, stageOrder, stageSeatOrder, tutorialSteps, menuTheme, buildSnapshot]);
 
   useEffect(() => {
     return () => {
@@ -1716,9 +1738,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
           >
             <div className="lh-dialogue-block__label">스탠딩 (등장인원 · 위치)</div>
             <p className="lh-dialogue-editor__hint">
-              재생은 등장 순으로 왼쪽→중앙→오른쪽 자리를 배정합니다(3명 이하). 4명 이상은 군중1~5
-              버전으로 미세 조정할 수 있고, 왼·중·오 버전과는 따로 저장됩니다. 대사 줄에서 자리·등장
-              순서도 지정할 수 있어요.
+              아래 등장 자리·고정 자리를 씬 기본값으로 씁니다. 대사 줄에서 자리를 바꾸면 그 줄부터만
+              덮어씁니다. 4명 이상은 군중1~5 버전으로 미세 조정할 수 있고, 왼·중·오 버전과는 따로
+              저장됩니다.
             </p>
             <div className="svn-editor__maxstage">
               <span className="svn-editor__maxstage-label">기본 동시 등장 인원</span>
@@ -1746,6 +1768,95 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                   ? '스프라이트 있는 화자는 전원 동시에 화면에 남아요. 인원이 많으면 간격·크기를 자동으로 줄여 화면 안에 맞춥니다.'
                   : '이 인원을 넘으면 가장 오래전에 말한 인물부터 화면에서 빠지고, 새로 말하는 인물이 그 자리를 채워요. 대사 줄에서 인원을 따로 바꿀 수도 있어요.'}
               </span>
+            </div>
+            <div className="svn-editor__seatorder">
+              <div className="lh-dialogue-block__label" style={{ margin: 0 }}>등장 순 → 자리</div>
+              <p className="lh-dialogue-editor__hint">
+                대사에서 자리를 안 정하면, 처음 나온 순서대로 이 자리에 앉습니다. 기본은 왼→중→오입니다.
+              </p>
+              <div className="svn-editor__seatorder-grid">
+                {([0, 1, 2] as const).map((rank) => (
+                  <label key={rank} className="svn-editor__seatorder-item">
+                    <span>{rank + 1}번째로 나온 사람</span>
+                    <select
+                      className="form-input"
+                      value={stageSeatOrder[rank]}
+                      onChange={(e) => {
+                        const slot = e.target.value as TrioSlot;
+                        setStageSeatOrder((prev) => {
+                          const next: TrioSlot[] = [...prev];
+                          const swapAt = next.indexOf(slot);
+                          const old = next[rank]!;
+                          next[rank] = slot;
+                          if (swapAt >= 0 && swapAt !== rank) next[swapAt] = old;
+                          return next;
+                        });
+                      }}
+                    >
+                      <option value="left">왼쪽</option>
+                      <option value="center">중앙</option>
+                      <option value="right">오른쪽</option>
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="svn-editor__seatorder">
+              <div className="lh-dialogue-block__label" style={{ margin: 0 }}>기본 고정 자리</div>
+              <p className="lh-dialogue-editor__hint">
+                특정 인물을 왼·중·오에 고정합니다. 비우면 위 등장 순서를 따릅니다. 대사 줄에서 덮어쓸 수
+                있어요.
+              </p>
+              {(() => {
+                const cast = speakers.filter((s) => s.sprite?.trim());
+                const n =
+                  maxOnStage === 'all'
+                    ? Math.min(5, Math.max(3, cast.length || 3))
+                    : Math.min(5, Math.max(1, Number(maxOnStage) || 3));
+                const labels = ['왼쪽', '중앙', '오른쪽', '4번', '5번'];
+                return (
+                  <div className="svn-editor__seatorder-grid">
+                    {Array.from({ length: n }, (_, i) => (
+                      <label key={`scene-stage-${i}`} className="svn-editor__seatorder-item">
+                        <span>{labels[i]}</span>
+                        <select
+                          className="form-input"
+                          value={stageOrder[i] || ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setStageOrder((prev) => {
+                              const next = Array.from({ length: n }, (_, j) => prev[j] || '');
+                              if (v) {
+                                const dup = next.findIndex((k, j) => j !== i && k === v);
+                                if (dup >= 0) next[dup] = '';
+                              }
+                              next[i] = v;
+                              return next;
+                            });
+                          }}
+                        >
+                          <option value="">자동</option>
+                          {cast.map((s) => (
+                            <option key={s.key} value={s.key}>
+                              {s.displayName || s.key}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                );
+              })()}
+              {stageOrder.some((k) => k.trim()) ? (
+                <button
+                  type="button"
+                  className="btn-del"
+                  style={{ alignSelf: 'flex-start', padding: '4px 10px', marginTop: 8 }}
+                  onClick={() => setStageOrder([])}
+                >
+                  고정 자리 비우기
+                </button>
+              ) : null}
             </div>
             <ScenarioVnStandEditor
               ref={standEditorRef}
@@ -2595,7 +2706,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                         }}
                                       >
                                         <option value="">
-                                          {i + 1}번 — 자동
+                                          {i + 1}번 — 씬 기본
                                         </option>
                                         {cast.map((s) => (
                                           <option key={s.key} value={s.key}>
@@ -2612,13 +2723,13 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                         updateLine(line.id, { stageOrder: undefined })
                                       }
                                     >
-                                      자리 순서 비우기 (등장순 자동)
+                                      자리 순서 비우기 (씬 기본)
                                     </button>
                                   </div>
                                 );
                               })()}
                               <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
-                                이 줄부터 무대 자리를 고정합니다. 비우면 말할 때마다 자동 배정입니다.
+                                이 줄부터 무대 자리를 고정합니다. 비우면 스탠딩 탭의 씬 기본값을 씁니다.
                               </p>
                               <label className="form-label" style={{ marginTop: 12 }}>
                                 등장 순서 (연출)

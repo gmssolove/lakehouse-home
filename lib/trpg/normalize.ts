@@ -10,12 +10,13 @@ import type {
   TrpgSessionLog,
 } from '@/lib/types/site-content';
 import { isDialogueFx, isDialogueMotion } from '@/lib/vn/motions';
-import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage } from '@/lib/vn/parseCcfoliaLog';
+import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage, parseSpeakerKeyList } from '@/lib/vn/parseCcfoliaLog';
 import { normalizeHandoutLayout } from '@/lib/vn/handoutLayout';
 import { normalizeMenuTheme } from '@/lib/vn/menuTheme';
 import {
   normalizeStandPosBySlot,
   normalizeStandPosField,
+  normalizeStageSeatOrder,
 } from '@/lib/vn/standPosBySlot';
 
 function normalizeImageFrameField(raw: unknown): ImageFrame | undefined {
@@ -600,6 +601,8 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
     diceResultSfx: String(row.diceResultSfx || '').trim() || undefined,
     diceResultSfxByTone: normalizeVnDiceResultSfxByTone(row.diceResultSfxByTone),
     maxOnStage: normalizeVnMaxOnStage(maxRaw),
+    stageOrder: parseSpeakerKeyList(row.stageOrder) ?? undefined,
+    stageSeatOrder: normalizeStageSeatOrder(row.stageSeatOrder),
     tutorialSteps: normalizeTutorialSteps(row.tutorialSteps),
     menuTheme: normalizeMenuTheme(row.menuTheme),
     chapterLoading: Boolean(row.chapterLoading) || undefined,
@@ -763,6 +766,8 @@ function normalizeVnScene(raw: unknown, fallbackId: string): TrpgScenario['vnSce
     diceResultSfx: editable.diceResultSfx,
     diceResultSfxByTone: editable.diceResultSfxByTone,
     maxOnStage: normalizeVnMaxOnStage(row.maxOnStage ?? editable.maxOnStage),
+    stageOrder: editable.stageOrder,
+    stageSeatOrder: editable.stageSeatOrder,
     menuTheme: editable.menuTheme,
     chapterLoading: editable.chapterLoading ? true : undefined,
   };
