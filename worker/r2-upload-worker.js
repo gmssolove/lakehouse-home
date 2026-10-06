@@ -92,11 +92,15 @@ async function transformR2Image(env, object, width, quality, format) {
   const contentType = (object.httpMetadata && object.httpMetadata.contentType) || '';
   if (!contentType.startsWith('image/') || /gif|svg/i.test(contentType)) return null;
   try {
-    const result = await env.IMAGES.input(object.body)
-      .transform({ width, fit: 'scale-down' })
-      .output({ format: outputMime(format), quality });
-    return await result.response();
-  } catch {
+    const mime = outputMime(format);
+    const imageResponse = (
+      await env.IMAGES.input(object.body)
+        .transform({ width })
+        .output({ format: mime, quality })
+    ).response();
+    return imageResponse;
+  } catch (err) {
+    console.warn('IMAGES transform failed', String((err && err.message) || err));
     return null;
   }
 }
@@ -133,6 +137,7 @@ async function serveFile(request, env) {
       Object.entries(CORS_HEADERS).forEach(([k, v]) => headers.set(k, v));
       headers.set('Cache-Control', 'public, max-age=31536000, immutable');
       headers.set('Vary', 'Accept');
+      headers.set('X-LH-Image', 'resized');
       return new Response(transformed.body, { status: 200, headers });
     }
     /* 스트림을 이미 소비했을 수 있음 → 원본 재조회 */
