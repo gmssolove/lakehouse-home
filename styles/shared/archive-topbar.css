@@ -54,7 +54,17 @@ body .archive-layout .layout.oc-archive-layout .oc-archive-heading {
 body .archive-layout .layout.oc-archive-layout .card-grid {
   flex: 1 1 auto !important;
   min-height: 0 !important;
+  overflow-x: hidden !important;
   overflow-y: auto !important;
+  align-content: start !important;
+  grid-auto-rows: min-content !important;
+  row-gap: 22px !important;
+  padding-bottom: 22px !important;
+  contain: none !important;
+}
+
+body .archive-layout .layout.oc-archive-layout .card-grid .char-card {
+  contain: none !important;
 }
 
 .archive-layout > .oc-topbar {
