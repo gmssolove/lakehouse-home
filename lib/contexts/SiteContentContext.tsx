@@ -45,6 +45,7 @@ import {
   subscribeSiteContentEager,
 } from '@/lib/site/siteContentEager';
 import { SITE_SECTION_DEFAULT_LIMIT } from '@/lib/site/siteSectionMeta';
+import { prepareTrpgScenariosForSave } from '@/lib/trpg/normalize';
 
 function mergeTrpgListSettings(raw: Partial<TrpgListSettings> | null | undefined): TrpgListSettings {
   const categories = Array.isArray(raw?.categories)
@@ -520,7 +521,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       saveDiary: diary.save,
       saveGallery: gallery.save,
       saveUniverse: universe.save,
-      saveTrpg: trpg.save,
+      saveTrpg: (next) => trpg.save(prepareTrpgScenariosForSave(next)),
       saveTrpgSettings: trpgSettings.save,
       saveGuests: guests.save,
       saveBanners: banners.save,

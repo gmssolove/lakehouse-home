@@ -1,4 +1,3 @@
-import { mergePlayerInfoFields } from '@/lib/trpg/defaultPlayerInfo';
 import { normalizeImageFrame, type ImageFrame } from '@/lib/shared/imageFrame';
 import type {
   TrpgDiceHighlight,
@@ -89,16 +88,18 @@ function normalizeLog(raw: Record<string, unknown>): TrpgSessionLog {
 }
 
 function normalizePlayer(raw: Record<string, unknown>): TrpgPlayerProfile {
-  const infoFields = Array.isArray(raw.infoFields)
-    ? raw.infoFields
-        .map((f) => {
-          const row = f as Record<string, unknown>;
-          const key = String(row.key || '').trim();
-          const value = String(row.value || '').trim();
-          return key ? { key, value } : null;
-        })
-        .filter((f): f is { key: string; value: string } => !!f)
-    : undefined;
+  const infoRaw = raw.infoFields;
+  const infoFields =
+    infoRaw == null || infoRaw === 'none' || infoRaw === false
+      ? []
+      : coerceFirebaseList(infoRaw)
+          .map((f) => {
+            const row = (f ?? {}) as Record<string, unknown>;
+            const key = String(row.key || '').trim();
+            const value = String(row.value || '').trim();
+            return key ? { key, value } : null;
+          })
+          .filter((f): f is { key: string; value: string } => !!f);
 
   const stats = Array.isArray(raw.stats)
     ? raw.stats
@@ -193,7 +194,7 @@ function normalizePlayer(raw: Record<string, unknown>): TrpgPlayerProfile {
     likes: String(raw.likes || '').trim() || undefined,
     dislikes: String(raw.dislikes || '').trim() || undefined,
     tags: Array.isArray(raw.tags) ? raw.tags.map(String).filter(Boolean) : undefined,
-    infoFields: mergePlayerInfoFields(infoFields),
+    infoFields: infoFields.length ? infoFields : undefined,
     stats: stats?.length ? stats : undefined,
     relations: relations?.length ? relations : undefined,
     money: String(raw.money || '').trim() || undefined,
@@ -879,4 +880,18 @@ export function trpgCardPrimaryPcName(
   const pl = players.match(/(?:PL|PC)\s*[:：]?\s*([^\n,/|]+)/i);
   if (pl?.[1]) return pl[1].trim();
   return players.split(/[,/|·]/)[0]?.trim() || '';
+}
+
+/** RTDB는 빈 배열을 버려서, 삭제한 기본 정보가 다시 기본칸으로 살아난다. 빈 목록은 'none'으로 남긴다. */
+export function prepareTrpgScenariosForSave(items: TrpgScenario[]): TrpgScenario[] {
+  return items.map((s) => ({
+    ...s,
+    playerProfiles: (s.playerProfiles ?? []).map((p) => {
+      const fields = (p.infoFields ?? []).filter((f) => String(f.key || '').trim());
+      return {
+        ...p,
+        infoFields: (fields.length ? fields : 'none') as TrpgPlayerProfile['infoFields'],
+      };
+    }),
+  }));
 }

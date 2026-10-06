@@ -37,6 +37,7 @@ import { createEmptyPair } from '@/lib/oc/pairDefaults';
 import { movePairInList, pairOrderMeta } from '@/lib/oc/pairOrder';
 import { AdminNavIcon } from '@/components/admin/AdminNavIcon';
 import { AdminListItem } from '@/components/ui/AdminListItem';
+import { usePortalListReorder } from '@/components/ui/form/usePortalListReorder';
 import { setSiteContentEager } from '@/lib/site/siteContentEager';
 
 type Props = {
@@ -257,6 +258,15 @@ function OcAdminPanel({
     if (toast === 'delete') showDeleteToast();
   }
 
+  const sort = usePortalListReorder({
+    items: characters,
+    onReorder: (next) => {
+      void persist(next, 'save');
+    },
+    labelOf: (c) => c.name,
+    thumbOf: (c) => c.img || undefined,
+  });
+
   function newChar() {
     const nc: OcCharacter = {
       id: Date.now(),
@@ -295,16 +305,34 @@ function OcAdminPanel({
         </button>
       </div>
       <div className="lh-admin-grid">
-        <div id="oc-char-list-panel">
-          {characters.map((c) => (
-            <AdminListItem
+        <div id="oc-char-list-panel" className={`lh-admin-sort-list${sort.dragFrom != null ? ' is-sorting' : ''}`}>
+          {characters.map((c, i) => (
+            <div
               key={c.id}
-              title={c.name}
-              subtitle={c.nameSub || undefined}
-              selected={String(editId) === String(c.id)}
-              onClick={() => onSelect(c.id)}
-            />
+              ref={(el) => sort.setRowRef(i, el)}
+              className={`lh-admin-sort-row${sort.dragFrom === i ? ' is-dragging' : ''}${
+                sort.dragOver === i && sort.dragFrom !== i ? ' is-drop-slot' : ''
+              }`}
+            >
+              <button
+                type="button"
+                className="lh-admin-sort-handle"
+                aria-label="순서 이동"
+                title="드래그로 이동"
+                {...sort.handleProps(i)}
+              >
+                ⠿
+              </button>
+              <AdminListItem
+                className="lh-admin-sort-row__item"
+                title={c.name}
+                subtitle={c.nameSub || undefined}
+                selected={String(editId) === String(c.id)}
+                onClick={() => onSelect(c.id)}
+              />
+            </div>
           ))}
+          {sort.ghostNode}
         </div>
         <div id="oc-char-edit-panel" className="lh-oc-admin-block">
           {selected ? (

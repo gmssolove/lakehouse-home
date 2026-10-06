@@ -5,7 +5,7 @@ import { ImageFileField } from '@/components/ui/ImageFileField';
 import { ImageFrameEditor } from '@/components/ui/ImageFrameEditor';
 import { InvestigatorCardImage, InvestigatorPortraitImage } from '@/components/trpg/TrpgInvestigatorImage';
 import { LikeHateEdit, LikeHateView } from '@/components/trpg/TrpgInvestigatorLikeHate';
-import { mergePlayerInfoFields, DEFAULT_PLAYER_INFO_FIELDS } from '@/lib/trpg/defaultPlayerInfo';
+import { DEFAULT_PLAYER_INFO_FIELDS } from '@/lib/trpg/defaultPlayerInfo';
 import { newId } from '@/lib/types/site-content';
 import type {
   TrpgPlayerInfoField,

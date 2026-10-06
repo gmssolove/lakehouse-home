@@ -452,10 +452,10 @@ export function OcPageClient() {
     list = [...list].sort((a, b) => {
       if (sortMode === 'name') return a.name.localeCompare(b.name, 'ko');
       if (sortMode === 'stars') return (b.stars ?? 5) - (a.stars ?? 5);
-      return String(a.id).localeCompare(String(b.id));
+      return (charNumberMap.get(String(a.id)) ?? 0) - (charNumberMap.get(String(b.id)) ?? 0);
     });
     return list;
-  }, [characters, activeCat, activeSub, search, sortMode]);
+  }, [characters, activeCat, activeSub, search, sortMode, charNumberMap]);
 
   function proceedAfterSplash(c: OcCharacter, au: number, opts?: { skipIntro?: boolean }) {
     if (!opts?.skipIntro && shouldShowPvIntro(c, ocSettings.pvIntroEnabled)) {

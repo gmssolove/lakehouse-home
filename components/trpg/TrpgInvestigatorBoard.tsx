@@ -30,7 +30,6 @@ import { lakeNavigate } from '@/lib/lake/routeTransition';
 import { setOcReturnPath } from '@/lib/lake/ocReturn';
 import { markTrpgSkipBgmRestore } from '@/lib/lake/trpgReturn';
 import { normalizeHex } from '@/lib/oc/characterTheme';
-import { mergePlayerInfoFields } from '@/lib/trpg/defaultPlayerInfo';
 import { normalizeImageFrame, type ImageFrame } from '@/lib/shared/imageFrame';
 import { newId } from '@/lib/types/site-content';
 import type {
@@ -194,7 +193,7 @@ export function TrpgInvestigatorBoard({
   }, [activeId]);
 
   function startEdit(player: TrpgPlayerProfile) {
-    setDraft({ ...player, infoFields: mergePlayerInfoFields(player.infoFields) });
+    setDraft({ ...player, infoFields: [...(player.infoFields ?? [])] });
     setEditing(true);
     setExpandedExprIds([]);
   }

@@ -498,18 +498,6 @@ export function TrpgScenarioPageClient({ id }: Props) {
                     accentColor={view.vnPlayBtnColor}
                     onClick={() => router.push(`/vn/${encodeURIComponent(view.id)}`)}
                   />
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      className="trpg-scenario-session-link__btn"
-                      onClick={() => {
-                        setEditInitialTab('vn');
-                        setEditDrawerOpen(true);
-                      }}
-                    >
-                      VN 편집
-                    </button>
-                  ) : null}
                 </div>
               </header>
 
