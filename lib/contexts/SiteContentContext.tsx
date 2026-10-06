@@ -268,14 +268,14 @@ function needsForRoute(pathname: string, homeTab: HomeTab, eager: boolean): Need
   const onVn = pathname === '/vn' || pathname.startsWith('/vn/');
   const onPair = pathname === '/pair' || pathname.startsWith('/pair/');
 
-  /* OC/VN/Pair — 설정·BGM만 (core는 항상). 목록 섹션 구독 안 함 */
+  /* OC는 Related scenario 버튼용으로 TRPG 목록이 필요 */
   if (onOc || onVn || onPair) {
     return {
       notices: false,
       diary: false,
       gallery: false,
       universe: false,
-      trpg: false,
+      trpg: onOc,
       guests: false,
       banners: false,
       scrap: false,
@@ -393,11 +393,13 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     timeoutMs,
     cacheUrl: need.universe ? cacheFor('universe', lim?.universe) : null,
   });
+  const onOc = pathname === '/oc' || pathname.startsWith('/oc/');
+  /* OC 상세 Related scenario — 전체 시나리오가 있어야 연결이 보임. limitToLast(20)이면 빠짐 */
   const trpg = useFirebaseSection<TrpgScenario[]>('lhdata/site/trpg', [], {
     enabled: need.trpg,
-    limitToLast: lim?.trpg,
+    limitToLast: onOc ? undefined : lim?.trpg,
     timeoutMs,
-    cacheUrl: need.trpg ? cacheFor('trpg', lim?.trpg) : null,
+    cacheUrl: need.trpg ? cacheFor('trpg', onOc ? 200 : lim?.trpg) : null,
   });
   const trpgSettings = useFirebaseSection<TrpgListSettings>(
     'lhdata/site/trpg_settings',

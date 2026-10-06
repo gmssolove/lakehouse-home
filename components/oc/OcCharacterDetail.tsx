@@ -19,7 +19,7 @@ import { emptyFloatingQuote, normalizeFloatingQuotes } from '@/lib/oc/floatingQu
 import { applyCharacterTheme, characterHasBgmTheme, clearCharacterTheme, resolveCharacterTheme } from '@/lib/oc/characterTheme';
 import { formatGalleryCredit, gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
 import { displayImageUrl } from '@/lib/media/displayImageUrl';
-import { displayCategory, isTrpgCategory } from '@/lib/oc/categories';
+import { displayCategory, canLinkTrpgScenarios, isTrpgCategory } from '@/lib/oc/categories';
 import { buildDetailProfileRows, formatCardTag, formatStatDigits, parseStatPercent } from '@/lib/oc/profile';
 import { OcRichText } from '@/lib/oc/richText';
 import { lakeNavigate } from '@/lib/lake/routeTransition';
@@ -1205,7 +1205,7 @@ export function OcCharacterDetail({
   const starCount = character.stars ?? 5;
   const showStats = isTrpgCategory(character.category) && !!character.stats?.length;
   const relatedTrpg = useMemo(
-    () => (isTrpgCategory(character.category) ? findRelatedTrpgScenarios(trpg, character.id) : []),
+    () => (canLinkTrpgScenarios(character.category) ? findRelatedTrpgScenarios(trpg, character.id) : []),
     [character.category, character.id, trpg],
   );
 

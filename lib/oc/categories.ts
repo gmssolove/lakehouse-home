@@ -34,6 +34,15 @@ export function isTrpgCategory(cat?: string): boolean {
   return normalizeCategory(cat) === 'TRPG OC';
 }
 
+export function isGuestCategory(cat?: string): boolean {
+  return normalizeCategory(cat) === 'GUEST';
+}
+
+/** TRPG 시나리오 연관 바로가기 — TRPG OC · GUEST */
+export function canLinkTrpgScenarios(cat?: string): boolean {
+  return isTrpgCategory(cat) || isGuestCategory(cat);
+}
+
 export function mergeCategoryList(cats: string[]): string[] {
   const seen = new Set<string>();
   const extras: string[] = [];

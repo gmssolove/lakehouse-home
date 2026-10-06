@@ -40,7 +40,7 @@ import {
 import { normalizeFloatingQuotes } from '@/lib/oc/floatingQuotes';
 import { DustFxFields } from '@/components/shared/DustFxFields';
 import { CREEPY_FX_KINDS, DEFAULT_VIGNETTE_COLOR } from '@/lib/oc/creepyFx';
-import { isTrpgCategory } from '@/lib/oc/categories';
+import { canLinkTrpgScenarios } from '@/lib/oc/categories';
 import { OC_CARD_ASPECT } from '@/lib/oc/pairDefaults';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { uploadImageFile, uploadMediaFile } from '@/lib/r2/client';
@@ -264,7 +264,7 @@ export function OcEditForm({
   const tabNameInputRef = useRef<HTMLInputElement | null>(null);
   const tasteEditorRefs = useRef<Record<string, StoryRichTextareaHandle | null>>({});
   const themePreview = useMemo(() => resolveCharacterTheme(form), [form]);
-  const showTrpgLinks = isTrpgCategory(form.category);
+  const showTrpgLinks = canLinkTrpgScenarios(form.category);
   const set = <K extends keyof OcCharacter>(k: K, v: OcCharacter[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -519,7 +519,7 @@ export function OcEditForm({
       delete merged.tasteExtra;
       const prepared = await prepareCharacterForSave(merged);
       await onSave(prepared);
-      if (isTrpgCategory(prepared.category)) {
+      if (canLinkTrpgScenarios(prepared.category)) {
         const nextTrpg = applyOcTrpgLinks(trpg, prepared.id, linkedTrpgIds);
         const changed = nextTrpg.some((s, i) => s !== trpg[i]);
         if (changed) await saveTrpg(nextTrpg);
