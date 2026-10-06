@@ -37,6 +37,26 @@ body .archive-layout .layout.oc-archive-layout .main-content {
   overflow: hidden !important;
 }
 
+body .archive-layout .layout.oc-archive-layout .main-content::before {
+  content: none !important;
+  display: none !important;
+}
+
+body .archive-layout .layout.oc-archive-layout .oc-archive-heading {
+  position: relative !important;
+  top: auto !important;
+  z-index: 1 !important;
+  flex-shrink: 0;
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+body .archive-layout .layout.oc-archive-layout .card-grid {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
 .archive-layout > .oc-topbar {
   flex-shrink: 0;
 }
