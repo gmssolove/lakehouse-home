@@ -44,6 +44,8 @@ export type VnDiceRoll = {
   sfx?: string;
   /** 이 판정만 다른 결과 효과음 */
   resultSfx?: string;
+  /** 이 판정만 다른 컷인 GIF (diceCutinList 키 또는 URL) */
+  cutin?: string;
 };
 
 export type ScenarioVnStandPos = {
@@ -192,6 +194,14 @@ export type ScenarioVnDiceSfx = {
   audio?: string;
 };
 
+/** VN 다이스 컷인 — 굴림 연출용 GIF/이미지 */
+export type ScenarioVnDiceCutin = {
+  key: string;
+  label: string;
+  /** URL 또는 data URL */
+  image?: string;
+};
+
 /** CoC 등 판정 문구 → 연출·효과음 톤 */
 export type DiceResultTone = 'extreme' | 'great' | 'ok' | 'fail' | 'fumble' | 'neutral';
 
@@ -268,8 +278,12 @@ export type ScenarioVnScene = {
   handouts?: ScenarioVnHandout[];
   /** 다이스 효과음 목록 */
   diceSfxList?: ScenarioVnDiceSfx[];
+  /** 다이스 컷인 GIF 목록 */
+  diceCutinList?: ScenarioVnDiceCutin[];
   /** 기본 굴림 효과음 키 (diceSfxList) */
   diceRollSfx?: string;
+  /** 기본 굴림 컷인 키 (diceCutinList) */
+  diceRollCutin?: string;
   /**
    * 기본 판정 결과 효과음 키 (선택) — 종류별 미지정·기타 판정 폴백
    * @deprecated 가능하면 diceResultSfxByTone 사용
@@ -447,7 +461,9 @@ export function toVnScene(
     ambients?: ScenarioVnAmbient[];
     handouts?: ScenarioVnHandout[];
     diceSfxList?: ScenarioVnDiceSfx[];
+    diceCutinList?: ScenarioVnDiceCutin[];
     diceRollSfx?: string;
+    diceRollCutin?: string;
     diceResultSfx?: string;
     diceResultSfxByTone?: ScenarioVnDiceResultSfxByTone;
     menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;
@@ -465,7 +481,9 @@ export function toVnScene(
     ambients: opts?.ambients ?? [],
     handouts: opts?.handouts ?? [],
     diceSfxList: opts?.diceSfxList ?? [],
+    diceCutinList: opts?.diceCutinList ?? [],
     diceRollSfx: opts?.diceRollSfx,
+    diceRollCutin: opts?.diceRollCutin,
     diceResultSfx: opts?.diceResultSfx,
     diceResultSfxByTone: opts?.diceResultSfxByTone,
     maxOnStage: max,
@@ -510,6 +528,10 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   const diceSfxMap: Record<string, string> = {};
   for (const d of scene.diceSfxList ?? []) {
     if (d.audio?.trim()) diceSfxMap[d.key] = d.audio.trim();
+  }
+  const diceCutinMap: Record<string, string> = {};
+  for (const d of scene.diceCutinList ?? []) {
+    if (d.image?.trim()) diceCutinMap[d.key] = d.image.trim();
   }
 
   const maxOnStage = resolveMaxOnStage(scene.maxOnStage, scene.speakers);
@@ -802,7 +824,9 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     handoutMap,
     handoutLayoutMap,
     diceSfxMap,
+    diceCutinMap,
     diceRollSfx: scene.diceRollSfx,
+    diceRollCutin: scene.diceRollCutin,
     diceResultSfx: scene.diceResultSfx,
     diceResultSfxByTone: scene.diceResultSfxByTone,
     menuTheme: scene.menuTheme,

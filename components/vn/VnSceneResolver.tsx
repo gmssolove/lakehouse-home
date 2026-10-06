@@ -18,6 +18,7 @@ import {
   type ScenarioVnBackground,
   type ScenarioVnBgm,
   type ScenarioVnDiceSfx,
+  type ScenarioVnDiceCutin,
   type ScenarioVnHandout,
   type ScenarioVnSpeaker,
 } from '@/lib/vn/parseCcfoliaLog';
@@ -164,10 +165,27 @@ export function VnSceneResolver({ sceneId }: Props) {
       ? [...diceSfxMerged.values()]
       : edit?.diceSfxList ?? scene?.diceSfxList ?? [];
 
+    const diceCutinMerged = new Map<string, ScenarioVnDiceCutin>();
+    for (const list of [scene?.diceCutinList, edit?.diceCutinList]) {
+      for (const d of list ?? []) {
+        if (!d?.key) continue;
+        const prev = diceCutinMerged.get(d.key);
+        diceCutinMerged.set(d.key, {
+          key: d.key,
+          label: d.label || prev?.label || '',
+          image: d.image?.trim() || prev?.image,
+        });
+      }
+    }
+    const diceCutinList = diceCutinMerged.size
+      ? [...diceCutinMerged.values()]
+      : edit?.diceCutinList ?? scene?.diceCutinList ?? [];
+
     const maxOnStage = edit?.maxOnStage ?? scene?.maxOnStage ?? 3;
     const menuTheme = edit?.menuTheme ?? scene?.menuTheme;
     const chapterLoading = Boolean(edit?.chapterLoading ?? scene?.chapterLoading);
     const diceRollSfx = edit?.diceRollSfx ?? scene?.diceRollSfx;
+    const diceRollCutin = edit?.diceRollCutin ?? scene?.diceRollCutin;
     const diceResultSfx = edit?.diceResultSfx ?? scene?.diceResultSfx;
     const diceResultSfxByTone =
       edit?.diceResultSfxByTone ?? scene?.diceResultSfxByTone;
@@ -182,7 +200,9 @@ export function VnSceneResolver({ sceneId }: Props) {
       ambients,
       handouts,
       diceSfxList,
+      diceCutinList,
       diceRollSfx,
+      diceRollCutin,
       diceResultSfx,
       diceResultSfxByTone,
       maxOnStage,
@@ -223,7 +243,9 @@ export function VnSceneResolver({ sceneId }: Props) {
       handoutMap={trpgPayload.handoutMap}
       handoutLayoutMap={trpgPayload.handoutLayoutMap}
       diceSfxMap={trpgPayload.diceSfxMap}
+      diceCutinMap={trpgPayload.diceCutinMap}
       diceRollSfx={trpgPayload.diceRollSfx}
+      diceRollCutin={trpgPayload.diceRollCutin}
       diceResultSfx={trpgPayload.diceResultSfx}
       diceResultSfxByTone={trpgPayload.diceResultSfxByTone}
       menuTheme={trpgPayload.menuTheme}
@@ -243,7 +265,9 @@ function ScenarioVnPlayClient({
   handoutMap,
   handoutLayoutMap,
   diceSfxMap,
+  diceCutinMap,
   diceRollSfx,
+  diceRollCutin,
   diceResultSfx,
   diceResultSfxByTone,
   menuTheme,
@@ -259,7 +283,9 @@ function ScenarioVnPlayClient({
   handoutMap: Record<string, string>;
   handoutLayoutMap?: Record<string, import('@/lib/vn/menuTheme').HandoutLayout>;
   diceSfxMap: Record<string, string>;
+  diceCutinMap: Record<string, string>;
   diceRollSfx?: string;
+  diceRollCutin?: string;
   diceResultSfx?: string;
   diceResultSfxByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone;
   menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;
@@ -411,7 +437,9 @@ function ScenarioVnPlayClient({
               ambients: edit?.ambients ?? item.vnScene?.ambients,
               handouts: edit?.handouts ?? item.vnScene?.handouts,
               diceSfxList: edit?.diceSfxList ?? item.vnScene?.diceSfxList,
+              diceCutinList: edit?.diceCutinList ?? item.vnScene?.diceCutinList,
               diceRollSfx: edit?.diceRollSfx ?? item.vnScene?.diceRollSfx,
+              diceRollCutin: edit?.diceRollCutin ?? item.vnScene?.diceRollCutin,
               diceResultSfx: edit?.diceResultSfx ?? item.vnScene?.diceResultSfx,
               diceResultSfxByTone:
                 edit?.diceResultSfxByTone ?? item.vnScene?.diceResultSfxByTone,
@@ -553,7 +581,9 @@ function ScenarioVnPlayClient({
               ambients: edit?.ambients ?? item.vnScene?.ambients,
               handouts: patched,
               diceSfxList: edit?.diceSfxList ?? item.vnScene?.diceSfxList,
+              diceCutinList: edit?.diceCutinList ?? item.vnScene?.diceCutinList,
               diceRollSfx: edit?.diceRollSfx ?? item.vnScene?.diceRollSfx,
+              diceRollCutin: edit?.diceRollCutin ?? item.vnScene?.diceRollCutin,
               diceResultSfx: edit?.diceResultSfx ?? item.vnScene?.diceResultSfx,
               diceResultSfxByTone:
                 edit?.diceResultSfxByTone ?? item.vnScene?.diceResultSfxByTone,
@@ -745,9 +775,10 @@ function ScenarioVnPlayClient({
       ...Object.values(spriteMap),
       ...Object.values(backgroundMap),
       ...Object.values(handoutMap),
+      ...Object.values(diceCutinMap),
       '/vn/characters/npc_generic.svg',
     ]);
-  }, [spriteMap, backgroundMap, handoutMap]);
+  }, [spriteMap, backgroundMap, handoutMap, diceCutinMap]);
 
   const restart = useCallback(() => {
     setStartLineId(undefined);
@@ -813,6 +844,8 @@ function ScenarioVnPlayClient({
                 onHandoutPoseChange={isAdmin ? onHandoutPoseChange : undefined}
                 onHandoutPoseFlush={isAdmin ? () => void flushHandoutPoses() : undefined}
                 diceRollSfxDefault={diceRollSfx}
+                diceRollCutinDefault={diceRollCutin}
+                diceCutinMap={diceCutinMap}
                 diceResultSfxDefault={diceResultSfx}
                 diceResultSfxByTone={diceResultSfxByTone}
                 chapterLoading={chapterLoading}

@@ -322,7 +322,9 @@ export type TrpgScenario = WithSecret & {
     ambients?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnAmbient[];
     handouts?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnHandout[];
     diceSfxList?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceSfx[];
+    diceCutinList?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutin[];
     diceRollSfx?: string;
+    diceRollCutin?: string;
     diceResultSfx?: string;
     diceResultSfxByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone;
     maxOnStage?: number | 'all';

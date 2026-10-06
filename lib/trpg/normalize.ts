@@ -469,6 +469,7 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
               result: String(dice.result || ''),
               sfx: String(dice.sfx || '').trim() || undefined,
               resultSfx: String(dice.resultSfx || '').trim() || undefined,
+              cutin: String(dice.cutin || '').trim() || undefined,
             }
           : undefined,
         background: String(line.background || '').trim() || undefined,
@@ -593,7 +594,9 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
     ambients: normalizeVnAmbients(row.ambients),
     handouts: normalizeVnHandouts(row.handouts),
     diceSfxList: normalizeVnDiceSfxList(row.diceSfxList),
+    diceCutinList: normalizeVnDiceCutinList(row.diceCutinList),
     diceRollSfx: String(row.diceRollSfx || '').trim() || undefined,
+    diceRollCutin: String(row.diceRollCutin || '').trim() || undefined,
     diceResultSfx: String(row.diceResultSfx || '').trim() || undefined,
     diceResultSfxByTone: normalizeVnDiceResultSfxByTone(row.diceResultSfxByTone),
     maxOnStage: normalizeVnMaxOnStage(maxRaw),
@@ -705,6 +708,23 @@ function normalizeVnDiceSfxList(
     .filter((b): b is NonNullable<typeof b> => Boolean(b));
 }
 
+function normalizeVnDiceCutinList(
+  raw: unknown,
+): import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutin[] {
+  return coerceFirebaseList(raw)
+    .map((b) => {
+      const row = (b ?? {}) as Record<string, unknown>;
+      const key = String(row.key || '').trim();
+      if (!key) return null;
+      return {
+        key,
+        label: String(row.label || '').trim(),
+        image: String(row.image || '').trim() || undefined,
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => Boolean(b));
+}
+
 function normalizeVnDiceResultSfxByTone(
   raw: unknown,
 ): import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone | undefined {
@@ -737,7 +757,9 @@ function normalizeVnScene(raw: unknown, fallbackId: string): TrpgScenario['vnSce
     ambients: editable.ambients,
     handouts: editable.handouts,
     diceSfxList: editable.diceSfxList,
+    diceCutinList: editable.diceCutinList,
     diceRollSfx: editable.diceRollSfx,
+    diceRollCutin: editable.diceRollCutin,
     diceResultSfx: editable.diceResultSfx,
     diceResultSfxByTone: editable.diceResultSfxByTone,
     maxOnStage: normalizeVnMaxOnStage(row.maxOnStage ?? editable.maxOnStage),

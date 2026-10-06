@@ -22,6 +22,8 @@ type Props = {
   >;
   /** 종류별 미지정·기타 판정 폴백 */
   resultSfxFallbackUrl?: string;
+  /** 굴림 시작 때 한 번 재생되는 컷인 GIF */
+  cutinUrl?: string;
 };
 
 type Tone = ReturnType<typeof classifyDiceResultTone>;
@@ -112,6 +114,7 @@ export function VnDiceLayer({
   resultSfxUrl,
   resultSfxByTone,
   resultSfxFallbackUrl,
+  cutinUrl,
 }: Props) {
   const [phase, setPhase] = useState<Phase>('boot');
   const [tens, ones] = useMemo(() => splitRoll(dice.roll), [dice.roll]);
@@ -133,6 +136,8 @@ export function VnDiceLayer({
     tone,
   };
 
+  const gifOnly = Boolean(cutinUrl?.trim());
+
   useEffect(() => {
     setPhase('boot');
     rollHold.current = null;
@@ -140,9 +145,12 @@ export function VnDiceLayer({
 
     const tRoll = window.setTimeout(() => {
       setPhase('roll');
-      /* 굴림 시작 순간에만 굴림음 */
       playUrl(urlsRef.current.rollSfxUrl, rollHold);
     }, 30);
+
+    if (gifOnly) {
+      return () => window.clearTimeout(tRoll);
+    }
 
     const tLand = window.setTimeout(() => setPhase('land'), LAND_MS);
 
@@ -151,7 +159,6 @@ export function VnDiceLayer({
       const u = urlsRef.current;
       const byTone =
         u.tone !== 'neutral' ? u.resultSfxByTone?.[u.tone]?.trim() || undefined : undefined;
-      /* 성공/실패 문구가 뜨는 순간에만 결과음 (굴림음과 분리) */
       playUrl(u.resultSfxUrl?.trim() || byTone || u.resultSfxFallbackUrl?.trim(), resultHold);
     }, RESULT_MS);
 
@@ -160,7 +167,7 @@ export function VnDiceLayer({
       window.clearTimeout(tLand);
       window.clearTimeout(tResult);
     };
-  }, [lineKey, dice.roll, dice.result]);
+  }, [lineKey, dice.roll, dice.result, gifOnly]);
 
   const playing = phase !== 'boot';
   const settled = phase === 'land' || phase === 'result';
@@ -169,44 +176,54 @@ export function VnDiceLayer({
 
   return (
     <div
-      className={`${styles.root}${veilOn ? ` ${styles.rootVeil}` : ''}${showResult ? ` ${styles.rootResult}` : ''}`}
+      className={`${styles.root}${!gifOnly && veilOn ? ` ${styles.rootVeil}` : ''}${!gifOnly && showResult ? ` ${styles.rootResult}` : ''}`}
       aria-live="polite"
       key={lineKey}
       data-tone={tone}
     >
-      <div className={styles.veil} aria-hidden />
-
-      <div className={styles.stage}>
-        {showResult ? (
-          <div className={styles.verdict} data-tone={tone}>
-            <p className={styles.eyebrow}>{toneEyebrow(tone)}</p>
-            <div className={styles.verdictGlow} aria-hidden>
-              <span className={styles.bloomOuter} />
-              <span className={styles.bloomInner} />
-            </div>
-            <p className={styles.verdictText}>{dice.result}</p>
-            <p className={styles.rollHint}>
-              <span className={styles.rollHintNum}>
-                {tens}
-                {ones}
-              </span>
-            </p>
-          </div>
-        ) : (
-          <div className={styles.verdictSlot} aria-hidden />
-        )}
-
-        <div className={`${styles.diceRow}${playing ? ` ${styles.diceRowPlay}` : ''}`}>
-          <div className={styles.dieWrap}>
-            <div className={`${styles.shadow} ${styles.shadow_a}`} />
-            <DiceCube digit={tens} variant="a" settled={settled} />
-          </div>
-          <div className={styles.dieWrap}>
-            <div className={`${styles.shadow} ${styles.shadow_b}`} />
-            <DiceCube digit={ones} variant="b" settled={settled} />
-          </div>
+      {gifOnly ? (
+        <div
+          className={`${styles.cutin} ${styles.cutinSolo}${playing ? ` ${styles.cutinOn}` : ''}`}
+          aria-hidden
+        >
+          <img key={lineKey} src={cutinUrl} alt="" />
         </div>
-      </div>
+      ) : (
+        <>
+          <div className={styles.veil} aria-hidden />
+          <div className={styles.stage}>
+            {showResult ? (
+              <div className={styles.verdict} data-tone={tone}>
+                <p className={styles.eyebrow}>{toneEyebrow(tone)}</p>
+                <div className={styles.verdictGlow} aria-hidden>
+                  <span className={styles.bloomOuter} />
+                  <span className={styles.bloomInner} />
+                </div>
+                <p className={styles.verdictText}>{dice.result}</p>
+                <p className={styles.rollHint}>
+                  <span className={styles.rollHintNum}>
+                    {tens}
+                    {ones}
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <div className={styles.verdictSlot} aria-hidden />
+            )}
+
+            <div className={`${styles.diceRow}${playing ? ` ${styles.diceRowPlay}` : ''}`}>
+              <div className={styles.dieWrap}>
+                <div className={`${styles.shadow} ${styles.shadow_a}`} />
+                <DiceCube digit={tens} variant="a" settled={settled} />
+              </div>
+              <div className={styles.dieWrap}>
+                <div className={`${styles.shadow} ${styles.shadow_b}`} />
+                <DiceCube digit={ones} variant="b" settled={settled} />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

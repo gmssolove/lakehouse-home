@@ -33,6 +33,7 @@
 .veil {
   position: absolute;
   inset: 0;
+  z-index: 1;
   background: rgba(4, 5, 6, 0);
   backdrop-filter: blur(0px);
   -webkit-backdrop-filter: blur(0px);
@@ -61,9 +62,47 @@
   -webkit-backdrop-filter: blur(12px) saturate(0.78);
 }
 
+.cutin {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(8%) scale(1.04);
+  transition:
+    opacity 0.28s ease,
+    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cutinOn {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+.cutinSolo {
+  z-index: 2;
+}
+
+.cutinSolo img {
+  max-width: min(96vw, 1100px);
+  max-height: 96%;
+}
+
+.cutin img {
+  max-width: min(92vw, 920px);
+  max-height: 92%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 48px rgba(0, 0, 0, 0.55));
+}
+
 .stage {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   width: min(92vw, 520px);
   min-height: min(52vh, 380px);
   display: flex;

@@ -94,6 +94,9 @@ type Props = {
   diceRollSfxDefault?: string;
   diceResultSfxDefault?: string;
   diceResultSfxByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone;
+  /** 씬 기본 다이스 컷인 GIF 키 */
+  diceRollCutinDefault?: string;
+  diceCutinMap?: Record<string, string>;
   /**
    * @deprecated 줄별 chapterLoadingBefore/After 사용.
    * true면 줄별 미지정 챕터에 before 로딩 적용 (구 데이터 호환).
@@ -148,6 +151,8 @@ export function VNEngine({
   diceRollSfxDefault,
   diceResultSfxDefault,
   diceResultSfxByTone,
+  diceRollCutinDefault,
+  diceCutinMap,
   chapterLoading: chapterLoadingEnabled = false,
 }: Props) {
   const { isAdmin } = useAuth();
@@ -234,6 +239,23 @@ export function VNEngine({
   const resolveSfx = useCallback(
     (key: string) => resolvers.sfxUrl?.(key) ?? undefined,
     [resolvers],
+  );
+
+  const resolveDiceCutin = useCallback(
+    (key: string) => {
+      const raw = key.trim();
+      if (!raw) return undefined;
+      if (
+        /^https?:\/\//i.test(raw) ||
+        raw.startsWith('data:') ||
+        raw.startsWith('blob:') ||
+        raw.startsWith('/')
+      ) {
+        return raw;
+      }
+      return diceCutinMap?.[raw];
+    },
+    [diceCutinMap],
   );
 
   const resolveHandout = useCallback(
@@ -1039,6 +1061,9 @@ export function VNEngine({
           resultSfxUrl={resolveSfx(eng.line.diceRoll.resultSfx?.trim() || '')}
           resultSfxByTone={diceResultToneUrls}
           resultSfxFallbackUrl={resolveSfx(diceResultSfxDefault || '')}
+          cutinUrl={resolveDiceCutin(
+            eng.line.diceRoll.cutin?.trim() || diceRollCutinDefault || '',
+          )}
         />
       ) : null}
 

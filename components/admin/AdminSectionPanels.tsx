@@ -1597,7 +1597,9 @@ export function TrpgEditForm({
                       ambients: form.vnScene.ambients,
                       handouts: form.vnScene.handouts,
                       diceSfxList: form.vnScene.diceSfxList,
+                      diceCutinList: form.vnScene.diceCutinList,
                       diceRollSfx: form.vnScene.diceRollSfx,
+                      diceRollCutin: form.vnScene.diceRollCutin,
                       diceResultSfx: form.vnScene.diceResultSfx,
                       diceResultSfxByTone: form.vnScene.diceResultSfxByTone,
                       maxOnStage: form.vnScene.maxOnStage,
@@ -1643,6 +1645,14 @@ export function TrpgEditForm({
                 onUploadStart();
                 try {
                   return await uploadMediaFile(file, `site/trpg/vn/${form.id}/dice-sfx/${diceSfxKey}`);
+                } finally {
+                  onUploadEnd();
+                }
+              }}
+              onUploadDiceCutin={async (diceCutinKey, file) => {
+                onUploadStart();
+                try {
+                  return await uploadImageFile(file, `site/trpg/vn/${form.id}/dice-cutin/${diceCutinKey}`);
                 } finally {
                   onUploadEnd();
                 }

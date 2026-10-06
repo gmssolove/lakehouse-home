@@ -13,6 +13,7 @@ import {
   type ScenarioVnBgm,
   type ScenarioVnDiceResultSfxByTone,
   type ScenarioVnDiceSfx,
+  type ScenarioVnDiceCutin,
   type ScenarioVnHandout,
   type ScenarioVnLine,
   type ScenarioVnScene,
@@ -59,7 +60,9 @@ export type ScenarioVnEditable = {
   ambients?: ScenarioVnAmbient[];
   handouts?: ScenarioVnHandout[];
   diceSfxList?: ScenarioVnDiceSfx[];
+  diceCutinList?: ScenarioVnDiceCutin[];
   diceRollSfx?: string;
+  diceRollCutin?: string;
   diceResultSfx?: string;
   diceResultSfxByTone?: ScenarioVnDiceResultSfxByTone;
   maxOnStage?: number | 'all';
@@ -101,6 +104,8 @@ type Props = {
   onUploadAmbient?: (ambientKey: string, file: File) => Promise<string>;
   /** 다이스 효과음 업로드 */
   onUploadDiceSfx?: (diceSfxKey: string, file: File) => Promise<string>;
+  /** 다이스 컷인 GIF 업로드 */
+  onUploadDiceCutin?: (diceCutinKey: string, file: File) => Promise<string>;
   /** 핸드아웃 이미지 업로드 */
   onUploadHandout?: (handoutKey: string, file: File) => Promise<string>;
   /** 튜토리얼 GIF 업로드 */
@@ -173,6 +178,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
     onUploadBgm,
     onUploadAmbient,
     onUploadDiceSfx,
+    onUploadDiceCutin,
     onUploadHandout,
     onUploadTutorialGif,
     uploadBusy = false,
@@ -194,7 +200,11 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   const [diceSfxList, setDiceSfxList] = useState<ScenarioVnDiceSfx[]>(
     initial?.diceSfxList ?? [],
   );
+  const [diceCutinList, setDiceCutinList] = useState<ScenarioVnDiceCutin[]>(
+    initial?.diceCutinList ?? [],
+  );
   const [diceRollSfx, setDiceRollSfx] = useState(initial?.diceRollSfx ?? '');
+  const [diceRollCutin, setDiceRollCutin] = useState(initial?.diceRollCutin ?? '');
   const [diceResultSfx, setDiceResultSfx] = useState(initial?.diceResultSfx ?? '');
   const [diceResultSfxByTone, setDiceResultSfxByTone] = useState<ScenarioVnDiceResultSfxByTone>(
     () => ({ ...(initial?.diceResultSfxByTone ?? {}) }),
@@ -215,6 +225,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   const [busyAmbient, setBusyAmbient] = useState<string | null>(null);
   const [busyHandout, setBusyHandout] = useState<string | null>(null);
   const [busyDiceSfx, setBusyDiceSfx] = useState<string | null>(null);
+  const [busyDiceCutin, setBusyDiceCutin] = useState<string | null>(null);
   const [busyLine, setBusyLine] = useState<string | null>(null);
   const [maxOnStage, setMaxOnStage] = useState<VnMaxOnStage>(() =>
     normalizeVnMaxOnStage(initial?.maxOnStage),
@@ -249,7 +260,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   const ambientsRef = useRef(ambients);
   const handoutsRef = useRef(handouts);
   const diceSfxListRef = useRef(diceSfxList);
+  const diceCutinListRef = useRef(diceCutinList);
   const diceRollSfxRef = useRef(diceRollSfx);
+  const diceRollCutinRef = useRef(diceRollCutin);
   const diceResultSfxRef = useRef(diceResultSfx);
   const diceResultSfxByToneRef = useRef(diceResultSfxByTone);
   const tutorialStepsRef = useRef(tutorialSteps);
@@ -263,7 +276,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   ambientsRef.current = ambients;
   handoutsRef.current = handouts;
   diceSfxListRef.current = diceSfxList;
+  diceCutinListRef.current = diceCutinList;
   diceRollSfxRef.current = diceRollSfx;
+  diceRollCutinRef.current = diceRollCutin;
   diceResultSfxRef.current = diceResultSfx;
   diceResultSfxByToneRef.current = diceResultSfxByTone;
   tutorialStepsRef.current = tutorialSteps;
@@ -289,7 +304,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
         ambients: ambientsRef.current,
         handouts: handoutsRef.current,
         diceSfxList: diceSfxListRef.current,
+        diceCutinList: diceCutinListRef.current,
         diceRollSfx: diceRollSfxRef.current || undefined,
+        diceRollCutin: diceRollCutinRef.current || undefined,
         diceResultSfx: diceResultSfxRef.current || undefined,
         diceResultSfxByTone: (() => {
           const t = diceResultSfxByToneRef.current;
@@ -320,7 +337,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
           ambients: ambientsRef.current,
           handouts: handoutsRef.current,
           diceSfxList: diceSfxListRef.current,
+          diceCutinList: diceCutinListRef.current,
           diceRollSfx: diceRollSfxRef.current || undefined,
+          diceRollCutin: diceRollCutinRef.current || undefined,
           diceResultSfx: diceResultSfxRef.current || undefined,
           diceResultSfxByTone: editable.diceResultSfxByTone,
           menuTheme: menuThemeRef.current,
@@ -336,7 +355,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   useEffect(() => {
     const { editable, vnScene } = buildSnapshot(false);
     onDraftChangeRef.current?.(editable, vnScene);
-  }, [speakers, lines, backgrounds, bgms, ambients, handouts, diceSfxList, diceRollSfx, diceResultSfx, diceResultSfxByTone, maxOnStage, tutorialSteps, menuTheme, buildSnapshot]);
+  }, [speakers, lines, backgrounds, bgms, ambients, handouts, diceSfxList, diceCutinList, diceRollSfx, diceRollCutin, diceResultSfx, diceResultSfxByTone, maxOnStage, tutorialSteps, menuTheme, buildSnapshot]);
 
   useEffect(() => {
     return () => {
@@ -573,6 +592,37 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
       setDiceSfxList((prev) => prev.map((d) => (d.key === key ? { ...d, audio: url } : d)));
     } finally {
       setBusyDiceSfx(null);
+    }
+  }
+
+  function addDiceCutin() {
+    const key = `cutin_${Date.now().toString(36)}`;
+    setDiceCutinList((prev) => [...prev, { key, label: '' }]);
+  }
+
+  function updateDiceCutin(key: string, patch: Partial<ScenarioVnDiceCutin>) {
+    setDiceCutinList((prev) => prev.map((d) => (d.key === key ? { ...d, ...patch } : d)));
+  }
+
+  function removeDiceCutin(key: string) {
+    setDiceCutinList((prev) => prev.filter((d) => d.key !== key));
+    setDiceRollCutin((v) => (v === key ? '' : v));
+    setLines((prev) =>
+      prev.map((l) => {
+        if (!l.diceRoll) return l;
+        if (l.diceRoll.cutin !== key) return l;
+        return { ...l, diceRoll: { ...l.diceRoll, cutin: undefined } };
+      }),
+    );
+  }
+
+  async function handleDiceCutinFile(key: string, file: File) {
+    setBusyDiceCutin(key);
+    try {
+      const url = onUploadDiceCutin ? await onUploadDiceCutin(key, file) : await fileToDataUrl(file);
+      setDiceCutinList((prev) => prev.map((d) => (d.key === key ? { ...d, image: url } : d)));
+    } finally {
+      setBusyDiceCutin(null);
     }
   }
 
@@ -1580,6 +1630,81 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
           <button type="button" className="lh-dialogue-editor__tool" onClick={addDiceSfx}>
             + 다이스 효과음 추가
           </button>
+
+          <div className="lh-dialogue-block__label" style={{ marginTop: 28 }}>
+            다이스 컷인 GIF
+          </div>
+          <p className="lh-dialogue-editor__hint">
+            주사위가 구르기 시작할 때 화면에 재생됩니다. GIF가 있으면 주사위 굴림·판정 문구는 생략하고 컷인만 나옵니다.
+          </p>
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label className="form-label">기본 · 굴림 컷인</label>
+            <select
+              className="form-input"
+              value={diceRollCutin}
+              onChange={(e) => setDiceRollCutin(e.target.value)}
+            >
+              <option value="">없음</option>
+              {diceCutinList.map((d) => (
+                <option key={d.key} value={d.key} disabled={!d.image}>
+                  {d.label || d.key}
+                  {!d.image ? ' (GIF 없음)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="svn-editor__speakers">
+            {diceCutinList.map((d) => (
+              <div className="svn-speaker" key={d.key}>
+                <div className="svn-speaker__fields">
+                  <input
+                    className="form-input"
+                    placeholder="이름 (예: 베기 컷인)"
+                    value={d.label}
+                    onChange={(e) => updateDiceCutin(d.key, { label: e.target.value })}
+                  />
+                  {d.image ? (
+                    <img
+                      src={d.image}
+                      alt=""
+                      style={{ maxWidth: '100%', maxHeight: 140, borderRadius: 8, objectFit: 'contain' }}
+                    />
+                  ) : null}
+                  <div className="svn-speaker__row">
+                    <label className="file-input-label svn-speaker__file">
+                      {busyDiceCutin === d.key
+                        ? '업로드 중…'
+                        : d.image
+                          ? 'GIF 교체'
+                          : 'GIF 선택'}
+                      <input
+                        type="file"
+                        accept="image/gif,image/webp,image/png,image/apng,image/*"
+                        hidden
+                        disabled={busyDiceCutin === d.key}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void handleDiceCutinFile(d.key, f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn-del"
+                      style={{ padding: '3px 8px' }}
+                      onClick={() => removeDiceCutin(d.key)}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="lh-dialogue-editor__tool" onClick={addDiceCutin}>
+            + 다이스 컷인 추가
+          </button>
         </section>
       ) : null}
 
@@ -2278,8 +2403,10 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                               {line.diceRoll.skill} · CC≤{line.diceRoll.target} · 결과 {line.diceRoll.roll} ·{' '}
                               {line.diceRoll.result}
                             </p>
-                            {diceSfxList.length > 0 ? (
+                            {diceSfxList.length > 0 || diceCutinList.length > 0 ? (
                               <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                                {diceSfxList.length > 0 ? (
+                                  <>
                                 <label className="form-label">이 판정 · 굴림 효과음</label>
                                 <select
                                   className="form-input"
@@ -2330,10 +2457,41 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                     </option>
                                   ))}
                                 </select>
+                                  </>
+                                ) : null}
+                                {diceCutinList.length > 0 ? (
+                                  <>
+                                    <label className="form-label">이 판정 · 컷인 GIF</label>
+                                    <select
+                                      className="form-input"
+                                      value={line.diceRoll.cutin || ''}
+                                      onChange={(e) =>
+                                        updateLine(line.id, {
+                                          diceRoll: {
+                                            ...line.diceRoll!,
+                                            cutin: e.target.value || undefined,
+                                          },
+                                        })
+                                      }
+                                    >
+                                      <option value="">
+                                        기본 사용
+                                        {diceRollCutin
+                                          ? ` (${diceCutinList.find((d) => d.key === diceRollCutin)?.label || diceRollCutin})`
+                                          : ' (없음)'}
+                                      </option>
+                                      {diceCutinList.map((d) => (
+                                        <option key={d.key} value={d.key} disabled={!d.image}>
+                                          {d.label || d.key}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </>
+                                ) : null}
                               </div>
                             ) : (
                               <p className="lh-dialogue-editor__hint" style={{ margin: '8px 0 0' }}>
-                                「다이스」 탭에서 효과음을 등록하면 여기서 고를 수 있어요.
+                                「다이스」 탭에서 효과음·컷인 GIF를 등록하면 여기서 고를 수 있어요.
                               </p>
                             )}
                           </section>
