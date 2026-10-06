@@ -84,9 +84,9 @@ export function TrpgScenarioPageClient({ id }: Props) {
   const { user, isAdmin, ready: authReady } = useAuth();
   const { confirm } = useLakeDialog();
   const { trpg, loaded, saveTrpg, accessSettings } = useSiteContent();
-  const { playCharacterTheme, restorePageSnapshot, silenceMedia } = useBgm();
-  const bgmActionsRef = useRef({ playCharacterTheme, restorePageSnapshot, silenceMedia });
-  bgmActionsRef.current = { playCharacterTheme, restorePageSnapshot, silenceMedia };
+  const { playCharacterTheme, restorePageSnapshot, silenceMedia, setPlaybackSuppressed } = useBgm();
+  const bgmActionsRef = useRef({ playCharacterTheme, restorePageSnapshot, silenceMedia, setPlaybackSuppressed });
+  bgmActionsRef.current = { playCharacterTheme, restorePageSnapshot, silenceMedia, setPlaybackSuppressed };
   const raw = trpg.find((s) => s.id === id);
   const [authOpen, setAuthOpen] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
@@ -496,7 +496,12 @@ export function TrpgScenarioPageClient({ id }: Props) {
                     hasVnScene={Boolean(view.vnScene?.lines?.length || view.vnEditable?.lines?.length)}
                     subtitle={view.title}
                     accentColor={view.vnPlayBtnColor}
-                    onClick={() => router.push(`/vn/${encodeURIComponent(view.id)}`)}
+                    onClick={() => {
+                      markTrpgSkipBgmRestore();
+                      bgmActionsRef.current.setPlaybackSuppressed(true);
+                      bgmActionsRef.current.silenceMedia();
+                      router.push(`/vn/${encodeURIComponent(view.id)}`);
+                    }}
                   />
                 </div>
               </header>

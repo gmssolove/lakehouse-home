@@ -96,10 +96,6 @@ function SiteBgmPlayerGate() {
     const onVn = pathname === '/vn' || pathname.startsWith('/vn/');
     setHidden(onVn);
     setPlaybackSuppressed(onVn);
-    return () => {
-      setHidden(false);
-      setPlaybackSuppressed(false);
-    };
   }, [pathname, setHidden, setPlaybackSuppressed]);
 
   return <BgmPlayer />;

@@ -845,7 +845,8 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       const serial = ++switchSerialRef.current;
       const prev = trackRef.current;
       const changed = !!opts?.force || !sameTrack(prev, next);
-      const wantPlay = opts?.autoplay !== false && !userPausedRef.current;
+      const wantPlay =
+        opts?.autoplay !== false && !userPausedRef.current && !routeSuppressedRef.current;
       const seek = opts?.currentTime ?? 0;
 
       commitTrackUi(next, changed);
@@ -1248,7 +1249,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
   const restorePageSnapshot = useCallback(
     (autoplay?: boolean) => {
-      const shouldPlay = autoplay ?? true;
+      const shouldPlay = routeSuppressedRef.current ? false : (autoplay ?? true);
       const snap = snapshotRef.current ?? pageSnapshotRef.current;
 
       if (trackRef.current?.scope === 'character') {
