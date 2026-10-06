@@ -36,6 +36,12 @@ body .archive-layout .layout.oc-archive-layout .main-content {
   min-height: 0 !important;
   overflow: hidden !important;
   position: relative !important;
+  padding-bottom: 0 !important;
+  border-bottom: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
 }
 
 body .archive-layout .layout.oc-archive-layout .main-content::before {
@@ -44,25 +50,8 @@ body .archive-layout .layout.oc-archive-layout .main-content::before {
 }
 
 body .archive-layout .layout.oc-archive-layout .main-content::after {
-  content: '' !important;
-  display: block !important;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 64px;
-  z-index: 6;
-  pointer-events: none;
-  background: linear-gradient(
-    to top,
-    rgba(10, 12, 11, 0.78) 0%,
-    rgba(10, 12, 11, 0.28) 48%,
-    transparent 100%
-  );
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-  -webkit-mask-image: linear-gradient(to top, #000 12%, transparent 100%);
-  mask-image: linear-gradient(to top, #000 12%, transparent 100%);
+  content: none !important;
+  display: none !important;
 }
 
 body .archive-layout .layout.oc-archive-layout .oc-archive-heading {

@@ -58,3 +58,28 @@ body:has(.archive-layout) #bgm-vol {
   pointer-events: auto !important;
   touch-action: pan-x !important;
 }
+
+/* 아카이브 박스 아랫 금선 제거 + 페이지 배경으로 페이드 */
+html body .archive-layout .layout.oc-archive-layout > .main-content {
+  border-bottom: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+html body .oc-archive-bottom-fade {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 110px;
+  z-index: 50;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    #0b0d0c 0%,
+    rgba(11, 13, 12, 0.92) 22%,
+    rgba(11, 13, 12, 0.55) 52%,
+    rgba(11, 13, 12, 0.18) 78%,
+    transparent 100%
+  );
+}
