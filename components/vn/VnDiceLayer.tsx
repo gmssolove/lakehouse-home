@@ -175,8 +175,11 @@ export function VnDiceLayer({
           </div>
         </div>
       </div>
-      {showCutin ? (
-        <div className={`${styles.cutin} ${styles.cutinOn}`} aria-hidden>
+      {hasCutin ? (
+        <div
+          className={`${styles.cutin}${showCutin ? ` ${styles.cutinOn}` : ''}`}
+          aria-hidden
+        >
           <img key={lineKey} src={cutinUrl} alt="" />
         </div>
       ) : null}

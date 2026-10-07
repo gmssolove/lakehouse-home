@@ -269,18 +269,36 @@ export function pickDefaultDiceKey(
   return Object.keys(table)[0] || undefined;
 }
 
-/** 줄 지정 → 판정 종류별 컷인 → 그 외 폴백 */
+function foldDiceLabel(s: string): string {
+  return s.trim().replace(/\s+/g, '');
+}
+
+/** 줄 지정 → 파일 이름(보통 성공 등) → 판정 종류별 → 그 외 폴백 */
 export function pickDiceCutinKey(
   dice: Pick<VnDiceRoll, 'result' | 'cutin'>,
   byTone: ScenarioVnDiceCutinByTone | undefined,
   fallback?: string,
+  list?: { key: string; label?: string; image?: string }[],
 ): string {
   const line = dice.cutin?.trim();
   if (line) return line;
-  const tone = classifyDiceResultTone(dice.result);
+
+  const result = (dice.result || '').trim();
+  const items = list ?? [];
+  const byResultLabel = items.find(
+    (d) => d.image?.trim() && result && foldDiceLabel(d.label || '') === foldDiceLabel(result),
+  );
+  if (byResultLabel) return byResultLabel.key;
+
+  const tone = classifyDiceResultTone(result);
   if (tone !== 'neutral') {
     const keyed = byTone?.[tone]?.trim();
     if (keyed) return keyed;
+    const optLabel = DICE_RESULT_TONE_OPTIONS.find((o) => o.tone === tone)?.label || '';
+    const byToneLabel = items.find(
+      (d) => d.image?.trim() && optLabel && foldDiceLabel(d.label || '') === foldDiceLabel(optLabel),
+    );
+    if (byToneLabel) return byToneLabel.key;
   }
   return fallback?.trim() || '';
 }
@@ -1207,6 +1225,7 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     handoutLayoutMap,
     diceSfxMap,
     diceCutinMap,
+    diceCutinList: scene.diceCutinList ?? [],
     diceRollSfx: scene.diceRollSfx,
     diceRollCutin: scene.diceRollCutin,
     diceCutinByTone: scene.diceCutinByTone,

@@ -256,6 +256,7 @@ export function VnSceneResolver({ sceneId }: Props) {
       handoutLayoutMap={trpgPayload.handoutLayoutMap}
       diceSfxMap={trpgPayload.diceSfxMap}
       diceCutinMap={trpgPayload.diceCutinMap}
+      diceCutinList={trpgPayload.diceCutinList}
       diceRollSfx={trpgPayload.diceRollSfx}
       diceRollCutin={trpgPayload.diceRollCutin}
       diceCutinByTone={trpgPayload.diceCutinByTone}
@@ -279,6 +280,7 @@ function ScenarioVnPlayClient({
   handoutLayoutMap,
   diceSfxMap,
   diceCutinMap,
+  diceCutinList,
   diceRollSfx,
   diceRollCutin,
   diceCutinByTone,
@@ -298,6 +300,7 @@ function ScenarioVnPlayClient({
   handoutLayoutMap?: Record<string, import('@/lib/vn/menuTheme').HandoutLayout>;
   diceSfxMap: Record<string, string>;
   diceCutinMap: Record<string, string>;
+  diceCutinList?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutin[];
   diceRollSfx?: string;
   diceRollCutin?: string;
   diceCutinByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutinByTone;
@@ -882,6 +885,7 @@ function ScenarioVnPlayClient({
                 diceRollCutinDefault={diceRollCutin}
                 diceCutinByTone={diceCutinByTone}
                 diceCutinMap={diceCutinMap}
+                diceCutinList={diceCutinList}
                 diceResultSfxDefault={diceResultSfx}
                 diceResultSfxByTone={diceResultSfxByTone}
                 chapterLoading={chapterLoading}

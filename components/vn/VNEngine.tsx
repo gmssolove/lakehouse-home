@@ -98,6 +98,7 @@ type Props = {
   diceRollCutinDefault?: string;
   diceCutinByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutinByTone;
   diceCutinMap?: Record<string, string>;
+  diceCutinList?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutin[];
   /**
    * @deprecated 줄별 chapterLoadingBefore/After 사용.
    * true면 줄별 미지정 챕터에 before 로딩 적용 (구 데이터 호환).
@@ -156,6 +157,7 @@ export function VNEngine({
   diceRollCutinDefault,
   diceCutinByTone,
   diceCutinMap,
+  diceCutinList,
   chapterLoading: chapterLoadingEnabled = false,
 }: Props) {
   const { isAdmin } = useAuth();
@@ -1057,6 +1059,7 @@ export function VNEngine({
               eng.line.diceRoll,
               diceCutinByTone,
               diceRollCutinDefault,
+              diceCutinList,
             ),
           )}
         />
