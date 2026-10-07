@@ -1605,6 +1605,7 @@ export function TrpgEditForm({
                       maxOnStage: form.vnScene.maxOnStage,
                       stageOrder: form.vnScene.stageOrder,
                       stageSeatOrder: form.vnScene.stageSeatOrder,
+                      stageSeatLayout: form.vnScene.stageSeatLayout,
                       menuTheme: form.vnScene.menuTheme,
                       chapterLoading: form.vnScene.chapterLoading,
                     }

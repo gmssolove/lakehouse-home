@@ -29,7 +29,7 @@ import { consumeTrpgReturnPath, consumeTrpgSkipBgmRestore, markTrpgSkipBgmRestor
 import { trpgFontFamily } from '@/lib/trpg/fonts';
 import { TrpgScenarioEditDrawer, type TrpgEditTabId } from '@/components/trpg/TrpgScenarioEditDrawer';
 import { ScenarioVnPlayButton } from '@/components/shared/ScenarioVnPlayButton';
-import { formatTrpgDateRange, formatTrpgGalleryCredit, normalizeTrpgScenario, trpgGalleryImages } from '@/lib/trpg/normalize';
+import { formatTrpgDateRange, formatTrpgGalleryCredit, normalizeTrpgScenario, trpgGalleryImages, trpgHasPlayableVn } from '@/lib/trpg/normalize';
 import { highlightLogPlainText } from '@/lib/trpg/logHighlight';
 import type { TrpgGalleryItem, TrpgScenario, TrpgSessionLog } from '@/lib/types/site-content';
 
@@ -493,7 +493,7 @@ export function TrpgScenarioPageClient({ id }: Props) {
                 ) : null}
                 <div className="trpg-scenario-page__vn-actions">
                   <ScenarioVnPlayButton
-                    hasVnScene={Boolean(view.vnScene?.lines?.length || view.vnEditable?.lines?.length)}
+                    hasVnScene={trpgHasPlayableVn(view)}
                     subtitle={view.title}
                     accentColor={view.vnPlayBtnColor}
                     onClick={() => {

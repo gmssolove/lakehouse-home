@@ -342,12 +342,11 @@
   gap: 10px;
 }
 
-.svn-editor__seatorder-item {
+.svn-editor__seatorder-count {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-  color: rgba(215, 169, 130, 0.72);
+  gap: 6px;
+  margin-top: 8px;
 }
 
 @media (max-width: 640px) {

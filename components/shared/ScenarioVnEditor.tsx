@@ -35,9 +35,10 @@ import {
 import { ScenarioVnHandoutLayoutPreview } from './ScenarioVnHandoutLayoutPreview';
 import { DEFAULT_STAND_POSE } from '@/lib/vn/useStandPoseDrag';
 import {
-  DEFAULT_STAGE_SEAT_ORDER,
   mergeStandPosBySlot,
+  normalizeStageSeatLayout,
   normalizeStageSeatOrder,
+  resolvedSeatLayout,
   type TrioSlot,
 } from '@/lib/vn/standPosBySlot';
 import {
@@ -73,6 +74,7 @@ export type ScenarioVnEditable = {
   maxOnStage?: number | 'all';
   stageOrder?: string[];
   stageSeatOrder?: TrioSlot[];
+  stageSeatLayout?: import('@/lib/vn/standPosBySlot').StageSeatLayoutByCount;
   /** VN 공통 튜토리얼 단계 (GIF 예시 포함) */
   tutorialSteps?: VnTutorialStep[];
   /** 타이틀(메인) 화면 배경·블러 */
@@ -238,8 +240,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
     normalizeVnMaxOnStage(initial?.maxOnStage),
   );
   const [stageOrder, setStageOrder] = useState<string[]>(() => initial?.stageOrder ?? []);
-  const [stageSeatOrder, setStageSeatOrder] = useState<TrioSlot[]>(
-    () => normalizeStageSeatOrder(initial?.stageSeatOrder) ?? [...DEFAULT_STAGE_SEAT_ORDER],
+  const [seatLayout, setSeatLayout] = useState(() =>
+    resolvedSeatLayout(initial?.stageSeatLayout, initial?.stageSeatOrder),
   );
   const [tab, setTab] = useState<
     'basic' | 'pl' | 'bg' | 'bgm' | 'ambient' | 'handout' | 'dice' | 'stand' | 'loading' | 'lines'
@@ -280,7 +282,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   const menuThemeRef = useRef(menuTheme);
   const maxOnStageRef = useRef(maxOnStage);
   const stageOrderRef = useRef(stageOrder);
-  const stageSeatOrderRef = useRef(stageSeatOrder);
+  const seatLayoutRef = useRef(seatLayout);
   const onDraftChangeRef = useRef(onDraftChange);
   speakersRef.current = speakers;
   linesRef.current = lines;
@@ -298,7 +300,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   menuThemeRef.current = menuTheme;
   maxOnStageRef.current = maxOnStage;
   stageOrderRef.current = stageOrder;
-  stageSeatOrderRef.current = stageSeatOrder;
+  seatLayoutRef.current = seatLayout;
   onDraftChangeRef.current = onDraftChange;
 
   const buildSnapshot = useCallback(
@@ -337,7 +339,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
           const raw = stageOrderRef.current;
           return raw.some((k) => k.trim()) ? raw : undefined;
         })(),
-        stageSeatOrder: normalizeStageSeatOrder(stageSeatOrderRef.current),
+        stageSeatOrder: normalizeStageSeatOrder(seatLayoutRef.current[3]),
+        stageSeatLayout: normalizeStageSeatLayout(seatLayoutRef.current),
         tutorialSteps: tutorialStepsRef.current,
         menuTheme: menuThemeRef.current,
         chapterLoading: linesRef.current.some(
@@ -354,6 +357,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
           maxOnStage: maxOnStageRef.current,
           stageOrder: editable.stageOrder,
           stageSeatOrder: editable.stageSeatOrder,
+          stageSeatLayout: editable.stageSeatLayout,
           backgrounds: backgroundsRef.current,
           bgms: bgmsRef.current,
           ambients: ambientsRef.current,
@@ -377,7 +381,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   useEffect(() => {
     const { editable, vnScene } = buildSnapshot(false);
     onDraftChangeRef.current?.(editable, vnScene);
-  }, [speakers, lines, backgrounds, bgms, ambients, handouts, diceSfxList, diceCutinList, diceRollSfx, diceRollCutin, diceResultSfx, diceResultSfxByTone, maxOnStage, stageOrder, stageSeatOrder, tutorialSteps, menuTheme, buildSnapshot]);
+  }, [speakers, lines, backgrounds, bgms, ambients, handouts, diceSfxList, diceCutinList, diceRollSfx, diceRollCutin, diceResultSfx, diceResultSfxByTone, maxOnStage, stageOrder, seatLayout, tutorialSteps, menuTheme, buildSnapshot]);
 
   useEffect(() => {
     return () => {
@@ -1770,36 +1774,44 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
               </span>
             </div>
             <div className="svn-editor__seatorder">
-              <div className="lh-dialogue-block__label" style={{ margin: 0 }}>등장 순 → 자리</div>
+              <div className="lh-dialogue-block__label" style={{ margin: 0 }}>인원별 자리</div>
               <p className="lh-dialogue-editor__hint">
-                대사에서 자리를 안 정하면, 처음 나온 순서대로 이 자리에 앉습니다. 기본은 왼→중→오입니다.
+                대사에서 「동시 등장 인원」을 바꾸면 그 인원 배치를 씁니다. 기본은 1명=중앙, 2명=왼·오,
+                3명=왼·중·오입니다.
               </p>
-              <div className="svn-editor__seatorder-grid">
-                {([0, 1, 2] as const).map((rank) => (
-                  <label key={rank} className="svn-editor__seatorder-item">
-                    <span>{rank + 1}번째로 나온 사람</span>
-                    <select
-                      className="form-input"
-                      value={stageSeatOrder[rank]}
-                      onChange={(e) => {
-                        const slot = e.target.value as TrioSlot;
-                        setStageSeatOrder((prev) => {
-                          const next: TrioSlot[] = [...prev];
-                          const swapAt = next.indexOf(slot);
-                          const old = next[rank]!;
-                          next[rank] = slot;
-                          if (swapAt >= 0 && swapAt !== rank) next[swapAt] = old;
-                          return next;
-                        });
-                      }}
-                    >
-                      <option value="left">왼쪽</option>
-                      <option value="center">중앙</option>
-                      <option value="right">오른쪽</option>
-                    </select>
-                  </label>
-                ))}
-              </div>
+              {([1, 2, 3] as const).map((count) => (
+                <div key={count} className="svn-editor__seatorder-count">
+                  <span className="svn-editor__maxstage-label">{count}명일 때</span>
+                  <div className="svn-editor__seatorder-grid">
+                    {seatLayout[count].map((slot, rank) => (
+                      <label key={`${count}-${rank}`} className="svn-editor__seatorder-item">
+                        <span>
+                          {count === 1 ? '자리' : `${rank + 1}번째로 나온 사람`}
+                        </span>
+                        <select
+                          className="form-input"
+                          value={slot}
+                          onChange={(e) => {
+                            const nextSlot = e.target.value as TrioSlot;
+                            setSeatLayout((prev) => {
+                              const row = [...prev[count]] as TrioSlot[];
+                              const swapAt = row.indexOf(nextSlot);
+                              const old = row[rank]!;
+                              row[rank] = nextSlot;
+                              if (swapAt >= 0 && swapAt !== rank) row[swapAt] = old;
+                              return { ...prev, [count]: row };
+                            });
+                          }}
+                        >
+                          <option value="left">왼쪽</option>
+                          <option value="center">중앙</option>
+                          <option value="right">오른쪽</option>
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
             <div className="svn-editor__seatorder">
               <div className="lh-dialogue-block__label" style={{ margin: 0 }}>기본 고정 자리</div>
@@ -2686,6 +2698,13 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                         : Math.min(5, Math.max(3, cast.length));
                                 const n = Math.min(5, Math.max(1, slotsN));
                                 const order = line.stageOrder ?? [];
+                                const trioName: Record<TrioSlot, string> = {
+                                  left: '왼쪽',
+                                  center: '중앙',
+                                  right: '오른쪽',
+                                };
+                                const row =
+                                  n === 1 ? seatLayout[1] : n === 2 ? seatLayout[2] : n === 3 ? seatLayout[3] : null;
                                 return (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                     {Array.from({ length: n }, (_, i) => (
@@ -2706,11 +2725,15 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                         }}
                                       >
                                         <option value="">
-                                          {i + 1}번 — 씬 기본
+                                          {row?.[i]
+                                            ? `${trioName[row[i]!]} — 씬 기본`
+                                            : `${i + 1}번 — 씬 기본`}
                                         </option>
                                         {cast.map((s) => (
                                           <option key={s.key} value={s.key}>
-                                            {i + 1}번 · {s.displayName || s.key}
+                                            {row?.[i]
+                                              ? `${trioName[row[i]!]} · ${s.displayName || s.key}`
+                                              : `${i + 1}번 · ${s.displayName || s.key}`}
                                           </option>
                                         ))}
                                       </select>

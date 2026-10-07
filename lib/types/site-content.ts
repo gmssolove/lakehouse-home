@@ -330,6 +330,7 @@ export type TrpgScenario = WithSecret & {
     maxOnStage?: number | 'all';
     stageOrder?: string[];
     stageSeatOrder?: import('@/lib/vn/standPosBySlot').TrioSlot[];
+    stageSeatLayout?: import('@/lib/vn/standPosBySlot').StageSeatLayoutByCount;
     tutorialSteps?: import('@/components/vn/VnTutorial').VnTutorialStep[];
     /** VN 타이틀(메인) 화면 배경·블러 */
     menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;

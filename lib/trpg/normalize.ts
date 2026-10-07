@@ -10,13 +10,14 @@ import type {
   TrpgSessionLog,
 } from '@/lib/types/site-content';
 import { isDialogueFx, isDialogueMotion } from '@/lib/vn/motions';
-import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage, parseSpeakerKeyList } from '@/lib/vn/parseCcfoliaLog';
+import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage, parseSpeakerKeyList, toVnScene } from '@/lib/vn/parseCcfoliaLog';
 import { normalizeHandoutLayout } from '@/lib/vn/handoutLayout';
 import { normalizeMenuTheme } from '@/lib/vn/menuTheme';
 import {
   normalizeStandPosBySlot,
   normalizeStandPosField,
   normalizeStageSeatOrder,
+  normalizeStageSeatLayout,
 } from '@/lib/vn/standPosBySlot';
 
 function normalizeImageFrameField(raw: unknown): ImageFrame | undefined {
@@ -603,6 +604,7 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
     maxOnStage: normalizeVnMaxOnStage(maxRaw),
     stageOrder: parseSpeakerKeyList(row.stageOrder) ?? undefined,
     stageSeatOrder: normalizeStageSeatOrder(row.stageSeatOrder),
+    stageSeatLayout: normalizeStageSeatLayout(row.stageSeatLayout, row.stageSeatOrder),
     tutorialSteps: normalizeTutorialSteps(row.tutorialSteps),
     menuTheme: normalizeMenuTheme(row.menuTheme),
     chapterLoading: Boolean(row.chapterLoading) || undefined,
@@ -768,6 +770,7 @@ function normalizeVnScene(raw: unknown, fallbackId: string): TrpgScenario['vnSce
     maxOnStage: normalizeVnMaxOnStage(row.maxOnStage ?? editable.maxOnStage),
     stageOrder: editable.stageOrder,
     stageSeatOrder: editable.stageSeatOrder,
+    stageSeatLayout: editable.stageSeatLayout,
     menuTheme: editable.menuTheme,
     chapterLoading: editable.chapterLoading ? true : undefined,
   };
@@ -909,16 +912,110 @@ export function trpgCardPrimaryPcName(
   return players.split(/[,/|·]/)[0]?.trim() || '';
 }
 
+type TrpgSlimMeta = { hasVn?: unknown; logCount?: unknown };
+
+function compactDefinedList<T>(raw: T[] | undefined | null): T[] | undefined {
+  if (raw == null) return undefined;
+  const list = coerceFirebaseList(raw).filter((x) => x != null) as T[];
+  return list;
+}
+
+export function stripTrpgSlimCacheFields<T extends object>(row: T): T {
+  const next = { ...(row as T & TrpgSlimMeta) };
+  delete next.hasVn;
+  delete next.logCount;
+  return next;
+}
+
+/** 목록 캐시가 vnScene/로그를 뺀 슬림 행인지 */
+export function isSlimTrpgRow(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  const r = raw as Record<string, unknown>;
+  const noVn = r.vnScene == null && r.vnEditable == null;
+  const noLogs = r.logs == null;
+  return noVn && noLogs && (r.hasVn != null || r.logCount != null);
+}
+
+export function mergeTrpgListPreserveHeavy(
+  incoming: TrpgScenario[],
+  prev: TrpgScenario[],
+): TrpgScenario[] {
+  if (!Array.isArray(incoming)) return incoming;
+  const prevById = new Map((Array.isArray(prev) ? prev : []).map((s) => [String(s.id), s]));
+  return incoming.map((item) => {
+    const old = prevById.get(String(item.id));
+    if (!old) return stripTrpgSlimCacheFields(item);
+    if (isSlimTrpgRow(item)) {
+      return stripTrpgSlimCacheFields({
+        ...old,
+        ...item,
+        vnScene: old.vnScene,
+        vnEditable: old.vnEditable,
+        logs: old.logs,
+      });
+    }
+    return stripTrpgSlimCacheFields({
+      ...old,
+      ...item,
+      vnScene: item.vnScene ?? old.vnScene,
+      vnEditable: item.vnEditable ?? old.vnEditable,
+      logs: item.logs ?? old.logs,
+    });
+  });
+}
+
+export function trpgHasPlayableVn(
+  item: Pick<TrpgScenario, 'vnScene' | 'vnEditable'>,
+): boolean {
+  if (coerceFirebaseList(item.vnEditable?.lines).length > 0) return true;
+  if (coerceFirebaseList(item.vnScene?.lines).length > 0) return true;
+  return false;
+}
+
 /** RTDB는 빈 배열을 버려서, 삭제한 기본 정보가 다시 기본칸으로 살아난다. 빈 목록은 'none'으로 남긴다. */
 export function prepareTrpgScenariosForSave(items: TrpgScenario[]): TrpgScenario[] {
-  return items.map((s) => ({
-    ...s,
-    playerProfiles: (s.playerProfiles ?? []).map((p) => {
-      const fields = (p.infoFields ?? []).filter((f) => String(f.key || '').trim());
-      return {
-        ...p,
-        infoFields: (fields.length ? fields : 'none') as TrpgPlayerProfile['infoFields'],
-      };
-    }),
-  }));
+  return items.map((s) => {
+    const cleaned = stripTrpgSlimCacheFields(s);
+    const editable = cleaned.vnEditable;
+    const vnEditable = editable
+      ? {
+          ...editable,
+          speakers: compactDefinedList(editable.speakers) ?? editable.speakers,
+          lines: compactDefinedList(editable.lines) ?? editable.lines,
+        }
+      : undefined;
+    let vnScene = cleaned.vnScene;
+    if (vnEditable?.lines && coerceFirebaseList(vnEditable.lines).length > 0) {
+      vnScene = toVnScene(cleaned.id, cleaned.title || '시나리오 VN', vnEditable.speakers ?? [], vnEditable.lines ?? [], {
+        backgrounds: vnEditable.backgrounds,
+        bgms: vnEditable.bgms,
+        ambients: vnEditable.ambients,
+        handouts: vnEditable.handouts,
+        diceSfxList: vnEditable.diceSfxList,
+        diceCutinList: vnEditable.diceCutinList,
+        diceRollSfx: vnEditable.diceRollSfx,
+        diceRollCutin: vnEditable.diceRollCutin,
+        diceResultSfx: vnEditable.diceResultSfx,
+        diceResultSfxByTone: vnEditable.diceResultSfxByTone,
+        maxOnStage: vnEditable.maxOnStage,
+        stageOrder: vnEditable.stageOrder,
+        stageSeatOrder: vnEditable.stageSeatOrder,
+        stageSeatLayout: vnEditable.stageSeatLayout,
+        menuTheme: vnEditable.menuTheme,
+        chapterLoading: vnEditable.chapterLoading,
+      });
+    }
+    return {
+      ...cleaned,
+      vnEditable,
+      vnScene,
+      playerProfiles: (cleaned.playerProfiles ?? []).map((p) => {
+        const fields = (p.infoFields ?? []).filter((f) => String(f.key || '').trim());
+        return {
+          ...p,
+          infoFields: (fields.length ? fields : 'none') as TrpgPlayerProfile['infoFields'],
+        };
+      }),
+    };
+  });
 }

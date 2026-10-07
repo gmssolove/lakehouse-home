@@ -184,6 +184,7 @@ export function VnSceneResolver({ sceneId }: Props) {
     const maxOnStage = edit?.maxOnStage ?? scene?.maxOnStage ?? 3;
     const stageOrder = edit?.stageOrder ?? scene?.stageOrder;
     const stageSeatOrder = edit?.stageSeatOrder ?? scene?.stageSeatOrder;
+    const stageSeatLayout = edit?.stageSeatLayout ?? scene?.stageSeatLayout;
     const menuTheme = edit?.menuTheme ?? scene?.menuTheme;
     const chapterLoading = Boolean(edit?.chapterLoading ?? scene?.chapterLoading);
     const diceRollSfx = edit?.diceRollSfx ?? scene?.diceRollSfx;
@@ -210,6 +211,7 @@ export function VnSceneResolver({ sceneId }: Props) {
       maxOnStage,
       stageOrder,
       stageSeatOrder,
+      stageSeatLayout,
       menuTheme,
       chapterLoading: chapterLoading || undefined,
     });
@@ -450,6 +452,7 @@ function ScenarioVnPlayClient({
               maxOnStage: edit?.maxOnStage ?? item.vnScene?.maxOnStage,
               stageOrder: edit?.stageOrder ?? item.vnScene?.stageOrder,
               stageSeatOrder: edit?.stageSeatOrder ?? item.vnScene?.stageSeatOrder,
+              stageSeatLayout: edit?.stageSeatLayout ?? item.vnScene?.stageSeatLayout,
               tutorialSteps: edit?.tutorialSteps,
               menuTheme: edit?.menuTheme ?? item.vnScene?.menuTheme,
               chapterLoading: edit?.chapterLoading ?? item.vnScene?.chapterLoading,
@@ -470,6 +473,7 @@ function ScenarioVnPlayClient({
                   maxOnStage: edit?.maxOnStage ?? 3,
                   stageOrder: edit?.stageOrder,
                   stageSeatOrder: edit?.stageSeatOrder,
+                  stageSeatLayout: edit?.stageSeatLayout,
                   menuTheme: edit?.menuTheme,
                   chapterLoading: edit?.chapterLoading,
                 },
@@ -598,6 +602,7 @@ function ScenarioVnPlayClient({
               maxOnStage: edit?.maxOnStage ?? item.vnScene?.maxOnStage,
               stageOrder: edit?.stageOrder ?? item.vnScene?.stageOrder,
               stageSeatOrder: edit?.stageSeatOrder ?? item.vnScene?.stageSeatOrder,
+              stageSeatLayout: edit?.stageSeatLayout ?? item.vnScene?.stageSeatLayout,
               tutorialSteps: edit?.tutorialSteps,
               menuTheme: edit?.menuTheme ?? item.vnScene?.menuTheme,
               chapterLoading: edit?.chapterLoading ?? item.vnScene?.chapterLoading,
@@ -619,6 +624,7 @@ function ScenarioVnPlayClient({
                   maxOnStage: edit?.maxOnStage ?? 3,
                   stageOrder: edit?.stageOrder,
                   stageSeatOrder: edit?.stageSeatOrder,
+                  stageSeatLayout: edit?.stageSeatLayout,
                   menuTheme: edit?.menuTheme,
                   chapterLoading: edit?.chapterLoading,
                 },

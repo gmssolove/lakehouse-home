@@ -46,6 +46,8 @@ export type UseFirebaseSectionOptions = {
    * onValue 실시간 구독 전에 부분 데이터를 빠르게 채움.
    */
   cacheUrl?: string | null;
+  /** 캐시·구독 스냅샷을 기존 값과 합칠 때 (슬림 목록이 본문을 지우지 않게) */
+  mergeIncoming?: (prev: T, incoming: T) => T;
 };
 
 export function useFirebaseSection<T>(
@@ -58,6 +60,7 @@ export function useFirebaseSection<T>(
     limitToLast: limitN,
     timeoutMs = 5000,
     cacheUrl = null,
+    mergeIncoming,
   } = options;
   const storageKey = path.replace(/\//g, '_');
   const [data, setData] = useState<T>(defaultValue);
@@ -81,12 +84,15 @@ export function useFirebaseSection<T>(
     const applyVal = (raw: T) => {
       if (cancelled) return;
       const val = asArrayIfObject(raw);
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(val));
-      } catch {
-        /* quota / private mode */
-      }
-      setData((prev) => (sameSnapshot(prev, val) ? prev : val));
+      setData((prev) => {
+        const merged = mergeIncoming ? mergeIncoming(prev, val) : val;
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(merged));
+        } catch {
+          /* quota / private mode */
+        }
+        return sameSnapshot(prev, merged) ? prev : merged;
+      });
       setLoaded(true);
     };
 
@@ -141,7 +147,7 @@ export function useFirebaseSection<T>(
       window.clearTimeout(timeoutId);
       unsub?.();
     };
-  }, [path, storageKey, enabled, limitN, timeoutMs, cacheUrl]);
+  }, [path, storageKey, enabled, limitN, timeoutMs, cacheUrl, mergeIncoming]);
 
   const save = useCallback(
     async (next: T) => {

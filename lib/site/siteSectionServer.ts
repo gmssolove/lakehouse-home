@@ -59,10 +59,21 @@ export function slimSiteSectionData(section: SiteSectionId, data: unknown): unkn
     if (!item || typeof item !== 'object') return item;
     const row = item as Record<string, unknown>;
     const { vnScene, vnEditable, logs, ...rest } = row;
+    const ve = vnEditable && typeof vnEditable === 'object' ? (vnEditable as Record<string, unknown>) : null;
+    const vs = vnScene && typeof vnScene === 'object' ? (vnScene as Record<string, unknown>) : null;
+    const lineSrc = ve?.lines ?? vs?.lines;
+    const hasVn = Array.isArray(lineSrc)
+      ? lineSrc.length > 0
+      : Boolean(lineSrc && typeof lineSrc === 'object' && Object.keys(lineSrc as object).length);
+    const logCount = Array.isArray(logs)
+      ? logs.length
+      : logs && typeof logs === 'object'
+        ? Object.keys(logs as object).length
+        : 0;
     return {
       ...rest,
-      hasVn: Boolean(vnScene),
-      logCount: Array.isArray(logs) ? logs.length : 0,
+      hasVn,
+      logCount,
     };
   });
 }

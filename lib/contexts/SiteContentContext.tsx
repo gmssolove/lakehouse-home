@@ -45,7 +45,7 @@ import {
   subscribeSiteContentEager,
 } from '@/lib/site/siteContentEager';
 import { SITE_SECTION_DEFAULT_LIMIT } from '@/lib/site/siteSectionMeta';
-import { prepareTrpgScenariosForSave } from '@/lib/trpg/normalize';
+import { mergeTrpgListPreserveHeavy, prepareTrpgScenariosForSave } from '@/lib/trpg/normalize';
 
 function mergeTrpgListSettings(raw: Partial<TrpgListSettings> | null | undefined): TrpgListSettings {
   const categories = Array.isArray(raw?.categories)
@@ -276,7 +276,7 @@ function needsForRoute(pathname: string, homeTab: HomeTab, eager: boolean): Need
       diary: false,
       gallery: false,
       universe: false,
-      trpg: onOc,
+      trpg: onOc || onVn,
       guests: false,
       banners: false,
       scrap: false,
@@ -395,12 +395,15 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     cacheUrl: need.universe ? cacheFor('universe', lim?.universe) : null,
   });
   const onOc = pathname === '/oc' || pathname.startsWith('/oc/');
+  const onTrpgDetail = pathname.startsWith('/trpg/') || pathname.startsWith('/vn/');
   /* OC 상세 Related scenario — 전체 시나리오가 있어야 연결이 보임. limitToLast(20)이면 빠짐 */
   const trpg = useFirebaseSection<TrpgScenario[]>('lhdata/site/trpg', [], {
     enabled: need.trpg,
-    limitToLast: onOc ? undefined : lim?.trpg,
+    limitToLast: onOc || onTrpgDetail ? undefined : lim?.trpg,
     timeoutMs,
-    cacheUrl: need.trpg ? cacheFor('trpg', onOc ? 200 : lim?.trpg) : null,
+    /* 상세/VN은 슬림 캐시가 대사를 지운 채 저장되는 사고를 막기 위해 RTDB 원본만 */
+    cacheUrl: need.trpg && !onTrpgDetail ? cacheFor('trpg', onOc ? 200 : lim?.trpg) : null,
+    mergeIncoming: (prev, incoming) => mergeTrpgListPreserveHeavy(incoming, prev),
   });
   const trpgSettings = useFirebaseSection<TrpgListSettings>(
     'lhdata/site/trpg_settings',
@@ -521,7 +524,8 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       saveDiary: diary.save,
       saveGallery: gallery.save,
       saveUniverse: universe.save,
-      saveTrpg: (next) => trpg.save(prepareTrpgScenariosForSave(next)),
+      saveTrpg: (next) =>
+        trpg.save(prepareTrpgScenariosForSave(mergeTrpgListPreserveHeavy(next, trpg.data))),
       saveTrpgSettings: trpgSettings.save,
       saveGuests: guests.save,
       saveBanners: banners.save,

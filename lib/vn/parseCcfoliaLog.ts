@@ -300,10 +300,12 @@ export type ScenarioVnScene = {
    */
   stageOrder?: string[];
   /**
-   * 등장 순(1·2·3번째)이 앉을 왼/중/오.
-   * 기본 왼→중→오. 줄별 자리 고정이 없을 때 placeOnStage가 이 순서로 빈 자리를 채움.
+   * 등장 순(1·2·3번째)이 앉을 왼/중/오. 3명 배치용 구 필드.
+   * @deprecated stageSeatLayout[3] 사용
    */
   stageSeatOrder?: import('@/lib/vn/standPosBySlot').TrioSlot[];
+  /** 1·2·3명일 때 등장 순 → 자리. 기본 1=중앙, 2=왼·오, 3=왼·중·오 */
+  stageSeatLayout?: import('@/lib/vn/standPosBySlot').StageSeatLayoutByCount;
   /** 타이틀(메인) 화면 배경·블러 */
   menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;
   /**
@@ -495,6 +497,7 @@ export function toVnScene(
     chapterLoading?: boolean;
     stageOrder?: string[];
     stageSeatOrder?: import('@/lib/vn/standPosBySlot').TrioSlot[];
+    stageSeatLayout?: import('@/lib/vn/standPosBySlot').StageSeatLayoutByCount;
   },
 ): ScenarioVnScene {
   const max = normalizeVnMaxOnStage(opts?.maxOnStage);
@@ -516,6 +519,7 @@ export function toVnScene(
     maxOnStage: max,
     stageOrder: parseSpeakerKeyList(opts?.stageOrder) ?? undefined,
     stageSeatOrder: opts?.stageSeatOrder,
+    stageSeatLayout: opts?.stageSeatLayout,
     menuTheme: opts?.menuTheme,
     chapterLoading: opts?.chapterLoading ? true : undefined,
   };
@@ -564,15 +568,19 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   }
 
   const maxOnStage = resolveMaxOnStage(scene.maxOnStage, scene.speakers);
-  const seatFill = stageSeatFillIndices(scene.stageSeatOrder);
+  let occupancyCap = maxOnStage;
+  const currentFill = () =>
+    stageSeatFillIndices(occupancyCap, scene.stageSeatLayout, scene.stageSeatOrder);
   const sceneSeatKeys = parseSpeakerKeyList(scene.stageOrder);
   const reservedSeats = new Set<number>();
   sceneSeatKeys?.forEach((k, i) => {
     if (k) reservedSeats.add(i);
   });
-  /** 좌석 — 등장 순으로 앉힘. 한 번 앉으면 유지.
-   * 정원 초과 시에만 ‘가장 오래 말 안 한’ 화자 교체 */
-  const seats: (string | null)[] = Array.from({ length: maxOnStage }, () => null);
+  /** 3명 이하는 왼·중·오 레인(길이 3)을 유지. 2명일 때 가운데를 비우고 양옆만 씀. */
+  const seats: (string | null)[] = Array.from(
+    { length: Math.max(occupancyCap, occupancyCap <= 3 ? 3 : occupancyCap) },
+    () => null,
+  );
   /** 마지막으로 말한 줄 번호 — 클수록 최근 (퇴장 우선순위만) */
   const lastIndex = new Map<string, number>();
   let lineIndex = 0;
@@ -613,35 +621,39 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   }
 
   function resizeSeats(nextMax: number) {
-    const n = Math.max(1, nextMax);
-    if (n === seats.length) return;
-    if (n > seats.length) {
-      while (seats.length < n) seats.push(null);
-      return;
-    }
-    /* 축소 — 최신 n명만 남기되, 남은 인원의 좌→우 순서는 유지(자리 점프 방지) */
+    occupancyCap = Math.max(1, nextMax);
     const occupied = seats
       .map((key, seatIndex) =>
         key ? { key, seatIndex, li: lastIndex.get(key) ?? 0 } : null,
       )
       .filter((x): x is { key: string; seatIndex: number; li: number } => x != null);
-    const kept = [...occupied].sort((a, b) => b.li - a.li).slice(0, n);
+    const kept = [...occupied].sort((a, b) => b.li - a.li).slice(0, occupancyCap);
     kept.sort((a, b) => a.seatIndex - b.seatIndex);
-    const next: (string | null)[] = Array.from({ length: n }, (_, i) => kept[i]?.key ?? null);
+    const fill = currentFill();
+    const len = occupancyCap <= 3 ? 3 : occupancyCap;
+    const next: (string | null)[] = Array.from({ length: len }, () => null);
+    kept.forEach((row, i) => {
+      const dest = fill[i];
+      if (dest != null && dest < len) next[dest] = row.key;
+    });
     seats.splice(0, seats.length, ...next);
   }
 
   function applyStageOrder(keys: string[]) {
-    const max = seats.length;
-    const next: (string | null)[] = Array.from({ length: max }, () => null);
+    const fill = currentFill();
+    const next: (string | null)[] = Array.from({ length: seats.length }, () => null);
     const seen = new Set<string>();
-    for (let i = 0; i < Math.min(keys.length, max); i++) {
-      const k = (keys[i] || '').trim();
+    let slot = 0;
+    for (const raw of keys) {
+      const k = (raw || '').trim();
       if (!k || seen.has(k)) continue;
       const sp = bySpeaker.get(k);
       if (!sp?.sprite?.trim()) continue;
+      const dest = fill[slot];
+      slot += 1;
+      if (dest == null || dest >= next.length) continue;
       seen.add(k);
-      next[i] = k;
+      next[dest] = k;
       lastIndex.set(k, lineIndex);
     }
     seats.splice(0, seats.length, ...next);
@@ -653,31 +665,35 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     /* 이미 무대에 있으면 자리 그대로 — 매 대사마다 재배치하지 않음 */
     if (seats.includes(key)) return;
 
+    const fill = currentFill().filter((i) => i < seats.length);
+    const occupiedN = seats.filter(Boolean).length;
+
     const pref = sceneSeatKeys?.findIndex((k) => k === key) ?? -1;
     if (pref >= 0 && pref < seats.length) {
       const occupant = seats[pref];
       seats[pref] = key;
       if (occupant && occupant !== key) {
-        const bump = seatFill.find(
-          (i) => i < seats.length && seats[i] == null && !reservedSeats.has(i),
+        const bump = fill.find(
+          (i) => seats[i] == null && !reservedSeats.has(i),
         );
         if (bump != null) seats[bump] = occupant;
       }
       return;
     }
 
-    const emptyIdx = seatFill.find(
-      (i) => i < seats.length && seats[i] == null && !reservedSeats.has(i),
-    );
-    if (emptyIdx != null) {
-      seats[emptyIdx] = key;
-      return;
-    }
-
-    const anyEmpty = seatFill.find((i) => i < seats.length && seats[i] == null);
-    if (anyEmpty != null) {
-      seats[anyEmpty] = key;
-      return;
+    if (occupiedN < occupancyCap) {
+      const emptyIdx = fill.find(
+        (i) => seats[i] == null && !reservedSeats.has(i),
+      );
+      if (emptyIdx != null) {
+        seats[emptyIdx] = key;
+        return;
+      }
+      const anyFillEmpty = fill.find((i) => seats[i] == null);
+      if (anyFillEmpty != null) {
+        seats[anyFillEmpty] = key;
+        return;
+      }
     }
 
     /* 정원 초과 — 가장 오래된 화자 자리에만 교체 (다른 사람 자리는 유지) */

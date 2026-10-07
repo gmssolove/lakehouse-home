@@ -138,7 +138,7 @@ export function normalizeStandPosBySlot(
   return Object.keys(out).length ? out : undefined;
 }
 
-/** 좌석 인덱스 → 3인 슬롯 (0=왼, 1=중, 2+=오) */
+/** 좌석 인덱스 → 3인 슬롯 (0=왼, 1=중, 2+=오) — 실제 화면 레인 */
 export function seatIndexToSlot(seatIndex: number): TrioSlot {
   if (seatIndex === 0) return 'left';
   if (seatIndex === 1) return 'center';
@@ -151,33 +151,107 @@ export function trioSlotToSeatIndex(slot: TrioSlot): number {
   return 2;
 }
 
-/** 등장 순(1·2·3번째) → 왼/중/오. 기본은 왼→중→오 */
+export type StageSeatCount = 1 | 2 | 3;
+
+/** 인원별 등장 순 → 왼/중/오. 2명은 가운데를 비우고 양옆. */
+export type StageSeatLayoutByCount = Partial<Record<StageSeatCount, TrioSlot[]>>;
+
 export const DEFAULT_STAGE_SEAT_ORDER: TrioSlot[] = ['left', 'center', 'right'];
 
-export function normalizeStageSeatOrder(raw: unknown): TrioSlot[] | undefined {
-  if (!Array.isArray(raw) || raw.length < 3) return undefined;
+export const DEFAULT_STAGE_SEAT_LAYOUT: Record<StageSeatCount, TrioSlot[]> = {
+  1: ['center'],
+  2: ['left', 'right'],
+  3: ['left', 'center', 'right'],
+};
+
+function sameSlotRow(a: TrioSlot[] | undefined, b: TrioSlot[]): boolean {
+  return Boolean(a && a.length === b.length && a.every((s, i) => s === b[i]));
+}
+
+function asSlotList(raw: unknown): unknown[] | null {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    const keys = Object.keys(o)
+      .filter((k) => /^\d+$/.test(k))
+      .sort((a, b) => Number(a) - Number(b));
+    if (keys.length) return keys.map((k) => o[k]);
+  }
+  return null;
+}
+
+function parseSlotRow(raw: unknown, len: number): TrioSlot[] | undefined {
+  const list = asSlotList(raw);
+  if (!list || list.length < len) return undefined;
   const next: TrioSlot[] = [];
   const seen = new Set<TrioSlot>();
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < len; i++) {
     const v = String(raw[i] || '').trim();
     if (!isTrioSlot(v) || seen.has(v)) return undefined;
     seen.add(v);
     next.push(v);
   }
-  if (
-    next[0] === 'left' &&
-    next[1] === 'center' &&
-    next[2] === 'right'
-  ) {
-    return undefined;
-  }
   return next;
 }
 
-/** 빈 자리 채울 때 쓰는 좌석 인덱스 (3인 레인 + 군중 4·5) */
-export function stageSeatFillIndices(order?: TrioSlot[] | null): number[] {
-  const trio = order && order.length === 3 ? order : DEFAULT_STAGE_SEAT_ORDER;
-  return [...trio.map(trioSlotToSeatIndex), 3, 4];
+/** 구 필드 stageSeatOrder(3칸)만 있을 때 */
+export function normalizeStageSeatOrder(raw: unknown): TrioSlot[] | undefined {
+  const next = parseSlotRow(raw, 3);
+  if (!next || sameSlotRow(next, DEFAULT_STAGE_SEAT_LAYOUT[3])) return undefined;
+  return next;
+}
+
+export function normalizeStageSeatLayout(
+  raw: unknown,
+  legacy3?: unknown,
+): StageSeatLayoutByCount | undefined {
+  const src = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const out: StageSeatLayoutByCount = {};
+  const one = parseSlotRow(src[1] ?? src['1'], 1);
+  const two = parseSlotRow(src[2] ?? src['2'], 2);
+  const three =
+    parseSlotRow(src[3] ?? src['3'], 3) ?? parseSlotRow(legacy3, 3);
+  if (one && !sameSlotRow(one, DEFAULT_STAGE_SEAT_LAYOUT[1])) out[1] = one;
+  if (two && !sameSlotRow(two, DEFAULT_STAGE_SEAT_LAYOUT[2])) out[2] = two;
+  if (three && !sameSlotRow(three, DEFAULT_STAGE_SEAT_LAYOUT[3])) out[3] = three;
+  return Object.keys(out).length ? out : undefined;
+}
+
+export function resolvedSeatLayout(
+  layout?: StageSeatLayoutByCount | null,
+  legacy3?: TrioSlot[] | null,
+): Record<StageSeatCount, TrioSlot[]> {
+  return {
+    1: resolveStageSeatRow(1, layout, legacy3),
+    2: resolveStageSeatRow(2, layout, legacy3),
+    3: resolveStageSeatRow(3, layout, legacy3),
+  };
+}
+
+export function resolveStageSeatRow(
+  count: number,
+  layout?: StageSeatLayoutByCount | null,
+  legacy3?: TrioSlot[] | null,
+): TrioSlot[] {
+  const n: StageSeatCount = count <= 1 ? 1 : count === 2 ? 2 : 3;
+  if (n === 3 && layout?.[3]?.length === 3) return layout[3];
+  if (n === 3 && legacy3?.length === 3) return legacy3;
+  if (n === 2 && layout?.[2]?.length === 2) return layout[2];
+  if (n === 1 && layout?.[1]?.length === 1) return layout[1];
+  return DEFAULT_STAGE_SEAT_LAYOUT[n];
+}
+
+/**
+ * 인원 수에 따라 빈 자리를 채울 좌석 인덱스.
+ * 2명 기본 = 왼(0)·오(2). 3명 기본 = 왼·중·오.
+ */
+export function stageSeatFillIndices(
+  count: number,
+  layout?: StageSeatLayoutByCount | null,
+  legacy3?: TrioSlot[] | null,
+): number[] {
+  const row = resolveStageSeatRow(count, layout, legacy3);
+  return [...row.map(trioSlotToSeatIndex), 3, 4];
 }
 
 /**
