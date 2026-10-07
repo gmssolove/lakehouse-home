@@ -51,6 +51,8 @@ type Props = {
   isNarration?: boolean;
   choices?: DialogueBoxChoice[];
   sceneId?: string;
+  /** 시나리오별 세이브 묶음. 없으면 sceneId */
+  saveScopeId?: string;
   lineId?: string;
   missionsActive?: string[];
   missionsCompleted?: string[];
@@ -90,6 +92,7 @@ export function DialogueBox({
   isNarration = false,
   choices = [],
   sceneId,
+  saveScopeId,
   lineId,
   missionsActive = [],
   missionsCompleted = [],
@@ -115,9 +118,9 @@ export function DialogueBox({
   const isTyping = liveTyping ? liveFlag : isTypingProp;
 
   const refreshSlots = useCallback(async () => {
+    if (!sceneId) return;
     try {
-      const list = await listVnSlots();
-      setSlots(list);
+      setSlots(await listVnSlots(saveScopeId?.trim() || sceneId));
     } catch {
       setSlots(
         Object.fromEntries(VN_SAVE_SLOTS.map((s) => [s, null])) as Record<
@@ -126,7 +129,7 @@ export function DialogueBox({
         >,
       );
     }
-  }, []);
+  }, [sceneId, saveScopeId]);
 
   useEffect(() => {
     if (!panel) return;
@@ -175,7 +178,7 @@ export function DialogueBox({
     setBusy(true);
     setMsg('');
     try {
-      await saveVnSlot(slot, {
+      await saveVnSlot(saveScopeId?.trim() || sceneId, slot, {
         sceneId,
         lineId,
         missionsActive,
@@ -196,7 +199,7 @@ export function DialogueBox({
     setBusy(true);
     setMsg('');
     try {
-      const data = await loadVnSlot(slot);
+      const data = await loadVnSlot(saveScopeId?.trim() || sceneId, slot);
       if (!data) {
         setMsg('빈 슬롯');
         return;

@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { isTauriApp } from '@/lib/vn/isTauriApp';
 import { VN_FIRST_SCENE_ID } from '@/data/vn/scenes';
-import type { VNSaveData } from '@/lib/vn/vnSave';
+import { VN_KISARAGI_SAVE_SCOPE, type VNSaveData } from '@/lib/vn/vnSave';
 import { VnInGameMenu } from './VnInGameMenu';
 
 type RouterLike = {
@@ -75,6 +75,7 @@ export function MainMenu() {
     <div className="vn-main-menu-host">
       <VnInGameMenu
         backgroundUrl="/vn/backgrounds/main_menu.png"
+        saveScopeId={VN_KISARAGI_SAVE_SCOPE}
         onStart={start}
         onContinue={loadSlot}
         onExit={exit}

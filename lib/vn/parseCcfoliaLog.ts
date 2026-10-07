@@ -264,6 +264,8 @@ export type ScenarioVnSpeaker = {
   standPosBySlot?: import('@/lib/vn/standPosBySlot').ScenarioVnStandPosBySlot;
   /** 스탠딩 등장 애니메이션 */
   standAnimation?: ScenarioVnStandAnim;
+  /** 스탠딩 탭 — 이 인물의 기본 고정 자리. 없으면 등장 순 */
+  homeSlot?: import('@/lib/vn/standPosBySlot').TrioSlot;
   /** @deprecated standPos — 구 저장 데이터 */
   standPose?: ScenarioVnStandPose;
 };
@@ -572,10 +574,38 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   const currentFill = () =>
     stageSeatFillIndices(occupancyCap, scene.stageSeatLayout, scene.stageSeatOrder);
   const sceneSeatKeys = parseSpeakerKeyList(scene.stageOrder);
-  const reservedSeats = new Set<number>();
-  sceneSeatKeys?.forEach((k, i) => {
-    if (k) reservedSeats.add(i);
-  });
+
+  function preferredSeatIndex(key: string): number {
+    if (stickyStageOrder) {
+      const i = stickyStageOrder.findIndex((k) => k === key);
+      if (i >= 0) return i;
+    }
+    const home = bySpeaker.get(key)?.homeSlot;
+    if (home === 'left') return 0;
+    if (home === 'center') return 1;
+    if (home === 'right') return 2;
+    const sceneI = sceneSeatKeys?.findIndex((k) => k === key) ?? -1;
+    return sceneI;
+  }
+
+  function reservedSeatSet(): Set<number> {
+    const s = new Set<number>();
+    if (stickyStageOrder) {
+      stickyStageOrder.forEach((k, i) => {
+        if (k) s.add(i);
+      });
+      return s;
+    }
+    sceneSeatKeys?.forEach((k, i) => {
+      if (k) s.add(i);
+    });
+    for (const sp of scene.speakers) {
+      if (sp.homeSlot === 'left') s.add(0);
+      else if (sp.homeSlot === 'center') s.add(1);
+      else if (sp.homeSlot === 'right') s.add(2);
+    }
+    return s;
+  }
   /** 3명 이하는 왼·중·오 레인(길이 3)을 유지. 2명일 때 가운데를 비우고 양옆만 씀. */
   const seats: (string | null)[] = Array.from(
     { length: Math.max(occupancyCap, occupancyCap <= 3 ? 3 : occupancyCap) },
@@ -632,30 +662,35 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     const fill = currentFill();
     const len = occupancyCap <= 3 ? 3 : occupancyCap;
     const next: (string | null)[] = Array.from({ length: len }, () => null);
+    const placed = new Set<string>();
+    for (const row of kept) {
+      const dest = preferredSeatIndex(row.key);
+      if (dest >= 0 && dest < len && next[dest] == null) {
+        next[dest] = row.key;
+        placed.add(row.key);
+      }
+    }
     kept.forEach((row, i) => {
-      const dest = fill[i];
-      if (dest != null && dest < len) next[dest] = row.key;
+      if (placed.has(row.key)) return;
+      const dest = fill.find((idx) => idx < len && next[idx] == null);
+      if (dest != null) next[dest] = row.key;
+      else if (i < len && next[i] == null) next[i] = row.key;
     });
     seats.splice(0, seats.length, ...next);
   }
 
   function applyStageOrder(keys: string[]) {
-    const fill = currentFill();
     const next: (string | null)[] = Array.from({ length: seats.length }, () => null);
     const seen = new Set<string>();
-    let slot = 0;
-    for (const raw of keys) {
+    keys.forEach((raw, i) => {
       const k = (raw || '').trim();
-      if (!k || seen.has(k)) continue;
+      if (!k || seen.has(k) || i >= next.length) return;
       const sp = bySpeaker.get(k);
-      if (!sp?.sprite?.trim()) continue;
-      const dest = fill[slot];
-      slot += 1;
-      if (dest == null || dest >= next.length) continue;
+      if (!sp?.sprite?.trim()) return;
       seen.add(k);
-      next[dest] = k;
+      next[i] = k;
       lastIndex.set(k, lineIndex);
-    }
+    });
     seats.splice(0, seats.length, ...next);
   }
 
@@ -667,8 +702,9 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
 
     const fill = currentFill().filter((i) => i < seats.length);
     const occupiedN = seats.filter(Boolean).length;
+    const reservedSeats = reservedSeatSet();
 
-    const pref = sceneSeatKeys?.findIndex((k) => k === key) ?? -1;
+    const pref = preferredSeatIndex(key);
     if (pref >= 0 && pref < seats.length) {
       const occupant = seats[pref];
       seats[pref] = key;

@@ -27,6 +27,7 @@ export type VnLogEntry = {
 type Props = {
   open: boolean;
   sceneId?: string;
+  saveScopeId?: string;
   lineId?: string;
   missionsActive?: string[];
   missionsCompleted?: string[];
@@ -68,6 +69,7 @@ const OUT_MS = 280;
 export function VnSystemMenu({
   open,
   sceneId,
+  saveScopeId,
   lineId,
   missionsActive = [],
   missionsCompleted = [],
@@ -119,8 +121,9 @@ export function VnSystemMenu({
   }, []);
 
   const refreshSlots = useCallback(async () => {
+    if (!sceneId && !saveScopeId) return;
     try {
-      setSlots(await listVnSlots());
+      setSlots(await listVnSlots(saveScopeId?.trim() || sceneId || ''));
     } catch {
       setSlots(
         Object.fromEntries(VN_SAVE_SLOTS.map((s) => [s, null])) as Record<
@@ -129,7 +132,7 @@ export function VnSystemMenu({
         >,
       );
     }
-  }, []);
+  }, [sceneId, saveScopeId]);
 
   useEffect(() => {
     if (!open) return;
@@ -141,7 +144,7 @@ export function VnSystemMenu({
     setBusy(true);
     setMsg('');
     try {
-      await saveVnSlot(slot, {
+      await saveVnSlot(saveScopeId?.trim() || sceneId, slot, {
         sceneId,
         lineId,
         missionsActive,
@@ -162,7 +165,7 @@ export function VnSystemMenu({
     setBusy(true);
     setMsg('');
     try {
-      const data = await loadVnSlot(slot);
+      const data = await loadVnSlot(saveScopeId?.trim() || sceneId, slot);
       if (!data) {
         setMsg('빈 슬롯입니다');
         return;

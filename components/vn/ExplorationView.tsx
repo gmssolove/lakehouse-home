@@ -5,7 +5,7 @@ import { DialogueBox } from './DialogueBox';
 import { VnLocationBanner } from './VnLocationBanner';
 import { useVnBgm } from './useVnBgm';
 import type { ExplorationScene, Hotspot, VNLine } from './types';
-import { saveVnSlot, type VNSaveData } from '@/lib/vn/vnSave';
+import { saveVnSlot, VN_KISARAGI_SAVE_SCOPE, type VNSaveData } from '@/lib/vn/vnSave';
 import styles from './exploration.module.css';
 
 type Props = {
@@ -142,7 +142,7 @@ export function ExplorationView({
 
   const quickSave = async () => {
     try {
-      await saveVnSlot('save_1', {
+      await saveVnSlot(VN_KISARAGI_SAVE_SCOPE, 'save_1', {
         sceneId: scene.id,
         lineId: '__explore__',
         hotspotsChecked: checked,
@@ -250,6 +250,7 @@ export function ExplorationView({
             leaving={leaving}
             choices={[]}
             sceneId={scene.id}
+            saveScopeId={VN_KISARAGI_SAVE_SCOPE}
             lineId={currentLine.id}
             missionsActive={missionsActive}
             missionsCompleted={[]}

@@ -12,7 +12,7 @@ import {
 import { closeVnToArchiveOrMenu } from '@/components/vn/MainMenu';
 import { VnEndingScreen } from './VnEndingScreen';
 import { VnPlayShell } from './VnPlayShell';
-import type { VNSaveData } from '@/lib/vn/vnSave';
+import { VN_KISARAGI_SAVE_SCOPE, type VNSaveData } from '@/lib/vn/vnSave';
 
 type Props = {
   scene: VNAnyScene;
@@ -88,6 +88,7 @@ export function VnSceneClient({ scene, scenes }: Props) {
     <div className="vn-stage active" id="detail-screen">
       {isDialogueScene(scene) ? (
         <VnPlayShell
+          saveScopeId={VN_KISARAGI_SAVE_SCOPE}
           onExit={goBack}
           onNewGame={() => {
             setStartLineId(undefined);
@@ -122,6 +123,7 @@ export function VnSceneClient({ scene, scenes }: Props) {
                   onMainMenu={returnToMenu}
                   onNavigateScene={goScene}
                   onLoadSaveNavigate={loadSaveNavigate}
+                  saveScopeId={VN_KISARAGI_SAVE_SCOPE}
                 />
               ) : null}
               {ended ? (

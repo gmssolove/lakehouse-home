@@ -69,6 +69,8 @@ type Props = {
   onLoadSaveNavigate?: (data: VNSaveData) => void;
   className?: string;
   startLineId?: string;
+  /** 시나리오별 세이브 묶음. 없으면 scene.id */
+  saveScopeId?: string;
   /** 관리자: 재생 중 스탠딩 위치 저장 (현재 좌석 슬롯 버전) */
   onStandPoseChange?: (
     characterKey: string,
@@ -142,6 +144,7 @@ export function VNEngine({
   onLoadSaveNavigate,
   className = '',
   startLineId,
+  saveScopeId,
   onStandPoseChange,
   onStandPoseFlush,
   speakerStandPoses,
@@ -156,6 +159,7 @@ export function VNEngine({
   chapterLoading: chapterLoadingEnabled = false,
 }: Props) {
   const { isAdmin } = useAuth();
+  const saveScope = saveScopeId?.trim() || scene.id;
   const standPoseEditable = Boolean(isAdmin && (onStandPoseChange || onHandoutPoseChange));
   const resolvers = useMemo(() => mergeResolvers(resolversProp), [resolversProp]);
   const eng = useVNEngine({
@@ -1077,6 +1081,7 @@ export function VNEngine({
           leaving={leaving}
           choices={[]}
           sceneId={eng.scene.id}
+          saveScopeId={saveScope}
           lineId={eng.line?.id}
           missionsActive={eng.missionsActive}
           missionsCompleted={eng.missionsCompleted}
@@ -1101,6 +1106,7 @@ export function VNEngine({
       <VnSystemMenu
         open={sysOpen}
         sceneId={eng.scene.id}
+        saveScopeId={saveScope}
         lineId={eng.line?.id}
         missionsActive={eng.missionsActive}
         missionsCompleted={eng.missionsCompleted}

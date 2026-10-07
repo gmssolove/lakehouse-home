@@ -79,6 +79,7 @@ export function VnSceneResolver({ sceneId }: Props) {
         standPos: standPos ? normalizeStandPose(standPos) : undefined,
         standPosBySlot: standPosBySlot ? { ...standPosBySlot } : undefined,
         standAnimation: sp.standAnimation || prev?.standAnimation,
+        homeSlot: sp.homeSlot || prev?.homeSlot,
       });
     }
   }
@@ -822,6 +823,7 @@ function ScenarioVnPlayClient({
         urls={[...Object.values(spriteMap), '/vn/characters/npc_generic.svg']}
       />
       <VnPlayShell
+        saveScopeId={scenarioId}
         menuBackgroundUrl={menuTheme?.background || undefined}
         menuBackgroundBlur={menuTheme?.blur}
         tutorialSteps={tutorialSteps}
@@ -855,6 +857,7 @@ function ScenarioVnPlayClient({
                 onExit={goBack}
                 onMainMenu={returnToMenu}
                 onLoadSaveNavigate={loadSaveNavigate}
+                saveScopeId={scenarioId}
                 onStandPoseChange={isAdmin ? onStandPoseChange : undefined}
                 onStandPoseFlush={isAdmin ? () => void flushStandPoses() : undefined}
                 speakerStandPoses={speakerStandPoses}

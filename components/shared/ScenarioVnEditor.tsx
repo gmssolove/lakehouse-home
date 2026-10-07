@@ -504,6 +504,39 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
     );
   }
 
+  function homeSlotOf(key: string): TrioSlot | '' {
+    const sp = speakers.find((s) => s.key === key);
+    if (sp?.homeSlot) return sp.homeSlot;
+    const i = stageOrder.findIndex((k) => k === key);
+    if (i === 0) return 'left';
+    if (i === 1) return 'center';
+    if (i === 2) return 'right';
+    return '';
+  }
+
+  function setSpeakerHome(key: string, slot: TrioSlot | '') {
+    const takenBy = slot
+      ? speakers.find((s) => s.key !== key && homeSlotOf(s.key) === slot)?.key
+      : undefined;
+    setSpeakers((prev) =>
+      prev.map((s) => {
+        if (s.key === key) return { ...s, homeSlot: slot || undefined };
+        if (takenBy && s.key === takenBy) return { ...s, homeSlot: undefined };
+        return s;
+      }),
+    );
+    setStageOrder((prev) => {
+      const next = Array.from({ length: Math.max(3, prev.length) }, (_, i) => prev[i] || '');
+      for (let i = 0; i < next.length; i++) {
+        if (next[i] === key || (takenBy && next[i] === takenBy)) next[i] = '';
+      }
+      if (slot === 'left') next[0] = key;
+      else if (slot === 'center') next[1] = key;
+      else if (slot === 'right') next[2] = key;
+      return next;
+    });
+  }
+
   function addBackground() {
     const key = `bg_${Date.now().toString(36)}`;
     setBackgrounds((prev) => [...prev, { key, label: '' }]);
@@ -1245,9 +1278,19 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                       onChange={(e) => updateSpeaker(sp.key, { displayName: e.target.value })}
                     />
                     <div className="svn-speaker__row">
-                      <span className="lh-dialogue-editor__hint" style={{ margin: 0, fontSize: 11 }}>
-                        자리·크기는 스탠딩 탭에서 왼/중/우 버전으로 조절
-                      </span>
+                      <label className="svn-speaker__homeslot">
+                        <span>고정 자리</span>
+                        <select
+                          className="form-input"
+                          value={homeSlotOf(sp.key)}
+                          onChange={(e) => setSpeakerHome(sp.key, e.target.value as TrioSlot | '')}
+                        >
+                          <option value="">자동</option>
+                          <option value="left">왼쪽</option>
+                          <option value="center">중앙</option>
+                          <option value="right">오른쪽</option>
+                        </select>
+                      </label>
                       <label className="svn-speaker__narr">
                         <input
                           type="checkbox"
@@ -1277,7 +1320,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
             </div>
             <p className="lh-dialogue-editor__hint" style={{ margin: 0 }}>
               이미지를 올리면 투명 여백을 자동으로 잘라내고, 세로/가로 비율로 전신·상반신을 추정해 시작 크기를 잡아줘요.
-              좌·우·가운데는 기본 자리, 미세 위치·크기·등장 연출은 「스탠딩」 탭에서 조절해요.
+              고정 자리는 각 화자 카드의 「고정 자리」에서 고르고, 미세 위치·크기·등장 연출은 「스탠딩」 탭에서 조절해요.
             </p>
           </section>
       ) : null}
@@ -1816,55 +1859,45 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
             <div className="svn-editor__seatorder">
               <div className="lh-dialogue-block__label" style={{ margin: 0 }}>기본 고정 자리</div>
               <p className="lh-dialogue-editor__hint">
-                특정 인물을 왼·중·오에 고정합니다. 비우면 위 등장 순서를 따릅니다. 대사 줄에서 덮어쓸 수
-                있어요.
+                인물마다 왼·중·오를 고정합니다. 「자동」이면 위에서 정한 인원별 자리(등장 순)를 따릅니다.
+                같은 자리는 한 명만 고를 수 있어요.
               </p>
               {(() => {
-                const cast = speakers.filter((s) => s.sprite?.trim());
-                const n =
-                  maxOnStage === 'all'
-                    ? Math.min(5, Math.max(3, cast.length || 3))
-                    : Math.min(5, Math.max(1, Number(maxOnStage) || 3));
-                const labels = ['왼쪽', '중앙', '오른쪽', '4번', '5번'];
+                const cast = speakers.filter((s) => s.sprite?.trim() && !s.treatAsNarration);
+                if (!cast.length) {
+                  return (
+                    <p className="lh-dialogue-editor__hint">스프라이트가 있는 화자가 있어야 자리를 고정할 수 있어요. PL 탭에서도 같은 항목을 고를 수 있습니다.</p>
+                  );
+                }
                 return (
-                  <div className="svn-editor__seatorder-grid">
-                    {Array.from({ length: n }, (_, i) => (
-                      <label key={`scene-stage-${i}`} className="svn-editor__seatorder-item">
-                        <span>{labels[i]}</span>
+                  <div className="svn-editor__seatorder-grid svn-editor__seatorder-grid--chars">
+                    {cast.map((s) => (
+                      <label key={`home-${s.key}`} className="svn-editor__seatorder-item">
+                        <span>{s.displayName || s.key}</span>
                         <select
                           className="form-input"
-                          value={stageOrder[i] || ''}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setStageOrder((prev) => {
-                              const next = Array.from({ length: n }, (_, j) => prev[j] || '');
-                              if (v) {
-                                const dup = next.findIndex((k, j) => j !== i && k === v);
-                                if (dup >= 0) next[dup] = '';
-                              }
-                              next[i] = v;
-                              return next;
-                            });
-                          }}
+                          value={homeSlotOf(s.key)}
+                          onChange={(e) => setSpeakerHome(s.key, e.target.value as TrioSlot | '')}
                         >
                           <option value="">자동</option>
-                          {cast.map((s) => (
-                            <option key={s.key} value={s.key}>
-                              {s.displayName || s.key}
-                            </option>
-                          ))}
+                          <option value="left">왼쪽</option>
+                          <option value="center">중앙</option>
+                          <option value="right">오른쪽</option>
                         </select>
                       </label>
                     ))}
                   </div>
                 );
               })()}
-              {stageOrder.some((k) => k.trim()) ? (
+              {speakers.some((s) => s.homeSlot) || stageOrder.some((k) => k.trim()) ? (
                 <button
                   type="button"
                   className="btn-del"
                   style={{ alignSelf: 'flex-start', padding: '4px 10px', marginTop: 8 }}
-                  onClick={() => setStageOrder([])}
+                  onClick={() => {
+                    setStageOrder([]);
+                    setSpeakers((prev) => prev.map((s) => ({ ...s, homeSlot: undefined })));
+                  }}
                 >
                   고정 자리 비우기
                 </button>
@@ -2696,15 +2729,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                       : typeof maxOnStage === 'number'
                                         ? maxOnStage
                                         : Math.min(5, Math.max(3, cast.length));
-                                const n = Math.min(5, Math.max(1, slotsN));
+                                const n = Math.min(3, Math.max(1, slotsN === 1 ? 1 : 3));
                                 const order = line.stageOrder ?? [];
-                                const trioName: Record<TrioSlot, string> = {
-                                  left: '왼쪽',
-                                  center: '중앙',
-                                  right: '오른쪽',
-                                };
-                                const row =
-                                  n === 1 ? seatLayout[1] : n === 2 ? seatLayout[2] : n === 3 ? seatLayout[3] : null;
+                                const labels = ['왼쪽', '중앙', '오른쪽'] as const;
                                 return (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                     {Array.from({ length: n }, (_, i) => (
@@ -2713,7 +2740,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                         className="form-input"
                                         value={order[i] || ''}
                                         onChange={(e) => {
-                                          const next = Array.from({ length: n }, (_, j) =>
+                                          const next = Array.from({ length: 3 }, (_, j) =>
                                             j === i
                                               ? e.target.value
                                               : line.stageOrder?.[j] || '',
@@ -2725,15 +2752,13 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                         }}
                                       >
                                         <option value="">
-                                          {row?.[i]
-                                            ? `${trioName[row[i]!]} — 씬 기본`
-                                            : `${i + 1}번 — 씬 기본`}
+                                          {n === 1 ? '자리 — 씬 기본' : `${labels[i]} — 씬 기본`}
                                         </option>
                                         {cast.map((s) => (
                                           <option key={s.key} value={s.key}>
-                                            {row?.[i]
-                                              ? `${trioName[row[i]!]} · ${s.displayName || s.key}`
-                                              : `${i + 1}번 · ${s.displayName || s.key}`}
+                                            {n === 1
+                                              ? s.displayName || s.key
+                                              : `${labels[i]} · ${s.displayName || s.key}`}
                                           </option>
                                         ))}
                                       </select>

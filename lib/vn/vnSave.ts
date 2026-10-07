@@ -6,6 +6,9 @@ import { auth, db } from '@/lib/firebase/client';
 export const VN_SAVE_SLOTS = ['save_1', 'save_2', 'save_3'] as const;
 export type VNSaveSlotId = (typeof VN_SAVE_SLOTS)[number];
 
+/** 如月 정적 씬들은 한 작품으로 묶음. TRPG는 시나리오 id 그대로 사용 */
+export const VN_KISARAGI_SAVE_SCOPE = 'kisaragi';
+
 export type VNSaveData = {
   sceneId: string;
   lineId: string;
@@ -43,11 +46,40 @@ export async function ensureVnAuthUser(): Promise<User> {
   return cred.user;
 }
 
-function slotPath(uid: string, slot: VNSaveSlotId) {
-  return `vnSaves/${uid}/${slot}`;
+function encodeSaveScope(scopeId: string): string {
+  const s = String(scopeId || '').trim();
+  if (!s) return '_';
+  let out = '';
+  for (const ch of s) {
+    out += '.$[]/'.includes(ch) ? '_' : ch;
+  }
+  return out.slice(0, 200);
+}
+
+function scenarioSlotsPath(uid: string, scopeId: string) {
+  return `vnSaves/${uid}/scenarios/${encodeSaveScope(scopeId)}`;
+}
+
+function slotPath(uid: string, scopeId: string, slot: VNSaveSlotId) {
+  return `${scenarioSlotsPath(uid, scopeId)}/${slot}`;
+}
+
+function isKisaragiSceneId(id: string): boolean {
+  return (
+    id.startsWith('ep1_') ||
+    id.startsWith('test_scene') ||
+    id === 'effects_demo'
+  );
+}
+
+function legacyBelongsToScope(save: VNSaveData, scopeId: string): boolean {
+  if (save.sceneId === scopeId) return true;
+  if (scopeId === VN_KISARAGI_SAVE_SCOPE) return isKisaragiSceneId(save.sceneId);
+  return false;
 }
 
 export async function saveVnSlot(
+  scopeId: string,
   slot: VNSaveSlotId,
   data: {
     sceneId: string;
@@ -66,27 +98,57 @@ export async function saveVnSlot(
     missionsCompleted: data.missionsCompleted ?? [],
     hotspotsChecked: data.hotspotsChecked ?? [],
   };
-  await set(ref(db, slotPath(user.uid, slot)), payload);
+  await set(ref(db, slotPath(user.uid, scopeId, slot)), payload);
   return payload;
 }
 
-export async function loadVnSlot(slot: VNSaveSlotId): Promise<VNSaveData | null> {
+export async function loadVnSlot(
+  scopeId: string,
+  slot: VNSaveSlotId,
+): Promise<VNSaveData | null> {
   const user = await ensureVnAuthUser();
-  const snap = await get(ref(db, slotPath(user.uid, slot)));
-  if (!snap.exists()) return null;
-  return parseSave(snap.val() as Partial<VNSaveData>);
+  const snap = await get(ref(db, slotPath(user.uid, scopeId, slot)));
+  if (snap.exists()) {
+    const parsed = parseSave(snap.val() as Partial<VNSaveData>);
+    if (parsed) return parsed;
+  }
+  const legacy = await get(ref(db, `vnSaves/${user.uid}/${slot}`));
+  if (!legacy.exists()) return null;
+  const parsed = parseSave(legacy.val() as Partial<VNSaveData>);
+  if (!parsed || !legacyBelongsToScope(parsed, scopeId)) return null;
+  return parsed;
 }
 
-export async function listVnSlots(): Promise<Record<VNSaveSlotId, VNSaveData | null>> {
+export async function listVnSlots(
+  scopeId: string,
+): Promise<Record<VNSaveSlotId, VNSaveData | null>> {
   const user = await ensureVnAuthUser();
-  const snap = await get(ref(db, `vnSaves/${user.uid}`));
+  const snap = await get(ref(db, scenarioSlotsPath(user.uid, scopeId)));
   const raw = (snap.exists() ? snap.val() : {}) as Record<string, Partial<VNSaveData>>;
+  const legacySnap = await get(ref(db, `vnSaves/${user.uid}`));
+  const legacyRaw = (legacySnap.exists() ? legacySnap.val() : {}) as Record<
+    string,
+    Partial<VNSaveData>
+  >;
   const out = {} as Record<VNSaveSlotId, VNSaveData | null>;
   for (const id of VN_SAVE_SLOTS) {
     const parsed = parseSave(raw[id]);
-    out[id] = parsed
-      ? { ...parsed, savedAt: typeof raw[id]?.savedAt === 'number' ? raw[id].savedAt! : 0 }
-      : null;
+    if (parsed) {
+      out[id] = {
+        ...parsed,
+        savedAt: typeof raw[id]?.savedAt === 'number' ? raw[id].savedAt! : parsed.savedAt,
+      };
+      continue;
+    }
+    const old = parseSave(legacyRaw[id]);
+    out[id] =
+      old && legacyBelongsToScope(old, scopeId)
+        ? {
+            ...old,
+            savedAt:
+              typeof legacyRaw[id]?.savedAt === 'number' ? legacyRaw[id].savedAt! : old.savedAt,
+          }
+        : null;
   }
   return out;
 }

@@ -136,6 +136,27 @@
   flex-wrap: wrap;
 }
 
+.svn-speaker__homeslot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted, #9a8c7a);
+  min-width: 0;
+}
+
+.svn-speaker__homeslot span {
+  flex: none;
+  white-space: nowrap;
+}
+
+.svn-speaker__homeslot .form-input {
+  width: auto;
+  min-width: 92px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
 .svn-speaker__narr {
   display: flex;
   align-items: center;
@@ -340,6 +361,10 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.svn-editor__seatorder-grid--chars {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
 }
 
 .svn-editor__seatorder-count {

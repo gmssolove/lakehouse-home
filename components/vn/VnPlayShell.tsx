@@ -22,6 +22,8 @@ type Props = {
   children: ReactNode | ((api: VnPlayShellApi) => ReactNode);
   onExit: () => void;
   onContinueSave: (data: VNSaveData) => void;
+  /** 시나리오별 세이브 묶음 */
+  saveScopeId: string;
   /** 「게임 시작」— 이어하기 잔여 상태(?line= 등) 초기화 */
   onNewGame?: () => void;
 };
@@ -37,6 +39,7 @@ export function VnPlayShell({
   children,
   onExit,
   onContinueSave,
+  saveScopeId,
   onNewGame,
 }: Props) {
   const searchParams = useSearchParams();
@@ -68,6 +71,7 @@ export function VnPlayShell({
       <VnInGameMenu
         backgroundUrl={menuBackgroundUrl}
         backgroundBlur={menuBackgroundBlur}
+        saveScopeId={saveScopeId}
         onStart={startNew}
         onContinue={(data) => {
           onContinueSave(data);

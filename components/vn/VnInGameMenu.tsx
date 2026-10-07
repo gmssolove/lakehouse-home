@@ -21,6 +21,8 @@ type Props = {
   backgroundUrl?: string;
   /** 배경 흐림 px (0–40) */
   backgroundBlur?: number;
+  /** 이 시나리오(작품) 세이브만 표시 */
+  saveScopeId: string;
   onStart: () => void;
   onContinue: (data: VNSaveData) => void;
   onExit: () => void;
@@ -65,6 +67,7 @@ function DustMotes() {
 export function VnInGameMenu({
   backgroundUrl = '/vn/backgrounds/main_menu.png',
   backgroundBlur = 0,
+  saveScopeId,
   onStart,
   onContinue,
   onExit,
@@ -109,13 +112,13 @@ export function VnInGameMenu({
   const openContinue = useCallback(() => {
     openPanel('continue');
     setSlotsLoading(true);
-    void listVnSlots()
+    void listVnSlots(saveScopeId)
       .then((data) => {
         setSlots(data);
         setSlotsLoading(false);
       })
       .catch(() => setSlotsLoading(false));
-  }, [openPanel]);
+  }, [openPanel, saveScopeId]);
 
   const activate = useCallback(
     (id: (typeof ITEMS)[number]['id']) => {
