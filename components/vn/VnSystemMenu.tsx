@@ -161,11 +161,12 @@ export function VnSystemMenu({
   };
 
   const handleLoad = async (slot: VNSaveSlotId) => {
-    if (busy) return;
+    const scope = saveScopeId?.trim() || sceneId;
+    if (!scope || busy) return;
     setBusy(true);
     setMsg('');
     try {
-      const data = await loadVnSlot(saveScopeId?.trim() || sceneId, slot);
+      const data = await loadVnSlot(scope, slot);
       if (!data) {
         setMsg('빈 슬롯입니다');
         return;
