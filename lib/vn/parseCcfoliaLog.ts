@@ -177,13 +177,13 @@ export type ScenarioVnLine = {
 
 export type ScenarioVnBackground = {
   key: string;
-  /** 장소 이름 — 「장소 배너 표시」가 켜져 있으면 배너에 이 이름이 뜸 */
+  /** 장소 이름 — 좌상단 타이틀. 「장소 배너 표시」가 켜져 있으면 중앙 연출도 뜸 */
   label: string;
   /** URL 또는 data URL */
   image?: string;
   /**
-   * false면 목록에 「배너 없음」만 표시. 재생 시에는 배경을 바꾸면
-   * 장소 이름은 배경 라벨을 따라감 (줄에 문구가 없을 때).
+   * false면 이 배경으로 바꿀 때 중앙 배너는 생략.
+   * 배경과 좌상단 장소 이름은 항상 따라감.
    */
   announceLocation?: boolean;
 };
@@ -757,6 +757,11 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       .filter((b) => b.key?.trim())
       .map((b) => [b.key.trim(), (b.label || '').trim()] as const),
   );
+  const bgAnnounceByKey = new Map(
+    (scene.backgrounds ?? [])
+      .filter((b) => b.key?.trim())
+      .map((b) => [b.key.trim(), b.announceLocation !== false] as const),
+  );
   /** true면 화면 비네트 ON. 줄의 true/false 지정 시만 바뀌고, 미지정은 유지 */
   let vignetteActive = false;
   /** true면 시야 흐림 ON */
@@ -1251,6 +1256,9 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         const fromBg = stickyBgKey ? bgLabelByKey.get(stickyBgKey) || undefined : undefined;
         const explicit = l.location?.trim() || undefined;
         const location = (lineBg ? fromBg || explicit : explicit || fromBg) || undefined;
+        const locationAnnounce = lineBg
+          ? bgAnnounceByKey.get(lineBg) !== false
+          : Boolean(explicit);
         const prevBg = mapIdx > 0 ? lines[mapIdx - 1]?.background : undefined;
         const bgChanged = Boolean(
           l.background?.trim() && l.background.trim() !== (prevBg || '').trim(),
@@ -1314,6 +1322,7 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
             chapterLoadingAfter: l.chapterLoadingAfter ? true : undefined,
             background: l.background,
             location,
+            locationAnnounce: locationAnnounce || undefined,
             hideLocation: hideLocationActive || undefined,
             vignette: vignetteActive,
             visionBlur: visionBlurActive,
@@ -1389,6 +1398,7 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
           sfx: l.sfx,
           voice: l.voice?.trim() || undefined,
           location,
+          locationAnnounce: locationAnnounce || undefined,
           hideLocation: hideLocationActive || undefined,
           vignette: vignetteActive,
           visionBlur: visionBlurActive,

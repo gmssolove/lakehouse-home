@@ -76,6 +76,11 @@ export type VNLine = {
   /** 장소명 — 라인별. 없으면 씬 location 사용 */
   location?: string;
   /**
+   * true면 이 줄에서 중앙 장소 배너 연출.
+   * 꺼져 있으면 배경·좌상단 타이틀만 바뀜 (연출 없음).
+   */
+  locationAnnounce?: boolean;
+  /**
    * 장소 배너 숨김 (sticky 해석 후 절대값).
    * true면 배너·코너 숨김 · false/undefined면 표시
    */

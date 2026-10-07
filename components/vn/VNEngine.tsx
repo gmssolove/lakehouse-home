@@ -328,7 +328,15 @@ export function VNEngine({
       ? ''
       : eng.line?.location?.trim() || eng.scene.location?.trim() || '',
   );
-  const [locReady, setLocReady] = useState(false);
+  const [locReady, setLocReady] = useState(
+    () => Boolean(eng.line?.hideLocation) || eng.line?.locationAnnounce !== true,
+  );
+  const [locPlayIntro, setLocPlayIntro] = useState(
+    () =>
+      !eng.line?.hideLocation &&
+      eng.line?.locationAnnounce === true &&
+      Boolean((eng.line?.location || eng.scene.location || '').trim()),
+  );
   const locWaitedRef = useRef(false);
   const [gatedSfx, setGatedSfx] = useState<string | null>(null);
   const [vignetteOn, setVignetteOn] = useState(false);
@@ -470,6 +478,7 @@ export function VNEngine({
     if (eng.line?.hideLocation) {
       setDisplayLocation('');
       locGatePrevRef.current = null;
+      setLocPlayIntro(false);
       setLocReady(true);
       return;
     }
@@ -479,15 +488,23 @@ export function VNEngine({
 
     const loc = shown.trim();
     const prev = locGatePrevRef.current;
+    const announce = eng.line?.locationAnnounce === true;
     if (loc && loc !== prev) {
       locGatePrevRef.current = loc;
-      locWaitedRef.current = true;
-      setLocReady(false);
+      if (announce) {
+        locWaitedRef.current = true;
+        setLocPlayIntro(true);
+        setLocReady(false);
+      } else {
+        setLocPlayIntro(false);
+        setLocReady(true);
+      }
       return;
     }
     if (!loc) locGatePrevRef.current = null;
+    setLocPlayIntro(false);
     setLocReady(true);
-  }, [eng.line?.id, eng.line?.location, eng.line?.hideLocation, eng.scene.location]);
+  }, [eng.line?.id, eng.line?.location, eng.line?.locationAnnounce, eng.line?.hideLocation, eng.scene.location]);
 
   useEffect(() => {
     setVignetteOn(eng.line?.vignette === true);
@@ -992,7 +1009,11 @@ export function VNEngine({
 
       <VnMissionBanner mission={displayMission} onDone={clearMissionBanner} />
 
-      <VnLocationBanner location={displayLocation} onIntroComplete={() => setLocReady(true)} />
+      <VnLocationBanner
+        location={displayLocation}
+        playIntro={locPlayIntro}
+        onIntroComplete={() => setLocReady(true)}
+      />
 
       <VnHandoutLayer
         handout={eng.handout}

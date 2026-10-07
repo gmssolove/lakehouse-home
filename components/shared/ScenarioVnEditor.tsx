@@ -1435,7 +1435,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
             <div className="lh-dialogue-block__label">배경 &amp; 장소</div>
             <p className="lh-dialogue-editor__hint">
               장소를 등록하고 배경 이미지를 올려두면, 대사 줄에서 드롭다운으로 고를 수 있어요. 배경을 바꾸면
-              좌측 상단 장소 배너도 그 장소 이름으로 따라갑니다.
+              좌측 상단 장소 이름은 따라갑니다. 「장소 배너 표시」를 켠 장소만 중앙 배너가 뜹니다.
             </p>
             <div className="svn-editor__speakers">
               {backgrounds.map((bg) => (
@@ -2722,8 +2722,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                             </p>
                           ) : (
                             <p className="lh-dialogue-editor__hint" style={{ margin: '6px 0 0' }}>
-                              배경을 고르면 장소 배너가 그 장소 이름으로 바뀝니다. 문구를 직접 고쳐도 되고,
-                              「장소 배너 유지」에서 숨길 수 있어요.
+                              배경을 고르면 좌측 상단 장소 이름이 바뀝니다. 「장소 배너 표시」가 꺼진 장소는
+                              중앙 배너 없이 배경과 타이틀만 바뀝니다.
                             </p>
                           )}
                         </section>

@@ -12,6 +12,8 @@ export const LOCATION_HOLD_MS = LOCATION_INTRO_MS + LOCATION_HOLD_AFTER_MS;
 
 type Props = {
   location?: string | null;
+  /** false면 중앙 배너 없이 좌상단 타이틀만 갱신 */
+  playIntro?: boolean;
   /** 장소가 바뀌어 중앙 연출이 끝날 때 / 같은 장소·빈 장소면 즉시 */
   onIntroComplete?: () => void;
 };
@@ -20,7 +22,7 @@ type Props = {
  * VN 스테이지 오버레이 — 원본 연출 복구
  * 중앙: 양옆 선+도트 애니 → 유지 → 좌상단 코너(동일 구분선·애니)
  */
-export function VnLocationBanner({ location, onIntroComplete }: Props) {
+export function VnLocationBanner({ location, playIntro = true, onIntroComplete }: Props) {
   const next = typeof location === 'string' ? location.trim() : '';
   const [text, setText] = useState(next);
   const [phase, setPhase] = useState<'idle' | 'center' | 'corner'>('idle');
@@ -45,11 +47,18 @@ export function VnLocationBanner({ location, onIntroComplete }: Props) {
     prevRef.current = next;
 
     setText(next);
-    setPhase('idle');
-    setPlayKey((k) => k + 1);
     if (cornerTimerRef.current) clearTimeout(cornerTimerRef.current);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
+    if (!playIntro) {
+      setPlayKey((k) => k + 1);
+      setPhase('corner');
+      onIntroRef.current?.();
+      return;
+    }
+
+    setPhase('idle');
+    setPlayKey((k) => k + 1);
     rafRef.current = requestAnimationFrame(() => setPhase('center'));
     cornerTimerRef.current = setTimeout(() => {
       setPhase('corner');
