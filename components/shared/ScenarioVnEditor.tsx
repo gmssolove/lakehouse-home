@@ -246,7 +246,17 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
     resolvedSeatLayout(initial?.stageSeatLayout, initial?.stageSeatOrder),
   );
   const [tab, setTab] = useState<
-    'basic' | 'pl' | 'bg' | 'bgm' | 'ambient' | 'handout' | 'dice' | 'stand' | 'loading' | 'lines'
+    | 'basic'
+    | 'title'
+    | 'pl'
+    | 'bg'
+    | 'bgm'
+    | 'ambient'
+    | 'handout'
+    | 'dice'
+    | 'stand'
+    | 'loading'
+    | 'lines'
   >('basic');
   const [msg, setMsg] = useState('');
   const [spellBusy, setSpellBusy] = useState(false);
@@ -1055,6 +1065,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
 
   const tabs = [
     { id: 'basic' as const, label: '기본' },
+    { id: 'title' as const, label: '타이틀' },
     { id: 'pl' as const, label: 'PL', needLines: true },
     { id: 'bg' as const, label: '배경&장소', needLines: true },
     { id: 'bgm' as const, label: 'BGM', needLines: true },
@@ -1110,81 +1121,6 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
             }}
           />
           {lines.length > 0 && <span className="svn-editor__importhint">{lines.length}줄 불러온 상태</span>}
-        </div>
-      </section>
-
-      <section className="svn-editor__block">
-        <div className="lh-dialogue-block__label">메인 화면 (타이틀)</div>
-        <p className="lh-dialogue-editor__hint">
-          VN을 열면 처음 보이는 타이틀 메뉴 배경입니다. 이미지와 흐림(블러)을 조절할 수 있어요.
-        </p>
-        <div className="svn-menu-theme">
-          <div
-            className="svn-menu-theme__preview"
-            style={
-              {
-                ['--menu-preview-blur' as string]: `${clampMenuBlur(menuTheme.blur)}px`,
-              } as CSSProperties
-            }
-          >
-            {menuTheme.background ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={menuTheme.background} alt="" className="svn-menu-theme__bg" />
-            ) : (
-              <div className="svn-menu-theme__fallback" aria-hidden />
-            )}
-            <div className="svn-menu-theme__veil" aria-hidden />
-            <span className="svn-menu-theme__label">미리보기</span>
-          </div>
-          <div className="svn-menu-theme__controls">
-            <label className="file-input-label svn-speaker__file">
-              {busyMenuBg
-                ? '업로드 중…'
-                : menuTheme.background
-                  ? '배경 이미지 교체'
-                  : '배경 이미지 선택'}
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                disabled={busyMenuBg || uploadBusy}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleMenuBgFile(f);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-            {menuTheme.background ? (
-              <button
-                type="button"
-                className="btn-del"
-                style={{ alignSelf: 'flex-start', padding: '3px 8px' }}
-                onClick={() => setMenuTheme((prev) => ({ ...prev, background: undefined }))}
-              >
-                배경 제거 (기본)
-              </button>
-            ) : null}
-            <label className="svn-menu-theme__slider">
-              <span>
-                흐림 {clampMenuBlur(menuTheme.blur)}px
-                {clampMenuBlur(menuTheme.blur) === 0 ? ' (선명)' : ''}
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={MENU_BLUR_MAX}
-                step={1}
-                value={clampMenuBlur(menuTheme.blur)}
-                onChange={(e) =>
-                  setMenuTheme((prev) => ({
-                    ...prev,
-                    blur: clampMenuBlur(Number(e.target.value)),
-                  }))
-                }
-              />
-            </label>
-          </div>
         </div>
       </section>
 
@@ -1249,6 +1185,116 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
         </div>
       </section>
         </>
+      ) : null}
+
+      {tab === 'title' ? (
+        <section className="svn-editor__block">
+          <div className="lh-dialogue-block__label">메인 화면 (타이틀)</div>
+          <p className="lh-dialogue-editor__hint">
+            VN을 열면 처음 보이는 타이틀 메뉴 배경입니다. 새 이미지를 올리거나, 「배경&amp;장소」에
+            등록한 이미지를 그대로 쓸 수 있어요. 흐림(블러)도 여기서 조절합니다.
+          </p>
+          <div className="svn-menu-theme">
+            <div
+              className="svn-menu-theme__preview"
+              style={
+                {
+                  ['--menu-preview-blur' as string]: `${clampMenuBlur(menuTheme.blur)}px`,
+                } as CSSProperties
+              }
+            >
+              {menuTheme.background ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={menuTheme.background} alt="" className="svn-menu-theme__bg" />
+              ) : (
+                <div className="svn-menu-theme__fallback" aria-hidden />
+              )}
+              <div className="svn-menu-theme__veil" aria-hidden />
+              <span className="svn-menu-theme__label">미리보기</span>
+            </div>
+            <div className="svn-menu-theme__controls">
+              <label className="file-input-label svn-speaker__file">
+                {busyMenuBg
+                  ? '업로드 중…'
+                  : menuTheme.background
+                    ? '배경 이미지 교체'
+                    : '배경 이미지 선택'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  disabled={busyMenuBg || uploadBusy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleMenuBgFile(f);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {menuTheme.background ? (
+                <button
+                  type="button"
+                  className="btn-del"
+                  style={{ alignSelf: 'flex-start', padding: '3px 8px' }}
+                  onClick={() => setMenuTheme((prev) => ({ ...prev, background: undefined }))}
+                >
+                  배경 제거 (기본)
+                </button>
+              ) : null}
+              <label className="svn-menu-theme__slider">
+                <span>
+                  흐림 {clampMenuBlur(menuTheme.blur)}px
+                  {clampMenuBlur(menuTheme.blur) === 0 ? ' (선명)' : ''}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={MENU_BLUR_MAX}
+                  step={1}
+                  value={clampMenuBlur(menuTheme.blur)}
+                  onChange={(e) =>
+                    setMenuTheme((prev) => ({
+                      ...prev,
+                      blur: clampMenuBlur(Number(e.target.value)),
+                    }))
+                  }
+                />
+              </label>
+            </div>
+          </div>
+          {backgrounds.some((bg) => bg.image) ? (
+            <div className="svn-menu-theme__reuse">
+              <div className="lh-dialogue-block__label">등록한 장소 배경 쓰기</div>
+              <div className="svn-menu-theme__picks">
+                {backgrounds
+                  .filter((bg) => bg.image)
+                  .map((bg) => {
+                    const active = menuTheme.background === bg.image;
+                    return (
+                      <button
+                        key={bg.key}
+                        type="button"
+                        className={`svn-menu-theme__pick${active ? ' is-on' : ''}`}
+                        title={bg.label || bg.key}
+                        onClick={() =>
+                          setMenuTheme((prev) => ({ ...prev, background: bg.image }))
+                        }
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={bg.image} alt="" />
+                        <span>{bg.label || bg.key}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          ) : (
+            <p className="lh-dialogue-editor__hint">
+              장소 배경을 이미 올려 두었다면 「배경&amp;장소」에서 등록한 뒤 여기로 돌아와 고를 수
+              있어요.
+            </p>
+          )}
+        </section>
       ) : null}
 
       {tab === 'pl' && lines.length > 0 ? (
@@ -2774,9 +2820,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                 );
                               })()}
                               <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
-                                이 줄부터 그 칸에 설 사람을 고정합니다. 스탠딩 있는 사람은 그 칸을
-                                유지하고, 나머지 칸은 근처 대사 분량으로 채워집니다. 엑스트라는 남은
-                                칸에만 서서 본편 인물과 같은 자리를 뺏지 않습니다.
+                                이 줄부터 그 칸에 설 사람을 고정합니다. 아직 말 안 한 사람은 무대에
+                                미리 나오지 않습니다. 엑스트라는 남은 칸에만 서서 본편 인물과 같은
+                                자리를 뺏지 않습니다.
                               </p>
                               <label className="form-label" style={{ marginTop: 12 }}>
                                 등장 연출 순서

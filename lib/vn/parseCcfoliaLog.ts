@@ -670,8 +670,8 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     return k || null;
   }
 
-  /** 근처 대사 분량으로 이 장면의 무대 인원 고름. 고정 네임드 + 현재 화자 우선, 엑스트라는 남은 칸. */
-  const BEAT_WINDOW = 12;
+  /** 이미 나온 대사 분량으로 무대 인원 고름. 아직 안 말한 사람은 올리지 않음. */
+  const BEAT_LOOKBACK = 12;
   function selectBeatCast(lineIdx: number, speakingKey: string | null): string[] {
     const scores = new Map<string, number>();
     const bump = (key: string, n: number) => {
@@ -679,13 +679,12 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       if (!k) return;
       scores.set(k, (scores.get(k) ?? 0) + n);
     };
-    const from = Math.max(0, lineIdx - BEAT_WINDOW);
-    const to = Math.min(lines.length - 1, lineIdx + BEAT_WINDOW);
-    for (let j = from; j <= to; j++) {
+    const from = Math.max(0, lineIdx - BEAT_LOOKBACK);
+    for (let j = from; j <= lineIdx; j++) {
       const k = lineActorKey(lines[j]!);
       if (!k) continue;
-      const dist = Math.abs(j - lineIdx);
-      bump(k, 1 + (BEAT_WINDOW - dist) * 0.08);
+      const dist = lineIdx - j;
+      bump(k, 1 + (BEAT_LOOKBACK - dist) * 0.08);
     }
     if (speakingKey) bump(speakingKey, 1000);
 

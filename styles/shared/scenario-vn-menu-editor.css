@@ -80,6 +80,55 @@
   accent-color: #c9a15c;
 }
 
+.svn-menu-theme__reuse {
+  margin-top: 16px;
+}
+
+.svn-menu-theme__picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.svn-menu-theme__pick {
+  display: flex;
+  flex-direction: column;
+  width: 112px;
+  padding: 0;
+  border: 1px solid rgba(201, 161, 92, 0.28);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(12, 14, 13, 0.45);
+  color: rgba(232, 222, 211, 0.88);
+  cursor: pointer;
+}
+
+.svn-menu-theme__pick img {
+  width: 100%;
+  height: 56px;
+  object-fit: cover;
+  display: block;
+}
+
+.svn-menu-theme__pick span {
+  padding: 6px 8px;
+  font-size: 11px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.svn-menu-theme__pick.is-on {
+  border-color: #c9a15c;
+  box-shadow: 0 0 0 1px rgba(201, 161, 92, 0.45);
+}
+
+.svn-menu-theme__pick:hover {
+  border-color: rgba(201, 161, 92, 0.55);
+}
+
 .svn-chapter-loading {
   display: flex;
   align-items: flex-start;
