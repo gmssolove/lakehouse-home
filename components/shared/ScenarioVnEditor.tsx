@@ -1318,6 +1318,25 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                     />
                     <div className="svn-speaker__row">
                       <label className="svn-speaker__homeslot">
+                        <span>이름표 색</span>
+                        <input
+                          className="form-input"
+                          type="color"
+                          value={/^#[0-9a-fA-F]{6}$/.test(sp.color || '') ? sp.color : '#e8ddd0'}
+                          onChange={(e) => updateSpeaker(sp.key, { color: e.target.value })}
+                        />
+                      </label>
+                      <input
+                        className="form-input"
+                        placeholder="보조 라벨 (목소리)"
+                        value={sp.voiceLabel || ''}
+                        onChange={(e) =>
+                          updateSpeaker(sp.key, { voiceLabel: e.target.value || undefined })
+                        }
+                      />
+                    </div>
+                    <div className="svn-speaker__row">
+                      <label className="svn-speaker__homeslot">
                         <span>고정 자리</span>
                         <select
                           className="form-input"
@@ -1337,6 +1356,14 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                           onChange={(e) => updateSpeaker(sp.key, { treatAsNarration: e.target.checked })}
                         />
                         나레이션 처리
+                      </label>
+                      <label className="svn-speaker__narr">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(sp.extra)}
+                          onChange={(e) => updateSpeaker(sp.key, { extra: e.target.checked || undefined })}
+                        />
+                        엑스트라 (스탠딩 없이 이름만)
                       </label>
                     </div>
                     <label className="file-input-label svn-speaker__file">
@@ -2820,9 +2847,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                 );
                               })()}
                               <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
-                                이 줄부터 그 칸에 설 사람을 고정합니다. 아직 말 안 한 사람은 무대에
-                                미리 나오지 않습니다. 엑스트라는 남은 칸에만 서서 본편 인물과 같은
-                                자리를 뺏지 않습니다.
+                                이 줄부터 그 칸에 설 사람을 고정합니다. 한번 앉으면 퇴장 전까지 칸을
+                                옮기지 않습니다. 아직 말 안 한 사람은 미리 나오지 않습니다.
                               </p>
                               <label className="form-label" style={{ marginTop: 12 }}>
                                 등장 연출 순서
@@ -2901,6 +2927,26 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                 무대 리셋
                                 <span className="lh-dialogue-editor__hint" style={{ display: 'block', margin: '2px 0 0' }}>
                                   여기서부터 한 명씩 새로 등장
+                                </span>
+                              </span>
+                            </label>
+                            <label
+                              className="form-check"
+                              style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={Boolean(line.resetOnBackgroundChange)}
+                                onChange={(e) =>
+                                  updateLine(line.id, {
+                                    resetOnBackgroundChange: e.target.checked ? true : undefined,
+                                  })
+                                }
+                              />
+                              <span>
+                                배경이 바뀌면 스탠딩 퇴장
+                                <span className="lh-dialogue-editor__hint" style={{ display: 'block', margin: '2px 0 0' }}>
+                                  이 줄에서 장소 배경이 바뀔 때만 무대를 비웁니다
                                 </span>
                               </span>
                             </label>

@@ -372,15 +372,17 @@
 @keyframes vn-spr-enter-fade {
   from {
     opacity: 0;
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 @keyframes vn-spr-enter-slide-left {
   from {
     opacity: 0;
-    transform: translateX(-48px);
+    transform: translateX(-36px);
   }
   to {
     opacity: 1;
@@ -390,7 +392,7 @@
 @keyframes vn-spr-enter-slide-right {
   from {
     opacity: 0;
-    transform: translateX(48px);
+    transform: translateX(36px);
   }
   to {
     opacity: 1;
@@ -400,7 +402,7 @@
 @keyframes vn-spr-enter-slide-up {
   from {
     opacity: 0;
-    transform: translateY(36px);
+    transform: translateY(28px);
   }
   to {
     opacity: 1;
@@ -431,16 +433,16 @@
 }
 
 .vn-spr-enter-fade {
-  animation: vn-spr-enter-fade 0.85s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  animation: vn-spr-enter-fade 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
 }
 .vn-spr-enter-slide-left {
-  animation: vn-spr-enter-slide-left 0.75s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  animation: vn-spr-enter-slide-left 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
 }
 .vn-spr-enter-slide-right {
-  animation: vn-spr-enter-slide-right 0.75s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  animation: vn-spr-enter-slide-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
 }
 .vn-spr-enter-slide-up {
-  animation: vn-spr-enter-slide-up 0.75s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  animation: vn-spr-enter-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
 }
 .vn-spr-enter-pop {
   animation: vn-spr-enter-pop 0.55s cubic-bezier(0.34, 1.5, 0.4, 1) both !important;

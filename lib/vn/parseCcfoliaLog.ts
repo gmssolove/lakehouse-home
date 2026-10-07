@@ -11,7 +11,9 @@ import {
   seatIndexToCrowdSlot,
   seatIndexToSlot,
   stageSeatFillIndices,
+  trioSlotToSeatIndex,
   type StandSlot,
+  type TrioSlot,
 } from '@/lib/vn/standPosBySlot';
 
 /** 연속된 동일 vignette 토글을 sticky(undefined)로 압축 — 예전「줄마다 끄기」데이터 마이그레이션 */
@@ -62,6 +64,13 @@ export type ScenarioVnStandAnim = 'fade' | 'slide-left' | 'slide-right' | 'slide
 
 /** @deprecated standPos 사용 — 구 데이터 호환용 */
 export type ScenarioVnStandPose = Partial<ScenarioVnStandPos>;
+
+export type ScenarioVnStageCmd = {
+  enter?: string;
+  slot?: TrioSlot;
+  exit?: string;
+  clear?: boolean;
+};
 
 export type ScenarioVnLine = {
   id: string;
@@ -152,6 +161,13 @@ export type ScenarioVnLine = {
    * 이후 화자는 빈 무대에서 한 명씩 새로 등장.
    */
   resetStage?: boolean;
+  /** 이 줄에서 배경이 바뀌면 스탠딩을 전부 퇴장 */
+  resetOnBackgroundChange?: boolean;
+  /**
+   * 수동 무대 명령 — 자동 LRU보다 우선.
+   * { enter, slot, exit, clear }
+   */
+  stage?: ScenarioVnStageCmd;
   /**
    * 핸드아웃(소품/증거 이미지).
    * undefined=이전 유지 · null=숨기기 · string=해당 키 표시 (BGM 과 동일 sticky)
@@ -255,6 +271,13 @@ export type ScenarioVnSpeaker = {
   sprite?: string;
   /** 이 화자의 대사는 전부 나레이션으로 표시 */
   treatAsNarration?: boolean;
+  /**
+   * true면 스탠딩 없이 이름표+대사만.
+   * 스프라이트 없는 엑스트라(자리 차지)와 다름 — 기존 no-sprite 동작은 유지.
+   */
+  extra?: boolean;
+  /** 이름표 옆 보조 라벨. 예: 목소리 */
+  voiceLabel?: string;
   /** 스탠딩 위치·크기 (미리보기 드래그·휠) — 호환용, center 버전과 동기 */
   standPos?: ScenarioVnStandPos;
   /**
@@ -370,6 +393,21 @@ export function parseSpeakerKeyList(raw: unknown): string[] | null {
     return k;
   });
   return out.some((k) => k) ? out : null;
+}
+
+export function parseStageCmd(raw: unknown): ScenarioVnStageCmd | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const row = raw as Record<string, unknown>;
+  const slotRaw = String(row.slot || '').trim();
+  const slot: TrioSlot | undefined =
+    slotRaw === 'left' || slotRaw === 'center' || slotRaw === 'right'
+      ? slotRaw
+      : undefined;
+  const enter = String(row.enter || '').trim() || undefined;
+  const exit = String(row.exit || '').trim() || undefined;
+  const clear = row.clear === true ? true : undefined;
+  if (!enter && !exit && !clear && !slot) return undefined;
+  return { enter, slot, exit, clear };
 }
 
 /** 재생 시 실제 동시 등장 상한 */
@@ -640,12 +678,28 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   /** sticky 등장 연출 순서 */
   let stickyEnterOrder: string[] | null = null;
 
+  function speakerIsVoiceOnly(key: string): boolean {
+    const k = (key || '').trim();
+    if (!k) return false;
+    return Boolean(bySpeaker.get(k)?.extra);
+  }
+
   function speakerIsExtra(key: string): boolean {
     const k = (key || '').trim();
     if (!k || k === VN_NPC_CHARACTER) return false;
     const sp = bySpeaker.get(k);
-    if (sp?.treatAsNarration) return false;
+    if (sp?.treatAsNarration || sp?.extra) return false;
     return !Boolean(sp?.sprite?.trim());
+  }
+
+  function resolveNamedKey(raw: string | undefined): string | null {
+    const name = (raw || '').trim();
+    if (!name) return null;
+    if (bySpeaker.has(name)) return name;
+    const hit = [...bySpeaker.values()].find(
+      (s) => s.key === name || s.displayName === name,
+    );
+    return hit?.key || name;
   }
 
   function lineIsNarration(row: ScenarioVnLine): boolean {
@@ -670,113 +724,172 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     return k || null;
   }
 
-  /** 이미 나온 대사 분량으로 무대 인원 고름. 아직 안 말한 사람은 올리지 않음. */
-  const BEAT_LOOKBACK = 12;
-  function selectBeatCast(lineIdx: number, speakingKey: string | null): string[] {
-    const scores = new Map<string, number>();
-    const bump = (key: string, n: number) => {
-      const k = (key || '').trim();
-      if (!k) return;
-      scores.set(k, (scores.get(k) ?? 0) + n);
-    };
-    const from = Math.max(0, lineIdx - BEAT_LOOKBACK);
-    for (let j = from; j <= lineIdx; j++) {
-      const k = lineActorKey(lines[j]!);
-      if (!k) continue;
-      const dist = lineIdx - j;
-      bump(k, 1 + (BEAT_LOOKBACK - dist) * 0.08);
-    }
-    if (speakingKey) bump(speakingKey, 1000);
-
-    const cap = occupancyCap;
-    const chosen: string[] = [];
-    const add = (key: string | null | undefined) => {
-      const k = (key || '').trim();
-      if (!k || chosen.includes(k) || chosen.length >= cap) return;
-      chosen.push(k);
-    };
-    if (stickyStageOrder) {
-      for (const raw of stickyStageOrder) {
-        const k = (raw || '').trim();
-        if (k && !speakerIsExtra(k)) add(k);
-      }
-    }
-    add(speakingKey);
-    const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
-    for (const [k] of ranked) add(k);
-    return chosen;
+  function fillSeatIndices(): number[] {
+    return currentFill().filter((i) => i < seats.length);
   }
 
-  function layoutBeatCast(keys: string[]) {
-    const fill = currentFill().filter((i) => i < seats.length);
-    const next: (string | null)[] = Array.from({ length: seats.length }, () => null);
-    const named = keys.filter((k) => !speakerIsExtra(k));
-    const extras = keys.filter((k) => speakerIsExtra(k));
+  function seatEmpty(i: number): boolean {
+    return i >= 0 && i < seats.length && seats[i] == null && fillSeatIndices().includes(i);
+  }
 
-    for (const k of named) {
-      const pref = preferredSeatIndex(k);
-      if (pref >= 0 && pref < next.length && next[pref] == null) next[pref] = k;
+  /** 빈 칸: 선호 자리 → 중앙 → 좌 → 우 (사용 가능 레인만) */
+  function pickEmptySlot(key: string, forced?: number | null): number | null {
+    if (forced != null && seatEmpty(forced)) return forced;
+    const home = preferredSeatIndex(key);
+    if (home >= 0 && seatEmpty(home)) return home;
+    for (const slot of ['center', 'left', 'right'] as const) {
+      const i = trioSlotToSeatIndex(slot);
+      if (seatEmpty(i)) return i;
     }
-    for (const k of named) {
-      if (next.includes(k)) continue;
-      const cur = seats.indexOf(k);
-      if (cur >= 0 && next[cur] == null && fill.includes(cur)) {
-        next[cur] = k;
-        continue;
+    for (const i of fillSeatIndices()) {
+      if (seats[i] == null) return i;
+    }
+    return null;
+  }
+
+  /** 가장 오래 말하지 않은 칸. 엑스트라 우선, 현재 화자는 제외. */
+  function lruVictimIndex(protect: string | null): number {
+    const fill = fillSeatIndices();
+    const rows = seats
+      .map((key, seatIndex) =>
+        key && fill.includes(seatIndex)
+          ? {
+              key,
+              seatIndex,
+              li: lastIndex.get(key) ?? 0,
+              extra: speakerIsExtra(key),
+            }
+          : null,
+      )
+      .filter((x): x is { key: string; seatIndex: number; li: number; extra: boolean } => x != null)
+      .filter((x) => x.key !== protect);
+    if (!rows.length) return -1;
+    rows.sort((a, b) => {
+      if (a.extra !== b.extra) return a.extra ? -1 : 1;
+      return a.li - b.li;
+    });
+    return rows[0]!.seatIndex;
+  }
+
+  function occupySeat(key: string, dest: number) {
+    for (let i = 0; i < seats.length; i++) {
+      if (seats[i] === key) seats[i] = null;
+    }
+    if (dest >= 0 && dest < seats.length) seats[dest] = key;
+  }
+
+  function enterOnStage(key: string, forcedSlot?: number | null) {
+    if (!key || speakerIsVoiceOnly(key)) return;
+    if (seats.includes(key)) {
+      if (forcedSlot != null && forcedSlot >= 0 && forcedSlot < seats.length && seats[forcedSlot] !== key) {
+        occupySeat(key, forcedSlot);
       }
-      const dest = fill.find((i) => next[i] == null);
-      if (dest != null) next[dest] = k;
+      return;
     }
-    for (const k of extras) {
-      if (next.includes(k)) continue;
-      const cur = seats.indexOf(k);
-      if (cur >= 0 && next[cur] == null && fill.includes(cur)) {
-        next[cur] = k;
-        continue;
+    let dest = pickEmptySlot(key, forcedSlot);
+    if (dest == null) {
+      const vi = lruVictimIndex(key);
+      if (vi >= 0) {
+        seats[vi] = null;
+        dest = vi;
       }
-      const dest = fill.find((i) => next[i] == null);
-      if (dest != null) next[dest] = k;
     }
-    for (const k of keys) {
-      if (next.includes(k)) lastIndex.set(k, lineIndex);
+    if (dest != null) occupySeat(key, dest);
+  }
+
+  /** 자리 고정 배열(왼·중·오) — 이미 무대에 있는 사람만 그 칸으로. 미리 등장시키지 않음. */
+  function snapPinnedSeats() {
+    if (!stickyStageOrder) return;
+    for (let i = 0; i < stickyStageOrder.length && i < seats.length; i++) {
+      const k = (stickyStageOrder[i] || '').trim();
+      if (!k || speakerIsVoiceOnly(k) || speakerIsExtra(k)) continue;
+      const cur = seats.indexOf(k);
+      if (cur < 0 || cur === i) continue;
+      const occupant = seats[i];
+      seats[cur] = occupant ?? null;
+      seats[i] = k;
     }
-    seats.splice(0, seats.length, ...next);
+  }
+
+  /**
+   * 슬롯 고정 + LRU 자동 등장.
+   * 이미 앉은 사람은 칸을 유지하고, 새 화자만 빈 칸(또는 LRU 퇴장 자리)에 들어온다.
+   */
+  function applyLruCast(speakingKey: string | null) {
+    const actor =
+      speakingKey && !speakerIsVoiceOnly(speakingKey) ? speakingKey : null;
+    if (speakingKey) lastIndex.set(speakingKey, lineIndex);
+
+    for (let i = 0; i < seats.length; i++) {
+      const k = seats[i];
+      if (k && speakerIsExtra(k) && k !== actor) seats[i] = null;
+    }
+
+    snapPinnedSeats();
+
+    const fill = fillSeatIndices();
+    let occ = seats.filter((k, i) => k && fill.includes(i)).length;
+    const needEnter = Boolean(actor && !seats.includes(actor));
+    let over = occ - occupancyCap + (needEnter ? 1 : 0);
+    while (over > 0) {
+      const vi = lruVictimIndex(actor);
+      if (vi < 0) break;
+      seats[vi] = null;
+      over -= 1;
+    }
+
+    if (actor) enterOnStage(actor);
+  }
+
+  function applyStageCmd(cmd: ScenarioVnStageCmd | undefined) {
+    if (!cmd) return;
+    if (cmd.clear) {
+      for (let i = 0; i < seats.length; i++) seats[i] = null;
+      lastIndex.clear();
+      lastExpr.clear();
+      exprUntilIdx.clear();
+      stickyStageOrder = null;
+      stickyEnterOrder = null;
+    }
+    const exitKey = resolveNamedKey(cmd.exit);
+    if (exitKey) {
+      const i = seats.indexOf(exitKey);
+      if (i >= 0) seats[i] = null;
+    }
+    const enterKey = resolveNamedKey(cmd.enter);
+    if (enterKey && !speakerIsVoiceOnly(enterKey)) {
+      const slot = cmd.slot;
+      const forced =
+        slot === 'left' || slot === 'center' || slot === 'right'
+          ? trioSlotToSeatIndex(slot)
+          : null;
+      enterOnStage(enterKey, forced);
+      lastIndex.set(enterKey, lineIndex);
+    }
   }
 
   function resizeSeats(nextMax: number) {
     occupancyCap = Math.max(1, nextMax);
-    const occupied = seats
-      .map((key, seatIndex) =>
-        key ? { key, seatIndex, li: lastIndex.get(key) ?? 0 } : null,
-      )
-      .filter((x): x is { key: string; seatIndex: number; li: number } => x != null);
-    const kept = [...occupied]
-      .sort((a, b) => {
-        const ae = speakerIsExtra(a.key) ? 1 : 0;
-        const be = speakerIsExtra(b.key) ? 1 : 0;
-        if (ae !== be) return ae - be;
-        return b.li - a.li;
-      })
-      .slice(0, occupancyCap);
-    kept.sort((a, b) => a.seatIndex - b.seatIndex);
     const fill = currentFill();
     const len = occupancyCap <= 3 ? 3 : occupancyCap;
     const next: (string | null)[] = Array.from({ length: len }, () => null);
-    const placed = new Set<string>();
-    for (const row of kept) {
-      const dest = preferredSeatIndex(row.key);
-      if (dest >= 0 && dest < len && next[dest] == null) {
-        next[dest] = row.key;
-        placed.add(row.key);
-      }
-    }
-    kept.forEach((row, i) => {
-      if (placed.has(row.key)) return;
+    for (let i = 0; i < Math.min(seats.length, len); i++) next[i] = seats[i];
+    for (let i = 0; i < next.length; i++) {
+      const k = next[i];
+      if (!k || fill.includes(i)) continue;
+      next[i] = null;
       const dest = fill.find((idx) => idx < len && next[idx] == null);
-      if (dest != null) next[dest] = row.key;
-      else if (i < len && next[i] == null) next[i] = row.key;
-    });
+      if (dest != null) next[dest] = k;
+    }
     seats.splice(0, seats.length, ...next);
+    const occKeys = seats.filter((k, i) => k && fill.includes(i)) as string[];
+    let extra = occKeys.length - occupancyCap;
+    while (extra > 0) {
+      const vi = lruVictimIndex(null);
+      if (vi < 0) break;
+      seats[vi] = null;
+      extra -= 1;
+    }
   }
 
   function baseSpriteFor(key: string): string {
@@ -928,7 +1041,13 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         x,
         y,
         scale,
-        anim: sp?.standAnimation || 'fade',
+        anim:
+          sp?.standAnimation ||
+          (standSlot === 'left'
+            ? 'slide-left'
+            : standSlot === 'right'
+              ? 'slide-right'
+              : 'fade'),
         enterDelayMs,
       });
     });
@@ -955,12 +1074,16 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       id: scene.id,
       title: scene.title,
       type: 'dialogue' as const,
-      lines: lines.map((l) => {
+      lines: lines.map((l, mapIdx) => {
         lineIndex += 1;
         const location = l.location?.trim() || undefined;
+        const prevBg = mapIdx > 0 ? lines[mapIdx - 1]?.background : undefined;
+        const bgChanged = Boolean(
+          l.background?.trim() && l.background.trim() !== (prevBg || '').trim(),
+        );
 
         /* 무대 리셋 — 자리·LRU 전부 비운 뒤 이 줄 화자부터 다시 앉힘 */
-        if (l.resetStage) {
+        if (l.resetStage || (l.resetOnBackgroundChange && bgChanged) || l.stage?.clear) {
           for (let i = 0; i < seats.length; i++) seats[i] = null;
           lastIndex.clear();
           lastExpr.clear();
@@ -998,7 +1121,8 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         expireExprsPast(lineIdx0);
 
         if (l.effect === 'titlecard') {
-          layoutBeatCast(selectBeatCast(lineIdx0, null));
+          applyStageCmd(l.stage);
+          applyLruCast(null);
           const titleSprites = hideStandingsActive
             ? undefined
             : buildSprites(null, undefined);
@@ -1052,7 +1176,8 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
           }
         }
 
-        layoutBeatCast(selectBeatCast(lineIdx0, speakingKey));
+        applyStageCmd(l.stage);
+        applyLruCast(speakingKey);
 
         /* seats 갱신은 위에서 끝 — hideStandings 는 sticky 출력만 숨김 */
         const built = buildSprites(
@@ -1062,14 +1187,19 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
           untilLineId,
         );
         const sprites = hideStandingsActive ? undefined : built;
+        const nameBase = narration
+          ? undefined
+          : isNpc
+            ? l.speakerKey || undefined
+            : sp?.displayName || l.speakerKey || undefined;
+        const voiceTag = sp?.voiceLabel?.trim();
+        const speakerName =
+          nameBase && voiceTag ? `${nameBase} (${voiceTag})` : nameBase;
 
         return {
           id: l.id,
-          speaker: narration
-            ? undefined
-            : isNpc
-              ? l.speakerKey || undefined
-              : sp?.displayName || l.speakerKey || undefined,
+          speaker: speakerName,
+          speakerColor: narration ? undefined : sp?.color?.trim() || undefined,
           text: l.text,
           narrationOnly: narration || undefined,
           effect: l.effect === 'diceRoll' ? ('diceRoll' as const) : undefined,

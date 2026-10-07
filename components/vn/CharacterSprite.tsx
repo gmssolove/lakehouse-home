@@ -214,7 +214,7 @@ export function CharacterSprite({
   useEffect(() => {
     if (phase !== 'exit') return;
     if (exitTimer.current) clearTimeout(exitTimer.current);
-    exitTimer.current = setTimeout(() => onExitRef.current?.(), 380);
+    exitTimer.current = setTimeout(() => onExitRef.current?.(), 360);
     return () => {
       if (exitTimer.current) clearTimeout(exitTimer.current);
     };
@@ -310,6 +310,8 @@ export function CharacterSprite({
   if (waitingEnter) customStyle.opacity = 0;
 
   const standScale = scale != null && scale > 0 ? scale : 1;
+  const speakBoost = dimmed ? 1 : 1.03;
+  const speakLift = dimmed ? 0 : -1.4;
 
   const onBufLoad = (_layer: 'a' | 'b', url: string) => {
     markVnImageReady(url);
@@ -330,8 +332,9 @@ export function CharacterSprite({
       <div
         className={styles.spriteScaler}
         style={{
-          transform: `scale(${standScale})`,
+          transform: `translateY(${speakLift}%) scale(${standScale * speakBoost})`,
           transformOrigin: 'center bottom',
+          transition: 'transform 0.3s ease',
         }}
       >
         <div
@@ -597,7 +600,7 @@ export function SpriteLayer({
       setSlots((prev) =>
         prev.map((s) => (s.phase === 'enter' ? { ...s, phase: 'idle' as const } : s)),
       );
-    }, 1400 + enterMaxDelay);
+    }, 420 + enterMaxDelay);
     return () => clearTimeout(t);
   }, [enterSig, enterMaxDelay, poseEditMode]);
 

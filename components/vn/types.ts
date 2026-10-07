@@ -42,6 +42,8 @@ export type VNLineEffect =
 export type VNLine = {
   id: string;
   speaker?: string;
+  /** 대사창 이름표 색 (#rrggbb) */
+  speakerColor?: string;
   text: string;
   background?: string;
   sprites?: VNSpriteSlot[];

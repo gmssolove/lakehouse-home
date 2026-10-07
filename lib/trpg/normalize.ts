@@ -10,7 +10,7 @@ import type {
   TrpgSessionLog,
 } from '@/lib/types/site-content';
 import { isDialogueFx, isDialogueMotion } from '@/lib/vn/motions';
-import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage, parseSpeakerKeyList, toVnScene, withParsedDiceLine } from '@/lib/vn/parseCcfoliaLog';
+import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage, parseSpeakerKeyList, parseStageCmd, toVnScene, withParsedDiceLine } from '@/lib/vn/parseCcfoliaLog';
 import { normalizeHandoutLayout } from '@/lib/vn/handoutLayout';
 import { normalizeMenuTheme } from '@/lib/vn/menuTheme';
 import {
@@ -410,6 +410,8 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
         position: (pos === 'center' || pos === 'right' ? pos : 'left') as 'left' | 'center' | 'right',
         sprite: String(sp.sprite || '').trim() || undefined,
         treatAsNarration: Boolean(sp.treatAsNarration),
+        extra: Boolean(sp.extra) || undefined,
+        voiceLabel: String(sp.voiceLabel || '').trim() || undefined,
         standPos: (() => {
           const bySlot = normalizeStandPosBySlot(
             sp.standPosBySlot,
@@ -572,6 +574,9 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
           return out.some((k) => k) ? out : undefined;
         })(),
         resetStage: line.resetStage === true ? true : undefined,
+        resetOnBackgroundChange:
+          line.resetOnBackgroundChange === true ? true : undefined,
+        stage: parseStageCmd(line.stage),
         missionUpdate: mu?.id
           ? {
               id: String(mu.id),

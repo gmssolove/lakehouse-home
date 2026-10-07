@@ -38,6 +38,7 @@ function DialogueLiveText() {
 
 type Props = {
   speaker?: string;
+  speakerColor?: string;
   text: string;
   /** typewriter 미사용 시 외부에서 넘기는 타자 중 여부 */
   isTyping?: boolean;
@@ -84,6 +85,7 @@ function formatSavedAt(ts: number) {
 
 export function DialogueBox({
   speaker = '',
+  speakerColor,
   text,
   isTyping: isTypingProp = false,
   liveTyping = false,
@@ -281,7 +283,15 @@ export function DialogueBox({
             ×
           </button>
         ) : null}
-        <div className={`lh-vn-speaker${isNarration || !speaker ? ' is-empty' : ''}`} id="lh-vn-speaker">
+        <div
+          className={`lh-vn-speaker${isNarration || !speaker ? ' is-empty' : ''}`}
+          id="lh-vn-speaker"
+          style={
+            !isNarration && speaker && speakerColor
+              ? { color: speakerColor }
+              : undefined
+          }
+        >
           {isNarration || !speaker ? '\u00A0' : speaker}
         </div>
         <div className={`lh-vn-text${isTyping ? ' lh-typing' : ''}`} id="lh-vn-text">

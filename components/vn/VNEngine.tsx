@@ -1044,6 +1044,7 @@ export function VNEngine({
       {!hideDialogue ? (
         <DialogueBox
           speaker={eng.line?.speaker}
+          speakerColor={eng.line?.speakerColor}
           text={eng.text}
           liveTyping
           hasNext={!eng.atEnd && !choices.length}
