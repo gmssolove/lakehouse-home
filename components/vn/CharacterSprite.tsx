@@ -310,8 +310,6 @@ export function CharacterSprite({
   if (waitingEnter) customStyle.opacity = 0;
 
   const standScale = scale != null && scale > 0 ? scale : 1;
-  const speakBoost = dimmed ? 1 : 1.03;
-  const speakLift = dimmed ? 0 : -1.4;
 
   const onBufLoad = (_layer: 'a' | 'b', url: string) => {
     markVnImageReady(url);
@@ -332,9 +330,8 @@ export function CharacterSprite({
       <div
         className={styles.spriteScaler}
         style={{
-          transform: `translateY(${speakLift}%) scale(${standScale * speakBoost})`,
+          transform: `scale(${standScale})`,
           transformOrigin: 'center bottom',
-          transition: 'transform 0.3s ease',
         }}
       >
         <div

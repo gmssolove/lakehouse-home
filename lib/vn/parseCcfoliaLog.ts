@@ -634,19 +634,26 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   let occupancyCap = maxOnStage;
   const currentFill = () =>
     stageSeatFillIndices(occupancyCap, scene.stageSeatLayout, scene.stageSeatOrder);
-  const sceneSeatKeys = parseSpeakerKeyList(scene.stageOrder);
 
-  function preferredSeatIndex(key: string): number {
+  /** 줄 자리 고정(stickyStageOrder) · 화자 homeSlot. 장면 stageOrder 등장순은 핀이 아님. */
+  function pinSlotOf(key: string): number | null {
+    const k = (key || '').trim();
+    if (!k) return null;
     if (stickyStageOrder) {
-      const i = stickyStageOrder.findIndex((k) => k === key);
+      const i = stickyStageOrder.findIndex((x) => (x || '').trim() === k);
       if (i >= 0) return i;
     }
-    const home = bySpeaker.get(key)?.homeSlot;
+    const home = bySpeaker.get(k)?.homeSlot;
     if (home === 'left') return 0;
     if (home === 'center') return 1;
     if (home === 'right') return 2;
-    const sceneI = sceneSeatKeys?.findIndex((k) => k === key) ?? -1;
-    return sceneI;
+    return null;
+  }
+
+  function isPinned(key: string | null | undefined): boolean {
+    const k = (key || '').trim();
+    if (!k || speakerIsVoiceOnly(k) || speakerIsExtra(k)) return false;
+    return pinSlotOf(k) != null;
   }
 
   /** 3명 이하는 왼·중·오 레인(길이 3)을 유지. 2명일 때 가운데를 비우고 양옆만 씀. */
@@ -724,30 +731,63 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     return k || null;
   }
 
+  /** 핀이 있으면 1·2명 패킹(1명=중앙)을 쓰지 않고 왼·중·오를 유지 */
+  function anyNamedPin(): boolean {
+    if (stickyStageOrder?.some((k) => (k || '').trim())) return true;
+    for (const sp of bySpeaker.values()) {
+      if (isPinned(sp.key)) return true;
+    }
+    return false;
+  }
+
   function fillSeatIndices(): number[] {
+    if (occupancyCap <= 3 && anyNamedPin()) {
+      return [0, 1, 2].filter((i) => i < seats.length);
+    }
     return currentFill().filter((i) => i < seats.length);
   }
 
-  function seatEmpty(i: number): boolean {
-    return i >= 0 && i < seats.length && seats[i] == null && fillSeatIndices().includes(i);
+  function reservedSlotsExcept(forKey: string): Set<number> {
+    const out = new Set<number>();
+    for (const sp of bySpeaker.values()) {
+      if (sp.key === forKey || !isPinned(sp.key)) continue;
+      const i = pinSlotOf(sp.key);
+      if (i != null) out.add(i);
+    }
+    if (stickyStageOrder) {
+      stickyStageOrder.forEach((raw, i) => {
+        const k = (raw || '').trim();
+        if (k && k !== forKey && isPinned(k)) out.add(i);
+      });
+    }
+    return out;
   }
 
-  /** 빈 칸: 선호 자리 → 중앙 → 좌 → 우 (사용 가능 레인만) */
+  function seatFreeFor(i: number, key: string): boolean {
+    if (i < 0 || i >= seats.length) return false;
+    if (seats[i] && seats[i] !== key) return false;
+    if (pinSlotOf(key) === i) return true;
+    if (reservedSlotsExcept(key).has(i)) return false;
+    return fillSeatIndices().includes(i);
+  }
+
   function pickEmptySlot(key: string, forced?: number | null): number | null {
-    if (forced != null && seatEmpty(forced)) return forced;
-    const home = preferredSeatIndex(key);
-    if (home >= 0 && seatEmpty(home)) return home;
+    if (forced != null && seatFreeFor(forced, key) && !seats[forced]) return forced;
+    const pin = pinSlotOf(key);
+    if (pin != null && (seats[pin] == null || seats[pin] === key || !isPinned(seats[pin]))) {
+      return pin;
+    }
     for (const slot of ['center', 'left', 'right'] as const) {
       const i = trioSlotToSeatIndex(slot);
-      if (seatEmpty(i)) return i;
+      if (seatFreeFor(i, key) && !seats[i]) return i;
     }
     for (const i of fillSeatIndices()) {
-      if (seats[i] == null) return i;
+      if (!seats[i] && seatFreeFor(i, key)) return i;
     }
     return null;
   }
 
-  /** 가장 오래 말하지 않은 칸. 엑스트라 우선, 현재 화자는 제외. */
+  /** 핀·현재 화자는 퇴장 후보 아님 */
   function lruVictimIndex(protect: string | null): number {
     const fill = fillSeatIndices();
     const rows = seats
@@ -762,7 +802,7 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
           : null,
       )
       .filter((x): x is { key: string; seatIndex: number; li: number; extra: boolean } => x != null)
-      .filter((x) => x.key !== protect);
+      .filter((x) => x.key !== protect && !isPinned(x.key));
     if (!rows.length) return -1;
     rows.sort((a, b) => {
       if (a.extra !== b.extra) return a.extra ? -1 : 1;
@@ -778,15 +818,37 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     if (dest >= 0 && dest < seats.length) seats[dest] = key;
   }
 
+  function displaceIfUnpinned(fromSlot: number, incoming: string) {
+    const occ = seats[fromSlot];
+    if (!occ || occ === incoming) return;
+    if (isPinned(occ)) return;
+    seats[fromSlot] = null;
+    const alt = pickEmptySlot(occ);
+    if (alt != null) occupySeat(occ, alt);
+  }
+
   function enterOnStage(key: string, forcedSlot?: number | null) {
     if (!key || speakerIsVoiceOnly(key)) return;
-    if (seats.includes(key)) {
-      if (forcedSlot != null && forcedSlot >= 0 && forcedSlot < seats.length && seats[forcedSlot] !== key) {
-        occupySeat(key, forcedSlot);
+    const pin = pinSlotOf(key);
+    const destWanted =
+      forcedSlot != null && forcedSlot >= 0 ? forcedSlot : pin;
+
+    if (seats.includes(key) && destWanted == null) return;
+    if (destWanted != null) {
+      const occ = seats[destWanted];
+      if (occ && occ !== key && isPinned(occ)) {
+        /* 다른 핀 칸은 못 씀 */
+      } else {
+        if (occ && occ !== key) displaceIfUnpinned(destWanted, key);
+        if (seats[destWanted] == null || seats[destWanted] === key) {
+          occupySeat(key, destWanted);
+          return;
+        }
       }
-      return;
+      if (seats.includes(key) && pin != null && seats[pin] === key) return;
     }
-    let dest = pickEmptySlot(key, forcedSlot);
+
+    let dest = pickEmptySlot(key, destWanted);
     if (dest == null) {
       const vi = lruVictimIndex(key);
       if (vi >= 0) {
@@ -797,23 +859,52 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     if (dest != null) occupySeat(key, dest);
   }
 
-  /** 자리 고정 배열(왼·중·오) — 이미 무대에 있는 사람만 그 칸으로. 미리 등장시키지 않음. */
-  function snapPinnedSeats() {
-    if (!stickyStageOrder) return;
-    for (let i = 0; i < stickyStageOrder.length && i < seats.length; i++) {
-      const k = (stickyStageOrder[i] || '').trim();
-      if (!k || speakerIsVoiceOnly(k) || speakerIsExtra(k)) continue;
-      const cur = seats.indexOf(k);
-      if (cur < 0 || cur === i) continue;
-      const occupant = seats[i];
-      seats[cur] = occupant ?? null;
-      seats[i] = k;
+  function slotLabel(i: number): string {
+    return i === 0 ? 'left' : i === 1 ? 'center' : i === 2 ? 'right' : `s${i}`;
+  }
+
+  function seatSnapshot(): string {
+    return seats
+      .map((k, i) => (k ? `${slotLabel(i)}:${bySpeaker.get(k)?.displayName || k}` : ''))
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  let prevSeatSnap = '';
+  function logSeatChange(reason: string) {
+    const next = seatSnapshot();
+    if (next === prevSeatSnap) return;
+    const line = lines[Math.max(0, lineIndex - 1)];
+    console.debug('[vn-stand]', reason, {
+      line: line?.id,
+      speaker: line?.speakerKey,
+      from: prevSeatSnap || '(empty)',
+      to: next || '(empty)',
+    });
+    prevSeatSnap = next;
+  }
+
+  /** sticky 핀은 장면에 먼저 앉힘. homeSlot은 한번 나온 뒤부터 유지. */
+  function ensurePinnedOnStage() {
+    const keys = new Set<string>();
+    if (stickyStageOrder) {
+      for (const raw of stickyStageOrder) {
+        const k = (raw || '').trim();
+        if (k && isPinned(k)) keys.add(k);
+      }
+    }
+    for (const sp of bySpeaker.values()) {
+      if (!isPinned(sp.key)) continue;
+      if (seats.includes(sp.key) || lastIndex.has(sp.key)) keys.add(sp.key);
+    }
+    for (const k of keys) {
+      const p = pinSlotOf(k);
+      if (p != null) enterOnStage(k, p);
     }
   }
 
   /**
-   * 슬롯 고정 + LRU 자동 등장.
-   * 이미 앉은 사람은 칸을 유지하고, 새 화자만 빈 칸(또는 LRU 퇴장 자리)에 들어온다.
+   * 핀이 최우선. 나머지는 남은 칸에서만 LRU.
    */
   function applyLruCast(speakingKey: string | null) {
     const actor =
@@ -822,15 +913,17 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
 
     for (let i = 0; i < seats.length; i++) {
       const k = seats[i];
-      if (k && speakerIsExtra(k) && k !== actor) seats[i] = null;
+      if (k && speakerIsExtra(k) && k !== actor && !isPinned(k)) seats[i] = null;
     }
 
-    snapPinnedSeats();
+    ensurePinnedOnStage();
 
     const fill = fillSeatIndices();
-    let occ = seats.filter((k, i) => k && fill.includes(i)).length;
-    const needEnter = Boolean(actor && !seats.includes(actor));
-    let over = occ - occupancyCap + (needEnter ? 1 : 0);
+    const pinnedN = seats.filter((k) => k && isPinned(k)).length;
+    const floaterCap = Math.max(0, occupancyCap - pinnedN);
+    const floaterN = seats.filter((k, i) => k && fill.includes(i) && !isPinned(k)).length;
+    const needEnter = Boolean(actor && !seats.includes(actor) && !isPinned(actor));
+    let over = floaterN - floaterCap + (needEnter ? 1 : 0);
     while (over > 0) {
       const vi = lruVictimIndex(actor);
       if (vi < 0) break;
@@ -839,6 +932,8 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     }
 
     if (actor) enterOnStage(actor);
+    ensurePinnedOnStage();
+    logSeatChange('cast');
   }
 
   function applyStageCmd(cmd: ScenarioVnStageCmd | undefined) {
@@ -866,30 +961,45 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       enterOnStage(enterKey, forced);
       lastIndex.set(enterKey, lineIndex);
     }
+    logSeatChange('stage-cmd');
   }
 
   function resizeSeats(nextMax: number) {
     occupancyCap = Math.max(1, nextMax);
-    const fill = currentFill();
     const len = occupancyCap <= 3 ? 3 : occupancyCap;
     const next: (string | null)[] = Array.from({ length: len }, () => null);
     for (let i = 0; i < Math.min(seats.length, len); i++) next[i] = seats[i];
+    const fill = fillSeatIndices();
     for (let i = 0; i < next.length; i++) {
       const k = next[i];
-      if (!k || fill.includes(i)) continue;
+      if (!k) continue;
+      if (isPinned(k)) {
+        const p = pinSlotOf(k);
+        if (p != null && p < len && p !== i) {
+          const occ = next[p];
+          next[i] = occ && !isPinned(occ) ? occ : null;
+          next[p] = k;
+        }
+        continue;
+      }
+      if (fill.includes(i)) continue;
       next[i] = null;
-      const dest = fill.find((idx) => idx < len && next[idx] == null);
+      const dest = fill.find((idx) => idx < len && next[idx] == null && !reservedSlotsExcept(k).has(idx));
       if (dest != null) next[dest] = k;
     }
     seats.splice(0, seats.length, ...next);
-    const occKeys = seats.filter((k, i) => k && fill.includes(i)) as string[];
-    let extra = occKeys.length - occupancyCap;
+    const pinnedN = seats.filter((k) => k && isPinned(k)).length;
+    const floaterCap = Math.max(0, occupancyCap - pinnedN);
+    let extra =
+      seats.filter((k) => k && !isPinned(k)).length - floaterCap;
     while (extra > 0) {
       const vi = lruVictimIndex(null);
       if (vi < 0) break;
       seats[vi] = null;
       extra -= 1;
     }
+    ensurePinnedOnStage();
+    logSeatChange('resize');
   }
 
   function baseSpriteFor(key: string): string {
@@ -1082,14 +1192,18 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
           l.background?.trim() && l.background.trim() !== (prevBg || '').trim(),
         );
 
-        /* 무대 리셋 — 자리·LRU 전부 비운 뒤 이 줄 화자부터 다시 앉힘 */
-        if (l.resetStage || (l.resetOnBackgroundChange && bgChanged) || l.stage?.clear) {
+        /* 무대 리셋은 명시적. 배경 전환은 핀을 유지하고 나머지만 비움 */
+        if (l.resetStage || l.stage?.clear) {
           for (let i = 0; i < seats.length; i++) seats[i] = null;
           lastIndex.clear();
           lastExpr.clear();
           exprUntilIdx.clear();
           stickyStageOrder = null;
           stickyEnterOrder = null;
+        } else if (l.resetOnBackgroundChange && bgChanged) {
+          for (let i = 0; i < seats.length; i++) {
+            if (seats[i] && !isPinned(seats[i])) seats[i] = null;
+          }
         }
 
         const lineMax = parseLineMaxOnStage(l.maxOnStage);
