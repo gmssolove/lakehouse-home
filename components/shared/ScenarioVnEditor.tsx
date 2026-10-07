@@ -1802,7 +1802,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
               <span className="svn-editor__maxstage-hint">
                 {maxOnStage === 'all'
                   ? '스프라이트 있는 화자는 전원 동시에 화면에 남아요. 인원이 많으면 간격·크기를 자동으로 줄여 화면 안에 맞춥니다.'
-                  : '이 인원을 넘으면 가장 오래전에 말한 인물부터 화면에서 빠지고, 새로 말하는 인물이 그 자리를 채워요. 대사 줄에서 인원을 따로 바꿀 수도 있어요.'}
+                  : '이 인원을 넘으면 가장 오래전에 말한 인물부터 화면에서 빠지고, 새로 말하는 인물이 그 자리를 채워요. 스탠딩 없는 엑스트라도 같이 세고, 대사 줄에서 인원을 따로 바꿀 수도 있어요.'}
               </span>
             </div>
             <div className="svn-editor__seatorder">
@@ -2707,10 +2707,10 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                 왼·중·오 저장 포즈는 유지됩니다.
                               </p>
                               <label className="form-label" style={{ marginTop: 12 }}>
-                                자리 순서 (왼→오 / 1→N)
+                                자리 고정 (왼·중·오)
                               </label>
                               {(() => {
-                                const cast = speakers.filter((s) => s.sprite?.trim());
+                                const cast = speakers.filter((s) => !s.treatAsNarration);
                                 const slotsN =
                                   typeof line.maxOnStage === 'number'
                                     ? line.maxOnStage
@@ -2742,7 +2742,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                         }}
                                       >
                                         <option value="">
-                                          {n === 1 ? '자리 — 씬 기본' : `${labels[i]} — 씬 기본`}
+                                          {n === 1 ? '고정 안 함' : `${labels[i]} — 고정 안 함`}
                                         </option>
                                         {cast.map((s) => (
                                           <option key={s.key} value={s.key}>
@@ -2761,19 +2761,21 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                         updateLine(line.id, { stageOrder: undefined })
                                       }
                                     >
-                                      자리 순서 비우기 (씬 기본)
+                                      자리 고정 해제
                                     </button>
                                   </div>
                                 );
                               })()}
                               <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
-                                이 줄부터 무대 자리를 고정합니다. 비우면 스탠딩 탭의 씬 기본값을 씁니다.
+                                이 줄부터 그 칸에 설 사람을 고정합니다. 고른 사람은 다른 대사가 나와도
+                                밀려나지 않습니다. 「고정 안 함」은 그 칸만 자동(말한 사람·엑스트라가
+                                들어오고 정원 넘으면 빠짐)입니다.
                               </p>
                               <label className="form-label" style={{ marginTop: 12 }}>
-                                등장 순서 (연출)
+                                등장 연출 순서
                               </label>
                               {(() => {
-                                const cast = speakers.filter((s) => s.sprite?.trim());
+                                const cast = speakers.filter((s) => !s.treatAsNarration);
                                 const n = Math.min(
                                   5,
                                   Math.max(
@@ -2825,8 +2827,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                 );
                               })()}
                               <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
-                                같은 줄에 여러 명이 처음 등장할 때 순서대로 나타납니다. 비우면 자리
-                                순서(또는 자동)를 따릅니다.
+                                누가 무대에 남는지와는 무관합니다. 여러 명이 한꺼번에 처음 등장할 때
+                                페이드 순서만 정합니다. 비우면 자리 고정 순서(또는 자동)입니다.
                               </p>
                             </div>
                             <label

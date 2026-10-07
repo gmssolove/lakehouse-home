@@ -730,7 +730,9 @@ function ScenarioVnPlayClient({
         if (fromMap) return fromMap;
         /* 키 대소문자/공백 차이 보정 */
         const hit = Object.entries(spriteMap).find(([k]) => k.trim() === character.trim());
-        return hit?.[1];
+        if (hit?.[1]) return hit[1];
+        /* 스탠딩 없는 엑스트라 — 공용 실루엣 */
+        return '/vn/characters/npc_generic.svg';
       },
       backgroundUrl: (bgKey) => {
         if (!bgKey || bgKey === 'black') return undefined;

@@ -653,24 +653,17 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   let vignetteActive = false;
   /** true면 시야 흐림 ON */
   let visionBlurActive = false;
-  /** 이미지 없는 화자 실루엣 — 첫 대사부터 씬 내 마지막 NPC 대사까지 유지 */
-  let npcOnStage = false;
   /** sticky 무대 자리 순서 (왼쪽→오른쪽). null이면 등장순 자동 */
   let stickyStageOrder: string[] | null = null;
   /** sticky 등장 연출 순서 */
   let stickyEnterOrder: string[] | null = null;
 
-  function isNpcLine(l: ScenarioVnLine): boolean {
-    if (l.effect === 'titlecard') return false;
-    const sp = bySpeaker.get(l.speakerKey);
-    const narration = Boolean(l.narrationOnly || sp?.treatAsNarration || !l.speakerKey);
-    if (narration) return false;
-    return !Boolean(sp?.sprite?.trim()) && Boolean(l.speakerKey);
-  }
-
-  let lastNpcIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (isNpcLine(lines[i]!)) lastNpcIdx = i;
+  function speakerIsExtra(key: string): boolean {
+    const k = (key || '').trim();
+    if (!k || k === VN_NPC_CHARACTER) return false;
+    const sp = bySpeaker.get(k);
+    if (sp?.treatAsNarration) return false;
+    return !Boolean(sp?.sprite?.trim());
   }
 
   function resizeSeats(nextMax: number) {
@@ -702,19 +695,28 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     seats.splice(0, seats.length, ...next);
   }
 
-  function applyStageOrder(keys: string[]) {
-    const next: (string | null)[] = Array.from({ length: seats.length }, () => null);
+  /** 고른 칸만 고정. 다른 칸의 엑스트라·미고정 인물은 지우지 않음 */
+  function ensurePinnedSeats(keys: string[]) {
     const seen = new Set<string>();
     keys.forEach((raw, i) => {
       const k = (raw || '').trim();
-      if (!k || seen.has(k) || i >= next.length) return;
-      const sp = bySpeaker.get(k);
-      if (!sp?.sprite?.trim()) return;
+      if (!k || seen.has(k) || i >= seats.length) return;
       seen.add(k);
-      next[i] = k;
-      lastIndex.set(k, lineIndex);
+      lastIndex.set(k, Math.max(lastIndex.get(k) ?? 0, lineIndex));
+      if (seats[i] === k) return;
+      const from = seats.indexOf(k);
+      if (from >= 0) {
+        seats[from] = seats[i];
+        seats[i] = k;
+        return;
+      }
+      const occupant = seats[i];
+      seats[i] = k;
+      if (occupant && occupant !== k) {
+        const bump = seats.findIndex((s, idx) => s == null && idx !== i);
+        if (bump >= 0) seats[bump] = occupant;
+      }
     });
-    seats.splice(0, seats.length, ...next);
   }
 
   function placeOnStage(key: string) {
@@ -730,14 +732,16 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     const pref = preferredSeatIndex(key);
     if (pref >= 0 && pref < seats.length) {
       const occupant = seats[pref];
-      seats[pref] = key;
-      if (occupant && occupant !== key) {
-        const bump = fill.find(
-          (i) => seats[i] == null && !reservedSeats.has(i),
-        );
-        if (bump != null) seats[bump] = occupant;
+      if (!occupant || occupant === key || !occupantLocked(occupant, pref)) {
+        seats[pref] = key;
+        if (occupant && occupant !== key) {
+          const bump = fill.find(
+            (i) => seats[i] == null && !reservedSeats.has(i),
+          );
+          if (bump != null) seats[bump] = occupant;
+        }
+        return;
       }
-      return;
     }
 
     if (occupiedN < occupancyCap) {
@@ -755,19 +759,43 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       }
     }
 
-    /* 정원 초과 — 가장 오래된 화자 자리에만 교체 (다른 사람 자리는 유지) */
-    let oldestSeat = 0;
+    /* 정원 초과 — 고정되지 않은 가장 오래된 화자만 교체 */
+    let oldestSeat = -1;
     let oldestLi = Infinity;
     for (let i = 0; i < seats.length; i++) {
       const k = seats[i];
-      if (!k) continue;
+      if (!k || occupantLocked(k, i)) continue;
       const li = lastIndex.get(k) ?? 0;
       if (li < oldestLi) {
         oldestLi = li;
         oldestSeat = i;
       }
     }
+    if (oldestSeat < 0) return;
     seats[oldestSeat] = key;
+  }
+
+  function occupantLocked(key: string, seatIndex: number): boolean {
+    if (stickyStageOrder) {
+      const pin = (stickyStageOrder[seatIndex] || '').trim();
+      if (pin && pin === key) return true;
+      if (stickyStageOrder.some((k) => (k || '').trim() === key)) return true;
+    }
+    const home = bySpeaker.get(key)?.homeSlot;
+    if (home === 'left') return seatIndex === 0;
+    if (home === 'center') return seatIndex === 1;
+    if (home === 'right') return seatIndex === 2;
+    return false;
+  }
+
+  function placeSpeaker(key: string) {
+    const k = (key || '').trim();
+    if (!k) return;
+    if (!stickyStageOrder || !seats.includes(k)) {
+      placeOnStage(k);
+    } else {
+      lastIndex.set(k, lineIndex);
+    }
   }
 
   function baseSpriteFor(key: string): string {
@@ -796,6 +824,14 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     const base = baseSpriteFor(key);
     const rawExpr = (speakingKey === key ? lineExpr?.trim() : '') || '';
     const exprUrl = rawExpr && isAssetUrl(rawExpr) ? rawExpr : '';
+
+    if (!base) {
+      if (speakingKey === key && exprUrl) {
+        if (persist) lastExpr.set(key, exprUrl);
+        return exprUrl;
+      }
+      return lastExpr.get(key) || 'default';
+    }
 
     if (speakingKey === key) {
       if (exprUrl) {
@@ -832,7 +868,6 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   function buildSprites(
     speakingKey: string | null,
     lineExpr: string | undefined,
-    showNpc: boolean,
     persistExpr = true,
     untilLineId?: string,
   ): import('@/components/vn/types').VNSpriteSlot[] | undefined {
@@ -854,7 +889,6 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       const resolved = resolveExpr(key, speakingKey, lineExpr, persistExpr, untilLineId);
       if (!resolved) return;
       const sp = bySpeaker.get(key);
-      const npcShift = showNpc ? -16 : 0;
       const enterRank = enterSeq.indexOf(key);
       const enterDelayMs = enterRank >= 0 ? enterRank * 160 : 0;
 
@@ -869,9 +903,9 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
           standSlot: crowdSlot,
           crowdLayout: true,
           dimmed: !speakingKey || speakingKey !== key,
-          offsetX: pose.x + npcShift,
+          offsetX: pose.x,
           offsetY: pose.y,
-          x: pose.x + npcShift,
+          x: pose.x,
           y: pose.y,
           scale: pose.scale,
           anim: sp?.standAnimation || 'fade',
@@ -882,9 +916,9 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
 
       const standSlot: StandSlot = seatPosition(seatIndex);
       const versionPose = resolveStandPoseForSlot(sp, standSlot);
-      const laneX = seatLaneX(seatIndex) + npcShift;
+      const laneX = seatLaneX(seatIndex);
 
-      let x = versionPose.x + npcShift;
+      let x = versionPose.x;
       let y = versionPose.y;
       let scale = versionPose.scale;
 
@@ -918,19 +952,6 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       });
     });
 
-    if (showNpc) {
-      slots.push({
-        character: VN_NPC_CHARACTER,
-        expression: 'default',
-        position: 'right',
-        standSlot: 'right',
-        dimmed: speakingKey !== VN_NPC_CHARACTER,
-        offsetX: VN_STAND_LAYOUT.slotBaseX.right,
-        x: VN_STAND_LAYOUT.slotBaseX.right,
-        anim: 'slide-right',
-      });
-    }
-
     return slots.length ? slots : undefined;
   }
 
@@ -961,7 +982,6 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         if (l.resetStage) {
           for (let i = 0; i < seats.length; i++) seats[i] = null;
           lastIndex.clear();
-          npcOnStage = false;
           lastExpr.clear();
           exprUntilIdx.clear();
           stickyStageOrder = null;
@@ -976,11 +996,8 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         const orderPatch = parseSpeakerKeyList(l.stageOrder);
         if (orderPatch) {
           stickyStageOrder = orderPatch;
-          applyStageOrder(stickyStageOrder);
-        } else if (stickyStageOrder) {
-          /* sticky 유지 — 정원 변경 후에도 같은 순서로 다시 앉힘 */
-          applyStageOrder(stickyStageOrder);
         }
+        if (stickyStageOrder) ensurePinnedSeats(stickyStageOrder);
 
         const enterPatch = parseSpeakerKeyList(l.stageEnterOrder);
         if (enterPatch) stickyEnterOrder = enterPatch;
@@ -1000,13 +1017,10 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         const lineIdx0 = lineIndex - 1;
         expireExprsPast(lineIdx0);
 
-        const showNpc =
-          npcOnStage && lastNpcIdx >= 0 && lineIdx0 <= lastNpcIdx;
-
         if (l.effect === 'titlecard') {
           const titleSprites = hideStandingsActive
             ? undefined
-            : buildSprites(null, undefined, showNpc);
+            : buildSprites(null, undefined);
           return {
             id: l.id,
             text: '',
@@ -1038,21 +1052,16 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         const untilLineId =
           persistExpr && expr ? l.expressionUntilLineId?.trim() || undefined : undefined;
 
-        if (isNpc) npcOnStage = true;
-
-        /* 다이스도 굴린 캐릭터를 무대에 올리고 하이라이트 — 자리 재배치는 placeOnStage 내부에서 기존 좌석 유지 */
         if (isCastMember && sp) {
-          if (!stickyStageOrder || !seats.includes(sp.key)) {
-            placeOnStage(sp.key);
-          } else {
-            lastIndex.set(sp.key, lineIndex);
-          }
+          placeSpeaker(sp.key);
+        } else if (isNpc) {
+          placeSpeaker(l.speakerKey);
         }
 
         let speakingKey = narration
           ? null
           : isNpc
-            ? VN_NPC_CHARACTER
+            ? l.speakerKey
             : sp?.key || l.speakerKey || null;
 
         /* 다이스: actor 기준으로 스탠딩 등장·강조 (speakerKey와 키가 어긋나도 보정) */
@@ -1063,24 +1072,17 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
             [...bySpeaker.values()].find(
               (s) => s.key === actorName || s.displayName === actorName,
             );
-          if (actorSp?.sprite?.trim()) {
-            if (!stickyStageOrder || !seats.includes(actorSp.key)) {
-              placeOnStage(actorSp.key);
-            } else {
-              lastIndex.set(actorSp.key, lineIndex);
-            }
-            speakingKey = actorSp.key;
+          const actorKey = actorSp?.key || actorName;
+          if (actorSp?.sprite?.trim() || speakerIsExtra(actorKey)) {
+            placeSpeaker(actorKey);
+            speakingKey = actorKey;
           }
         }
-
-        const showNpcNow =
-          npcOnStage && lastNpcIdx >= 0 && lineIdx0 <= lastNpcIdx;
 
         /* seats 갱신은 위에서 끝 — hideStandings 는 sticky 출력만 숨김 */
         const built = buildSprites(
           speakingKey,
           expr,
-          showNpcNow,
           persistExpr,
           untilLineId,
         );
