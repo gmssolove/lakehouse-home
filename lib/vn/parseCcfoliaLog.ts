@@ -615,14 +615,15 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     const s = new Set<number>();
     if (stickyStageOrder) {
       stickyStageOrder.forEach((k, i) => {
-        if (k) s.add(i);
+        if (k && !speakerIsExtra(k)) s.add(i);
       });
       return s;
     }
     sceneSeatKeys?.forEach((k, i) => {
-      if (k) s.add(i);
+      if (k && !speakerIsExtra(k)) s.add(i);
     });
     for (const sp of scene.speakers) {
+      if (speakerIsExtra(sp.key)) continue;
       if (sp.homeSlot === 'left') s.add(0);
       else if (sp.homeSlot === 'center') s.add(1);
       else if (sp.homeSlot === 'right') s.add(2);
@@ -673,7 +674,14 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         key ? { key, seatIndex, li: lastIndex.get(key) ?? 0 } : null,
       )
       .filter((x): x is { key: string; seatIndex: number; li: number } => x != null);
-    const kept = [...occupied].sort((a, b) => b.li - a.li).slice(0, occupancyCap);
+    const kept = [...occupied]
+      .sort((a, b) => {
+        const ae = speakerIsExtra(a.key) ? 1 : 0;
+        const be = speakerIsExtra(b.key) ? 1 : 0;
+        if (ae !== be) return ae - be;
+        return b.li - a.li;
+      })
+      .slice(0, occupancyCap);
     kept.sort((a, b) => a.seatIndex - b.seatIndex);
     const fill = currentFill();
     const len = occupancyCap <= 3 ? 3 : occupancyCap;
@@ -695,12 +703,13 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     seats.splice(0, seats.length, ...next);
   }
 
-  /** 고른 칸만 고정. 다른 칸의 엑스트라·미고정 인물은 지우지 않음 */
-  function ensurePinnedSeats(keys: string[]) {
+  /** 고른 칸만 고정. 엑스트라는 고정해도 무대에 붙잡아 두지 않음 */
+  function ensurePinnedSeats(keys: string[], speakingKey?: string | null) {
     const seen = new Set<string>();
     keys.forEach((raw, i) => {
       const k = (raw || '').trim();
       if (!k || seen.has(k) || i >= seats.length) return;
+      if (speakerIsExtra(k)) return;
       seen.add(k);
       lastIndex.set(k, Math.max(lastIndex.get(k) ?? 0, lineIndex));
       if (seats[i] === k) return;
@@ -711,11 +720,12 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         return;
       }
       const occupant = seats[i];
-      seats[i] = k;
-      if (occupant && occupant !== k) {
-        const bump = seats.findIndex((s, idx) => s == null && idx !== i);
-        if (bump >= 0) seats[bump] = occupant;
+      const bump = seats.findIndex((s, idx) => s == null && idx !== i);
+      if (occupant && speakingKey && occupant === speakingKey && speakerIsExtra(occupant) && bump < 0) {
+        return;
       }
+      seats[i] = k;
+      if (occupant && occupant !== k && bump >= 0) seats[bump] = occupant;
     });
   }
 
@@ -759,23 +769,54 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       }
     }
 
-    /* 정원 초과 — 고정되지 않은 가장 오래된 화자만 교체 */
-    let oldestSeat = -1;
-    let oldestLi = Infinity;
+    /* 정원 초과 — 엑스트라 우선, 그다음 미고정, 엑스트라 본인 대사이면 잠금 좌석도 잠시 양보 */
+    const evict = pickEvictSeat(key);
+    if (evict < 0) return;
+    seats[evict] = key;
+  }
+
+  function pickEvictSeat(incoming: string): number {
+    let extraSeat = -1;
+    let extraLi = Infinity;
+    let unlockedSeat = -1;
+    let unlockedLi = Infinity;
+    let anySeat = -1;
+    let anyLi = Infinity;
     for (let i = 0; i < seats.length; i++) {
       const k = seats[i];
-      if (!k || occupantLocked(k, i)) continue;
+      if (!k || k === incoming) continue;
       const li = lastIndex.get(k) ?? 0;
-      if (li < oldestLi) {
-        oldestLi = li;
-        oldestSeat = i;
+      if (speakerIsExtra(k) && li < extraLi) {
+        extraLi = li;
+        extraSeat = i;
+      }
+      if (!occupantLocked(k, i) && li < unlockedLi) {
+        unlockedLi = li;
+        unlockedSeat = i;
+      }
+      if (li < anyLi) {
+        anyLi = li;
+        anySeat = i;
       }
     }
-    if (oldestSeat < 0) return;
-    seats[oldestSeat] = key;
+    if (extraSeat >= 0) return extraSeat;
+    if (unlockedSeat >= 0) return unlockedSeat;
+    if (speakerIsExtra(incoming)) return anySeat;
+    return -1;
+  }
+
+  function dropIdleExtras(speakingKey: string | null) {
+    const occupiedN = seats.filter(Boolean).length;
+    if (occupiedN < occupancyCap) return;
+    for (let i = 0; i < seats.length; i++) {
+      const k = seats[i];
+      if (!k || k === speakingKey) continue;
+      if (speakerIsExtra(k)) seats[i] = null;
+    }
   }
 
   function occupantLocked(key: string, seatIndex: number): boolean {
+    if (speakerIsExtra(key)) return false;
     if (stickyStageOrder) {
       const pin = (stickyStageOrder[seatIndex] || '').trim();
       if (pin && pin === key) return true;
@@ -997,7 +1038,6 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
         if (orderPatch) {
           stickyStageOrder = orderPatch;
         }
-        if (stickyStageOrder) ensurePinnedSeats(stickyStageOrder);
 
         const enterPatch = parseSpeakerKeyList(l.stageEnterOrder);
         if (enterPatch) stickyEnterOrder = enterPatch;
@@ -1078,6 +1118,9 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
             speakingKey = actorKey;
           }
         }
+
+        dropIdleExtras(speakingKey);
+        if (stickyStageOrder) ensurePinnedSeats(stickyStageOrder, speakingKey);
 
         /* seats 갱신은 위에서 끝 — hideStandings 는 sticky 출력만 숨김 */
         const built = buildSprites(
