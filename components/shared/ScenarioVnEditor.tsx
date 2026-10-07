@@ -2774,9 +2774,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                                 );
                               })()}
                               <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
-                                이 줄부터 그 칸에 설 사람을 고정합니다. 스탠딩 있는 사람은 다른 대사가
-                                나와도 밀려나지 않습니다. 엑스트라는 고정해도 맨 뒷순위라, 정원이 차면
-                                자기 대사가 아닐 때 빠지고 그 자리를 다른 인물이 채웁니다.
+                                이 줄부터 그 칸에 설 사람을 고정합니다. 스탠딩 있는 사람은 그 칸을
+                                유지하고, 나머지 칸은 근처 대사 분량으로 채워집니다. 엑스트라는 남은
+                                칸에만 서서 본편 인물과 같은 자리를 뺏지 않습니다.
                               </p>
                               <label className="form-label" style={{ marginTop: 12 }}>
                                 등장 연출 순서
