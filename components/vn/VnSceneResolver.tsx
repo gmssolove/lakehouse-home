@@ -12,6 +12,7 @@ import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { normalizeTrpgScenario } from '@/lib/trpg/normalize';
 import {
+  pickDefaultDiceKey,
   scenarioVnToEnginePayload,
   VN_NPC_CHARACTER,
   type ScenarioVnAmbient,
@@ -868,8 +869,12 @@ function ScenarioVnPlayClient({
                 handoutLayouts={handoutLayouts}
                 onHandoutPoseChange={isAdmin ? onHandoutPoseChange : undefined}
                 onHandoutPoseFlush={isAdmin ? () => void flushHandoutPoses() : undefined}
-                diceRollSfxDefault={diceRollSfx}
-                diceRollCutinDefault={diceRollCutin}
+                diceRollSfxDefault={
+                  pickDefaultDiceKey(diceRollSfx, diceSfxMap)
+                }
+                diceRollCutinDefault={
+                  pickDefaultDiceKey(diceRollCutin, diceCutinMap)
+                }
                 diceCutinMap={diceCutinMap}
                 diceResultSfxDefault={diceResultSfx}
                 diceResultSfxByTone={diceResultSfxByTone}

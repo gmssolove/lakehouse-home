@@ -162,7 +162,7 @@ export function VnInGameMenu({
   const blurPx = Math.max(0, Math.min(40, Math.round(backgroundBlur || 0)));
 
   return (
-    <div className={styles.menuRoot}>
+    <div className={`${styles.menuRoot} vn-title-menu`}>
       {bgOk ? (
         <img
           className={styles.menuBg}

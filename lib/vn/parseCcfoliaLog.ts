@@ -238,6 +238,26 @@ export const DICE_RESULT_TONE_OPTIONS: {
   { tone: 'fumble', label: '대실패' },
 ];
 
+/** 기본 키가 비었거나 목록에 없으면, 등록된 첫 항목을 씀 (업로드만 하고 셀렉트를 안 고른 경우) */
+export function pickDefaultDiceKey(
+  explicit: string | undefined,
+  map: Record<string, string> | undefined,
+): string | undefined {
+  const table = map || {};
+  const e = (explicit || '').trim();
+  if (e && table[e]) return e;
+  if (
+    e &&
+    (/^https?:\/\//i.test(e) ||
+      e.startsWith('/') ||
+      e.startsWith('data:') ||
+      e.startsWith('blob:'))
+  ) {
+    return e;
+  }
+  return Object.keys(table)[0] || undefined;
+}
+
 /** 판정 결과 문자열 → 톤 (효과음·연출 공통) */
 export function classifyDiceResultTone(result: string): DiceResultTone {
   const r = result.trim();

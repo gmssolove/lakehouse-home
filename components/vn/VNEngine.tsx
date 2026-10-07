@@ -313,10 +313,6 @@ export function VNEngine({
     resolveBgm,
   );
   useVnAmbient(active && !leaving && !holdBgm ? eng.ambient : null, resolveAmbient);
-  useVnSfx(
-    active && !leaving && !holdBgm && !sfxBlocked ? eng.sfx : null,
-    resolveSfx,
-  );
 
   const [sysOpen, setSysOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
@@ -328,11 +324,13 @@ export function VNEngine({
       ? ''
       : eng.line?.location?.trim() || eng.scene.location?.trim() || '',
   );
-  const [locReady, setLocReady] = useState(true);
+  const [locReady, setLocReady] = useState(false);
+  const locWaitedRef = useRef(false);
+  const [gatedSfx, setGatedSfx] = useState<string | null>(null);
   const [vignetteOn, setVignetteOn] = useState(false);
   const [visionBlurOn, setVisionBlurOn] = useState(false);
   const [fxLocked, setFxLocked] = useState(false);
-  const [displayMission, setDisplayMission] = useState(eng.missionBanner);
+  const [displayMission, setDisplayMission] = useState<typeof eng.missionBanner>(null);
   /** 미션 시작/완료 시 수첩 버튼 알림 — 수첩 열면 해제 */
   const [missionFabAlert, setMissionFabAlert] = useState<'start' | 'complete' | null>(null);
   const titleDoneRef = useRef(false);
@@ -452,7 +450,12 @@ export function VNEngine({
   const handleClose = onClose ?? (() => undefined);
   const goMain = onMainMenu ?? handleClose;
 
-  useEffect(() => {
+  /**
+   * 장소 배너와 locReady를 같은 커밋에서 맞춤 — 미션 SFX가 장소보다 먼저 나가지 않게.
+   * 장소가 바뀐 줄만 배너 연출 동안 대사 대기.
+   */
+  const locGatePrevRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
     const lineLoc = eng.line?.location?.trim() || '';
     const sceneLoc = eng.scene.location?.trim() || '';
     if (lineLoc) stickyLocationRef.current = lineLoc;
@@ -460,35 +463,27 @@ export function VNEngine({
       stickyLocationRef.current = sceneLoc;
     }
 
-    /* 숨김 중이면 배너만 끄고, 장소 문구 sticky는 유지 → 다시 표시 시 연출 */
     if (eng.line?.hideLocation) {
       setDisplayLocation('');
+      locGatePrevRef.current = null;
+      setLocReady(true);
       return;
     }
 
-    if (stickyLocationRef.current) {
-      setDisplayLocation(stickyLocationRef.current);
-      return;
-    }
-    setDisplayLocation(sceneLoc);
-  }, [eng.line?.id, eng.line?.location, eng.line?.hideLocation, eng.scene.location]);
+    const shown = stickyLocationRef.current || sceneLoc;
+    setDisplayLocation(shown);
 
-  /**
-   * 장소가 바뀐 줄만 배너 연출 동안 대사 대기.
-   * 같은 장소·장소 없음이면 즉시 대사 (이전엔 같은 장소일 때 locReady가 false에 고정되는 버그).
-   */
-  const locGatePrevRef = useRef<string | null>(null);
-  useEffect(() => {
-    const loc = displayLocation.trim();
+    const loc = shown.trim();
     const prev = locGatePrevRef.current;
     if (loc && loc !== prev) {
       locGatePrevRef.current = loc;
+      locWaitedRef.current = true;
       setLocReady(false);
       return;
     }
     if (!loc) locGatePrevRef.current = null;
     setLocReady(true);
-  }, [eng.line?.id, displayLocation]);
+  }, [eng.line?.id, eng.line?.location, eng.line?.hideLocation, eng.scene.location]);
 
   useEffect(() => {
     setVignetteOn(eng.line?.vignette === true);
@@ -508,6 +503,25 @@ export function VNEngine({
     const t = window.setTimeout(() => setDisplayMission(eng.missionBanner), 280);
     return () => clearTimeout(t);
   }, [eng.missionBanner, locReady]);
+
+  /** 미션 SFX도 장소 배너 끝난 뒤(배너와 같은 280ms)에 재생 */
+  useEffect(() => {
+    if (!locReady) {
+      setGatedSfx(null);
+      return;
+    }
+    const delay = locWaitedRef.current ? 280 : 0;
+    locWaitedRef.current = false;
+    const canPlay = active && !leaving && !holdBgm && !sfxBlocked && Boolean(eng.sfx);
+    if (!canPlay) {
+      setGatedSfx(null);
+      return;
+    }
+    const t = window.setTimeout(() => setGatedSfx(eng.sfx), delay);
+    return () => clearTimeout(t);
+  }, [active, leaving, holdBgm, sfxBlocked, locReady, eng.sfx, eng.line?.id]);
+
+  useVnSfx(gatedSfx, resolveSfx);
 
   useEffect(() => {
     if (!displayMission) return;

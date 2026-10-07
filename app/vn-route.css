@@ -107,6 +107,13 @@
   overflow: hidden;
 }
 
+/* 타이틀 메뉴 — body ChosunNm보다 먼저 고딕을 고정 (모듈·weight 600 폴백 깜빡임 방지) */
+.vn-fullscreen .vn-title-menu,
+.vn-fullscreen .vn-title-menu button {
+  font-family: var(--font-noto-sans-kr), 'Noto Sans KR', sans-serif !important;
+  font-weight: 500;
+}
+
 .vn-main-menu-host {
   position: relative;
   min-height: 100%;

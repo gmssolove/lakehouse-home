@@ -136,7 +136,7 @@ export function VnDiceLayer({
     tone,
   };
 
-  const gifOnly = Boolean(cutinUrl?.trim());
+  const hasCutin = Boolean(cutinUrl?.trim());
 
   useEffect(() => {
     setPhase('boot');
@@ -147,10 +147,6 @@ export function VnDiceLayer({
       setPhase('roll');
       playUrl(urlsRef.current.rollSfxUrl, rollHold);
     }, 30);
-
-    if (gifOnly) {
-      return () => window.clearTimeout(tRoll);
-    }
 
     const tLand = window.setTimeout(() => setPhase('land'), LAND_MS);
 
@@ -167,7 +163,7 @@ export function VnDiceLayer({
       window.clearTimeout(tLand);
       window.clearTimeout(tResult);
     };
-  }, [lineKey, dice.roll, dice.result, gifOnly]);
+  }, [lineKey, dice.roll, dice.result]);
 
   const playing = phase !== 'boot';
   const settled = phase === 'land' || phase === 'result';
@@ -176,54 +172,51 @@ export function VnDiceLayer({
 
   return (
     <div
-      className={`${styles.root}${!gifOnly && veilOn ? ` ${styles.rootVeil}` : ''}${!gifOnly && showResult ? ` ${styles.rootResult}` : ''}`}
+      className={`${styles.root}${veilOn ? ` ${styles.rootVeil}` : ''}${showResult ? ` ${styles.rootResult}` : ''}`}
       aria-live="polite"
       key={lineKey}
       data-tone={tone}
     >
-      {gifOnly ? (
+      {hasCutin ? (
         <div
-          className={`${styles.cutin} ${styles.cutinSolo}${playing ? ` ${styles.cutinOn}` : ''}`}
+          className={`${styles.cutin}${playing ? ` ${styles.cutinOn}` : ''}`}
           aria-hidden
         >
           <img key={lineKey} src={cutinUrl} alt="" />
         </div>
-      ) : (
-        <>
-          <div className={styles.veil} aria-hidden />
-          <div className={styles.stage}>
-            {showResult ? (
-              <div className={styles.verdict} data-tone={tone}>
-                <p className={styles.eyebrow}>{toneEyebrow(tone)}</p>
-                <div className={styles.verdictGlow} aria-hidden>
-                  <span className={styles.bloomOuter} />
-                  <span className={styles.bloomInner} />
-                </div>
-                <p className={styles.verdictText}>{dice.result}</p>
-                <p className={styles.rollHint}>
-                  <span className={styles.rollHintNum}>
-                    {tens}
-                    {ones}
-                  </span>
-                </p>
-              </div>
-            ) : (
-              <div className={styles.verdictSlot} aria-hidden />
-            )}
-
-            <div className={`${styles.diceRow}${playing ? ` ${styles.diceRowPlay}` : ''}`}>
-              <div className={styles.dieWrap}>
-                <div className={`${styles.shadow} ${styles.shadow_a}`} />
-                <DiceCube digit={tens} variant="a" settled={settled} />
-              </div>
-              <div className={styles.dieWrap}>
-                <div className={`${styles.shadow} ${styles.shadow_b}`} />
-                <DiceCube digit={ones} variant="b" settled={settled} />
-              </div>
+      ) : null}
+      <div className={styles.veil} aria-hidden />
+      <div className={styles.stage}>
+        {showResult ? (
+          <div className={styles.verdict} data-tone={tone}>
+            <p className={styles.eyebrow}>{toneEyebrow(tone)}</p>
+            <div className={styles.verdictGlow} aria-hidden>
+              <span className={styles.bloomOuter} />
+              <span className={styles.bloomInner} />
             </div>
+            <p className={styles.verdictText}>{dice.result}</p>
+            <p className={styles.rollHint}>
+              <span className={styles.rollHintNum}>
+                {tens}
+                {ones}
+              </span>
+            </p>
           </div>
-        </>
-      )}
+        ) : (
+          <div className={styles.verdictSlot} aria-hidden />
+        )}
+
+        <div className={`${styles.diceRow}${playing ? ` ${styles.diceRowPlay}` : ''}`}>
+          <div className={styles.dieWrap}>
+            <div className={`${styles.shadow} ${styles.shadow_a}`} />
+            <DiceCube digit={tens} variant="a" settled={settled} />
+          </div>
+          <div className={styles.dieWrap}>
+            <div className={`${styles.shadow} ${styles.shadow_b}`} />
+            <DiceCube digit={ones} variant="b" settled={settled} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

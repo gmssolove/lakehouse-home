@@ -651,7 +651,13 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
     setBusyDiceSfx(key);
     try {
       const url = onUploadDiceSfx ? await onUploadDiceSfx(key, file) : await fileToDataUrl(file);
-      setDiceSfxList((prev) => prev.map((d) => (d.key === key ? { ...d, audio: url } : d)));
+      const base = file.name.replace(/\.[^.]+$/, '').trim();
+      setDiceSfxList((prev) =>
+        prev.map((d) =>
+          d.key === key ? { ...d, audio: url, label: d.label.trim() || base } : d,
+        ),
+      );
+      setDiceRollSfx((v) => v || key);
     } finally {
       setBusyDiceSfx(null);
     }
@@ -682,7 +688,13 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
     setBusyDiceCutin(key);
     try {
       const url = onUploadDiceCutin ? await onUploadDiceCutin(key, file) : await fileToDataUrl(file);
-      setDiceCutinList((prev) => prev.map((d) => (d.key === key ? { ...d, image: url } : d)));
+      const base = file.name.replace(/\.[^.]+$/, '').trim();
+      setDiceCutinList((prev) =>
+        prev.map((d) =>
+          d.key === key ? { ...d, image: url, label: d.label.trim() || base } : d,
+        ),
+      );
+      setDiceRollCutin((v) => v || key);
     } finally {
       setBusyDiceCutin(null);
     }
@@ -1636,210 +1648,252 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
 
       {tab === 'dice' && lines.length > 0 ? (
         <section className="svn-editor__block">
-          <div className="lh-dialogue-block__label">다이스 효과음</div>
-          <p className="lh-dialogue-editor__hint">
-            굴림음은 주사위가 구르기 시작할 때, 결과음은 성공·실패 문구가 뜰 때 재생됩니다. 결과음은
-            극단적 성공·대성공·성공·실패·대실패마다 따로 지정할 수 있어요.
+          <p className="lh-dialogue-editor__hint" style={{ margin: 0 }}>
+            파일을 올린 뒤, 아래 「언제 쓸지」에서 고르면 됩니다. 첫 음원·첫 GIF는 굴림용으로 자동
+            지정됩니다. 대사 줄에서 이 판정만 바꿀 수도 있어요.
           </p>
 
-          <div className="form-group" style={{ marginBottom: 14 }}>
-            <label className="form-label">기본 · 굴림 효과음</label>
-            <select
-              className="form-input"
-              value={diceRollSfx}
-              onChange={(e) => setDiceRollSfx(e.target.value)}
-            >
-              <option value="">없음</option>
-              {diceSfxList.map((d) => (
-                <option key={d.key} value={d.key} disabled={!d.audio}>
-                  {d.label || d.key}
-                  {!d.audio ? ' (음원 없음)' : ''}
-                </option>
-              ))}
-            </select>
-            <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
-              주사위 연출이 시작될 때 재생됩니다.
+          <div className="svn-dice-section">
+            <div className="svn-dice-section__kicker">1 · 언제 쓸지</div>
+            <div className="svn-dice-section__title">주사위 굴릴 때</div>
+            <p className="lh-dialogue-editor__hint" style={{ margin: 0 }}>
+              주사위가 구르기 시작하는 순간입니다. 굴림 효과음은 여기입니다.
             </p>
-          </div>
-
-          <div className="lh-dialogue-block__label" style={{ marginTop: 4 }}>
-            기본 · 결과 효과음 (판정별)
-          </div>
-          <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 10px' }}>
-            판정 문구가 나타날 때, 해당 종류에 맞춰 재생됩니다.
-          </p>
-          {DICE_RESULT_TONE_OPTIONS.map(({ tone, label }) => (
-            <div className="form-group" key={tone} style={{ marginBottom: 10 }}>
-              <label className="form-label">{label}</label>
-              <select
-                className="form-input"
-                value={diceResultSfxByTone[tone] || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setDiceResultSfxByTone((prev) => {
-                    const next = { ...prev };
-                    if (v) next[tone] = v;
-                    else delete next[tone];
-                    return next;
-                  });
-                }}
-              >
-                <option value="">없음</option>
-                {diceSfxList.map((d) => (
-                  <option key={d.key} value={d.key} disabled={!d.audio}>
-                    {d.label || d.key}
-                    {!d.audio ? ' (음원 없음)' : ''}
-                  </option>
-                ))}
-              </select>
+            <div className="svn-dice-grid svn-dice-grid--2">
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">굴림 효과음</label>
+                <select
+                  className="form-input"
+                  value={diceRollSfx}
+                  onChange={(e) => setDiceRollSfx(e.target.value)}
+                >
+                  <option value="">없음</option>
+                  {diceSfxList.map((d) => (
+                    <option key={d.key} value={d.key} disabled={!d.audio}>
+                      {d.label || d.key}
+                      {!d.audio ? ' (음원 없음)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">컷인 GIF</label>
+                <select
+                  className="form-input"
+                  value={diceRollCutin}
+                  onChange={(e) => setDiceRollCutin(e.target.value)}
+                >
+                  <option value="">없음</option>
+                  {diceCutinList.map((d) => (
+                    <option key={d.key} value={d.key} disabled={!d.image}>
+                      {d.label || d.key}
+                      {!d.image ? ' (GIF 없음)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          ))}
-          <div className="form-group" style={{ marginBottom: 18 }}>
-            <label className="form-label">기타 판정 폴백 (선택)</label>
-            <select
-              className="form-input"
-              value={diceResultSfx}
-              onChange={(e) => setDiceResultSfx(e.target.value)}
-            >
-              <option value="">없음</option>
-              {diceSfxList.map((d) => (
-                <option key={d.key} value={d.key} disabled={!d.audio}>
-                  {d.label || d.key}
-                  {!d.audio ? ' (음원 없음)' : ''}
-                </option>
-              ))}
-            </select>
-            <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
-              위 5종에 해당하지 않거나, 해당 종류가 비어 있을 때 씁니다.
+            {diceSfxList.length === 0 && diceCutinList.length === 0 ? (
+              <p className="lh-dialogue-editor__hint" style={{ margin: 0 }}>
+                아직 파일이 없습니다. 아래 「3 · 파일」에서 효과음·GIF를 추가하세요.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="svn-dice-section">
+            <div className="svn-dice-section__kicker">2 · 언제 쓸지</div>
+            <div className="svn-dice-section__title">판정 결과 나올 때</div>
+            <p className="lh-dialogue-editor__hint" style={{ margin: 0 }}>
+              성공·실패 문구가 뜰 때입니다. 종류마다 다른 음을 넣을 수 있어요.
             </p>
-          </div>
-
-          <div className="lh-dialogue-block__label" style={{ marginTop: 8 }}>
-            등록된 효과음
-          </div>
-          <div className="svn-editor__speakers">
-            {diceSfxList.map((d) => (
-              <div className="svn-speaker" key={d.key}>
-                <div className="svn-speaker__fields">
-                  <input
+            <div className="svn-dice-grid svn-dice-grid--2">
+              {DICE_RESULT_TONE_OPTIONS.map(({ tone, label }) => (
+                <div className="form-group" key={tone} style={{ margin: 0 }}>
+                  <label className="form-label">{label}</label>
+                  <select
                     className="form-input"
-                    placeholder="이름 (예: 주사위 굴림)"
-                    value={d.label}
-                    onChange={(e) => updateDiceSfx(d.key, { label: e.target.value })}
-                  />
-                  {d.audio ? (
-                    <audio controls src={d.audio} preload="metadata" style={{ width: '100%' }} />
-                  ) : null}
-                  <div className="svn-speaker__row">
-                    <label className="file-input-label svn-speaker__file">
-                      {busyDiceSfx === d.key
-                        ? '업로드 중…'
-                        : d.audio
-                          ? '음원 교체'
-                          : '음원 선택'}
-                      <input
-                        type="file"
-                        accept="audio/*"
-                        hidden
-                        disabled={busyDiceSfx === d.key}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) void handleDiceSfxFile(d.key, f);
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="btn-del"
-                      style={{ padding: '3px 8px' }}
-                      onClick={() => removeDiceSfx(d.key)}
-                    >
-                      삭제
-                    </button>
-                  </div>
+                    value={diceResultSfxByTone[tone] || ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDiceResultSfxByTone((prev) => {
+                        const next = { ...prev };
+                        if (v) next[tone] = v;
+                        else delete next[tone];
+                        return next;
+                      });
+                    }}
+                  >
+                    <option value="">없음</option>
+                    {diceSfxList.map((d) => (
+                      <option key={d.key} value={d.key} disabled={!d.audio}>
+                        {d.label || d.key}
+                        {!d.audio ? ' (음원 없음)' : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-            ))}
-          </div>
-          <button type="button" className="lh-dialogue-editor__tool" onClick={addDiceSfx}>
-            + 다이스 효과음 추가
-          </button>
-
-          <div className="lh-dialogue-block__label" style={{ marginTop: 28 }}>
-            다이스 컷인 GIF
-          </div>
-          <p className="lh-dialogue-editor__hint">
-            주사위가 구르기 시작할 때 화면에 재생됩니다. GIF가 있으면 주사위 굴림·판정 문구는 생략하고 컷인만 나옵니다.
-          </p>
-          <div className="form-group" style={{ marginBottom: 14 }}>
-            <label className="form-label">기본 · 굴림 컷인</label>
-            <select
-              className="form-input"
-              value={diceRollCutin}
-              onChange={(e) => setDiceRollCutin(e.target.value)}
-            >
-              <option value="">없음</option>
-              {diceCutinList.map((d) => (
-                <option key={d.key} value={d.key} disabled={!d.image}>
-                  {d.label || d.key}
-                  {!d.image ? ' (GIF 없음)' : ''}
-                </option>
               ))}
-            </select>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">그 외 판정</label>
+                <select
+                  className="form-input"
+                  value={diceResultSfx}
+                  onChange={(e) => setDiceResultSfx(e.target.value)}
+                >
+                  <option value="">없음</option>
+                  {diceSfxList.map((d) => (
+                    <option key={d.key} value={d.key} disabled={!d.audio}>
+                      {d.label || d.key}
+                      {!d.audio ? ' (음원 없음)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="lh-dialogue-editor__hint" style={{ margin: '4px 0 0' }}>
+                  위 다섯에 안 맞거나 비어 있을 때.
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="svn-editor__speakers">
-            {diceCutinList.map((d) => (
-              <div className="svn-speaker" key={d.key}>
-                <div className="svn-speaker__fields">
-                  <input
-                    className="form-input"
-                    placeholder="이름 (예: 베기 컷인)"
-                    value={d.label}
-                    onChange={(e) => updateDiceCutin(d.key, { label: e.target.value })}
-                  />
-                  {d.image ? (
-                    <img
-                      src={d.image}
-                      alt=""
-                      style={{ maxWidth: '100%', maxHeight: 140, borderRadius: 8, objectFit: 'contain' }}
-                    />
-                  ) : null}
-                  <div className="svn-speaker__row">
-                    <label className="file-input-label svn-speaker__file">
-                      {busyDiceCutin === d.key
-                        ? '업로드 중…'
-                        : d.image
-                          ? 'GIF 교체'
-                          : 'GIF 선택'}
+
+          <div className="svn-dice-section">
+            <div className="svn-dice-section__kicker">3 · 파일</div>
+            <div className="svn-dice-section__title">효과음</div>
+            <div className="svn-editor__speakers">
+              {diceSfxList.map((d) => {
+                const usedAs =
+                  diceRollSfx === d.key
+                    ? '굴림'
+                    : DICE_RESULT_TONE_OPTIONS.find((o) => diceResultSfxByTone[o.tone] === d.key)
+                        ?.label || (diceResultSfx === d.key ? '그 외 판정' : null);
+                return (
+                  <div className="svn-speaker" key={d.key}>
+                    <div className="svn-speaker__fields">
                       <input
-                        type="file"
-                        accept="image/gif,image/webp,image/png,image/apng,image/*"
-                        hidden
-                        disabled={busyDiceCutin === d.key}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) void handleDiceCutinFile(d.key, f);
-                          e.target.value = '';
-                        }}
+                        className="form-input"
+                        placeholder="이름 (예: 주사위 굴림)"
+                        value={d.label}
+                        onChange={(e) => updateDiceSfx(d.key, { label: e.target.value })}
                       />
-                    </label>
-                    <button
-                      type="button"
-                      className="btn-del"
-                      style={{ padding: '3px 8px' }}
-                      onClick={() => removeDiceCutin(d.key)}
-                    >
-                      삭제
-                    </button>
+                      {usedAs ? <span className="svn-dice-badge">{usedAs}</span> : null}
+                      {d.audio ? (
+                        <audio controls src={d.audio} preload="metadata" style={{ width: '100%' }} />
+                      ) : null}
+                      <div className="svn-speaker__row">
+                        <label className="file-input-label svn-speaker__file">
+                          {busyDiceSfx === d.key
+                            ? '업로드 중…'
+                            : d.audio
+                              ? '음원 교체'
+                              : '음원 선택'}
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            hidden
+                            disabled={busyDiceSfx === d.key}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) void handleDiceSfxFile(d.key, f);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                        {d.audio && diceRollSfx !== d.key ? (
+                          <button
+                            type="button"
+                            className="lh-dialogue-editor__tool"
+                            style={{ padding: '3px 8px' }}
+                            onClick={() => setDiceRollSfx(d.key)}
+                          >
+                            굴림음으로
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="btn-del"
+                          style={{ padding: '3px 8px' }}
+                          onClick={() => removeDiceSfx(d.key)}
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <button type="button" className="lh-dialogue-editor__tool" onClick={addDiceSfx}>
+              + 효과음 추가
+            </button>
+
+            <div className="svn-dice-section__title" style={{ marginTop: 8 }}>
+              컷인 GIF
+            </div>
+            <div className="svn-editor__speakers">
+              {diceCutinList.map((d) => (
+                <div className="svn-speaker" key={d.key}>
+                  <div className="svn-speaker__fields">
+                    <input
+                      className="form-input"
+                      placeholder="이름 (예: 베기 컷인)"
+                      value={d.label}
+                      onChange={(e) => updateDiceCutin(d.key, { label: e.target.value })}
+                    />
+                    {diceRollCutin === d.key ? (
+                      <span className="svn-dice-badge">굴림 컷인</span>
+                    ) : null}
+                    {d.image ? (
+                      <img
+                        src={d.image}
+                        alt=""
+                        style={{ maxWidth: '100%', maxHeight: 140, borderRadius: 8, objectFit: 'contain' }}
+                      />
+                    ) : null}
+                    <div className="svn-speaker__row">
+                      <label className="file-input-label svn-speaker__file">
+                        {busyDiceCutin === d.key
+                          ? '업로드 중…'
+                          : d.image
+                            ? 'GIF 교체'
+                            : 'GIF 선택'}
+                        <input
+                          type="file"
+                          accept="image/gif,image/webp,image/png,image/apng,image/*"
+                          hidden
+                          disabled={busyDiceCutin === d.key}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void handleDiceCutinFile(d.key, f);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {d.image && diceRollCutin !== d.key ? (
+                        <button
+                          type="button"
+                          className="lh-dialogue-editor__tool"
+                          style={{ padding: '3px 8px' }}
+                          onClick={() => setDiceRollCutin(d.key)}
+                        >
+                          굴림 컷인으로
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn-del"
+                        style={{ padding: '3px 8px' }}
+                        onClick={() => removeDiceCutin(d.key)}
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <button type="button" className="lh-dialogue-editor__tool" onClick={addDiceCutin}>
+              + 컷인 추가
+            </button>
           </div>
-          <button type="button" className="lh-dialogue-editor__tool" onClick={addDiceCutin}>
-            + 다이스 컷인 추가
-          </button>
         </section>
       ) : null}
 
@@ -2717,7 +2771,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                               </div>
                             ) : (
                               <p className="lh-dialogue-editor__hint" style={{ margin: '8px 0 0' }}>
-                                「다이스」 탭에서 효과음·컷인 GIF를 등록하면 여기서 고를 수 있어요.
+                                「다이스」 탭 맨 위 「주사위 굴릴 때」에서 굴림 효과음·컷인을 지정하세요.
                               </p>
                             )}
                           </section>

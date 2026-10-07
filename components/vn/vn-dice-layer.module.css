@@ -65,7 +65,7 @@
 .cutin {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -102,7 +102,7 @@
 
 .stage {
   position: relative;
-  z-index: 2;
+  z-index: 4;
   width: min(92vw, 520px);
   min-height: min(52vh, 380px);
   display: flex;

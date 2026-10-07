@@ -6,7 +6,8 @@ const cinzel = Cinzel({
   subsets: ['latin'],
   weight: ['400', '600'],
   variable: '--font-cinzel',
-  display: 'swap',
+  display: 'optional',
+  preload: true,
 });
 
 /** VN — 공통 헤더/네비 없이 전체 화면만 */

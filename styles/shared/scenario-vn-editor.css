@@ -68,6 +68,52 @@
   gap: 8px;
 }
 
+.svn-dice-section {
+  display: grid;
+  gap: 10px;
+  padding: 14px 14px 16px;
+  border: 1px solid rgba(215, 169, 130, 0.2);
+  border-radius: 10px;
+  background: rgba(7, 9, 8, 0.28);
+}
+
+.svn-dice-section__kicker {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: rgba(215, 169, 130, 0.62);
+  text-transform: uppercase;
+}
+
+.svn-dice-section__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #f0cfad;
+  letter-spacing: 0.04em;
+}
+
+.svn-dice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .svn-dice-grid--2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.svn-dice-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 207, 173, 0.45);
+  color: #f0cfad;
+  background: rgba(215, 169, 130, 0.12);
+}
+
 .svn-editor__importrow {
   display: flex;
   align-items: center;
