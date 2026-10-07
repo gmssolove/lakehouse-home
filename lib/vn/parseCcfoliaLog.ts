@@ -220,7 +220,14 @@ export type ScenarioVnDiceCutin = {
 };
 
 /** CoC 등 판정 문구 → 연출·효과음 톤 */
-export type DiceResultTone = 'extreme' | 'great' | 'ok' | 'fail' | 'fumble' | 'neutral';
+export type DiceResultTone =
+  | 'extreme'
+  | 'great'
+  | 'hard'
+  | 'ok'
+  | 'fail'
+  | 'fumble'
+  | 'neutral';
 
 /** 판정 종류별 기본 결과 효과음 키 (diceSfxList) */
 export type ScenarioVnDiceResultSfxByTone = Partial<
@@ -236,7 +243,8 @@ export const DICE_RESULT_TONE_OPTIONS: {
 }[] = [
   { tone: 'extreme', label: '극단적 성공' },
   { tone: 'great', label: '대성공' },
-  { tone: 'ok', label: '성공' },
+  { tone: 'hard', label: '어려운 성공' },
+  { tone: 'ok', label: '보통 성공' },
   { tone: 'fail', label: '실패' },
   { tone: 'fumble', label: '대실패' },
 ];
@@ -282,8 +290,9 @@ export function classifyDiceResultTone(result: string): DiceResultTone {
   const r = result.trim();
   if (/펌블|대실패|Fumble/i.test(r)) return 'fumble';
   if (/극단|극한|Extreme|크리티컬|Critical/i.test(r)) return 'extreme';
-  if (/대성공|특별성공|Hard\s*Success|Great\s*Success/i.test(r)) return 'great';
-  if (/성공|Success/i.test(r)) return 'ok';
+  if (/어려운\s*성공|Hard\s*Success/i.test(r)) return 'hard';
+  if (/대성공|특별성공|Great\s*Success/i.test(r)) return 'great';
+  if (/보통\s*성공|성공|Success/i.test(r)) return 'ok';
   if (/실패|Fail/i.test(r)) return 'fail';
   return 'neutral';
 }
@@ -479,7 +488,7 @@ const BLOCK_RE =
  * 예: CC<=85  요리 (1D100<=85) 보너스, 페널티 주사위[0] ＞ 16 ＞ 16 ＞ 극단적 성공
  */
 const DICE_TEXT_RE =
-  /^CCB?\s*<=\s*(\d+)\s+(.+?)\s*\(\s*1\s*[dD]\s*100\s*<=\s*\d+\s*\)[\s\S]*?[＞>]\s*(\d+)\s*[＞>]\s*(\d+)\s*[＞>]\s*(.+)$/;
+  /^CCB?\s*<=\s*(\d+)\s+(.+?)\s*\(\s*1\s*[dD]\s*100\s*<=\s*\d+\s*\)[\s\S]*?[＞>]\s*(\d+)\s*[＞>]\s*(\d+)\s*[＞>]\s*(.+)$/i;
 
 export function parseCcfoliaDiceText(text: string, actor = ''): VnDiceRoll | null {
   const t = String(text || '')

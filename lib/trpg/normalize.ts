@@ -748,7 +748,7 @@ function normalizeVnDiceResultSfxByTone(
 ): import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const row = raw as Record<string, unknown>;
-  const tones = ['extreme', 'great', 'ok', 'fail', 'fumble'] as const;
+  const tones = ['extreme', 'great', 'hard', 'ok', 'fail', 'fumble'] as const;
   const out: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone = {};
   let any = false;
   for (const t of tones) {

@@ -782,6 +782,7 @@ export function VNEngine({
     () => ({
       extreme: resolveSfx(diceResultSfxByTone?.extreme || ''),
       great: resolveSfx(diceResultSfxByTone?.great || ''),
+      hard: resolveSfx(diceResultSfxByTone?.hard || ''),
       ok: resolveSfx(diceResultSfxByTone?.ok || ''),
       fail: resolveSfx(diceResultSfxByTone?.fail || ''),
       fumble: resolveSfx(diceResultSfxByTone?.fumble || ''),

@@ -18,11 +18,11 @@ type Props = {
   resultSfxUrl?: string;
   /** 판정 종류별 결과 효과음 URL */
   resultSfxByTone?: Partial<
-    Record<'extreme' | 'great' | 'ok' | 'fail' | 'fumble', string>
+    Record<'extreme' | 'great' | 'hard' | 'ok' | 'fail' | 'fumble', string>
   >;
   /** 종류별 미지정·기타 판정 폴백 */
   resultSfxFallbackUrl?: string;
-  /** 굴림 시작 때 한 번 재생되는 컷인 GIF */
+  /** 주사위가 멈춘 뒤 위에 뜨는 컷인 GIF */
   cutinUrl?: string;
 };
 
@@ -32,23 +32,6 @@ type Phase = 'boot' | 'roll' | 'land' | 'result';
 
 const LAND_MS = 1700;
 const RESULT_MS = 1950;
-
-function toneEyebrow(tone: Tone): string {
-  switch (tone) {
-    case 'extreme':
-      return 'EXTREME';
-    case 'great':
-      return 'GREAT SUCCESS';
-    case 'ok':
-      return 'SUCCESS';
-    case 'fail':
-      return 'FAILURE';
-    case 'fumble':
-      return 'FUMBLE';
-    default:
-      return 'ROLL';
-  }
-}
 
 /** CoC 1d100 → 십·일 (100 → 00) */
 function splitRoll(roll: number): [number, number] {
@@ -104,8 +87,8 @@ function DiceCube({
 }
 
 /**
- * 3D 주사위 굴림 → 착지 후 배경 블러 + 판정 문구.
- * 굴림 SFX = 구르기 시작 / 결과 SFX = 성공·실패 문구 등장 (타임아웃에서 직접 재생).
+ * 3D 주사위 굴림 → 착지 후 컷인+결과 효과음.
+ * 굴림 SFX = 구르기 시작 / 결과 SFX = 컷인과 같이.
  */
 export function VnDiceLayer({
   dice,
@@ -167,45 +150,20 @@ export function VnDiceLayer({
 
   const playing = phase !== 'boot';
   const settled = phase === 'land' || phase === 'result';
-  const showResult = phase === 'result';
+  const showCutin = phase === 'result' && hasCutin;
   const veilOn = settled;
 
   return (
     <div
-      className={`${styles.root}${veilOn ? ` ${styles.rootVeil}` : ''}${showResult ? ` ${styles.rootResult}` : ''}`}
+      className={`${styles.root}${veilOn ? ` ${styles.rootVeil}` : ''}${
+        phase === 'result' ? ` ${styles.rootResult}` : ''
+      }`}
       aria-live="polite"
       key={lineKey}
       data-tone={tone}
     >
-      {hasCutin ? (
-        <div
-          className={`${styles.cutin}${playing ? ` ${styles.cutinOn}` : ''}`}
-          aria-hidden
-        >
-          <img key={lineKey} src={cutinUrl} alt="" />
-        </div>
-      ) : null}
       <div className={styles.veil} aria-hidden />
       <div className={styles.stage}>
-        {showResult ? (
-          <div className={styles.verdict} data-tone={tone}>
-            <p className={styles.eyebrow}>{toneEyebrow(tone)}</p>
-            <div className={styles.verdictGlow} aria-hidden>
-              <span className={styles.bloomOuter} />
-              <span className={styles.bloomInner} />
-            </div>
-            <p className={styles.verdictText}>{dice.result}</p>
-            <p className={styles.rollHint}>
-              <span className={styles.rollHintNum}>
-                {tens}
-                {ones}
-              </span>
-            </p>
-          </div>
-        ) : (
-          <div className={styles.verdictSlot} aria-hidden />
-        )}
-
         <div className={`${styles.diceRow}${playing ? ` ${styles.diceRowPlay}` : ''}`}>
           <div className={styles.dieWrap}>
             <div className={`${styles.shadow} ${styles.shadow_a}`} />
@@ -217,6 +175,11 @@ export function VnDiceLayer({
           </div>
         </div>
       </div>
+      {showCutin ? (
+        <div className={`${styles.cutin} ${styles.cutinOn}`} aria-hidden>
+          <img key={lineKey} src={cutinUrl} alt="" />
+        </div>
+      ) : null}
     </div>
   );
 }

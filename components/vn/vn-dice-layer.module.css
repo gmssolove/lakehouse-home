@@ -17,6 +17,9 @@
 .root[data-tone='great'] {
   --dice-gold: 236, 216, 164;
 }
+.root[data-tone='hard'] {
+  --dice-gold: 228, 210, 168;
+}
 .root[data-tone='ok'] {
   --dice-gold: 216, 201, 158;
 }
@@ -65,13 +68,13 @@
 .cutin {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 6;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   opacity: 0;
-  transform: translateX(8%) scale(1.04);
+  transform: translateX(4%) scale(1.03);
   transition:
     opacity 0.28s ease,
     transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
@@ -87,13 +90,13 @@
 }
 
 .cutinSolo img {
-  max-width: min(96vw, 1100px);
-  max-height: 96%;
+  max-width: min(42vw, 480px);
+  max-height: min(46vh, 360px);
 }
 
 .cutin img {
-  max-width: min(92vw, 920px);
-  max-height: 92%;
+  max-width: min(42vw, 480px);
+  max-height: min(46vh, 360px);
   width: auto;
   height: auto;
   object-fit: contain;
@@ -104,7 +107,7 @@
   position: relative;
   z-index: 4;
   width: min(92vw, 520px);
-  min-height: min(52vh, 380px);
+  min-height: min(28vh, 220px);
   display: flex;
   flex-direction: column;
   align-items: center;
