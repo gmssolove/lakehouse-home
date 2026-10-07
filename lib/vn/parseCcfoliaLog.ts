@@ -395,8 +395,38 @@ export { crowdStandLayout } from '@/lib/vn/standLayout';
 const BLOCK_RE =
   /<p style="color:(#[0-9a-fA-F]{6});">\s*<span>\s*\[(.*?)\]<\/span>\s*<span>(.*?)<\/span>\s*:\s*<span>\s*([\s\S]*?)\s*<\/span>\s*<\/p>/g;
 
-const DICE_RE =
-  /CC<=\s*(\d+)\s+(.+?)\s*\(1D100<=\d+\)\s*보너스,\s*패널티\s*주사위\[0\]\s*[＞>]\s*(\d+)\s*[＞>]\s*(\d+)\s*[＞>]\s*(.+)$/;
+/**
+ * Ccfolia CoC 판정. `패널티`/`페널티`, 주사위[0]/[0,0], CCB, 전각 ＞ 모두 허용.
+ * 예: CC<=85  요리 (1D100<=85) 보너스, 페널티 주사위[0] ＞ 16 ＞ 16 ＞ 극단적 성공
+ */
+const DICE_TEXT_RE =
+  /^CCB?\s*<=\s*(\d+)\s+(.+?)\s*\(\s*1\s*[dD]\s*100\s*<=\s*\d+\s*\)[\s\S]*?[＞>]\s*(\d+)\s*[＞>]\s*(\d+)\s*[＞>]\s*(.+)$/;
+
+export function parseCcfoliaDiceText(text: string, actor = ''): VnDiceRoll | null {
+  const t = String(text || '')
+    .trim()
+    .replace(/\u3000/g, ' ');
+  const m = t.match(DICE_TEXT_RE);
+  if (!m) return null;
+  const target = Number(m[1]);
+  const roll = Number(m[4]);
+  if (!Number.isFinite(target) || !Number.isFinite(roll)) return null;
+  return {
+    actor: actor.trim(),
+    skill: m[2]!.trim(),
+    target,
+    roll,
+    result: m[5]!.trim(),
+  };
+}
+
+export function withParsedDiceLine(line: ScenarioVnLine): ScenarioVnLine {
+  if (line.effect === 'titlecard') return line;
+  if (line.effect === 'diceRoll' && line.diceRoll) return line;
+  const parsed = parseCcfoliaDiceText(line.text, line.diceRoll?.actor || line.speakerKey);
+  if (!parsed) return line;
+  return { ...line, effect: 'diceRoll', diceRoll: parsed };
+}
 
 let decoder: HTMLTextAreaElement | null = null;
 function decodeEntities(s: string): string {
@@ -445,22 +475,15 @@ export function parseCcfoliaLog(html: string): { speakers: ScenarioVnSpeaker[]; 
     }
 
     const id = `L${String(i).padStart(4, '0')}`;
-    const dice = DICE_RE.exec(text);
+    const dice = parseCcfoliaDiceText(text, speaker);
 
     if (dice) {
-      const [, target, skill, , roll2, result] = dice;
       lines.push({
         id,
         speakerKey: speaker,
         text,
         effect: 'diceRoll',
-        diceRoll: {
-          actor: speaker,
-          skill: skill.trim(),
-          target: Number(target),
-          roll: Number(roll2),
-          result: result.trim(),
-        },
+        diceRoll: dice,
       });
     } else {
       lines.push({ id, speakerKey: speaker, text });
@@ -529,7 +552,7 @@ export function toVnScene(
 
 /** 저장·재생용 — 동시 등장 제한 + 엑스트라 NPC + 표정/음성 필드 */
 export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
-  const lines = collapseStickyVignette(scene.lines);
+  const lines = collapseStickyVignette(scene.lines).map(withParsedDiceLine);
   const bySpeaker = new Map(scene.speakers.map((s) => [s.key, s]));
   const spriteMap: Record<string, string> = {};
   for (const sp of scene.speakers) {

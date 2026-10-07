@@ -10,7 +10,7 @@ import type {
   TrpgSessionLog,
 } from '@/lib/types/site-content';
 import { isDialogueFx, isDialogueMotion } from '@/lib/vn/motions';
-import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage, parseSpeakerKeyList, toVnScene } from '@/lib/vn/parseCcfoliaLog';
+import { collapseStickyVignette, normalizeVnMaxOnStage, parseLineMaxOnStage, parseSpeakerKeyList, toVnScene, withParsedDiceLine } from '@/lib/vn/parseCcfoliaLog';
 import { normalizeHandoutLayout } from '@/lib/vn/handoutLayout';
 import { normalizeMenuTheme } from '@/lib/vn/menuTheme';
 import {
@@ -584,9 +584,10 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
           .filter((l) => l.id),
       );
       return mapped.map((l, i) => {
-        const until = l.expressionUntilLineId;
-        if (!until) return l;
-        const sk = (l.speakerKey || '').trim();
+        const line = withParsedDiceLine(l);
+        const until = line.expressionUntilLineId;
+        if (!until) return line;
+        const sk = (line.speakerKey || '').trim();
         const ok = mapped.slice(i + 1).some(
           (x) =>
             x.id === until &&
@@ -594,7 +595,7 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
             (x.speakerKey || '').trim() === sk &&
             !x.narrationOnly,
         );
-        return ok ? l : { ...l, expressionUntilLineId: undefined };
+        return ok ? line : { ...line, expressionUntilLineId: undefined };
       });
     })(),
     backgrounds: normalizeVnBackgrounds(row.backgrounds),
