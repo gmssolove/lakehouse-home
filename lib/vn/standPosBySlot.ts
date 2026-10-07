@@ -186,7 +186,7 @@ function parseSlotRow(raw: unknown, len: number): TrioSlot[] | undefined {
   const next: TrioSlot[] = [];
   const seen = new Set<TrioSlot>();
   for (let i = 0; i < len; i++) {
-    const v = String(raw[i] || '').trim();
+    const v = String(list[i] || '').trim();
     if (!isTrioSlot(v) || seen.has(v)) return undefined;
     seen.add(v);
     next.push(v);

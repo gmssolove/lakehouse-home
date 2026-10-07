@@ -34,7 +34,7 @@ function asArrayIfObject<T>(val: T): T {
   return val;
 }
 
-export type UseFirebaseSectionOptions = {
+export type UseFirebaseSectionOptions<T = unknown> = {
   /** false면 Firebase 구독 없이 localStorage/default만 사용 */
   enabled?: boolean;
   /** RTDB limitToLast — 목록 섹션 용량 제한 */
@@ -53,7 +53,7 @@ export type UseFirebaseSectionOptions = {
 export function useFirebaseSection<T>(
   path: string,
   defaultValue: T,
-  options: UseFirebaseSectionOptions = {},
+  options: UseFirebaseSectionOptions<T> = {},
 ) {
   const {
     enabled = true,
@@ -67,6 +67,8 @@ export function useFirebaseSection<T>(
   const [loaded, setLoaded] = useState(false);
   const defaultRef = useRef(defaultValue);
   defaultRef.current = defaultValue;
+  const mergeIncomingRef = useRef(mergeIncoming);
+  mergeIncomingRef.current = mergeIncoming;
 
   useEffect(() => {
     const cached = readLocal(storageKey, defaultRef.current);
@@ -85,7 +87,8 @@ export function useFirebaseSection<T>(
       if (cancelled) return;
       const val = asArrayIfObject(raw);
       setData((prev) => {
-        const merged = mergeIncoming ? mergeIncoming(prev, val) : val;
+        const merge = mergeIncomingRef.current;
+        const merged = merge ? merge(prev, val) : val;
         try {
           localStorage.setItem(storageKey, JSON.stringify(merged));
         } catch {
@@ -147,7 +150,7 @@ export function useFirebaseSection<T>(
       window.clearTimeout(timeoutId);
       unsub?.();
     };
-  }, [path, storageKey, enabled, limitN, timeoutMs, cacheUrl, mergeIncoming]);
+  }, [path, storageKey, enabled, limitN, timeoutMs, cacheUrl]);
 
   const save = useCallback(
     async (next: T) => {
