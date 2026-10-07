@@ -182,8 +182,8 @@ export type ScenarioVnBackground = {
   /** URL 또는 data URL */
   image?: string;
   /**
-   * 이 배경을 고를 때 장소 배너도 띄울지.
-   * false면 배경만 바뀌고 배너는 안 뜸. 기본 true.
+   * false면 목록에 「배너 없음」만 표시. 재생 시에는 배경을 바꾸면
+   * 장소 이름은 배경 라벨을 따라감 (줄에 문구가 없을 때).
    */
   announceLocation?: boolean;
 };
@@ -750,6 +750,13 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
   let hideStandingsActive = false;
   /** sticky — true면 장소 배너 숨김 */
   let hideLocationActive = false;
+  /** sticky 배경 키 — 배너 문구가 비어도 장소 이름은 배경을 따라감 */
+  let stickyBgKey = '';
+  const bgLabelByKey = new Map(
+    (scene.backgrounds ?? [])
+      .filter((b) => b.key?.trim())
+      .map((b) => [b.key.trim(), (b.label || '').trim()] as const),
+  );
   /** true면 화면 비네트 ON. 줄의 true/false 지정 시만 바뀌고, 미지정은 유지 */
   let vignetteActive = false;
   /** true면 시야 흐림 ON */
@@ -1239,7 +1246,11 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
       type: 'dialogue' as const,
       lines: lines.map((l, mapIdx) => {
         lineIndex += 1;
-        const location = l.location?.trim() || undefined;
+        const lineBg = l.background?.trim() || '';
+        if (lineBg) stickyBgKey = lineBg;
+        const fromBg = stickyBgKey ? bgLabelByKey.get(stickyBgKey) || undefined : undefined;
+        const explicit = l.location?.trim() || undefined;
+        const location = (lineBg ? fromBg || explicit : explicit || fromBg) || undefined;
         const prevBg = mapIdx > 0 ? lines[mapIdx - 1]?.background : undefined;
         const bgChanged = Boolean(
           l.background?.trim() && l.background.trim() !== (prevBg || '').trim(),

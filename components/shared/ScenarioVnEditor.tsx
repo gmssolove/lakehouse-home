@@ -1434,8 +1434,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
           <section className="svn-editor__block">
             <div className="lh-dialogue-block__label">배경 &amp; 장소</div>
             <p className="lh-dialogue-editor__hint">
-              장소를 등록하고 배경 이미지를 올려두면, 대사 줄에서 드롭다운으로 고를 수 있어요. 「장소 배너
-              표시」를 켠 항목만 고를 때 장소 연출이 같이 들어갑니다.
+              장소를 등록하고 배경 이미지를 올려두면, 대사 줄에서 드롭다운으로 고를 수 있어요. 배경을 바꾸면
+              좌측 상단 장소 배너도 그 장소 이름으로 따라갑니다.
             </p>
             <div className="svn-editor__speakers">
               {backgrounds.map((bg) => (
@@ -2533,12 +2533,11 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                               onChange={(e) => {
                                 const key = e.target.value || undefined;
                                 const bg = key ? backgrounds.find((b) => b.key === key) : undefined;
-                                const announce = bg && bg.announceLocation !== false;
                                 updateLine(line.id, {
                                   background: key,
-                                  location: announce
+                                  location: key
                                     ? bg?.label?.trim() || undefined
-                                    : undefined,
+                                    : line.location,
                                 });
                               }}
                             >
@@ -2723,8 +2722,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                             </p>
                           ) : (
                             <p className="lh-dialogue-editor__hint" style={{ margin: '6px 0 0' }}>
-                              배경을 고르면 「장소 배너 표시」가 켜진 항목만 배너 문구가 채워집니다. 체크를
-                              끄거나 문구를 비우면 배경만 바뀝니다.
+                              배경을 고르면 장소 배너가 그 장소 이름으로 바뀝니다. 문구를 직접 고쳐도 되고,
+                              「장소 배너 유지」에서 숨길 수 있어요.
                             </p>
                           )}
                         </section>
