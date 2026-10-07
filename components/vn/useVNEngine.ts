@@ -309,7 +309,7 @@ export function useVNEngine({
       prevHandoutRef.current = nextHandout;
       setHandout(nextHandout);
     }
-    if (line.sfx && !line.missionUpdate && line.effect !== 'diceRoll') setSfx(line.sfx);
+    if (line.sfx && line.effect !== 'diceRoll') setSfx(line.sfx);
     else setSfx(null);
 
     setBackgroundChanged(bgFlag);

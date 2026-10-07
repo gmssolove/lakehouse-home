@@ -227,7 +227,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   }));
   const [busyMenuBg, setBusyMenuBg] = useState(false);
   const [openLine, setOpenLine] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState<'all' | 'dice' | 'narration' | 'noSprite' | 'chapter'>('all');
+  const [filter, setFilter] = useState<
+    'all' | 'dice' | 'narration' | 'noSprite' | 'chapter' | 'mission'
+  >('all');
   const [busySpeaker, setBusySpeaker] = useState<string | null>(null);
   const [busyBackground, setBusyBackground] = useState<string | null>(null);
   const [busyBgm, setBusyBgm] = useState<string | null>(null);
@@ -397,7 +399,8 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
     const narr = lines.filter((l) => l.narrationOnly || speakerMap.get(l.speakerKey)?.treatAsNarration).length;
     const missing = speakers.filter((s) => !s.treatAsNarration && !s.sprite).length;
     const chapters = lines.filter((l) => l.effect === 'titlecard').length;
-    return { total: lines.length, dice, narr, speakers: speakers.length, missing, chapters };
+    const missions = lines.filter((l) => Boolean(l.missionUpdate?.id?.trim())).length;
+    return { total: lines.length, dice, narr, speakers: speakers.length, missing, chapters, missions };
   }, [lines, speakers, speakerMap]);
 
   const visibleLines = useMemo(() => {
@@ -406,6 +409,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
     if (filter === 'narration')
       return lines.filter((l) => l.narrationOnly || speakerMap.get(l.speakerKey)?.treatAsNarration);
     if (filter === 'chapter') return lines.filter((l) => l.effect === 'titlecard');
+    if (filter === 'mission') return lines.filter((l) => Boolean(l.missionUpdate?.id?.trim()));
     return lines.filter((l) => {
       const sp = speakerMap.get(l.speakerKey);
       return sp && !sp.treatAsNarration && !sp.sprite;
@@ -1972,10 +1976,11 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
               <span>다이스 {stats.dice}회</span>
               <span>나레이션 {stats.narr}줄</span>
               <span>챕터카드 {stats.chapters}개</span>
+              <span>미션 {stats.missions}줄</span>
               <span className={stats.missing ? 'is-warn' : ''}>이미지 없음 {stats.missing}명</span>
             </div>
             <div className="svn-editor__filters">
-              {(['all', 'dice', 'narration', 'chapter', 'noSprite'] as const).map((f) => (
+              {(['all', 'dice', 'narration', 'chapter', 'noSprite', 'mission'] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -1990,7 +1995,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                         ? '나레이션만'
                         : f === 'chapter'
                           ? '챕터카드만'
-                          : '이미지 없는 화자'}
+                          : f === 'noSprite'
+                            ? '이미지 없는 화자'
+                            : '미션만'}
                 </button>
               ))}
             </div>
@@ -3142,7 +3149,7 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
                             </div>
                           ) : null}
                           <p className="lh-dialogue-editor__hint" style={{ margin: '6px 0 0' }}>
-                            이 줄에 도달하면 새 미션 / 미션 완료 배너가 뜹니다. 효과음은 배너와 함께 재생돼요.
+                            이 줄에 도달하면 새 미션 / 미션 완료 배너가 뜨고, 올려 둔 효과음은 바로 재생돼요.
                           </p>
                         </section>
 

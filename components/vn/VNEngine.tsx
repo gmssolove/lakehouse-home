@@ -37,8 +37,6 @@ import {
 import { separateStandX } from '@/lib/vn/separateStandX';
 import { VN_STAND_LAYOUT } from '@/lib/vn/standLayout';
 import { VN_NPC_CHARACTER } from '@/lib/vn/parseCcfoliaLog';
-import { getSfxVolume } from '@/lib/vn/vnAudioVolume';
-import { playSafe } from '@/lib/vn/safeAudio';
 import { collectSceneSpriteUrls, preloadVnImages } from '@/lib/vn/preloadVnImages';
 import { isDialogueFx, normalizeMotion } from '@/lib/vn/motions';
 import type { VNAnyScene, VNAssetResolvers, VNScene } from './types';
@@ -851,34 +849,6 @@ export function VNEngine({
     (narrationOnly ||
       Boolean(displayMission) ||
       (Boolean(eng.sprites?.length) && !hideDialogue));
-
-  /** 미션 배너가 뜰 때 효과음 — 배너당 1회, Audio 참조 유지(GC·끊김 방지) */
-  const missionSfxHold = useRef<HTMLAudioElement | null>(null);
-  const missionSfxPlayed = useRef<string | null>(null);
-  useEffect(() => {
-    if (!displayMission || !active || leaving) {
-      if (!displayMission) missionSfxPlayed.current = null;
-      return;
-    }
-    const playId = `${displayMission.id}:${displayMission.status}`;
-    if (missionSfxPlayed.current === playId) return;
-    missionSfxPlayed.current = playId;
-
-    const raw = eng.line?.sfx?.trim() || '';
-    const fallbackKey =
-      displayMission.status === 'complete' ? 'mission_complete' : 'mission_start';
-    const url = resolveSfx(raw || fallbackKey);
-    if (!url) return;
-
-    try {
-      const el = new Audio(url);
-      el.volume = getSfxVolume();
-      missionSfxHold.current = el;
-      playSafe(el, 'sfx', url);
-    } catch {
-      /* ignore */
-    }
-  }, [displayMission, active, leaving, eng.line?.sfx, resolveSfx]);
 
   /* holdBgm: UI는 숨기고 훅(BGM)만 유지 */
   if (!active && !leaving) return null;
