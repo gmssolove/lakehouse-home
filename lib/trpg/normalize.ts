@@ -441,16 +441,7 @@ function normalizeVnEditable(raw: unknown): TrpgScenario['vnEditable'] {
         })(),
       };
     })
-    .filter((s) => s.key)
-    .map((s) => {
-      if (s.homeSlot) return s;
-      const order = coerceFirebaseList(row.stageOrder).map((item) => String(item || '').trim());
-      const i = order.findIndex((k) => k === s.key);
-      if (i === 0) return { ...s, homeSlot: 'left' as const };
-      if (i === 1) return { ...s, homeSlot: 'center' as const };
-      if (i === 2) return { ...s, homeSlot: 'right' as const };
-      return s;
-    }),
+    .filter((s) => s.key),
     lines: (() => {
       const mapped = collapseStickyVignette(
         lines

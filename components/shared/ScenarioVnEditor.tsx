@@ -505,30 +505,19 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
   }
 
   function homeSlotOf(key: string): TrioSlot | '' {
-    const sp = speakers.find((s) => s.key === key);
-    if (sp?.homeSlot) return sp.homeSlot;
-    const i = stageOrder.findIndex((k) => k === key);
-    if (i === 0) return 'left';
-    if (i === 1) return 'center';
-    if (i === 2) return 'right';
+    const v = speakers.find((s) => s.key === key)?.homeSlot;
+    if (v === 'left' || v === 'center' || v === 'right') return v;
     return '';
   }
 
   function setSpeakerHome(key: string, slot: TrioSlot | '') {
-    const takenBy = slot
-      ? speakers.find((s) => s.key !== key && homeSlotOf(s.key) === slot)?.key
-      : undefined;
     setSpeakers((prev) =>
-      prev.map((s) => {
-        if (s.key === key) return { ...s, homeSlot: slot || undefined };
-        if (takenBy && s.key === takenBy) return { ...s, homeSlot: undefined };
-        return s;
-      }),
+      prev.map((s) => (s.key === key ? { ...s, homeSlot: slot || undefined } : s)),
     );
     setStageOrder((prev) => {
       const next = Array.from({ length: Math.max(3, prev.length) }, (_, i) => prev[i] || '');
       for (let i = 0; i < next.length; i++) {
-        if (next[i] === key || (takenBy && next[i] === takenBy)) next[i] = '';
+        if (next[i] === key) next[i] = '';
       }
       if (slot === 'left') next[0] = key;
       else if (slot === 'center') next[1] = key;
@@ -1859,8 +1848,9 @@ export const ScenarioVnEditor = forwardRef<ScenarioVnEditorHandle, Props>(functi
             <div className="svn-editor__seatorder">
               <div className="lh-dialogue-block__label" style={{ margin: 0 }}>기본 고정 자리</div>
               <p className="lh-dialogue-editor__hint">
-                인물마다 왼·중·오를 고정합니다. 「자동」이면 위에서 정한 인원별 자리(등장 순)를 따릅니다.
-                같은 자리는 한 명만 고를 수 있어요.
+                인물마다 왼·중·오를 따로 고릅니다. 「자동」이면 위에서 정한 인원별 자리(등장 순)를
+                따릅니다. 같은 자리를 여러 명이 골라도 설정은 유지되고, 동시에 서 있으면 나중에 나온
+                쪽이 그 자리에 섭니다.
               </p>
               {(() => {
                 const cast = speakers.filter((s) => s.sprite?.trim() && !s.treatAsNarration);
