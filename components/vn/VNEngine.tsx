@@ -36,7 +36,7 @@ import {
 } from '@/lib/vn/standPosBySlot';
 import { separateStandX } from '@/lib/vn/separateStandX';
 import { VN_STAND_LAYOUT } from '@/lib/vn/standLayout';
-import { VN_NPC_CHARACTER } from '@/lib/vn/parseCcfoliaLog';
+import { pickDiceCutinKey, VN_NPC_CHARACTER } from '@/lib/vn/parseCcfoliaLog';
 import { collectSceneSpriteUrls, preloadVnImages } from '@/lib/vn/preloadVnImages';
 import { isDialogueFx, normalizeMotion } from '@/lib/vn/motions';
 import type { VNAnyScene, VNAssetResolvers, VNScene } from './types';
@@ -94,8 +94,9 @@ type Props = {
   diceRollSfxDefault?: string;
   diceResultSfxDefault?: string;
   diceResultSfxByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone;
-  /** 씬 기본 다이스 컷인 GIF 키 */
+  /** 씬 기본 다이스 컷인 GIF 키 (종류별 미지정 폴백) */
   diceRollCutinDefault?: string;
+  diceCutinByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutinByTone;
   diceCutinMap?: Record<string, string>;
   /**
    * @deprecated 줄별 chapterLoadingBefore/After 사용.
@@ -153,6 +154,7 @@ export function VNEngine({
   diceResultSfxDefault,
   diceResultSfxByTone,
   diceRollCutinDefault,
+  diceCutinByTone,
   diceCutinMap,
   chapterLoading: chapterLoadingEnabled = false,
 }: Props) {
@@ -1050,7 +1052,11 @@ export function VNEngine({
           resultSfxByTone={diceResultToneUrls}
           resultSfxFallbackUrl={resolveSfx(diceResultSfxDefault || '')}
           cutinUrl={resolveDiceCutin(
-            eng.line.diceRoll.cutin?.trim() || diceRollCutinDefault || '',
+            pickDiceCutinKey(
+              eng.line.diceRoll,
+              diceCutinByTone,
+              diceRollCutinDefault,
+            ),
           )}
         />
       ) : null}

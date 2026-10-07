@@ -193,6 +193,7 @@ export function VnSceneResolver({ sceneId }: Props) {
     const chapterLoading = Boolean(edit?.chapterLoading ?? scene?.chapterLoading);
     const diceRollSfx = edit?.diceRollSfx ?? scene?.diceRollSfx;
     const diceRollCutin = edit?.diceRollCutin ?? scene?.diceRollCutin;
+    const diceCutinByTone = edit?.diceCutinByTone ?? scene?.diceCutinByTone;
     const diceResultSfx = edit?.diceResultSfx ?? scene?.diceResultSfx;
     const diceResultSfxByTone =
       edit?.diceResultSfxByTone ?? scene?.diceResultSfxByTone;
@@ -210,6 +211,7 @@ export function VnSceneResolver({ sceneId }: Props) {
       diceCutinList,
       diceRollSfx,
       diceRollCutin,
+      diceCutinByTone,
       diceResultSfx,
       diceResultSfxByTone,
       maxOnStage,
@@ -256,6 +258,7 @@ export function VnSceneResolver({ sceneId }: Props) {
       diceCutinMap={trpgPayload.diceCutinMap}
       diceRollSfx={trpgPayload.diceRollSfx}
       diceRollCutin={trpgPayload.diceRollCutin}
+      diceCutinByTone={trpgPayload.diceCutinByTone}
       diceResultSfx={trpgPayload.diceResultSfx}
       diceResultSfxByTone={trpgPayload.diceResultSfxByTone}
       menuTheme={trpgPayload.menuTheme}
@@ -278,6 +281,7 @@ function ScenarioVnPlayClient({
   diceCutinMap,
   diceRollSfx,
   diceRollCutin,
+  diceCutinByTone,
   diceResultSfx,
   diceResultSfxByTone,
   menuTheme,
@@ -296,6 +300,7 @@ function ScenarioVnPlayClient({
   diceCutinMap: Record<string, string>;
   diceRollSfx?: string;
   diceRollCutin?: string;
+  diceCutinByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutinByTone;
   diceResultSfx?: string;
   diceResultSfxByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone;
   menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;
@@ -450,6 +455,7 @@ function ScenarioVnPlayClient({
               diceCutinList: edit?.diceCutinList ?? item.vnScene?.diceCutinList,
               diceRollSfx: edit?.diceRollSfx ?? item.vnScene?.diceRollSfx,
               diceRollCutin: edit?.diceRollCutin ?? item.vnScene?.diceRollCutin,
+              diceCutinByTone: edit?.diceCutinByTone ?? item.vnScene?.diceCutinByTone,
               diceResultSfx: edit?.diceResultSfx ?? item.vnScene?.diceResultSfx,
               diceResultSfxByTone:
                 edit?.diceResultSfxByTone ?? item.vnScene?.diceResultSfxByTone,
@@ -600,6 +606,7 @@ function ScenarioVnPlayClient({
               diceCutinList: edit?.diceCutinList ?? item.vnScene?.diceCutinList,
               diceRollSfx: edit?.diceRollSfx ?? item.vnScene?.diceRollSfx,
               diceRollCutin: edit?.diceRollCutin ?? item.vnScene?.diceRollCutin,
+              diceCutinByTone: edit?.diceCutinByTone ?? item.vnScene?.diceCutinByTone,
               diceResultSfx: edit?.diceResultSfx ?? item.vnScene?.diceResultSfx,
               diceResultSfxByTone:
                 edit?.diceResultSfxByTone ?? item.vnScene?.diceResultSfxByTone,
@@ -872,9 +879,8 @@ function ScenarioVnPlayClient({
                 diceRollSfxDefault={
                   pickDefaultDiceKey(diceRollSfx, diceSfxMap)
                 }
-                diceRollCutinDefault={
-                  pickDefaultDiceKey(diceRollCutin, diceCutinMap)
-                }
+                diceRollCutinDefault={diceRollCutin}
+                diceCutinByTone={diceCutinByTone}
                 diceCutinMap={diceCutinMap}
                 diceResultSfxDefault={diceResultSfx}
                 diceResultSfxByTone={diceResultSfxByTone}

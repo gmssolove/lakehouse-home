@@ -227,6 +227,9 @@ export type ScenarioVnDiceResultSfxByTone = Partial<
   Record<Exclude<DiceResultTone, 'neutral'>, string>
 >;
 
+/** 판정 종류별 컷인 GIF 키 (diceCutinList) */
+export type ScenarioVnDiceCutinByTone = ScenarioVnDiceResultSfxByTone;
+
 export const DICE_RESULT_TONE_OPTIONS: {
   tone: Exclude<DiceResultTone, 'neutral'>;
   label: string;
@@ -256,6 +259,22 @@ export function pickDefaultDiceKey(
     return e;
   }
   return Object.keys(table)[0] || undefined;
+}
+
+/** 줄 지정 → 판정 종류별 컷인 → 그 외 폴백 */
+export function pickDiceCutinKey(
+  dice: Pick<VnDiceRoll, 'result' | 'cutin'>,
+  byTone: ScenarioVnDiceCutinByTone | undefined,
+  fallback?: string,
+): string {
+  const line = dice.cutin?.trim();
+  if (line) return line;
+  const tone = classifyDiceResultTone(dice.result);
+  if (tone !== 'neutral') {
+    const keyed = byTone?.[tone]?.trim();
+    if (keyed) return keyed;
+  }
+  return fallback?.trim() || '';
 }
 
 /** 판정 결과 문자열 → 톤 (효과음·연출 공통) */
@@ -328,8 +347,10 @@ export type ScenarioVnScene = {
   diceCutinList?: ScenarioVnDiceCutin[];
   /** 기본 굴림 효과음 키 (diceSfxList) */
   diceRollSfx?: string;
-  /** 기본 굴림 컷인 키 (diceCutinList) */
+  /** 종류별 미지정·기타 판정 폴백 컷인 키 (diceCutinList) */
   diceRollCutin?: string;
+  /** 판정 종류별 컷인 GIF 키 */
+  diceCutinByTone?: ScenarioVnDiceCutinByTone;
   /**
    * 기본 판정 결과 효과음 키 (선택) — 종류별 미지정·기타 판정 폴백
    * @deprecated 가능하면 diceResultSfxByTone 사용
@@ -574,6 +595,7 @@ export function toVnScene(
     diceCutinList?: ScenarioVnDiceCutin[];
     diceRollSfx?: string;
     diceRollCutin?: string;
+    diceCutinByTone?: ScenarioVnDiceCutinByTone;
     diceResultSfx?: string;
     diceResultSfxByTone?: ScenarioVnDiceResultSfxByTone;
     menuTheme?: import('@/lib/vn/menuTheme').ScenarioVnMenuTheme;
@@ -597,6 +619,7 @@ export function toVnScene(
     diceCutinList: opts?.diceCutinList ?? [],
     diceRollSfx: opts?.diceRollSfx,
     diceRollCutin: opts?.diceRollCutin,
+    diceCutinByTone: opts?.diceCutinByTone,
     diceResultSfx: opts?.diceResultSfx,
     diceResultSfxByTone: opts?.diceResultSfxByTone,
     maxOnStage: max,
@@ -1177,6 +1200,7 @@ export function scenarioVnToEnginePayload(scene: ScenarioVnScene) {
     diceCutinMap,
     diceRollSfx: scene.diceRollSfx,
     diceRollCutin: scene.diceRollCutin,
+    diceCutinByTone: scene.diceCutinByTone,
     diceResultSfx: scene.diceResultSfx,
     diceResultSfxByTone: scene.diceResultSfxByTone,
     menuTheme: scene.menuTheme,

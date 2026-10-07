@@ -325,6 +325,7 @@ export type TrpgScenario = WithSecret & {
     diceCutinList?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutin[];
     diceRollSfx?: string;
     diceRollCutin?: string;
+    diceCutinByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceCutinByTone;
     diceResultSfx?: string;
     diceResultSfxByTone?: import('@/lib/vn/parseCcfoliaLog').ScenarioVnDiceResultSfxByTone;
     maxOnStage?: number | 'all';

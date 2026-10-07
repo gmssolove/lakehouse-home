@@ -102,6 +102,22 @@
   }
 }
 
+.svn-dice-tone {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(215, 169, 130, 0.16);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.svn-dice-tone__name {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #f0cfad;
+}
+
 .svn-dice-badge {
   display: inline-flex;
   align-self: flex-start;

@@ -1600,6 +1600,7 @@ export function TrpgEditForm({
                       diceCutinList: form.vnScene.diceCutinList,
                       diceRollSfx: form.vnScene.diceRollSfx,
                       diceRollCutin: form.vnScene.diceRollCutin,
+                      diceCutinByTone: form.vnScene.diceCutinByTone,
                       diceResultSfx: form.vnScene.diceResultSfx,
                       diceResultSfxByTone: form.vnScene.diceResultSfxByTone,
                       maxOnStage: form.vnScene.maxOnStage,
