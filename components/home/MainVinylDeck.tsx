@@ -48,6 +48,11 @@ export function MainVinylDeck() {
   }, []);
 
   const handleLeave = useCallback(() => {
+    if (tiltRaf.current) {
+      window.cancelAnimationFrame(tiltRaf.current);
+      tiltRaf.current = 0;
+    }
+    pendingRef.current = null;
     setHovered(false);
     setTilt(TILT_IDLE);
   }, []);

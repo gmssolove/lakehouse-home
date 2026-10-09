@@ -2076,7 +2076,7 @@ export function OcCharacterDetail({
                           }`}
                           src={touchStackApi.stack.layers[layer] || portraitStackBase}
                           alt=""
-                          decoding="sync"
+                          decoding="async"
                           draggable={false}
                           style={portraitImgStyle(
                             shownPortrait?.fit || portraitTarget.fit,

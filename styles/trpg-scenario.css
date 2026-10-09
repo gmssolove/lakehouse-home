@@ -1812,14 +1812,17 @@
 }
 
 .trpg-card--editor-preview .trpg-card__media .image-frame-editor__viewport,
-.trpg-card--editor-preview .trpg-card__hover-portrait--editable .image-frame-editor__viewport {
+.trpg-card--editor-preview .trpg-card__hover-portrait--editable .image-frame-editor__viewport,
+.trpg-card--editor-preview .trpg-card__hover-portrait--editable .image-frame-editor__viewport.is-selected,
+.trpg-card--editor-preview .trpg-card__hover-portrait--editable .image-frame-editor__viewport.is-dragging {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  border: none;
+  border: none !important;
   border-radius: 0;
-  background: transparent;
+  background: transparent !important;
+  box-shadow: none !important;
   cursor: grab;
 }
 

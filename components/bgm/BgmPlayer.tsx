@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { clampBgmPlayerPosition, isBgmPlayerOffscreen, parsePx } from '@/lib/bgm/clampPlayerPosition';
 import { formatBgmTime } from '@/lib/bgm/formatTime';
-import { BGM_PLAYER_SIZE, useBgm } from '@/lib/contexts/BgmContext';
+import { BGM_PLAYER_SIZE, useBgm, useBgmTime } from '@/lib/contexts/BgmContext';
 import { useMainBgmVisibility } from '@/lib/contexts/MainBgmVisibilityContext';
 
 const COLLAPSED_SZ = 52;
@@ -45,8 +45,6 @@ export function BgmPlayer() {
     title,
     artist,
     activeTrackKey,
-    currentTime,
-    duration,
     toggle,
     setVolume,
     seek,
@@ -58,6 +56,7 @@ export function BgmPlayer() {
     playlistActive,
     setSeekScrubbing,
   } = useBgm();
+  const { currentTime, duration } = useBgmTime();
 
   const dragRef = useRef({
     active: false,

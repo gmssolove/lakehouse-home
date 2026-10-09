@@ -90,10 +90,10 @@
 .trpg-card-grid,
 #page-trpg #trpg-cards.trpg-card-grid {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 12px 12px !important;
   width: 100% !important;
-  max-width: min(960px, 100%) !important;
+  max-width: none !important;
   margin: 0 !important;
   padding: 0 0 8px !important;
   justify-content: start !important;
@@ -102,7 +102,7 @@
 .trpg-card {
   position: relative;
   width: 100%;
-  max-width: 320px;
+  max-width: none;
   min-height: 0;
   border-radius: 8px;
   transform-origin: center center;
@@ -387,7 +387,9 @@
   justify-content: flex-end;
 }
 
-.trpg-card__hover-portrait-frame {
+.trpg-card__hover-portrait-frame,
+.trpg-card__hover-portrait .image-frame-viewport,
+.trpg-card__hover-portrait .image-frame-viewport__frame {
   position: relative !important;
   inset: auto !important;
   width: 100%;
@@ -396,6 +398,9 @@
   max-height: 100%;
   /* image-frame-viewport 기본 overflow:hidden 이 네모 크롭을 만듦 */
   overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .trpg-card__hover-portrait-img {
@@ -456,33 +461,16 @@
   overflow: hidden !important;
 }
 
-@media (max-width: 1200px) {
-  .trpg-card-grid,
-  #page-trpg #trpg-cards.trpg-card-grid {
-    max-width: min(840px, 100%) !important;
-  }
-
-  .trpg-card {
-    max-width: 280px;
-  }
-}
-
 @media (max-width: 1080px) {
   .trpg-card-grid,
   #page-trpg #trpg-cards.trpg-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    max-width: min(600px, 100%) !important;
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 640px) {
   .trpg-card-grid,
   #page-trpg #trpg-cards.trpg-card-grid {
     grid-template-columns: 1fr !important;
-    max-width: min(360px, 100%) !important;
-  }
-
-  .trpg-card {
-    max-width: none;
   }
 }

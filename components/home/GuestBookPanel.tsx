@@ -11,6 +11,7 @@ import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
 import {
   LakeCancelIcon,
@@ -267,7 +268,15 @@ function GuestCard({
         lockedLabel="비밀글 — 탭하여 열람"
       >
         <LinkifiedBody text={entry.message} className="guest-card__body" />
-        {entry.imageUrl ? <img src={entry.imageUrl} alt="" className="guest-card__media" /> : null}
+        {entry.imageUrl ? (
+          <img
+            src={displayImageUrl(entry.imageUrl, 'card')}
+            alt=""
+            className="guest-card__media"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : null}
         {entry.videoUrl ? (
           <video src={entry.videoUrl} controls className="guest-card__media guest-card__media--video" />
         ) : null}
@@ -327,7 +336,15 @@ function GuestCard({
                 ) : (
                   <>
                     <ReplyBody text={reply.message} />
-                    {reply.imageUrl ? <img src={reply.imageUrl} alt="" className="guest-card__media" /> : null}
+                    {reply.imageUrl ? (
+                      <img
+                        src={displayImageUrl(reply.imageUrl, 'card')}
+                        alt=""
+                        className="guest-card__media"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : null}
                   </>
                 )}
               </div>

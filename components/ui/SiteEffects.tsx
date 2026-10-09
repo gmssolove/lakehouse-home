@@ -14,6 +14,7 @@ export function SiteEffects() {
   const { uiSettings, main } = useSiteContent();
   const [ripples, setRipples] = useState<Ripple[]>([]);
   const idRef = useRef(0);
+  const rippleTimers = useRef<number[]>([]);
   const settingsRef = useRef(uiSettings);
   settingsRef.current = uiSettings;
 
@@ -62,13 +63,19 @@ export function SiteEffects() {
       if (!settingsRef.current.clickRippleEnabled) return;
       const id = ++idRef.current;
       setRipples((prev) => [...prev.slice(-8), { id, x: e.clientX, y: e.clientY }]);
-      window.setTimeout(() => {
+      const tid = window.setTimeout(() => {
+        rippleTimers.current = rippleTimers.current.filter((t) => t !== tid);
         setRipples((prev) => prev.filter((r) => r.id !== id));
       }, 620);
+      rippleTimers.current.push(tid);
     }
 
     window.addEventListener('pointerdown', onPointerDown, { passive: true });
-    return () => window.removeEventListener('pointerdown', onPointerDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      for (const t of rippleTimers.current) window.clearTimeout(t);
+      rippleTimers.current = [];
+    };
   }, []);
 
   if (!uiSettings.clickRippleEnabled) return null;

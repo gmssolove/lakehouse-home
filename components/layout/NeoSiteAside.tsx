@@ -1,12 +1,13 @@
 'use client';
 
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
-import { useBgm } from '@/lib/contexts/BgmContext';
+import { useBgm, useBgmTime } from '@/lib/contexts/BgmContext';
 import { formatBgmTime } from '@/lib/bgm/formatTime';
 
 export function NeoSiteAside() {
   const { notices } = useSiteContent();
-  const { playing, title, artist, currentTime, duration } = useBgm();
+  const { playing, title, artist } = useBgm();
+  const { currentTime, duration } = useBgmTime();
   const updates = [...notices].slice(0, 4);
 
   return (
@@ -22,8 +23,12 @@ export function NeoSiteAside() {
           <strong>{title || '—'}</strong>
           {artist ? <span>{artist}</span> : null}
           <div className="neo-nowplaying__bar">
-            <span style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }} />
-          </div>
+          <span
+            style={{
+              transform: `scaleX(${duration > 0 ? Math.min(1, currentTime / duration) : 0})`,
+            }}
+          />
+        </div>
           <em>
             {playing ? '▶' : '■'} {formatBgmTime(currentTime)} / {formatBgmTime(duration)}
           </em>

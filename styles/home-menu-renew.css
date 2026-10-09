@@ -581,6 +581,11 @@ html:has(.layout--home):has(body.lh-route-enter) .rq-menu-panel {
   align-self: flex-start !important;
 }
 
+.layout.layout--home #page-trpg.content-block.active > .trpg-card-board {
+  width: 100% !important;
+  max-width: none !important;
+}
+
 .layout.layout--home #page-trpg.content-block.active > .page-sub,
 .layout.layout--home #page-banner.content-block.active > .page-sub {
   /* 오른쪽에도 왼쪽 메뉴(--lh-menu-safe)만큼 여백 */

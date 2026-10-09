@@ -55,13 +55,13 @@ export function useOcData() {
         if (!snap.exists()) return;
         const val = normalizeCharacters(snap.val() as OcCharacter[]);
         localStorage.setItem('oc_characters', JSON.stringify(val));
-        setCharacters(val);
+        setCharacters((prev) => (JSON.stringify(prev) === JSON.stringify(val) ? prev : val));
       }),
       onValue(ref(db, 'lhdata/oc_categories'), (snap) => {
         if (!snap.exists()) return;
         const val = mergeCategoryList(snap.val() as string[]);
         localStorage.setItem('oc_categories', JSON.stringify(val));
-        setCategories(val);
+        setCategories((prev) => (JSON.stringify(prev) === JSON.stringify(val) ? prev : val));
       }),
     ];
 
@@ -69,13 +69,38 @@ export function useOcData() {
   }, []);
 
   const saveCharacters = useCallback(async (next: OcCharacter[]) => {
+    const prevById = new Map(characters.map((c) => [String(c.id), c]));
     const cleaned = normalizeCharacters(next).map(stripEmptyThemeFields);
     const prepared = stripUndefinedDeep(await prepareCharactersForSave(cleaned));
     localStorage.setItem('oc_characters', JSON.stringify(prepared));
     setCharacters(prepared);
     await set(ref(db, 'lhdata/oc_characters'), prepared);
+
+    /* Gemini static cache — 설정이 바뀐 캐릭터만 무효화(해시 재생성 전 원격 삭제) */
+    const changedIds = (prepared as OcCharacter[])
+      .map((c) => String(c.id || '').trim())
+      .filter((id) => {
+        if (!id) return false;
+        const prev = prevById.get(id);
+        if (!prev) return true;
+        try {
+          return JSON.stringify(prev) !== JSON.stringify(
+            (prepared as OcCharacter[]).find((x) => String(x.id) === id),
+          );
+        } catch {
+          return true;
+        }
+      });
+    if (changedIds.length) {
+      void fetch('/api/oc-chat-gemini-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterIds: changedIds, kind: 'all' }),
+      }).catch(() => {});
+    }
+
     return prepared as OcCharacter[];
-  }, []);
+  }, [characters]);
 
   const saveCategories = useCallback(async (next: string[]) => {
     const merged = mergeCategoryList(next);

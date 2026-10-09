@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { framedImageStyle, type ImageFrame } from '@/lib/shared/imageFrame';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 
 /** Shared card model for universe / pair skew accordion */
 export type SkewAccordionCard = {
@@ -95,6 +96,8 @@ export function UniverseAccordionCards({
   const [canNext, setCanNext] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tiltById, setTiltById] = useState<Record<string, Tilt>>({});
+  const tiltRaf = useRef(0);
+  const pendingTilt = useRef<{ id: string; x: number; y: number } | null>(null);
   const dragRef = useRef<{
     armed: boolean;
     dragging: boolean;
@@ -121,6 +124,12 @@ export function UniverseAccordionCards({
     if (!el) return;
     const max = el.scrollWidth - el.clientWidth;
     setCanNext(max > 4 && el.scrollLeft < max - 4);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (tiltRaf.current) window.cancelAnimationFrame(tiltRaf.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -201,16 +210,25 @@ export function UniverseAccordionCards({
     if (!interactiveTilt || dragRef.current.dragging) return;
     const el = e.currentTarget;
     const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    setTiltById((prev) => ({
-      ...prev,
-      [cardId]: {
-        ry: (x - 0.5) * 14,
-        rx: -(y - 0.5) * 11 - 2,
-        shine: x * 100,
-      },
-    }));
+    pendingTilt.current = {
+      id: cardId,
+      x: (e.clientX - r.left) / r.width,
+      y: (e.clientY - r.top) / r.height,
+    };
+    if (tiltRaf.current) return;
+    tiltRaf.current = window.requestAnimationFrame(() => {
+      tiltRaf.current = 0;
+      const p = pendingTilt.current;
+      if (!p) return;
+      setTiltById((prev) => ({
+        ...prev,
+        [p.id]: {
+          ry: (p.x - 0.5) * 14,
+          rx: -(p.y - 0.5) * 11 - 2,
+          shine: p.x * 100,
+        },
+      }));
+    });
   }
 
   function handleTiltLeave(cardId: string) {
@@ -244,9 +262,12 @@ export function UniverseAccordionCards({
           {img ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={img}
+              src={displayImageUrl(img, 'card')}
               alt=""
               className="uni-skew__img"
+              loading={isFirst ? 'eager' : 'lazy'}
+              decoding="async"
+              fetchPriority={isFirst ? 'high' : 'low'}
               style={framedImageStyle(card.imgFrame, {
                 fit: card.imgFit || 'cover',
                 pos: card.imgPos || 'center',

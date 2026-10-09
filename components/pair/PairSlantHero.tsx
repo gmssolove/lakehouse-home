@@ -34,6 +34,8 @@ export function PairSlantHero({
   const metaVisible = showMeta ?? variant === 'card';
   const interactive = interactiveProp ?? variant === 'card';
   const cardRef = useRef<HTMLDivElement>(null);
+  const tiltRaf = useRef(0);
+  const pendingTilt = useRef<{ x: number; y: number } | null>(null);
   const [tilt, setTilt] = useState<Tilt>(TILT_IDLE);
   const [hovered, setHovered] = useState(false);
 
@@ -41,16 +43,29 @@ export function PairSlantHero({
     const el = cardRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    setTilt({
-      ry: (x - 0.5) * 14,
-      rx: -(y - 0.5) * 11 - 2,
-      shine: x * 100,
+    pendingTilt.current = {
+      x: (e.clientX - r.left) / r.width,
+      y: (e.clientY - r.top) / r.height,
+    };
+    if (tiltRaf.current) return;
+    tiltRaf.current = window.requestAnimationFrame(() => {
+      tiltRaf.current = 0;
+      const p = pendingTilt.current;
+      if (!p) return;
+      setTilt({
+        ry: (p.x - 0.5) * 14,
+        rx: -(p.y - 0.5) * 11 - 2,
+        shine: p.x * 100,
+      });
     });
   }, []);
 
   const handleLeave = useCallback(() => {
+    if (tiltRaf.current) {
+      window.cancelAnimationFrame(tiltRaf.current);
+      tiltRaf.current = 0;
+    }
+    pendingTilt.current = null;
     setHovered(false);
     setTilt(TILT_IDLE);
   }, []);
@@ -85,8 +100,8 @@ export function PairSlantHero({
                 fit={cover.fit}
                 pos={cover.pos}
                 imgClassName="pair-banner__img"
-                size="hero"
-                eager
+                size={variant === 'card' ? 'card' : 'hero'}
+                eager={variant !== 'card' || staggerIndex < 4}
               />
             ) : (
               <div className="pair-banner__placeholder">

@@ -1,4 +1,5 @@
 import type { BannerItem } from '@/lib/types/site-content';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 import { BannerDividerIcon } from '@/lib/banner/dividerIcons';
 
 type BannerLegacy = BannerItem & { name?: string; url?: string };
@@ -31,7 +32,12 @@ export function BannerTile({ banner }: { banner: BannerItem }) {
   const tile = (
     <div className="lh-banner-tile">
       {banner.img ? (
-        <img src={banner.img} alt={banner.title || tip || 'banner'} />
+        <img
+          src={displayImageUrl(banner.img, 'thumb')}
+          alt={banner.title || tip || 'banner'}
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
         <span className="lh-banner-tile-fallback">{banner.title || 'Banner'}</span>
       )}

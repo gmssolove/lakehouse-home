@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { WiredWindow } from '@/components/ui/WiredWindow';
-import { useBgm } from '@/lib/contexts/BgmContext';
+import { useBgm, useBgmTime } from '@/lib/contexts/BgmContext';
 import { formatBgmTime } from '@/lib/bgm/formatTime';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 
@@ -29,7 +29,8 @@ function pad(n: number) {
 
 export function WiredDesktop() {
   const { main } = useSiteContent();
-  const { playing, title, artist, currentTime, duration } = useBgm();
+  const { playing, title, artist } = useBgm();
+  const { currentTime, duration } = useBgmTime();
   const now = useClock();
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
@@ -70,7 +71,7 @@ export function WiredDesktop() {
           ))}
         </div>
         <div className="lh-wired-audio__bar" aria-hidden="true">
-          <span style={{ width: `${progress}%` }} />
+          <span style={{ transform: `scaleX(${progress / 100})` }} />
         </div>
         <div className="lh-wired-audio__times">
           <span>{formatBgmTime(currentTime)}</span>

@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  memo,
   useCallback,
   useContext,
   useEffect,
@@ -97,6 +98,11 @@ type Snapshot = {
   playing: boolean;
 };
 
+type BgmTimeValue = {
+  currentTime: number;
+  duration: number;
+};
+
 type BgmContextValue = {
   playing: boolean;
   collapsed: boolean;
@@ -105,8 +111,6 @@ type BgmContextValue = {
   playerSize: { width: number; height: number };
   title: string;
   artist: string;
-  currentTime: number;
-  duration: number;
   activeTrackKey: string;
   toggle: () => void;
   setVolume: (v: number) => void;
@@ -142,6 +146,11 @@ type BgmContextValue = {
 };
 
 const BgmContext = createContext<BgmContextValue | null>(null);
+const BgmTimeContext = createContext<BgmTimeValue | null>(null);
+
+const BgmStableChildren = memo(function BgmStableChildren({ children }: { children: ReactNode }) {
+  return children;
+});
 
 const DEFAULT_VOLUME = 40;
 
@@ -173,6 +182,13 @@ function fmtTime(sec: number) {
 export function useBgm() {
   const ctx = useContext(BgmContext);
   if (!ctx) throw new Error('useBgm must be used within BgmProvider');
+  return ctx;
+}
+
+/** 재생 위치만 — 시크바·시간 표시 컴포넌트 전용 (페이지 전체 리렌더 방지) */
+export function useBgmTime() {
+  const ctx = useContext(BgmTimeContext);
+  if (!ctx) throw new Error('useBgmTime must be used within BgmProvider');
   return ctx;
 }
 
@@ -553,33 +569,30 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     writeJson(UI_KEY, { ...readJson<UiState>(UI_KEY), ...extra });
   }, []);
 
-  const persistState = useCallback(
-    (extra: SavedState) => {
-      const t = trackRef.current;
-      let time = currentTime;
-      try {
-        if (t?.kind === 'youtube' && ytRef.current?.getCurrentTime) {
-          time = ytRef.current.getCurrentTime() || time;
-        } else if (audioRef.current) {
-          time = audioRef.current.currentTime;
-        }
-      } catch {
-        /* ignore */
+  const persistState = useCallback((extra: SavedState) => {
+    const t = trackRef.current;
+    let time = 0;
+    try {
+      if (t?.kind === 'youtube' && ytRef.current?.getCurrentTime) {
+        time = ytRef.current.getCurrentTime() || 0;
+      } else if (audioRef.current) {
+        time = audioRef.current.currentTime;
       }
-      writeJson(STATE_KEY, {
-        kind: t?.kind,
-        id: t?.id,
-        title: t?.title,
-        artist: t?.artist,
-        scope: t?.scope,
-        playing: playingRef.current,
-        userPaused: userPausedRef.current,
-        currentTime: time,
-        ...extra,
-      });
-    },
-    [currentTime],
-  );
+    } catch {
+      /* ignore */
+    }
+    writeJson(STATE_KEY, {
+      kind: t?.kind,
+      id: t?.id,
+      title: t?.title,
+      artist: t?.artist,
+      scope: t?.scope,
+      playing: playingRef.current,
+      userPaused: userPausedRef.current,
+      currentTime: time,
+      ...extra,
+    });
+  }, []);
 
   const getTime = useCallback(() => {
     try {
@@ -1563,7 +1576,9 @@ export function BgmProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!playing) return;
-    const id = window.setInterval(() => {
+    let persistN = 0;
+    const tick = () => {
+      if (document.hidden) return;
       if (seekScrubbingRef.current) return;
       const track = trackRef.current;
       /* UI만 재생 중·media는 빈 src/일시정지 → 자동 복구 (컨트롤 먹통처럼 보이던 상태) */
@@ -1594,9 +1609,18 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         syncDurationFromAudio();
       }
       maybeAdvanceNearEnd();
-      persistState({ playing: true, currentTime: t });
-    }, 500);
-    return () => window.clearInterval(id);
+      persistN += 1;
+      if (persistN % 4 === 0) persistState({ playing: true, currentTime: t });
+    };
+    const id = window.setInterval(tick, 500);
+    const onVis = () => {
+      if (!document.hidden) setCurrentTime(getTime());
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [getTime, isAudioPlaybackStuck, maybeAdvanceNearEnd, persistState, playing, syncDurationFromAudio]);
 
   useEffect(() => {
@@ -1640,8 +1664,6 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       title,
       artist,
       activeTrackKey,
-      currentTime,
-      duration,
       toggle,
       setVolume,
       seek,
@@ -1669,8 +1691,6 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       title,
       artist,
       activeTrackKey,
-      currentTime,
-      duration,
       toggle,
       setVolume,
       seek,
@@ -1691,10 +1711,17 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  const timeValue = useMemo<BgmTimeValue>(
+    () => ({ currentTime, duration }),
+    [currentTime, duration],
+  );
+
   return (
     <BgmContext.Provider value={contextValue}>
-      <audio ref={audioRef} preload="auto" style={{ display: 'none' }} />
-      {children}
+      <BgmTimeContext.Provider value={timeValue}>
+        <audio ref={audioRef} preload="metadata" style={{ display: 'none' }} />
+        <BgmStableChildren>{children}</BgmStableChildren>
+      </BgmTimeContext.Provider>
     </BgmContext.Provider>
   );
 }

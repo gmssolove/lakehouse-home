@@ -67,6 +67,7 @@ function fileHeaders(object) {
   /* immutable 제거 — Range 지원 배포 후 브라우저가 옛 응답을 영원히 붙잡지 않게 */
   /* 키에 timestamp+uuid — 내용이 바뀌지 않음 */
   headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('X-LH-Image', 'original');
   return headers;
 }
 
@@ -105,8 +106,14 @@ async function transformR2Image(env, object, width, quality, format) {
   }
 }
 
+function withCacheHitHeader(response, hit) {
+  const headers = new Headers(response.headers);
+  headers.set('X-LH-Image-Cache', hit ? 'HIT' : 'MISS');
+  return new Response(response.body, { status: response.status, headers });
+}
+
 /** HTMLAudioElement seek needs Accept-Ranges + 206 Content-Range */
-async function serveFile(request, env) {
+async function serveFile(request, env, ctx) {
   const url = new URL(request.url);
   const key = decodeURIComponent(url.pathname.replace(/^\/file\//, ''));
   if (!key) return json({ error: 'missing key' }, 400);
@@ -123,6 +130,12 @@ async function serveFile(request, env) {
   const wantW = Number(url.searchParams.get('w') || 0);
   const canResize =
     request.method === 'GET' && !hasRange && Number.isFinite(wantW) && wantW >= 16;
+  const cacheable = request.method === 'GET' && !hasRange;
+  const cache = cacheable && typeof caches !== 'undefined' ? caches.default : null;
+  if (cache) {
+    const hit = await cache.match(request);
+    if (hit) return withCacheHitHeader(hit, true);
+  }
 
   let object = await env.R2_BUCKET.get(key, hasRange ? { range: request.headers } : undefined);
   if (!object) return json({ error: 'not found' }, 404);
@@ -138,7 +151,10 @@ async function serveFile(request, env) {
       headers.set('Cache-Control', 'public, max-age=31536000, immutable');
       headers.set('Vary', 'Accept');
       headers.set('X-LH-Image', 'resized');
-      return new Response(transformed.body, { status: 200, headers });
+      headers.set('X-LH-Image-Cache', 'MISS');
+      const resized = new Response(transformed.body, { status: 200, headers });
+      if (cache && ctx && ctx.waitUntil) ctx.waitUntil(cache.put(request, resized.clone()));
+      return resized;
     }
     /* 스트림을 이미 소비했을 수 있음 → 원본 재조회 */
     object = await env.R2_BUCKET.get(key);
@@ -161,7 +177,10 @@ async function serveFile(request, env) {
   }
 
   headers.set('Content-Length', String(object.size));
-  return new Response(object.body, { status: 200, headers });
+  headers.set('X-LH-Image-Cache', 'MISS');
+  const original = new Response(object.body, { status: 200, headers });
+  if (cache && ctx && ctx.waitUntil) ctx.waitUntil(cache.put(request, original.clone()));
+  return original;
 }
 
 async function upload(request, env) {
@@ -201,7 +220,7 @@ async function upload(request, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
@@ -210,7 +229,7 @@ export default {
       (request.method === 'GET' || request.method === 'HEAD') &&
       url.pathname.startsWith('/file/')
     ) {
-      return serveFile(request, env);
+      return serveFile(request, env, ctx);
     }
     if (request.method === 'POST' && (url.pathname === '/' || url.pathname === '/upload')) {
       return upload(request, env);

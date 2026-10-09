@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { limitToLast, onValue, query, ref, set, type Query, type DatabaseReference } from 'firebase/database';
 import { db } from '@/lib/firebase/client';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
@@ -70,11 +70,13 @@ export function useFirebaseSection<T>(
   const mergeIncomingRef = useRef(mergeIncoming);
   mergeIncomingRef.current = mergeIncoming;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const cached = readLocal(storageKey, defaultRef.current);
     setData((prev) => (sameSnapshot(prev, cached) ? prev : cached));
     setLoaded(true);
+  }, [storageKey]);
 
+  useEffect(() => {
     if (!enabled) {
       return;
     }
@@ -115,38 +117,35 @@ export function useFirebaseSection<T>(
       }
     };
 
-    const timer = window.setTimeout(() => {
-      void hydrateFromCache();
+    void hydrateFromCache();
 
-      const base: DatabaseReference = ref(db, path);
-      const source: Query | DatabaseReference =
-        limitN != null && limitN > 0 ? query(base, limitToLast(limitN)) : base;
+    const base: DatabaseReference = ref(db, path);
+    const source: Query | DatabaseReference =
+      limitN != null && limitN > 0 ? query(base, limitToLast(limitN)) : base;
 
-      timeoutId = window.setTimeout(() => {
-        /* 타임아웃: localStorage/default 유지, UI 차단 해제. 구독은 유지해 늦게 오면 반영 */
-        if (!cancelled) setLoaded(true);
-      }, timeoutMs);
+    timeoutId = window.setTimeout(() => {
+      /* 타임아웃: localStorage/default 유지, UI 차단 해제. 구독은 유지해 늦게 오면 반영 */
+      if (!cancelled) setLoaded(true);
+    }, timeoutMs);
 
-      unsub = onValue(
-        source,
-        (snap) => {
-          window.clearTimeout(timeoutId);
-          if (!snap.exists()) {
-            setLoaded(true);
-            return;
-          }
-          applyVal(snap.val() as T);
-        },
-        () => {
-          window.clearTimeout(timeoutId);
+    unsub = onValue(
+      source,
+      (snap) => {
+        window.clearTimeout(timeoutId);
+        if (!snap.exists()) {
           setLoaded(true);
-        },
-      );
-    }, 0);
+          return;
+        }
+        applyVal(snap.val() as T);
+      },
+      () => {
+        window.clearTimeout(timeoutId);
+        setLoaded(true);
+      },
+    );
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
       window.clearTimeout(timeoutId);
       unsub?.();
     };

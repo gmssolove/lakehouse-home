@@ -10,6 +10,8 @@ type Props = {
 
 export function PairAddSlot({ staggerIndex, isAdmin, onAdd }: Props) {
   const shieldRef = useRef<HTMLDivElement>(null);
+  const tiltRaf = useRef(0);
+  const pendingTilt = useRef<{ x: number; y: number } | null>(null);
   const [hovered, setHovered] = useState(false);
   const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
 
@@ -17,15 +19,28 @@ export function PairAddSlot({ staggerIndex, isAdmin, onAdd }: Props) {
     const el = shieldRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    setTilt({
-      ry: (x - 0.5) * 10,
-      rx: -(y - 0.5) * 8 - 1,
+    pendingTilt.current = {
+      x: (e.clientX - r.left) / r.width,
+      y: (e.clientY - r.top) / r.height,
+    };
+    if (tiltRaf.current) return;
+    tiltRaf.current = window.requestAnimationFrame(() => {
+      tiltRaf.current = 0;
+      const p = pendingTilt.current;
+      if (!p) return;
+      setTilt({
+        ry: (p.x - 0.5) * 10,
+        rx: -(p.y - 0.5) * 8 - 1,
+      });
     });
   }, []);
 
   const handleLeave = useCallback(() => {
+    if (tiltRaf.current) {
+      window.cancelAnimationFrame(tiltRaf.current);
+      tiltRaf.current = 0;
+    }
+    pendingTilt.current = null;
     setHovered(false);
     setTilt({ rx: 0, ry: 0 });
   }, []);

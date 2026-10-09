@@ -7,6 +7,7 @@ import {
 } from '@/lib/oc/ocChat';
 import { resolveChatAvatarUrl } from '@/lib/oc/ocChatPrompt';
 import type { OcCharacter } from '@/lib/types/character';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 
 export type OcChatInboxRow = OcChatInboxItem & {
   character: OcCharacter;
@@ -64,7 +65,13 @@ export function OcChatInboxList({
           >
             <div className="oc-chat-inbox__avatar" aria-hidden>
               {avatar ? (
-                <img src={avatar} alt="" referrerPolicy="no-referrer" />
+                <img
+                  src={displayImageUrl(avatar, 'avatar')}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  loading="lazy"
+                  decoding="async"
+                />
               ) : (
                 <span>{initial}</span>
               )}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { OcRichText } from '@/lib/oc/richText';
 import { StoryTweetEmbeds } from '@/components/shared/StoryTweetEmbeds';
 import type { StoryEntry, StoryViewMode } from '@/lib/types/character';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 
 function looksLikeHtml(s: string) {
   return /<\/?[a-z][\s\S]*>/i.test(s);
@@ -54,7 +55,14 @@ export function StoryPostBody({ entry, chapterIndex = 0, preview, className = ''
         {images.length ? (
           images.map((src, i) => (
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={`${src}-${i}`} src={src} alt="" className="lh-story-scroll__img" />
+            <img
+              key={`${src}-${i}`}
+              src={displayImageUrl(src, 'card')}
+              alt=""
+              className="lh-story-scroll__img"
+              loading="lazy"
+              decoding="async"
+            />
           ))
         ) : (
           <p className="lh-story-scroll__empty">등록된 이미지가 없습니다.</p>
