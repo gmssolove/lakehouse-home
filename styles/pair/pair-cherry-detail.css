@@ -5550,10 +5550,8 @@
 
 /* 타임라인·갤러리 페이저 — Records와 동일 + 전역 nav 구분선/그림자 제거 */
 .pair-detail-screen .pair-panel__timeline-shell > .lh-diary__pager,
-.pair-detail-screen .pair-panel__gallery-wrap > .lh-diary__pager,
 .pair-detail-screen .pair-panel__story-list .lh-diary__pager,
 .pair-detail-screen .pair-panel__timeline-shell > .lh-story-pager,
-.pair-detail-screen .pair-panel__gallery-wrap > .lh-story-pager,
 .pair-detail-screen .pair-panel__story-list .lh-story-pager {
   flex-shrink: 0;
   height: auto !important;
