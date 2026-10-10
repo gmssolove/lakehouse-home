@@ -28,7 +28,7 @@ export function isR2PublicUrl(src: string): boolean {
 }
 
 export function displayImageUrl(
-  src: string,
+  src: string | null | undefined,
   preset: DisplayImagePreset = 'card',
   widthOverride?: number,
 ): string {
