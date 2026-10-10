@@ -80,6 +80,7 @@ import type {
   StoryEntry,
 } from '@/lib/types/character';
 import { pairGalleryUrls } from '@/lib/types/character';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 
 /** 섹션 진입 스크롤 정렬 보정 — 상단 캐릭터 일러 잘림 방지 */
 const PANEL_SCROLL_OFFSET = 64;
@@ -305,7 +306,7 @@ function CharaSide({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className={`chara-billboard chara-billboard--${side}`}
-          src={body}
+          src={displayImageUrl(body, 'hero')}
           alt=""
           decoding="async"
           referrerPolicy="no-referrer"
@@ -352,7 +353,7 @@ function CharaSide({
         <img
           className="chara-body"
           key={body}
-          src={body}
+          src={displayImageUrl(body, 'hero')}
           alt=""
           referrerPolicy="no-referrer"
           decoding="async"
@@ -561,9 +562,10 @@ function TimelineRevealItem({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               className="pair-timeline__img"
-              src={img}
+              src={displayImageUrl(img, 'thumb')}
               alt=""
               loading="lazy"
+              decoding="async"
               referrerPolicy="no-referrer"
             />
           </button>
@@ -1606,7 +1608,7 @@ export function PairArchiveDetail({
                     aria-label={g.title?.trim() || '이미지 보기'}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={cover.trim()} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                    <img src={displayImageUrl(cover.trim(), 'thumb')} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
                   </button>
                 </figure>
               );
@@ -1645,7 +1647,7 @@ export function PairArchiveDetail({
     [onLayoutChange, pair],
   );
 
-  const bgUrl = pair.bg?.trim();
+  const bgUrl = pair.bg?.trim() ? displayImageUrl(pair.bg.trim(), 'hero') : '';
   const bgStyle = {
     ...(bgUrl
       ? {
@@ -1781,8 +1783,9 @@ export function PairArchiveDetail({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   className="pair-plate__logo"
-                  src={pair.logo.trim()}
+                  src={displayImageUrl(pair.logo.trim(), 'thumb')}
                   alt=""
+                  decoding="async"
                   referrerPolicy="no-referrer"
                 />
               ) : null}
@@ -2140,7 +2143,7 @@ export function PairArchiveDetail({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       key={`${galleryLightbox.id || galleryLightbox.src}-${galleryLbIndex}-${gallerySlideTick}`}
-                      src={cur}
+                      src={displayImageUrl(cur, 'hero')}
                       alt=""
                       referrerPolicy="no-referrer"
                       decoding="async"
@@ -2191,7 +2194,7 @@ export function PairArchiveDetail({
           </button>
           <div className="oc-gallery-lightbox-stage" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={timelineLightbox.src} alt="" referrerPolicy="no-referrer" />
+            <img src={displayImageUrl(timelineLightbox.src, 'hero')} alt="" decoding="async" referrerPolicy="no-referrer" />
           </div>
         </div>
       ) : null}

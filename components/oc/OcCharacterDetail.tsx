@@ -1845,7 +1845,7 @@ export function OcCharacterDetail({
                           aria-pressed={ghostImg === opt.src}
                           onClick={() => persistGhostImg(opt.src)}
                         >
-                          <img src={opt.src} alt="" draggable={false} />
+                          <img src={displayImageUrl(opt.src, 'thumb')} alt="" draggable={false} />
                         </button>
                       ))}
                       <button
@@ -2021,7 +2021,7 @@ export function OcCharacterDetail({
                 }}
                 {...ghostDrag.handlers}
               >
-                <img className="oc-char-billboard" src={ghostDisplaySrc} alt="" decoding="async" draggable={false} />
+                <img className="oc-char-billboard" src={displayImageUrl(ghostDisplaySrc, 'hero')} alt="" decoding="async" draggable={false} />
               </div>
             </div>
           ) : null}
@@ -2057,10 +2057,11 @@ export function OcCharacterDetail({
                     >
                       {charMotion === 'pulse' ? (
                         <VnCharBloom
-                          src={
+                          src={displayImageUrl(
                             touchStackApi.stack.layers[touchStackApi.stack.front] ||
-                            portraitStackBase
-                          }
+                              portraitStackBase,
+                            'hero',
+                          )}
                           imgStyle={portraitImgStyle(
                             shownPortrait?.fit || portraitTarget.fit,
                             shownPortrait?.pos || portraitTarget.pos,
@@ -2074,7 +2075,10 @@ export function OcCharacterDetail({
                           className={`game-char-img oc-char-portrait-layer${
                             touchStackApi.stack.front === layer ? ' is-front' : ' is-back'
                           }`}
-                          src={touchStackApi.stack.layers[layer] || portraitStackBase}
+                          src={displayImageUrl(
+                            touchStackApi.stack.layers[layer] || portraitStackBase,
+                            'hero',
+                          )}
                           alt=""
                           decoding="async"
                           draggable={false}
@@ -2480,7 +2484,7 @@ export function OcCharacterDetail({
           </button>
           <div className="oc-gallery-lightbox-stage" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={galleryLightbox.src} alt="" />
+            <img src={displayImageUrl(galleryLightbox.src, 'hero')} alt="" decoding="async" />
             {galleryLightbox.credit?.trim() ? (
               <p className="oc-gallery-lightbox-credit">{formatGalleryCredit(galleryLightbox.credit)}</p>
             ) : null}

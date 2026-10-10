@@ -167,6 +167,7 @@ export function TrpgThumbnailEditor({
                       pos="center center"
                       className="trpg-card__media-frame"
                       imgClassName="trpg-card__media-img"
+                      size="card"
                     />
                   )}
                 </div>
@@ -215,6 +216,7 @@ export function TrpgThumbnailEditor({
                             pos={portrait.pos}
                             className="trpg-card__hover-portrait-frame"
                             imgClassName="trpg-card__hover-portrait-img"
+                            size="thumb"
                           />
                         </div>
                       ) : null}

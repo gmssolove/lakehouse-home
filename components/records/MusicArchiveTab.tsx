@@ -5,6 +5,8 @@ import { SecretItemGate } from '@/components/lake/SecretItemGate';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import type { MusicComment, MusicTrack } from '@/lib/types/site-content';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
+import { prefetchAudio } from '@/lib/media/prefetchAudio';
 import { newId } from '@/lib/types/site-content';
 import type { User } from 'firebase/auth';
 
@@ -83,7 +85,11 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
       loadedSrcRef.current = null;
       return;
     }
-    if (loadedSrcRef.current === currentSrc) return;
+    el.preload = playing ? 'auto' : 'metadata';
+    if (loadedSrcRef.current === currentSrc) {
+      if (playing) void el.play().catch(() => setPlaying(false));
+      return;
+    }
 
     loadedSrcRef.current = currentSrc;
     el.src = currentSrc;
@@ -98,6 +104,12 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
     if (!el) return;
     el.volume = volume;
   }, [volume]);
+
+  useEffect(() => {
+    if (!playing) return;
+    const next = tracks[trackIndex + 1] ?? (loop === 'all' ? tracks[0] : null);
+    if (next?.fileUrl && next.fileUrl !== currentSrc) prefetchAudio(next.fileUrl);
+  }, [playing, trackIndex, tracks, loop, currentSrc]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -235,7 +247,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
                 setPlaying(false);
               }}
             >
-              {pl.coverUrl ? <img src={pl.coverUrl} alt="" loading="lazy" decoding="async" /> : <span className="lh-music-pl__ph">♪</span>}
+              {pl.coverUrl ? <img src={displayImageUrl(pl.coverUrl, 'thumb')} alt="" loading="lazy" decoding="async" /> : <span className="lh-music-pl__ph">♪</span>}
               <span>
                 <strong>
                   {pl.title}
@@ -252,6 +264,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
         <div className="lh-music-player">
           <audio
             ref={audioRef}
+            preload="metadata"
             onTimeUpdate={(e) => {
               if (seekingRef.current) return;
               setCurrentTime(e.currentTarget.currentTime);
@@ -267,7 +280,7 @@ export function MusicArchiveTab({ user, isAdmin, onOpenAuth }: Props) {
             onEnded={onEnded}
           />
           {current?.coverUrl ? (
-            <img src={current.coverUrl} alt="" className="lh-music-player__cover" />
+            <img src={displayImageUrl(current.coverUrl, 'card')} alt="" className="lh-music-player__cover" decoding="async" />
           ) : (
             <div className="lh-music-player__cover lh-music-player__cover--empty">♪</div>
           )}

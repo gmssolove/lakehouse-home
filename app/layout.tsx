@@ -160,6 +160,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Admin 파비콘 — 동일 출처 /favicon.ico (api/site-favicon 프록시). localStorage 불필요 */}
         <link rel="icon" href="/favicon.ico" type="image/png" data-lake-favicon="1" />
+        <link rel="preconnect" href="https://img.lakehouse.me.kr" />
+        <link rel="dns-prefetch" href="https://img.lakehouse.me.kr" />
         {/* Tabler Icons — 렌더 블로킹 방지 */}
         <link
           rel="stylesheet"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 import {
   ENTRY_SPLASH_FADE_MS,
   ENTRY_SPLASH_MIN_MS,
@@ -106,8 +107,10 @@ export function EntrySplash({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           className="lh-entry-splash__bg"
-          src={imageSrc}
+          src={displayImageUrl(imageSrc, 'hero')}
           alt=""
+          decoding="async"
+          fetchPriority="high"
           draggable={false}
           referrerPolicy="no-referrer"
         />

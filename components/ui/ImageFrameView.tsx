@@ -50,7 +50,7 @@ export const ImageFrameView = memo(function ImageFrameView({
   pos = 'center top',
   className = '',
   imgClassName = '',
-  size = 'full',
+  size = 'hero',
   eager = false,
 }: Props) {
   const { scale, x, y, bottomBlur } = normalizeImageFrame(frame);

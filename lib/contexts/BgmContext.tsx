@@ -25,6 +25,7 @@ import {
   trackKey as bgmTrackKey,
 } from '@/lib/bgm/playlist';
 import type { BgmKind, BgmTrack } from '@/lib/bgm/types';
+import { prefetchAudio } from '@/lib/media/prefetchAudio';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 
 const STATE_KEY = 'lh_bgm_shared_state';
@@ -347,6 +348,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   const ensureAudioSource = useCallback((track: BgmTrack) => {
     const audio = audioRef.current;
     if (!audio || track.kind === 'youtube') return;
+    audio.preload = 'auto';
     if (!audio.src) {
       audio.src = track.id;
       audio.load();
@@ -941,6 +943,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
         } catch {
           /* ignore */
         }
+        audio.preload = 'auto';
         audio.src = next.id;
         applyVolume();
         audio.loop = next.scope === 'character' ? true : !pageMulti;
@@ -1533,6 +1536,13 @@ export function BgmProvider({ children }: { children: ReactNode }) {
       }
       playingRef.current = true;
       setPlaying(true);
+      const cur = trackRef.current;
+      const pl = pagePlaylistRef.current;
+      if (cur && cur.kind !== 'youtube' && pl.length > 1) {
+        const idx = pl.findIndex((t) => sameTrack(t, cur));
+        const nxt = pl[(idx + 1 + pl.length) % pl.length];
+        if (nxt && nxt.kind !== 'youtube' && nxt.id !== cur.id) prefetchAudio(nxt.id);
+      }
     };
     const onPause = () => {
       if (switchingTrackRef.current) return;
@@ -1719,7 +1729,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
   return (
     <BgmContext.Provider value={contextValue}>
       <BgmTimeContext.Provider value={timeValue}>
-        <audio ref={audioRef} preload="metadata" style={{ display: 'none' }} />
+        <audio ref={audioRef} preload="auto" style={{ display: 'none' }} />
         <BgmStableChildren>{children}</BgmStableChildren>
       </BgmTimeContext.Provider>
     </BgmContext.Provider>
