@@ -105,8 +105,9 @@ export function OcVnDialogue({
 
   useEffect(() => {
     if (!active || leaving) return;
-    const expr = node?.expression;
-    onExpression?.(expr || null);
+    const expr = node?.expression?.trim() || '';
+    /* 표정 URL이 있는 줄만 반영 — 빈 줄은 이전 표정 유지 */
+    if (expr) onExpression?.(expr);
     if (expr) warmTouchPortrait(expr, 'high');
     const nextId = node?.next?.trim();
     const nextNode = nextId
@@ -399,7 +400,6 @@ export function useVnDialogue(character: OcCharacter) {
 
   const open = useCallback(() => {
     clearLeaveTimer();
-    setExpression(null);
     setLeaving(false);
     setPresent(true);
     setActive(true);

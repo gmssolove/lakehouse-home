@@ -209,9 +209,32 @@ export function useTouchPortraitStack(baseSrc: string) {
 
   const hardSwap = useCallback(
     (url: string, onDone?: () => void) => {
-      softSwapTo(url, onDone);
+      const nextSrc = portraitSrc(url);
+      if (!nextSrc) {
+        onDone?.();
+        return;
+      }
+      const current = stackRef.current;
+      if (current.layers[current.front] === nextSrc) {
+        targetRef.current = nextSrc;
+        onDone?.();
+        return;
+      }
+      clearSoftTimer();
+      const gen = ++genRef.current;
+      targetRef.current = nextSrc;
+      warmTouchPortrait(nextSrc, 'high');
+      void waitPortraitReady(nextSrc).then(() => {
+        if (gen !== genRef.current) return;
+        const settled: Stack = { front: 0, layers: [nextSrc, nextSrc] };
+        stackRef.current = settled;
+        commitSync(() => {
+          setSoftRevert(false);
+          setStack(settled);
+        }, onDone);
+      });
     },
-    [softSwapTo],
+    [clearSoftTimer],
   );
 
   const softRevertToBase = useCallback(
@@ -266,12 +289,8 @@ export function useTouchPortraitStack(baseSrc: string) {
       reset(base);
       return;
     }
-    /* AU/디폴트 기본 일러 변경 → soft 크로스페이드 (hard reset 금지) */
+    /* AU/디폴트 기본 일러 변경만 따라감 — 표정 두 장이 같아도 기본으로 되돌리지 않음 */
     if (prevBase && prevBase !== base) {
-      softSwapTo(base);
-      return;
-    }
-    if (cur.layers[0] === cur.layers[1] && cur.layers[0] !== base) {
       softSwapTo(base);
     }
   }, [baseSrc, reset, softSwapTo]);
@@ -282,6 +301,7 @@ export function useTouchPortraitStack(baseSrc: string) {
     stack,
     softRevert,
     hardSwap,
+    softSwap: softSwapTo,
     softRevertToBase,
     reset,
   };

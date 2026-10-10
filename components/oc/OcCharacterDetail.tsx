@@ -803,7 +803,7 @@ export function OcCharacterDetail({
       }
       touchExpressionRef.current = next;
       /* setState는 hardSwap flushSync 이후에 — 표정 페인트를 막지 않음 */
-      touchStackApi.hardSwap(next, () => {
+      touchStackApi.softSwap(next, () => {
         setTouchExpression(next);
         onDone?.();
       });
@@ -811,26 +811,26 @@ export function OcCharacterDetail({
     [touchStackApi],
   );
 
-  /* VN 대사창 ↔ 터치와 동일 soft 표정 스택 */
+  /* VN 시작 시 스택을 리셋하지 않음 — 기본↔표정 깜빡임 방지 */
   useEffect(() => {
     if (vn.present && !prevVnActiveRef.current) {
       touchExpressionRef.current = null;
       setTouchExpression(null);
-      touchStackApi.reset(portraitTarget.src || img?.src || '');
     }
     if (!vn.present && prevVnActiveRef.current) {
       touchExpressionRef.current = null;
       setTouchExpression(null);
-      /* 닫을 때 reset() 하드컷 금지 — soft로 기본 복귀 (이미 기본이면 no-op) */
       touchStackApi.softRevertToBase();
     }
     prevVnActiveRef.current = vn.present;
-  }, [vn.present, portraitTarget.src, img?.src, touchStackApi.reset, touchStackApi.softRevertToBase]);
+  }, [vn.present, touchStackApi.softRevertToBase]);
 
   useEffect(() => {
-    if (!vn.present || !portraitTarget.src) return;
-    touchStackApi.hardSwap(portraitTarget.src);
-  }, [vn.present, portraitTarget.src, touchStackApi.hardSwap]);
+    if (!vn.present || vn.leaving) return;
+    const expr = vn.expression?.trim();
+    if (!expr) return;
+    touchStackApi.hardSwap(expr);
+  }, [vn.present, vn.leaving, vn.expression, touchStackApi.hardSwap]);
 
   /* X로 퇴장 시작 시 expression이 null → portraitTarget이 기본으로 바뀌며 soft 전환 */
   useEffect(() => {
