@@ -567,10 +567,24 @@ export type ClickerSoundPreset =
   | 'soft'
   | 'mute';
 
+export type TypeKeySoundBind = {
+  id: string;
+  /** KeyboardEvent.code (KeyA, Space, Digit1 …) */
+  code: string;
+  /** 관리 화면 표시용 */
+  label: string;
+  sound: string;
+};
+
 export type SiteUiSettings = {
   clickSoundEnabled: boolean;
   clickSoundPreset: 'thud' | 'wood' | 'felt' | 'damp' | 'muted' | 'custom';
   clickSoundCustom: string;
+  typeKeySoundEnabled: boolean;
+  typeKeySoundPreset: 'clicky' | 'linear' | 'typewriter' | 'thock' | 'soft' | 'custom';
+  typeKeySoundCustom: string;
+  /** 전역 타자음과 별개. 지정한 키만 이 파일 재생 */
+  typeKeySoundBinds: TypeKeySoundBind[];
   customCursorEnabled: boolean;
   cursorPreset:
     | 'ring'
@@ -609,6 +623,10 @@ export const DEFAULT_SITE_UI_SETTINGS: SiteUiSettings = {
   clickSoundEnabled: true,
   clickSoundPreset: 'thud',
   clickSoundCustom: '',
+  typeKeySoundEnabled: false,
+  typeKeySoundPreset: 'clicky',
+  typeKeySoundCustom: '',
+  typeKeySoundBinds: [],
   customCursorEnabled: true,
   cursorPreset: 'ring',
   cursorCustom: '',

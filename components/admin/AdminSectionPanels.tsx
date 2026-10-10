@@ -13,6 +13,7 @@ import type {
   SiteOcSettings,
   SitePost,
   SiteUiSettings,
+  TypeKeySoundBind,
   TrpgDiceHighlight,
   TrpgGalleryItem,
   TrpgHandout,
@@ -29,6 +30,13 @@ import { useLakeDialog } from '@/components/ui/LakeDialog';
 import { useSaveToast } from '@/components/ui/SaveToast';
 import { BANNER_DIVIDER_PRESETS, BannerDividerIcon } from '@/lib/banner/dividerIcons';
 import { CLICK_SOUND_PRESETS, playClickSound } from '@/lib/sounds/clickSound';
+import {
+  TYPE_KEY_SOUND_PRESETS,
+  parseTypeKeyBindInput,
+  playTypeKeyFile,
+  playTypeKeySound,
+  typeKeyBindFromEvent,
+} from '@/lib/sounds/typeKeySound';
 import { CLICKER_SOUND_PRESETS, playClickerPreset } from '@/lib/clicker/sounds';
 import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
 import { LakeToggle } from '@/components/ui/LakeToggle';
@@ -2746,12 +2754,47 @@ type UxSettingsProps = {
 
 export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
   const [form, setForm] = useState(data);
+  const [listenBindId, setListenBindId] = useState<string | null>(null);
   useEffect(() => setForm(data), [data]);
+
+  useEffect(() => {
+    if (!listenBindId) return;
+    function onCapture(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setListenBindId(null);
+        return;
+      }
+      if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const parsed = typeKeyBindFromEvent(e);
+      const id = listenBindId;
+      if (!id) return;
+      setForm((prev) => ({
+        ...prev,
+        typeKeySoundBinds: (prev.typeKeySoundBinds || []).map((b) =>
+          b.id === id ? { ...b, ...parsed } : b,
+        ),
+      }));
+      setListenBindId(null);
+    }
+    window.addEventListener('keydown', onCapture, true);
+    return () => window.removeEventListener('keydown', onCapture, true);
+  }, [listenBindId]);
 
   function updateButton(id: string, patch: Partial<ClickerButton>) {
     setForm((prev) => ({
       ...prev,
       clickerButtons: (prev.clickerButtons || []).map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    }));
+  }
+
+  function updateTypeBind(id: string, patch: Partial<TypeKeySoundBind>) {
+    setForm((prev) => ({
+      ...prev,
+      typeKeySoundBinds: (prev.typeKeySoundBinds || []).map((b) =>
+        b.id === id ? { ...b, ...patch } : b,
+      ),
     }));
   }
 
@@ -2800,6 +2843,141 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
             changeLabel="파일 변경"
           />
         ) : null}
+      </AccordionSection>
+
+      <AccordionSection title="타자 효과음" defaultOpen>
+        <div className="form-group">
+          <LakeToggle
+            checked={form.typeKeySoundEnabled}
+            onChange={(typeKeySoundEnabled) => setForm({ ...form, typeKeySoundEnabled })}
+            label="타자 효과음"
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">타자음 프리셋</label>
+          <select
+            className="form-input"
+            value={form.typeKeySoundPreset}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                typeKeySoundPreset: e.target.value as SiteUiSettings['typeKeySoundPreset'],
+              })
+            }
+          >
+            {TYPE_KEY_SOUND_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          className="btn-save"
+          style={{ marginBottom: 10, padding: '5px 12px' }}
+          onClick={() => playTypeKeySound(form)}
+        >
+          미리듣기
+        </button>
+        {form.typeKeySoundPreset === 'custom' ? (
+          <FileUploadField
+            label="커스텀 타자음"
+            value={form.typeKeySoundCustom}
+            onChange={(typeKeySoundCustom) => setForm({ ...form, typeKeySoundCustom })}
+            accept="audio"
+            asDataUrl
+            emptyLabel="📁 MP3 / WAV 업로드"
+            changeLabel="파일 변경"
+          />
+        ) : null}
+
+        <p className="form-hint" style={{ margin: '14px 0 8px', opacity: 0.72, fontSize: 13 }}>
+          키별 효과음 — 전역 타자음과 별개입니다. 「키 입력」을 누른 뒤 원하는 키를 누르거나, 칸에 A /
+          Space / Enter 처럼 직접 적어도 됩니다. 지정한 키는 이 파일이 납니다.
+        </p>
+        <RepeatableList
+          addLabel="+ 키 추가"
+          onAdd={() => {
+            const next: TypeKeySoundBind = {
+              id: newId(),
+              code: '',
+              label: '',
+              sound: '',
+            };
+            setForm({
+              ...form,
+              typeKeySoundBinds: [...(form.typeKeySoundBinds || []), next],
+            });
+          }}
+        >
+          {(form.typeKeySoundBinds || []).map((bind, index) => (
+            <AccordionSection
+              key={bind.id}
+              title={`키 ${index + 1}${bind.label || bind.code ? ` · ${bind.label || bind.code}` : ''}`}
+              defaultOpen
+            >
+              <div className="form-group">
+                <label className="form-label">키</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <input
+                    className="form-input"
+                    style={{ flex: '1 1 120px' }}
+                    value={bind.label || bind.code}
+                    placeholder="A, Space, Enter…"
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const parsed = parseTypeKeyBindInput(raw);
+                      if (parsed) updateTypeBind(bind.id, parsed);
+                      else updateTypeBind(bind.id, { label: raw, code: raw });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-save"
+                    style={{ padding: '5px 12px' }}
+                    onClick={() =>
+                      setListenBindId((cur) => (cur === bind.id ? null : bind.id))
+                    }
+                  >
+                    {listenBindId === bind.id ? '누르세요… (Esc 취소)' : '키 입력'}
+                  </button>
+                </div>
+              </div>
+              <FileUploadField
+                label="이 키 효과음"
+                value={bind.sound}
+                onChange={(sound) => updateTypeBind(bind.id, { sound })}
+                accept="audio"
+                folder="site/type-keys"
+                emptyLabel="📁 MP3 / WAV 업로드"
+                changeLabel="파일 변경"
+              />
+              {bind.sound ? (
+                <button
+                  type="button"
+                  className="btn-save"
+                  style={{ marginBottom: 10, padding: '5px 12px' }}
+                  onClick={() => playTypeKeyFile(bind.sound)}
+                >
+                  미리듣기
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    typeKeySoundBinds: (form.typeKeySoundBinds || []).filter((b) => b.id !== bind.id),
+                  })
+                }
+              >
+                삭제
+              </button>
+            </AccordionSection>
+          ))}
+        </RepeatableList>
       </AccordionSection>
 
       <AccordionSection title="커서" defaultOpen>

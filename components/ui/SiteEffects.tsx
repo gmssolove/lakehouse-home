@@ -5,6 +5,12 @@ import { usePathname } from 'next/navigation';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { applyLakeFavicon, readCachedLakeFavicon } from '@/lib/lake/favicon';
 import { playClickSound } from '@/lib/sounds/clickSound';
+import {
+  findTypeKeyBind,
+  isTypeKeyEvent,
+  playTypeKeyFile,
+  playTypeKeySound,
+} from '@/lib/sounds/typeKeySound';
 import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
 
 type Ripple = { id: number; x: number; y: number };
@@ -76,6 +82,29 @@ export function SiteEffects() {
       for (const t of rippleTimers.current) window.clearTimeout(t);
       rippleTimers.current = [];
     };
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const settings = settingsRef.current;
+      if (settings.clickerEnabled && !e.repeat) {
+        const k = e.key.length === 1 ? e.key.toLowerCase() : '';
+        const clickerHit = (settings.clickerButtons || []).some(
+          (b) => (b.key || '').toLowerCase() === k,
+        );
+        if (clickerHit) return;
+      }
+      const bind = findTypeKeyBind(settings.typeKeySoundBinds, e);
+      if (bind?.sound) {
+        playTypeKeyFile(bind.sound);
+        return;
+      }
+      if (!isTypeKeyEvent(e)) return;
+      playTypeKeySound(settings);
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   if (!uiSettings.clickRippleEnabled) return null;

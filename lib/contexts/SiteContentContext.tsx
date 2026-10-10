@@ -178,6 +178,27 @@ function mergeUiSettings(rawUi: Partial<SiteUiSettings>, legacy: Record<string, 
   if (typeof merged.clickerSoundCustom !== 'string') {
     merged.clickerSoundCustom = '';
   }
+  if (typeof merged.typeKeySoundEnabled !== 'boolean') {
+    merged.typeKeySoundEnabled = DEFAULT_SITE_UI_SETTINGS.typeKeySoundEnabled;
+  }
+  if (!merged.typeKeySoundPreset) {
+    merged.typeKeySoundPreset = DEFAULT_SITE_UI_SETTINGS.typeKeySoundPreset;
+  }
+  if (typeof merged.typeKeySoundCustom !== 'string') {
+    merged.typeKeySoundCustom = '';
+  }
+  if (!Array.isArray(merged.typeKeySoundBinds)) {
+    merged.typeKeySoundBinds = [];
+  } else {
+    merged.typeKeySoundBinds = merged.typeKeySoundBinds
+      .filter((b): b is NonNullable<typeof b> => Boolean(b && typeof b === 'object'))
+      .map((b) => ({
+        id: typeof b.id === 'string' && b.id ? b.id : `tkb-${Math.random().toString(36).slice(2, 9)}`,
+        code: typeof b.code === 'string' ? b.code : '',
+        label: typeof b.label === 'string' ? b.label : '',
+        sound: typeof b.sound === 'string' ? b.sound : '',
+      }));
+  }
   merged.clickerButtons = migrateClickerButtons(rawUi);
   delete merged.clickerKeys;
   if (rawUi.clickSoundEnabled !== undefined) return merged;
