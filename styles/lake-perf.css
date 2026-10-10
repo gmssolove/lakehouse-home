@@ -741,9 +741,6 @@ body.lh-route-leaving.lh-route-back .lh-archive-topbar.lh-route-panel-leaving {
   filter: none !important;
 }
 
-/* 히든 스플래시·오프스크린: 무한 애니 pause */
-.lh-entry-splash:not(.is-visible):not([data-open='1']) .lh-entry-splash__fog,
-.lh-entry-splash[aria-hidden='true'] .lh-entry-splash__fog,
 .lh-entry-splash[hidden] * {
   animation: none !important;
 }
@@ -756,9 +753,7 @@ body.lh-route-leaving.lh-route-back .lh-archive-topbar.lh-route-panel-leaving {
 @media (prefers-reduced-motion: reduce) {
   .pair-detail-screen .pair-bg__haze-orb,
   .pair-detail-screen .pair-bg__haze-shimmer,
-  .lh-entry-splash__fog,
-  .lh-entry-splash__glow,
-  .lh-entry-splash__dust {
+  .lh-entry-splash {
     animation: none !important;
     filter: none !important;
   }

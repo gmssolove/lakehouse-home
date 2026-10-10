@@ -95,102 +95,12 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background:
-    linear-gradient(180deg, rgba(8, 7, 6, 0.1) 0%, rgba(8, 7, 6, 0.3) 55%, rgba(8, 7, 6, 0.94) 94%),
-    linear-gradient(0deg, rgba(8, 7, 6, 0.7) 0%, transparent 32%);
+  background: rgba(8, 7, 6, 0.38);
   pointer-events: none;
 }
 
 .lh-entry-splash--no-photo .lh-entry-splash__scrim {
-  background:
-    linear-gradient(180deg, rgba(21, 18, 16, 0.12) 0%, rgba(21, 18, 16, 0.4) 48%, rgba(21, 18, 16, 0.9) 100%),
-    radial-gradient(ellipse 80% 50% at 50% 22%, rgba(196, 154, 108, 0.09) 0%, transparent 70%);
-}
-
-.lh-entry-splash__atmosphere {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.lh-entry-splash__fog {
-  position: absolute;
-  inset: -20% -10%;
-  background: radial-gradient(
-    ellipse 55% 40% at 50% 60%,
-    rgba(232, 221, 208, 0.06) 0%,
-    transparent 70%
-  );
-  filter: blur(16px);
-  animation: none;
-}
-
-.lh-entry-splash__fog--b {
-  background: radial-gradient(
-    ellipse 45% 35% at 30% 40%,
-    rgba(196, 154, 108, 0.07) 0%,
-    transparent 68%
-  );
-  animation-duration: 18s;
-  animation-direction: alternate-reverse;
-}
-
-.lh-entry-splash__glow {
-  position: absolute;
-  left: 50%;
-  top: 28%;
-  width: min(64vw, 520px);
-  height: min(42vw, 340px);
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(196, 154, 108, 0.12) 0%, transparent 68%);
-  filter: blur(8px);
-  animation: none;
-}
-
-.lh-entry-splash__dust {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(1.2px 1.2px at 12% 28%, rgba(244, 238, 229, 0.28), transparent),
-    radial-gradient(1px 1px at 38% 62%, rgba(232, 201, 154, 0.22), transparent),
-    radial-gradient(1.4px 1.4px at 71% 34%, rgba(244, 238, 229, 0.2), transparent),
-    radial-gradient(1px 1px at 84% 72%, rgba(196, 154, 108, 0.25), transparent),
-    radial-gradient(1.1px 1.1px at 55% 18%, rgba(244, 238, 229, 0.18), transparent),
-    radial-gradient(1px 1px at 22% 78%, rgba(232, 201, 154, 0.16), transparent);
-  opacity: 0.55;
-  animation: none;
-}
-
-@keyframes lhEntryFogDrift {
-  from {
-    transform: translate3d(-2%, 1%, 0) scale(1);
-  }
-  to {
-    transform: translate3d(3%, -2%, 0) scale(1.05);
-  }
-}
-
-@keyframes lhEntryGlowPulse {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: translate(-50%, -50%) scale(0.96);
-  }
-  50% {
-    opacity: 0.85;
-    transform: translate(-50%, -50%) scale(1.04);
-  }
-}
-
-@keyframes lhEntryDustDrift {
-  from {
-    transform: translate3d(0, 8px, 0);
-  }
-  to {
-    transform: translate3d(0, -18px, 0);
-  }
+  background: rgba(12, 10, 9, 0.55);
 }
 
 .lh-entry-splash__center {
@@ -226,25 +136,17 @@
   text-shadow: 0 2px 24px rgba(0, 0, 0, 0.45);
 }
 
-/* #13 로딩 화면 컬러감(틴트) — 단색이 아니라 화면 전체를 은은하게 물들임 */
 .lh-entry-splash__tint {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background:
-    radial-gradient(150% 130% at 50% 32%, var(--lh-splash-tint, transparent) 0%, var(--lh-splash-tint, transparent) 22%, transparent 92%),
-    linear-gradient(180deg, var(--lh-splash-tint, transparent), transparent 88%);
-  opacity: 0.72;
-  mix-blend-mode: overlay;
-}
-/* 어두운 이미지에서도 색이 확실히 보이도록 항상 얕게 덮는 베이스 워시 */
-.lh-entry-splash__tint::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--lh-splash-tint, transparent);
-  opacity: 0.18;
+  background: radial-gradient(
+    ellipse 62% 52% at 50% 50%,
+    color-mix(in srgb, var(--lh-splash-tint, #c49a6c) 26%, transparent) 0%,
+    color-mix(in srgb, var(--lh-splash-tint, #c49a6c) 8%, transparent) 42%,
+    transparent 74%
+  );
 }
 
 .lh-entry-splash__tip {
@@ -473,9 +375,6 @@
   .lh-entry-splash__bg,
   .lh-entry-splash__center,
   .lh-entry-splash__ring,
-  .lh-entry-splash__fog,
-  .lh-entry-splash__glow,
-  .lh-entry-splash__dust,
   .lh-entry-splash__tip-lbl,
   .lh-entry-splash__tip-text {
     transition: none;

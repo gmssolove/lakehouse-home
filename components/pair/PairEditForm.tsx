@@ -1023,48 +1023,6 @@ export function PairEditForm({
               value={form.entrySplash}
               onChange={(entrySplash) => setForm((prev) => ({ ...prev, entrySplash }))}
             />
-            <div className="lake-edit-section-title" style={{ marginTop: 16 }}>정보판 호버 TMI</div>
-            <p className="pair-edit-hint">타이틀·관계·호칭에 마우스를 올리면 커서 옆에 작게 표시됩니다.</p>
-            <div className="form-group">
-              <label className="form-label">타이틀 TMI</label>
-              <input
-                className="form-input"
-                placeholder="예: 둘만의 암호 같은 이름"
-                value={form.infoTips?.title || ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    infoTips: { ...form.infoTips, title: e.target.value },
-                  })
-                }
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">관계 라벨 TMI</label>
-              <input
-                className="form-input"
-                value={form.infoTips?.relation || ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    infoTips: { ...form.infoTips, relation: e.target.value },
-                  })
-                }
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">호칭 TMI</label>
-              <input
-                className="form-input"
-                value={form.infoTips?.honorifics || ''}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    infoTips: { ...form.infoTips, honorifics: e.target.value },
-                  })
-                }
-              />
-            </div>
           </>
         ) : null}
 

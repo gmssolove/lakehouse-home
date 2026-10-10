@@ -96,7 +96,7 @@ export type RiskStage = {
   color: string;
 };
 
-/** 페어 중앙 정보판 영역별 TMI */
+/** @deprecated 정보판 호버 TMI 제거 */
 export type PairInfoTips = {
   title?: string;
   relation?: string;

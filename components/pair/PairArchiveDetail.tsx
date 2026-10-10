@@ -39,7 +39,6 @@ import {
   patchPanelView,
 } from '@/lib/pair/panelView';
 import { PairAnchoredQuotes } from '@/components/pair/PairAnchoredQuotes';
-import { CursorFollowTipHost, CursorTipZone } from '@/components/shared/CursorFollowTip';
 import { RiskBadges } from '@/components/shared/RiskBadges';
 import { StoryEntryList } from '@/components/shared/StoryEntryList';
 import { StoryReader } from '@/components/shared/StoryReader';
@@ -1866,24 +1865,18 @@ export function PairArchiveDetail({
                 />
               ) : null}
               <div className="pair-plate__title-block">
-                <CursorTipZone tip={pair.infoTips?.title} as="div">
-                  {pairHero ? (
-                    <h2 className="pair-plate__hero">{pairHero}</h2>
-                  ) : null}
-                  {pairHeroSub ? <p className="pair-plate__sub">{pairHeroSub}</p> : null}
-                </CursorTipZone>
+                {pairHero ? (
+                  <h2 className="pair-plate__hero">{pairHero}</h2>
+                ) : null}
+                {pairHeroSub ? <p className="pair-plate__sub">{pairHeroSub}</p> : null}
                 {relationLine ? (
-                  <CursorTipZone
-                    tip={pair.infoTips?.relation}
-                    as="span"
-                    className="pair-plate__relation-badge"
-                  >
+                  <span className="pair-plate__relation-badge">
                     관계 ·{' '}
                     <RelationQuestionFlicker
                       text={relationLine}
                       enabled={relationQFlicker}
                     />
-                  </CursorTipZone>
+                  </span>
                 ) : null}
                 {visibleRiskStages(pair).length ? (
                   <div className="pair-plate__badges">
@@ -1910,7 +1903,7 @@ export function PairArchiveDetail({
               {aToB || bToA ? (
                 <>
                   <span className="pair-plate__divider" aria-hidden />
-                  <CursorTipZone tip={pair.infoTips?.honorifics} as="section" className="pair-calls">
+                  <section className="pair-calls">
                     <span className="pair-calls__cap">호칭</span>
                     <div className="pair-calls__list">
                       {aToB ? (
@@ -1932,7 +1925,7 @@ export function PairArchiveDetail({
                         </>
                       ) : null}
                     </div>
-                  </CursorTipZone>
+                  </section>
                 </>
               ) : null}
               {dday || bgmLabel ? (
@@ -2046,8 +2039,6 @@ export function PairArchiveDetail({
           />
         </div>
       </div>
-      <CursorFollowTipHost />
-
       {activeSection && activeMeta ? (
         <section
           className={`pair-page${panelReveal ? ' is-revealed' : ''}${pageLeaving ? ' is-leaving' : ''}`}
