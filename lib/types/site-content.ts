@@ -586,6 +586,9 @@ export type SiteUiSettings = {
   typeKeySoundEnabled: boolean;
   typeKeySoundPreset: 'clicky' | 'linear' | 'typewriter' | 'thock' | 'soft' | 'custom';
   typeKeySoundCustom: string;
+  /** 전체 타자음 파일. 있으면 프리셋 대신 이 목록 재생 */
+  typeKeySoundFiles: string[];
+  typeKeySoundPlayMode: TypeKeySoundPlayMode;
   /** 전역 타자음과 별개. 지정한 키만 이 파일 재생 */
   typeKeySoundBinds: TypeKeySoundBind[];
   customCursorEnabled: boolean;
@@ -629,6 +632,8 @@ export const DEFAULT_SITE_UI_SETTINGS: SiteUiSettings = {
   typeKeySoundEnabled: false,
   typeKeySoundPreset: 'clicky',
   typeKeySoundCustom: '',
+  typeKeySoundFiles: [],
+  typeKeySoundPlayMode: 'random',
   typeKeySoundBinds: [],
   customCursorEnabled: true,
   cursorPreset: 'ring',

@@ -188,6 +188,16 @@ function mergeUiSettings(rawUi: Partial<SiteUiSettings>, legacy: Record<string, 
   if (typeof merged.typeKeySoundCustom !== 'string') {
     merged.typeKeySoundCustom = '';
   }
+  const globalFiles = Array.isArray(merged.typeKeySoundFiles)
+    ? merged.typeKeySoundFiles.filter((s): s is string => typeof s === 'string' && Boolean(s.trim()))
+    : [];
+  merged.typeKeySoundFiles =
+    globalFiles.length > 0
+      ? globalFiles
+      : merged.typeKeySoundCustom.trim()
+        ? [merged.typeKeySoundCustom]
+        : [];
+  merged.typeKeySoundPlayMode = merged.typeKeySoundPlayMode === 'sequence' ? 'sequence' : 'random';
   if (!Array.isArray(merged.typeKeySoundBinds)) {
     merged.typeKeySoundBinds = [];
   } else {

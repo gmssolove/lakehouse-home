@@ -38,6 +38,7 @@ import {
   playTypeKeySound,
   typeKeyBindFromEvent,
   typeKeyBindSounds,
+  typeKeyGlobalSounds,
 } from '@/lib/sounds/typeKeySound';
 import { CLICKER_SOUND_PRESETS, playClickerPreset } from '@/lib/clicker/sounds';
 import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
@@ -2800,12 +2801,21 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
     }));
   }
 
+  const globalSoundSlots = form.typeKeySoundFiles?.length
+    ? form.typeKeySoundFiles
+    : form.typeKeySoundCustom
+      ? [form.typeKeySoundCustom]
+      : [''];
+
   return (
     <AdminPanelShell
       title="UX · 클릭음 / 커서 / 이펙트"
       onSave={() =>
         onSave({
           ...form,
+          typeKeySoundFiles: typeKeyGlobalSounds(form),
+          typeKeySoundPlayMode: form.typeKeySoundPlayMode === 'sequence' ? 'sequence' : 'random',
+          typeKeySoundCustom: typeKeyGlobalSounds(form)[0] || '',
           typeKeySoundBinds: (form.typeKeySoundBinds || []).map((b) => ({
             ...b,
             sounds: typeKeyBindSounds(b),
@@ -2886,30 +2896,90 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
             ))}
           </select>
         </div>
+        <p className="form-hint" style={{ margin: '4px 0 8px', opacity: 0.72, fontSize: 13 }}>
+          파일을 여러 개 올리면 모든 키에 랜덤 또는 순서대로 재생됩니다. 파일이 없으면 위 프리셋을
+          씁니다.
+        </p>
+        <div className="form-group">
+          <label className="form-label">전체 타자음 재생 방식</label>
+          <select
+            className="form-input"
+            value={form.typeKeySoundPlayMode || 'random'}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                typeKeySoundPlayMode: e.target.value as SiteUiSettings['typeKeySoundPlayMode'],
+              })
+            }
+          >
+            <option value="random">랜덤</option>
+            <option value="sequence">순서대로</option>
+          </select>
+        </div>
+        {globalSoundSlots.map((url, soundIndex) => (
+          <div key={`global-s-${soundIndex}`} className="form-group">
+            <FileUploadField
+              label={`전체 타자음 ${soundIndex + 1}`}
+              value={url}
+              onChange={(sound) => {
+                const next = [...globalSoundSlots];
+                next[soundIndex] = sound;
+                setForm({ ...form, typeKeySoundFiles: next, typeKeySoundCustom: next[0] || '' });
+              }}
+              accept="audio"
+              folder="site/type-keys"
+              emptyLabel="📁 MP3 / WAV 업로드"
+              changeLabel="파일 변경"
+            />
+            {url ? (
+              <button
+                type="button"
+                className="btn-save"
+                style={{ margin: '6px 8px 0 0', padding: '5px 12px' }}
+                onClick={() => playTypeKeyFile(url)}
+              >
+                미리듣기
+              </button>
+            ) : null}
+            {globalSoundSlots.length > 1 ? (
+              <button
+                type="button"
+                className="btn-edit"
+                style={{ marginTop: 6, padding: '5px 12px' }}
+                onClick={() => {
+                  const next = globalSoundSlots.filter((_, i) => i !== soundIndex);
+                  setForm({
+                    ...form,
+                    typeKeySoundFiles: next,
+                    typeKeySoundCustom: next[0] || '',
+                  });
+                }}
+              >
+                이 소리 삭제
+              </button>
+            ) : null}
+          </div>
+        ))}
         <button
           type="button"
           className="btn-save"
           style={{ marginBottom: 10, padding: '5px 12px' }}
+          onClick={() => setForm({ ...form, typeKeySoundFiles: [...globalSoundSlots, ''] })}
+        >
+          + 전체 타자음 추가
+        </button>
+        <button
+          type="button"
+          className="btn-save"
+          style={{ marginBottom: 10, marginLeft: 8, padding: '5px 12px' }}
           onClick={() => playTypeKeySound(form)}
         >
-          미리듣기
+          재생 방식 미리듣기
         </button>
-        {form.typeKeySoundPreset === 'custom' ? (
-          <FileUploadField
-            label="커스텀 타자음"
-            value={form.typeKeySoundCustom}
-            onChange={(typeKeySoundCustom) => setForm({ ...form, typeKeySoundCustom })}
-            accept="audio"
-            asDataUrl
-            emptyLabel="📁 MP3 / WAV 업로드"
-            changeLabel="파일 변경"
-          />
-        ) : null}
 
         <p className="form-hint" style={{ margin: '14px 0 8px', opacity: 0.72, fontSize: 13 }}>
-          키별 효과음 — 전역 타자음과 별개입니다. 「키 입력」을 누른 뒤 원하는 키를 누르거나, 칸에 A /
-          Space / Enter 처럼 직접 적어도 됩니다. 한 키에 소리를 여러 개 올리면 랜덤 또는 순서대로
-          바뀝니다.
+          키별 효과음 — 특정 키만 다른 소리를 쓸 때. 「키 입력」을 누르거나 A / Space / Enter 처럼
+          직접 적어도 됩니다.
         </p>
         <RepeatableList
           addLabel="+ 키 추가"

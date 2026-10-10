@@ -122,8 +122,19 @@ export const TYPE_KEY_SOUND_PRESETS = [
 
 export type TypeKeySoundSettings = Pick<
   SiteUiSettings,
-  'typeKeySoundEnabled' | 'typeKeySoundPreset' | 'typeKeySoundCustom'
+  | 'typeKeySoundEnabled'
+  | 'typeKeySoundPreset'
+  | 'typeKeySoundCustom'
+  | 'typeKeySoundFiles'
+  | 'typeKeySoundPlayMode'
 >;
+
+export function typeKeyGlobalSounds(settings: TypeKeySoundSettings) {
+  const files = (settings.typeKeySoundFiles || []).filter((s) => typeof s === 'string' && s.trim());
+  if (files.length) return files;
+  if (settings.typeKeySoundCustom?.trim()) return [settings.typeKeySoundCustom];
+  return [];
+}
 
 const NAMED_CODES: Record<string, string> = {
   space: 'Space',
@@ -200,23 +211,25 @@ export function findTypeKeyBind(
 const seqCursor = new Map<string, number>();
 const lastRandom = new Map<string, number>();
 
+function pickSoundIndex(id: string, count: number, mode: SiteUiSettings['typeKeySoundPlayMode']) {
+  if (count <= 1) return 0;
+  if (mode === 'sequence') {
+    const next = seqCursor.get(id) || 0;
+    const idx = next % count;
+    seqCursor.set(id, idx + 1);
+    return idx;
+  }
+  const prev = lastRandom.get(id);
+  let idx = Math.floor(Math.random() * count);
+  if (prev != null && idx === prev) idx = (idx + 1) % count;
+  lastRandom.set(id, idx);
+  return idx;
+}
+
 export function playTypeKeyBind(bind: SiteUiSettings['typeKeySoundBinds'][number]) {
   const list = typeKeyBindSounds(bind);
   if (!list.length) return;
-  let idx = 0;
-  if (list.length === 1) {
-    idx = 0;
-  } else if (bind.playMode === 'sequence') {
-    const next = seqCursor.get(bind.id) || 0;
-    idx = next % list.length;
-    seqCursor.set(bind.id, idx + 1);
-  } else {
-    const prev = lastRandom.get(bind.id);
-    idx = Math.floor(Math.random() * list.length);
-    if (prev != null && idx === prev) idx = (idx + 1) % list.length;
-    lastRandom.set(bind.id, idx);
-  }
-  playTypeKeyFile(list[idx]);
+  playTypeKeyFile(list[pickSoundIndex(bind.id, list.length, bind.playMode)]);
 }
 
 let lastPlayAt = 0;
@@ -241,18 +254,12 @@ export function playTypeKeyFile(url: string) {
 
 export function playTypeKeySound(settings: TypeKeySoundSettings) {
   if (!settings.typeKeySoundEnabled) return;
-  if (!markPlay()) return;
-
-  if (settings.typeKeySoundPreset === 'custom' && settings.typeKeySoundCustom) {
-    try {
-      const a = new Audio(settings.typeKeySoundCustom);
-      a.volume = 0.45;
-      void a.play();
-    } catch {
-      /* ignore */
-    }
+  const files = typeKeyGlobalSounds(settings);
+  if (files.length) {
+    playTypeKeyFile(files[pickSoundIndex('__global__', files.length, settings.typeKeySoundPlayMode)]);
     return;
   }
+  if (!markPlay()) return;
 
   const preset = settings.typeKeySoundPreset;
   if (preset === 'linear') playLinear();
