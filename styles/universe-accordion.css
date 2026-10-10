@@ -312,7 +312,8 @@
   border-radius: var(--uni-radius);
 }
 
-.uni-skew__card.is-active .uni-skew__chrome {
+.uni-skew__card.is-active .uni-skew__chrome,
+.uni-skew__card:hover .uni-skew__chrome {
   opacity: 1;
 }
 
@@ -464,11 +465,12 @@
   /* face 밖 — 필터/마스크에 먹히지 않고 Admin 색이 그대로 보임 */
   background: linear-gradient(
     to top,
-    var(--uni-glow, rgba(215, 169, 130, 0.28)) 0%,
-    var(--uni-glow-mid, rgba(215, 169, 130, 0.15)) 36%,
-    var(--uni-glow-soft, rgba(215, 169, 130, 0.05)) 58%,
-    transparent 78%
+    var(--uni-glow, rgba(215, 169, 130, 0.42)) 0%,
+    var(--uni-glow-mid, rgba(215, 169, 130, 0.24)) 32%,
+    var(--uni-glow-soft, rgba(215, 169, 130, 0.1)) 54%,
+    transparent 76%
   );
+  mix-blend-mode: screen;
   /* 맨 아래 끝선만 소멸 (제목 구간의 색은 유지) */
   -webkit-mask-image: linear-gradient(
     to bottom,
@@ -487,7 +489,8 @@
   transition: opacity var(--uni-dur) var(--uni-ease);
 }
 
-.uni-skew__card.is-active .uni-skew__glow {
+.uni-skew__card.is-active .uni-skew__glow,
+.uni-skew__card:hover .uni-skew__glow {
   opacity: 1;
 }
 

@@ -662,7 +662,7 @@ export const DEFAULT_UNIVERSE: UniverseCard[] = [
     name: '키사라기고교',
     sub: '如月高校 — Kisaragi High School',
     icon: '如',
-    href: '/verse/gate',
+    href: '',
   },
 ];
 

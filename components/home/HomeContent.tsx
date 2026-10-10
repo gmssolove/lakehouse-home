@@ -58,17 +58,7 @@ type Props = {
 
 export function resolveUniverseHref(card: SkewAccordionCard & { href?: string }): string {
   if (card.comingSoon) return '';
-
-  const href = (card.href || '').trim();
-  if (href) return href;
-
-  const isKisaragi =
-    card.id === 'kisaragi' ||
-    card.name === '키사라기고교' ||
-    (/如月|Kisaragi/i.test(card.sub || '') && card.icon === '如');
-  if (isKisaragi) return '/verse/gate';
-
-  return '';
+  return (card.href || '').trim();
 }
 
 function PostList({

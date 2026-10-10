@@ -73,11 +73,13 @@ function glowStyle(card: SkewAccordionCard): CSSProperties {
   const { r, g, b } = parseHexColor(raw);
   const opacity = Math.min(100, Math.max(0, card.glowOpacity ?? card.veilOpacity ?? 28)) / 100;
   const hex = `#${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+  const a = opacity;
   return {
-    '--uni-glow': `rgba(${r}, ${g}, ${b}, ${opacity})`,
-    '--uni-glow-mid': `rgba(${r}, ${g}, ${b}, ${opacity * 0.55})`,
-    '--uni-glow-soft': `rgba(${r}, ${g}, ${b}, ${opacity * 0.18})`,
+    '--uni-glow': `rgba(${r}, ${g}, ${b}, ${a})`,
+    '--uni-glow-mid': `rgba(${r}, ${g}, ${b}, ${a * 0.62})`,
+    '--uni-glow-soft': `rgba(${r}, ${g}, ${b}, ${a * 0.28})`,
     '--uni-accent': hex,
+    '--uni-gold': `rgba(${r}, ${g}, ${b}, 0.82)`,
   } as CSSProperties;
 }
 
@@ -294,7 +296,7 @@ export function UniverseAccordionCards({
             <>
               <span className="uni-skew__name-row">
                 <span className="uni-skew__name">{card.name}</span>
-                {showChevron ? (
+                {showChevron && href ? (
                   <span className="uni-skew__chev" aria-hidden>
                     {' ›'}
                   </span>
