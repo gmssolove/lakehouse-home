@@ -1298,13 +1298,6 @@ export function PairEditForm({
                         updateCharNote(slot, { keywords: splitCommaListLive(v) })
                       }
                     />
-                    <TextAreaField
-                      label="납작 캐해"
-                      rows={3}
-                      placeholder="이 캐릭터의 납작 캐해 (글)"
-                      value={form.charNotes?.[slot]?.flatLore || ''}
-                      onChange={(v) => updateCharNote(slot, { flatLore: v })}
-                    />
                   </AccordionSection>
 
                   <AccordionSection title="추가 항목" defaultOpen>
@@ -1365,32 +1358,6 @@ export function PairEditForm({
               ))}
             </div>
 
-            <AccordionSection title="납작캐해 (페어)" defaultOpen>
-              <FieldLabel>
-                왼쪽 메뉴 「납작캐해」에 표시됩니다. A/B 카드의 납작 캐해는 캐릭터 플레이트용입니다.
-              </FieldLabel>
-              <div className="form-group">
-                <label className="form-label">본문</label>
-                <StoryRichTextarea
-                  rows={5}
-                  value={form.flatLore || ''}
-                  onChange={(v) => setForm((f) => ({ ...f, flatLore: v }))}
-                  placeholder="페어 납작캐해 — 저장 후 상세 왼쪽 메뉴에 표시"
-                />
-              </div>
-              <TextAreaField
-                label="키워드"
-                rows={2}
-                placeholder="#키워드 (쉼표 또는 엔터로 구분)"
-                value={(form.flatLoreKeywords || []).join('\n')}
-                onChange={(v) =>
-                  setForm((f) => ({
-                    ...f,
-                    flatLoreKeywords: splitCommaListLive(v),
-                  }))
-                }
-              />
-            </AccordionSection>
           </>
         ) : null}
 

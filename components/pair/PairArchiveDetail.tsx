@@ -45,7 +45,6 @@ import { StoryReader } from '@/components/shared/StoryReader';
 import { PairIntroPanel } from '@/components/pair/PairIntroPanel';
 import { HandwritingNoteFlap } from '@/components/pair/HandwritingNoteFlap';
 import { RelationQuestionFlicker } from '@/components/pair/RelationQuestionFlicker';
-import { hasIntroFirstNow } from '@/lib/pair/introViewpoint';
 import { isEveIzumiPair } from '@/lib/pair/isEveIzumiPair';
 import {
   isDarkPairPersonalColor,
@@ -169,7 +168,6 @@ function CharaSide({
   quote,
   emoji,
   keywords,
-  flatLore,
   fields,
   body,
   bodyFrame,
@@ -204,7 +202,6 @@ function CharaSide({
   quote?: string;
   emoji?: string;
   keywords?: string[];
-  flatLore?: string;
   fields?: ProfileField[];
   body?: string;
   bodyFrame?: ImageFrame;
@@ -453,7 +450,6 @@ function CharaSide({
                 role?.trim() ||
                 extraFields.length ||
                 chips.length ||
-                flatLore?.trim() ||
                 emojiTokens.length;
               if (!hasMeta) return null;
               const hasRows = role?.trim() || extraFields.length;
@@ -499,15 +495,6 @@ function CharaSide({
                       </div>
                     </>
                   ) : null}
-                  {flatLore?.trim() ? (
-                    <>
-                      <div className="chara-divider" aria-hidden />
-                      <div className="chara-flatlore">
-                        <span className="chara-flatlore-label">납작 캐해</span>
-                        <p className="chara-flatlore-text">{flatLore.trim()}</p>
-                      </div>
-                    </>
-                  ) : null}
                 </div>
               );
             })()}
@@ -519,7 +506,7 @@ function CharaSide({
   );
 }
 
-type PairSectionId = 'story' | 'relation' | 'flat' | 'gallery';
+type PairSectionId = 'story' | 'relation' | 'gallery';
 
 function TimelineRevealItem({
   event: ev,
@@ -587,7 +574,7 @@ function TimelineRevealItem({
 }
 
 function isPanelSection(id: PairSectionId | null): id is PairSectionId {
-  return id === 'relation' || id === 'flat' || id === 'gallery' || id === 'story';
+  return id === 'relation' || id === 'gallery' || id === 'story';
 }
 
 export function PairArchiveDetail({
@@ -646,19 +633,12 @@ export function PairArchiveDetail({
   const colorB = pair.charColors?.[1]?.trim() || pair.color?.trim() || '';
   const dday = useMemo(() => formatDday(pair.dday), [pair.dday]);
   const gallery = (pair.gallery ?? []).filter((g) => g.src?.trim());
-  const flatLore = pair.flatLore?.trim() || '';
-  const flatTags = (pair.flatLoreKeywords || []).filter(Boolean);
   const catchphrase = pair.catchphrase?.trim() || '';
   const nameA = pair.chars[0] || 'A';
   const nameB = pair.chars[1] || 'B';
   const introInterview = (pair.intro?.interview ?? []).filter(
     (q) => q.question?.trim() || q.answerA?.trim() || q.answerB?.trim(),
   );
-  const hasIntro =
-    !!overview ||
-    hasIntroFirstNow(pair.intro) ||
-    introInterview.length > 0 ||
-    (pair.chemistry ?? []).filter((r) => r.label?.trim()).length >= 3;
   const bgmLabel = (() => {
     const t = pair.theme?.title?.trim() || '';
     const a = pair.theme?.artist?.trim() || '';
@@ -777,38 +757,14 @@ export function PairArchiveDetail({
 
   type PairMenuItem = { id: PairSectionId; en: string; ko: string };
 
-  const menuItems = useMemo<PairMenuItem[]>(() => {
-    const items: PairMenuItem[] = [];
-    if (dday || tags.length || hasIntro) {
-      items.push({ id: 'relation', en: 'Intro', ko: '소개' });
-    }
-    if (flatLore || flatTags.length > 0) {
-      items.push({ id: 'flat', en: 'Flat Lore', ko: '납작캐해' });
-    }
-    if (
-      storyEntries.length ||
-      (pair.timeline ?? []).length ||
-      pair.storySeries ||
-      isAdmin
-    ) {
-      items.push({ id: 'story', en: 'Story', ko: '스토리' });
-    }
-    if (gallery.length > 0) {
-      items.push({ id: 'gallery', en: 'Gallery', ko: '갤러리' });
-    }
-    return items;
-  }, [
-    dday,
-    tags.length,
-    hasIntro,
-    flatLore,
-    flatTags.length,
-    storyEntries.length,
-    (pair.timeline ?? []).length,
-    pair.storySeries,
-    isAdmin,
-    gallery.length,
-  ]);
+  const menuItems = useMemo<PairMenuItem[]>(
+    () => [
+      { id: 'relation', en: 'Intro', ko: '소개' },
+      { id: 'story', en: 'Story', ko: '스토리' },
+      { id: 'gallery', en: 'Gallery', ko: '갤러리' },
+    ],
+    [],
+  );
 
   useEffect(() => {
     setEnterKey(pair.id + '-' + Date.now());
@@ -1514,25 +1470,6 @@ export function PairArchiveDetail({
         }
       />
     );
-  } else if (activePanelKey === 'flat') {
-    panelChildren = (
-      <div className="pair-panel__flat">
-        {flatLore ? (
-          <div className="pair-rel-callout">
-            <OcRichText text={flatLore} />
-          </div>
-        ) : null}
-        {flatTags.length ? (
-          <div className="pair-extra__tags">
-            {flatTags.map((t, i) => (
-              <span className="pair-plate__tag" key={`${t}-${i}`}>
-                {t}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    );
   } else if (activePanelKey === 'story') {
     panelChildren = (
       <div className="pair-panel__story-list">
@@ -1816,7 +1753,6 @@ export function PairArchiveDetail({
             quote={pair.charNotes?.[0]?.quote}
             emoji={pair.charNotes?.[0]?.emoji}
             keywords={pair.charNotes?.[0]?.keywords}
-            flatLore={pair.charNotes?.[0]?.flatLore}
             fields={pair.charNotes?.[0]?.fields}
             body={pair.charBodyImgs?.[0]}
             bodyFrame={pair.charBodyImgFrames?.[0]}
@@ -2001,7 +1937,6 @@ export function PairArchiveDetail({
             quote={pair.charNotes?.[1]?.quote}
             emoji={pair.charNotes?.[1]?.emoji}
             keywords={pair.charNotes?.[1]?.keywords}
-            flatLore={pair.charNotes?.[1]?.flatLore}
             fields={pair.charNotes?.[1]?.fields}
             body={pair.charBodyImgs?.[1]}
             bodyFrame={pair.charBodyImgFrames?.[1]}
