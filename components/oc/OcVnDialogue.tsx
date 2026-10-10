@@ -11,6 +11,7 @@ import { playLineVoice, stopLineVoice } from '@/lib/vn/playLineVoice';
 import { VN_OUT_MS } from '@/lib/vn/presence';
 import { useVnAutoPlay } from '@/lib/vn/useVnAutoPlay';
 import { normalizeMotion, isDialogueFx, type DialogueFx, type DialogueMotion } from '@/lib/vn/motions';
+import { warmTouchPortrait } from '@/lib/oc/useTouchPortraitStack';
 import type { DialogueNode, OcCharacter } from '@/lib/types/character';
 import '@/styles/shared/vn-savebar.css';
 
@@ -106,7 +107,19 @@ export function OcVnDialogue({
     if (!active || leaving) return;
     const expr = node?.expression;
     onExpression?.(expr || null);
-  }, [active, leaving, node?.expression, onExpression]);
+    if (expr) warmTouchPortrait(expr, 'high');
+    const nextId = node?.next?.trim();
+    const nextNode = nextId
+      ? nextId === '__end__'
+        ? undefined
+        : list.find((n) => String(n.id) === String(nextId))
+      : list[pos + 1];
+    if (nextNode?.expression) warmTouchPortrait(nextNode.expression, 'high');
+    for (const c of node?.choices ?? []) {
+      const dest = list.find((n) => String(n.id) === String(c.next));
+      if (dest?.expression) warmTouchPortrait(dest.expression, 'high');
+    }
+  }, [active, leaving, list, node, pos, onExpression]);
 
   useEffect(() => {
     if (!active || leaving || !node) return;

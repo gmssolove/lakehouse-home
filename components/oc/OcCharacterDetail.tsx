@@ -2080,7 +2080,8 @@ export function OcCharacterDetail({
                             'hero',
                           )}
                           alt=""
-                          decoding="async"
+                          decoding="sync"
+                          fetchPriority={touchStackApi.stack.front === layer ? 'high' : 'low'}
                           draggable={false}
                           style={portraitImgStyle(
                             shownPortrait?.fit || portraitTarget.fit,

@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { displayImageUrl } from '@/lib/media/displayImageUrl';
 
 type Stack = { front: 0 | 1; layers: [string, string] };
 
 /* 밑장 불투명 → 위장만 페이드아웃 (캐릭터 소멸 없음) */
-const SOFT_MS = 360;
+const SOFT_MS = 280;
+const DECODE_WAIT_MS = 650;
 
 const portraitCache = new Map<string, HTMLImageElement>();
+
+function portraitSrc(url: string) {
+  return displayImageUrl(url.trim(), 'hero');
+}
 
 /** useEffect 등 렌더 사이클 중 flushSync 금지 → 다음 마이크로태스크로 미룸 */
 function commitSync(fn: () => void, after?: () => void) {
@@ -18,8 +24,47 @@ function commitSync(fn: () => void, after?: () => void) {
   });
 }
 
+function waitPortraitReady(src: string): Promise<void> {
+  warmTouchPortrait(src, 'high');
+  const img = portraitCache.get(src);
+  if (!img) return Promise.resolve();
+  const decode = () =>
+    typeof img.decode === 'function'
+      ? img.decode().then(
+          () => undefined,
+          () => undefined,
+        )
+      : Promise.resolve();
+  if (img.complete && img.naturalHeight > 0) return decode();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    const t = window.setTimeout(finish, DECODE_WAIT_MS);
+    img.addEventListener(
+      'load',
+      () => {
+        window.clearTimeout(t);
+        void decode().finally(finish);
+      },
+      { once: true },
+    );
+    img.addEventListener(
+      'error',
+      () => {
+        window.clearTimeout(t);
+        finish();
+      },
+      { once: true },
+    );
+  });
+}
+
 export function warmTouchPortrait(url: string, priority: 'low' | 'high' = 'low') {
-  const src = url.trim();
+  const src = portraitSrc(url);
   if (!src) return;
   let img = portraitCache.get(src);
   if (!img) {
@@ -56,7 +101,7 @@ export function useTouchPortraitStack(baseSrc: string) {
   const softTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const baseRef = useRef(baseSrc);
   const prevBaseSrcRef = useRef(baseSrc.trim());
-  baseRef.current = baseSrc;
+  baseRef.current = portraitSrc(baseSrc);
   /** 현재 목표로 보여 주는(또는 전환 중인) 표정 URL */
   const targetRef = useRef('');
 
@@ -69,7 +114,7 @@ export function useTouchPortraitStack(baseSrc: string) {
 
   const softSwapTo = useCallback(
     (url: string, onDone?: () => void) => {
-      const nextSrc = url.trim();
+      const nextSrc = portraitSrc(url);
       if (!nextSrc) {
         onDone?.();
         return;
@@ -139,19 +184,22 @@ export function useTouchPortraitStack(baseSrc: string) {
         setStack(primed);
       }, () => {
         if (gen !== genRef.current) return;
-        if (reduced) {
-          settle();
-          return;
-        }
-        requestAnimationFrame(() => {
+        void waitPortraitReady(nextSrc).then(() => {
           if (gen !== genRef.current) return;
+          if (reduced) {
+            settle();
+            return;
+          }
           requestAnimationFrame(() => {
             if (gen !== genRef.current) return;
-            setSoftRevert(true);
-            softTimerRef.current = setTimeout(() => {
-              softTimerRef.current = null;
-              settle();
-            }, SOFT_MS);
+            requestAnimationFrame(() => {
+              if (gen !== genRef.current) return;
+              setSoftRevert(true);
+              softTimerRef.current = setTimeout(() => {
+                softTimerRef.current = null;
+                settle();
+              }, SOFT_MS);
+            });
           });
         });
       });
@@ -193,7 +241,7 @@ export function useTouchPortraitStack(baseSrc: string) {
       genRef.current += 1;
       clearSoftTimer();
       setSoftRevert(false);
-      const url = (src ?? baseRef.current).trim();
+      const url = portraitSrc(src ?? baseRef.current);
       if (url) warmTouchPortrait(url, 'high');
       prevBaseSrcRef.current = url;
       const init: Stack = {
@@ -208,7 +256,7 @@ export function useTouchPortraitStack(baseSrc: string) {
   );
 
   useEffect(() => {
-    const base = baseSrc.trim();
+    const base = portraitSrc(baseSrc);
     const prevBase = prevBaseSrcRef.current;
     prevBaseSrcRef.current = base;
     if (!base) return;
