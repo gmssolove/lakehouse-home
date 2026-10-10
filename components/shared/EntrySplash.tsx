@@ -115,7 +115,7 @@ export function EntrySplash({
         <div className="lh-entry-splash__bg lh-entry-splash__bg--fallback" aria-hidden />
       )}
       <div className="lh-entry-splash__scrim" aria-hidden />
-      <div className="lh-entry-splash__tint" aria-hidden />
+      {splash.tint ? <div className="lh-entry-splash__tint" aria-hidden /> : null}
 
       {splash.layout === 'fullbleed' ? (
         <div className="lh-entry-splash__center">

@@ -141,12 +141,9 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: radial-gradient(
-    ellipse 62% 52% at 50% 50%,
-    color-mix(in srgb, var(--lh-splash-tint, #c49a6c) 26%, transparent) 0%,
-    color-mix(in srgb, var(--lh-splash-tint, #c49a6c) 8%, transparent) 42%,
-    transparent 74%
-  );
+  background: var(--lh-splash-tint);
+  opacity: 0.5;
+  mix-blend-mode: color;
 }
 
 .lh-entry-splash__tip {

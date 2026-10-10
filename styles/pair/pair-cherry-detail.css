@@ -5572,19 +5572,10 @@
   position: relative;
 }
 
-.pair-extra__gal-count {
-  position: absolute;
-  right: 0.45rem;
-  bottom: 0.45rem;
-  min-width: 1.4rem;
-  padding: 0.12rem 0.35rem;
-  border-radius: 999px;
-  background: rgba(10, 9, 8, 0.72);
-  border: 1px solid rgba(215, 169, 130, 0.35);
-  color: rgba(240, 207, 173, 0.92);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-align: center;
+.pair-extra__gal-count,
+.pair-panel__gallery-shell .lh-diary__pager,
+.pair-panel__gallery-shell .lh-story-pager {
+  display: none !important;
 }
 
 .pair-gallery-more {

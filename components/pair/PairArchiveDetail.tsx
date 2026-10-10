@@ -1591,8 +1591,7 @@ export function PairArchiveDetail({
         >
           <div className="pair-extra__gallery">
             {gallery.map((g) => {
-              const urls = pairGalleryUrls(g);
-              const cover = urls[0] || g.src;
+              const cover = pairGalleryUrls(g)[0] || g.src;
               return (
                 <figure className="pair-extra__gal-item" key={g.id}>
                   <button
@@ -1608,9 +1607,6 @@ export function PairArchiveDetail({
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={cover.trim()} alt="" loading="lazy" referrerPolicy="no-referrer" />
-                    {urls.length > 1 ? (
-                      <span className="pair-extra__gal-count">{urls.length}</span>
-                    ) : null}
                   </button>
                 </figure>
               );
