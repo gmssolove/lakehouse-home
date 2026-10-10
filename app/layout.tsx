@@ -89,16 +89,19 @@ const pinyon = Pinyon_Script({
   subsets: ['latin'],
   weight: ['400'],
   variable: '--font-pinyon',
-  display: 'swap',
-  preload: false,
+  /* 메뉴 첫 페인트에 필요. swap+메트릭 Fallback이면 세리프로 보였다가 필기체로 돌아옴 */
+  display: 'block',
+  preload: true,
+  adjustFontFallback: false,
 });
 
 const mySoul = My_Soul({
   subsets: ['latin'],
   weight: ['400'],
   variable: '--font-my-soul',
-  display: 'swap',
-  preload: false,
+  display: 'block',
+  preload: true,
+  adjustFontFallback: false,
 });
 
 const gowunDodum = Gowun_Dodum({
@@ -172,7 +175,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var v=document.getElementById('lh-route-veil');if(v)v.remove();var b=document.body;if(b){b.style.setProperty('opacity','1','important');b.classList.remove('lh-route-leaving','lh-leaving','lh-route-enter','lh-route-forward','lh-route-back');document.querySelectorAll('.lh-route-panel-leaving').forEach(function(el){el.classList.remove('lh-route-panel-leaving');});}if(typeof Node!=='undefined'&&!Node.prototype.__lhRemoveChildPatched){Node.prototype.__lhRemoveChildPatched=true;var orig=Node.prototype.removeChild;Node.prototype.removeChild=function(child){if(!child||child.parentNode!==this)return child;try{return orig.call(this,child);}catch(e){return child;}};}}catch(e){}})();`,
+            __html: `(function(){function ready(){document.documentElement.classList.add('lh-fonts-ready')}try{if(document.fonts){document.fonts.ready.then(ready);var fam=getComputedStyle(document.documentElement).getPropertyValue('--font-pinyon').trim().split(',')[0].replace(/['\"]/g,'');if(fam)document.fonts.load('400 28px '+fam).then(ready,ready);}else ready();setTimeout(ready,1200);}catch(e){ready()}try{var v=document.getElementById('lh-route-veil');if(v)v.remove();var b=document.body;if(b){b.style.setProperty('opacity','1','important');b.classList.remove('lh-route-leaving','lh-leaving','lh-route-enter','lh-route-forward','lh-route-back');document.querySelectorAll('.lh-route-panel-leaving').forEach(function(el){el.classList.remove('lh-route-panel-leaving');});}if(typeof Node!=='undefined'&&!Node.prototype.__lhRemoveChildPatched){Node.prototype.__lhRemoveChildPatched=true;var orig=Node.prototype.removeChild;Node.prototype.removeChild=function(child){if(!child||child.parentNode!==this)return child;try{return orig.call(this,child);}catch(e){return child;}};}}catch(e){}})();`,
           }}
         />
         <Providers>{children}</Providers>

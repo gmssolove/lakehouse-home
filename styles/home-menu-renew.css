@@ -370,9 +370,15 @@ html:has(.layout--home):has(body.lh-route-enter) .rq-menu-panel {
 }
 
 /* Script label — Pinyon keeps the feel with more even metrics than My Soul */
+@keyframes lh-nav-font-reveal {
+  to {
+    visibility: visible;
+  }
+}
+
 .rq-nav-label {
   display: block;
-  font-family: var(--font-pinyon), 'Pinyon Script', var(--font-my-soul), 'My Soul', cursive;
+  font-family: var(--font-pinyon);
   font-size: 28px;
   font-weight: 400;
   font-style: normal;
@@ -387,6 +393,14 @@ html:has(.layout--home):has(body.lh-route-enter) .rq-menu-panel {
   white-space: nowrap;
   overflow: visible;
   transition: color 0.14s ease, text-shadow 0.14s ease;
+  visibility: hidden;
+  animation: lh-nav-font-reveal 0s 1.2s forwards;
+}
+
+html.lh-fonts-ready .rq-nav-label,
+html.lh-fonts-ready .rq-nav-sub {
+  visibility: visible;
+  animation: none;
 }
 
 .rq-nav-item:hover .rq-nav-label,
@@ -453,9 +467,11 @@ html:has(.layout--home):has(body.lh-route-enter) .rq-menu-panel {
   border: none;
   background: transparent;
   color: rgba(232, 222, 211, 0.64);
-  font-family: var(--font-pinyon), 'Pinyon Script', var(--font-my-soul), 'My Soul', cursive;
+  font-family: var(--font-pinyon);
   font-size: 20px;
   font-weight: 400;
+  visibility: hidden;
+  animation: lh-nav-font-reveal 0s 1.2s forwards;
   letter-spacing: 0.01em;
   line-height: 1;
   text-align: left;
