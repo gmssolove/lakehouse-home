@@ -30,6 +30,7 @@ import {
   type ScrapCategory,
   type TimelinePost,
   type ClickerButton,
+  type TypeKeySoundBind,
   DEFAULT_SCRAP_CATEGORIES,
   DEFAULT_SITE_GUEST_SETTINGS,
   type TrpgListSettings,
@@ -192,12 +193,20 @@ function mergeUiSettings(rawUi: Partial<SiteUiSettings>, legacy: Record<string, 
   } else {
     merged.typeKeySoundBinds = merged.typeKeySoundBinds
       .filter((b): b is NonNullable<typeof b> => Boolean(b && typeof b === 'object'))
-      .map((b) => ({
-        id: typeof b.id === 'string' && b.id ? b.id : `tkb-${Math.random().toString(36).slice(2, 9)}`,
-        code: typeof b.code === 'string' ? b.code : '',
-        label: typeof b.label === 'string' ? b.label : '',
-        sound: typeof b.sound === 'string' ? b.sound : '',
-      }));
+      .map((b) => {
+        const legacy = b as TypeKeySoundBind & { sound?: string };
+        const fromList = Array.isArray(legacy.sounds)
+          ? legacy.sounds.filter((s): s is string => typeof s === 'string' && Boolean(s.trim()))
+          : [];
+        const fromOne = typeof legacy.sound === 'string' && legacy.sound.trim() ? [legacy.sound] : [];
+        return {
+          id: typeof legacy.id === 'string' && legacy.id ? legacy.id : `tkb-${Math.random().toString(36).slice(2, 9)}`,
+          code: typeof legacy.code === 'string' ? legacy.code : '',
+          label: typeof legacy.label === 'string' ? legacy.label : '',
+          sounds: fromList.length ? fromList : fromOne,
+          playMode: legacy.playMode === 'sequence' ? 'sequence' : 'random',
+        };
+      });
   }
   merged.clickerButtons = migrateClickerButtons(rawUi);
   delete merged.clickerKeys;

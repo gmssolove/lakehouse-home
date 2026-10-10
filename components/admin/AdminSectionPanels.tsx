@@ -33,9 +33,11 @@ import { CLICK_SOUND_PRESETS, playClickSound } from '@/lib/sounds/clickSound';
 import {
   TYPE_KEY_SOUND_PRESETS,
   parseTypeKeyBindInput,
+  playTypeKeyBind,
   playTypeKeyFile,
   playTypeKeySound,
   typeKeyBindFromEvent,
+  typeKeyBindSounds,
 } from '@/lib/sounds/typeKeySound';
 import { CLICKER_SOUND_PRESETS, playClickerPreset } from '@/lib/clicker/sounds';
 import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
@@ -2894,7 +2896,8 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
 
         <p className="form-hint" style={{ margin: '14px 0 8px', opacity: 0.72, fontSize: 13 }}>
           키별 효과음 — 전역 타자음과 별개입니다. 「키 입력」을 누른 뒤 원하는 키를 누르거나, 칸에 A /
-          Space / Enter 처럼 직접 적어도 됩니다. 지정한 키는 이 파일이 납니다.
+          Space / Enter 처럼 직접 적어도 됩니다. 한 키에 소리를 여러 개 올리면 랜덤 또는 순서대로
+          바뀝니다.
         </p>
         <RepeatableList
           addLabel="+ 키 추가"
@@ -2903,7 +2906,8 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
               id: newId(),
               code: '',
               label: '',
-              sound: '',
+              sounds: [],
+              playMode: 'random',
             };
             setForm({
               ...form,
@@ -2911,7 +2915,9 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
             });
           }}
         >
-          {(form.typeKeySoundBinds || []).map((bind, index) => (
+          {(form.typeKeySoundBinds || []).map((bind, index) => {
+            const slots = bind.sounds?.length ? bind.sounds : [''];
+            return (
             <AccordionSection
               key={bind.id}
               title={`키 ${index + 1}${bind.label || bind.code ? ` · ${bind.label || bind.code}` : ''}`}
@@ -2944,23 +2950,78 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
                   </button>
                 </div>
               </div>
-              <FileUploadField
-                label="이 키 효과음"
-                value={bind.sound}
-                onChange={(sound) => updateTypeBind(bind.id, { sound })}
-                accept="audio"
-                folder="site/type-keys"
-                emptyLabel="📁 MP3 / WAV 업로드"
-                changeLabel="파일 변경"
-              />
-              {bind.sound ? (
+              <div className="form-group">
+                <label className="form-label">재생 방식</label>
+                <select
+                  className="form-input"
+                  value={bind.playMode || 'random'}
+                  onChange={(e) =>
+                    updateTypeBind(bind.id, {
+                      playMode: e.target.value as TypeKeySoundBind['playMode'],
+                    })
+                  }
+                >
+                  <option value="random">랜덤</option>
+                  <option value="sequence">순서대로</option>
+                </select>
+              </div>
+              {slots.map((url, soundIndex) => (
+                <div key={`${bind.id}-s-${soundIndex}`} className="form-group">
+                  <FileUploadField
+                    label={`효과음 ${soundIndex + 1}`}
+                    value={url}
+                    onChange={(sound) => {
+                      const next = [...slots];
+                      next[soundIndex] = sound;
+                      updateTypeBind(bind.id, { sounds: next });
+                    }}
+                    accept="audio"
+                    folder="site/type-keys"
+                    emptyLabel="📁 MP3 / WAV 업로드"
+                    changeLabel="파일 변경"
+                  />
+                  {url ? (
+                    <button
+                      type="button"
+                      className="btn-save"
+                      style={{ margin: '6px 8px 0 0', padding: '5px 12px' }}
+                      onClick={() => playTypeKeyFile(url)}
+                    >
+                      미리듣기
+                    </button>
+                  ) : null}
+                  {slots.length > 1 ? (
+                    <button
+                      type="button"
+                      className="btn-edit"
+                      style={{ marginTop: 6, padding: '5px 12px' }}
+                      onClick={() =>
+                        updateTypeBind(bind.id, {
+                          sounds: slots.filter((_, i) => i !== soundIndex),
+                        })
+                      }
+                    >
+                      이 소리 삭제
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn-save"
+                style={{ marginBottom: 10, padding: '5px 12px' }}
+                onClick={() => updateTypeBind(bind.id, { sounds: [...slots, ''] })}
+              >
+                + 효과음 추가
+              </button>
+              {typeKeyBindSounds(bind).length > 0 ? (
                 <button
                   type="button"
                   className="btn-save"
-                  style={{ marginBottom: 10, padding: '5px 12px' }}
-                  onClick={() => playTypeKeyFile(bind.sound)}
+                  style={{ marginBottom: 10, marginLeft: 8, padding: '5px 12px' }}
+                  onClick={() => playTypeKeyBind(bind)}
                 >
-                  미리듣기
+                  재생 방식 미리듣기
                 </button>
               ) : null}
               <button
@@ -2976,7 +3037,8 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
                 삭제
               </button>
             </AccordionSection>
-          ))}
+            );
+          })}
         </RepeatableList>
       </AccordionSection>
 

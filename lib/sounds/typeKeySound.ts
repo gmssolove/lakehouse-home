@@ -178,6 +178,10 @@ export function parseTypeKeyBindInput(raw: string): { code: string; label: strin
   return { code: t, label: t };
 }
 
+export function typeKeyBindSounds(bind: SiteUiSettings['typeKeySoundBinds'][number]) {
+  return (bind.sounds || []).filter((s) => typeof s === 'string' && s.trim());
+}
+
 export function findTypeKeyBind(
   binds: SiteUiSettings['typeKeySoundBinds'] | undefined,
   e: KeyboardEvent,
@@ -186,11 +190,33 @@ export function findTypeKeyBind(
   const code = e.code;
   const key = e.key;
   return binds.find((b) => {
-    if (!b.sound) return false;
+    if (!typeKeyBindSounds(b).length) return false;
     if (b.code && (b.code === code || b.code === key)) return true;
     if (b.label && b.label.toLowerCase() === key.toLowerCase()) return true;
     return false;
   });
+}
+
+const seqCursor = new Map<string, number>();
+const lastRandom = new Map<string, number>();
+
+export function playTypeKeyBind(bind: SiteUiSettings['typeKeySoundBinds'][number]) {
+  const list = typeKeyBindSounds(bind);
+  if (!list.length) return;
+  let idx = 0;
+  if (list.length === 1) {
+    idx = 0;
+  } else if (bind.playMode === 'sequence') {
+    const next = seqCursor.get(bind.id) || 0;
+    idx = next % list.length;
+    seqCursor.set(bind.id, idx + 1);
+  } else {
+    const prev = lastRandom.get(bind.id);
+    idx = Math.floor(Math.random() * list.length);
+    if (prev != null && idx === prev) idx = (idx + 1) % list.length;
+    lastRandom.set(bind.id, idx);
+  }
+  playTypeKeyFile(list[idx]);
 }
 
 let lastPlayAt = 0;

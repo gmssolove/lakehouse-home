@@ -8,7 +8,7 @@ import { playClickSound } from '@/lib/sounds/clickSound';
 import {
   findTypeKeyBind,
   isTypeKeyEvent,
-  playTypeKeyFile,
+  playTypeKeyBind,
   playTypeKeySound,
 } from '@/lib/sounds/typeKeySound';
 import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
@@ -95,8 +95,8 @@ export function SiteEffects() {
         if (clickerHit) return;
       }
       const bind = findTypeKeyBind(settings.typeKeySoundBinds, e);
-      if (bind?.sound) {
-        playTypeKeyFile(bind.sound);
+      if (bind) {
+        playTypeKeyBind(bind);
         return;
       }
       if (!isTypeKeyEvent(e)) return;

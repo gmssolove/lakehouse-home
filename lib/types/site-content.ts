@@ -567,13 +567,16 @@ export type ClickerSoundPreset =
   | 'soft'
   | 'mute';
 
+export type TypeKeySoundPlayMode = 'random' | 'sequence';
+
 export type TypeKeySoundBind = {
   id: string;
   /** KeyboardEvent.code (KeyA, Space, Digit1 …) */
   code: string;
   /** 관리 화면 표시용 */
   label: string;
-  sound: string;
+  sounds: string[];
+  playMode: TypeKeySoundPlayMode;
 };
 
 export type SiteUiSettings = {
