@@ -2801,7 +2801,19 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
   }
 
   return (
-    <AdminPanelShell title="UX · 클릭음 / 커서 / 이펙트" onSave={() => onSave(form)}>
+    <AdminPanelShell
+      title="UX · 클릭음 / 커서 / 이펙트"
+      onSave={() =>
+        onSave({
+          ...form,
+          typeKeySoundBinds: (form.typeKeySoundBinds || []).map((b) => ({
+            ...b,
+            sounds: typeKeyBindSounds(b),
+            playMode: b.playMode === 'sequence' ? 'sequence' : 'random',
+          })),
+        })
+      }
+    >
       <AccordionSection title="클릭 효과음" defaultOpen>
         <div className="form-group">
           <LakeToggle
