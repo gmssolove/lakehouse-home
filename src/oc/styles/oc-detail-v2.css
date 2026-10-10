@@ -2277,6 +2277,9 @@
 }
 
 .oc-attr-keywords-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   width: 100%;
   max-width: 100%;
   margin-top: 0.7rem;
@@ -2591,7 +2594,7 @@
   display: grid;
   grid-template-rows: auto auto;
   justify-items: end;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
   row-gap: 0.28rem;
 }
@@ -2618,14 +2621,13 @@
 }
 
 .oc-keyword-chips {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, max-content));
-  justify-content: end;
-  justify-items: stretch;
-  align-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-content: flex-start;
   gap: 0.35rem 0.4rem;
-  width: fit-content;
-  max-width: min(100%, 22rem);
+  width: 100%;
+  max-width: 100%;
   margin-left: auto;
 }
 
