@@ -677,9 +677,8 @@ export function PairArchiveDetail({
   } | null>(null);
   const galleryScrollRef = useRef<HTMLDivElement | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
-  /** 페이지네이션 — 타임라인 / 갤러리 */
+  /** 페이지네이션 — 타임라인 */
   const [timelinePage, setTimelinePage] = useState(0);
-  const [galleryPage, setGalleryPage] = useState(0);
   const [panelReveal, setPanelReveal] = useState(false);
   const [textReveal, setTextReveal] = useState(false);
   const [pageLeaving, setPageLeaving] = useState(false);
@@ -1102,7 +1101,6 @@ export function PairArchiveDetail({
       setStoryTab(storyEntries.length || pair.storySeries || isAdmin || !timeline.length ? 'log' : 'timeline');
       setTimelinePage(0);
     }
-    if (activeSection === 'gallery') setGalleryPage(0);
   }, [activeSection, storyEntries.length, pair.storySeries, isAdmin, timeline.length]);
 
   /* Esc만 복귀 (스크롤로는 못 올라감) */
@@ -1353,17 +1351,10 @@ export function PairArchiveDetail({
   );
 
   const TIMELINE_PAGE_SIZE = 6;
-  /** 갤러리 1페이지 = 5열 × 3행 */
-  const GALLERY_PAGE_SIZE = 15;
   const timelinePages = Math.max(1, Math.ceil(timeline.length / TIMELINE_PAGE_SIZE));
   const timelineSlice = timeline.slice(
     timelinePage * TIMELINE_PAGE_SIZE,
     timelinePage * TIMELINE_PAGE_SIZE + TIMELINE_PAGE_SIZE,
-  );
-  const galleryPages = Math.max(1, Math.ceil(gallery.length / GALLERY_PAGE_SIZE));
-  const gallerySlice = gallery.slice(
-    galleryPage * GALLERY_PAGE_SIZE,
-    galleryPage * GALLERY_PAGE_SIZE + GALLERY_PAGE_SIZE,
   );
 
   useEffect(() => {
@@ -1385,7 +1376,7 @@ export function PairArchiveDetail({
       el.removeEventListener('scroll', update);
       ro?.disconnect();
     };
-  }, [activeSection, galleryPage, gallerySlice.length]);
+  }, [activeSection, gallery.length]);
 
   useEffect(() => {
     if (activeSection !== 'story' || storyTab !== 'timeline') {
@@ -1599,7 +1590,7 @@ export function PairArchiveDetail({
           ref={galleryScrollRef}
         >
           <div className="pair-extra__gallery">
-            {gallerySlice.map((g) => {
+            {gallery.map((g) => {
               const urls = pairGalleryUrls(g);
               const cover = urls[0] || g.src;
               return (
@@ -1625,7 +1616,6 @@ export function PairArchiveDetail({
               );
             })}
           </div>
-          {renderPager(galleryPage, galleryPages, setGalleryPage)}
         </div>
         <div className="pair-gallery-more" aria-hidden={!galleryHasMore}>
           <div className="pair-gallery-more__fade" />
