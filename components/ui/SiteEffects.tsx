@@ -86,6 +86,7 @@ export function SiteEffects() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (e.repeat) return;
       const settings = settingsRef.current;
       if (settings.clickerEnabled && !e.repeat) {
         const k = e.key.length === 1 ? e.key.toLowerCase() : '';
