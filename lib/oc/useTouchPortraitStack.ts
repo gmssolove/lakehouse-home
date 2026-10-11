@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { displayImageUrl } from '@/lib/media/displayImageUrl';
+import { displayImageUrl, originalImageUrl } from '@/lib/media/displayImageUrl';
 
 type Stack = { front: 0 | 1; layers: [string, string] };
 
@@ -75,6 +75,14 @@ export function warmTouchPortrait(url: string, priority: 'low' | 'high' = 'low')
       /* ignore */
     }
     img.decoding = 'async';
+    img.addEventListener(
+      'error',
+      () => {
+        const orig = originalImageUrl(src);
+        if (orig && img.src !== orig) img.src = orig;
+      },
+      { once: true },
+    );
     img.src = src;
     portraitCache.set(src, img);
     return;

@@ -18,7 +18,7 @@ import { OcVnDialogue, useVnDialogue } from '@/components/oc/OcVnDialogue';
 import { emptyFloatingQuote, normalizeFloatingQuotes } from '@/lib/oc/floatingQuotes';
 import { applyCharacterTheme, characterHasBgmTheme, clearCharacterTheme, resolveCharacterTheme } from '@/lib/oc/characterTheme';
 import { formatGalleryCredit, gallerySrc, normalizeGalleryItem } from '@/lib/oc/gallery';
-import { displayImageUrl } from '@/lib/media/displayImageUrl';
+import { displayImageUrl, originalImageUrl } from '@/lib/media/displayImageUrl';
 import { displayCategory, canLinkTrpgScenarios, isTrpgCategory } from '@/lib/oc/categories';
 import { buildDetailProfileRows, formatCardTag, formatStatDigits, parseStatPercent } from '@/lib/oc/profile';
 import { OcRichText } from '@/lib/oc/richText';
@@ -2021,7 +2021,18 @@ export function OcCharacterDetail({
                 }}
                 {...ghostDrag.handlers}
               >
-                <img className="oc-char-billboard" src={displayImageUrl(ghostDisplaySrc, 'hero')} alt="" decoding="async" draggable={false} />
+                <img
+                  className="oc-char-billboard"
+                  src={displayImageUrl(ghostDisplaySrc, 'hero')}
+                  alt=""
+                  decoding="async"
+                  draggable={false}
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    const orig = originalImageUrl(ghostDisplaySrc);
+                    if (orig && el.src !== orig) el.src = orig;
+                  }}
+                />
               </div>
             </div>
           ) : null}
@@ -2087,6 +2098,13 @@ export function OcCharacterDetail({
                             shownPortrait?.fit || portraitTarget.fit,
                             shownPortrait?.pos || portraitTarget.pos,
                           )}
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            const orig = originalImageUrl(
+                              touchStackApi.stack.layers[layer] || portraitStackBase,
+                            );
+                            if (orig && el.src !== orig) el.src = orig;
+                          }}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (

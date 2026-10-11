@@ -15,6 +15,21 @@ const PRESET_WIDTH: Record<Exclude<DisplayImagePreset, 'full'>, number> = {
 const R2_HOST_RE =
   /(^|\.)workers\.dev$|(^|\.)r2\.dev$|^img\.lakehouse\.me\.kr$|^files\.lakehouse\.me\.kr$/i;
 
+/** 리사이즈 쿼리를 떼 원본 URL. 표시용 URL이 깨질 때 img onError 폴백. */
+export function originalImageUrl(src: string | null | undefined): string {
+  const raw = String(src || '').trim();
+  if (!raw) return '';
+  try {
+    const u = new URL(raw, 'https://lakehouse.me.kr');
+    u.searchParams.delete('w');
+    u.searchParams.delete('q');
+    u.searchParams.delete('f');
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
+
 export function isR2PublicUrl(src: string): boolean {
   const raw = String(src || '').trim();
   if (!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return false;
@@ -42,8 +57,13 @@ export function displayImageUrl(
     const u = new URL(raw, 'https://lakehouse.me.kr');
     if (u.searchParams.has('w')) return raw;
     u.searchParams.set('w', String(Math.min(2400, width)));
-    u.searchParams.set('q', '72');
-    u.searchParams.set('f', 'auto');
+    /* hero는 스탠딩 PNG — f=auto가 일부 파일을 깨뜨리거나 투명 배경을 날림 */
+    if (preset === 'hero') {
+      u.searchParams.set('q', '90');
+    } else {
+      u.searchParams.set('q', '72');
+      u.searchParams.set('f', 'auto');
+    }
     return u.toString();
   } catch {
     return raw;

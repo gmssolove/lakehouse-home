@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 import {
   preloadHandNoteImage,
   preloadHandNoteImages,
@@ -9,6 +10,8 @@ import {
   warmHandNoteSfx,
 } from '@/lib/oc/handNotePreload';
 import { playSafe } from '@/lib/vn/safeAudio';
+
+const NotePaperUncrumple = dynamic(() => import('./NotePaperUncrumple'), { ssr: false });
 
 type Props = {
   open: boolean;
@@ -21,8 +24,27 @@ type Props = {
   onClose: () => void;
 };
 
-const FOLDS = 4;
 const CLOSE_MS = 420;
+
+function parseNoteAspect(aspect: string | null) {
+  const parts = (aspect || '3 / 4').split('/').map((s) => Number(String(s).trim()));
+  const w = Number.isFinite(parts[0]) && parts[0] > 0 ? parts[0] : 3;
+  const h = Number.isFinite(parts[1]) && parts[1] > 0 ? parts[1] : 4;
+  const landscape = w > h * 1.15;
+  const capW = landscape ? 640 : 520;
+  const maxW =
+    typeof window === 'undefined' ? capW : Math.min(capW, Math.round(window.innerWidth * 0.72));
+  const maxH =
+    typeof window === 'undefined' ? 640 : Math.round(window.innerHeight * 0.78);
+  let width = maxW;
+  let height = Math.max(1, Math.round((width * h) / w));
+  if (height > maxH) {
+    height = maxH;
+    width = Math.max(1, Math.round((height * w) / h));
+  }
+  return { width, height, sceneHeight: height };
+}
+
 /** 펼침 애니와 맞추기 — fold 시작(0.04s) 후 첫 단이 어느 정도 열린 시점 */
 const SFX_DELAY_MS = 120;
 
@@ -42,6 +64,7 @@ export function HandwritingNoteFlap({
   const [animKey, setAnimKey] = useState(0);
   const [aspect, setAspect] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [crumpleFailed, setCrumpleFailed] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const closeTimer = useRef(0);
   const sfxRef = useRef<HTMLAudioElement | null>(null);
@@ -83,6 +106,7 @@ export function HandwritingNoteFlap({
     if (!open) {
       setIndex(0);
       setReady(false);
+      setCrumpleFailed(false);
       setAspect(null);
       setLeaving(false);
       leavingRef.current = false;
@@ -96,7 +120,9 @@ export function HandwritingNoteFlap({
     let cancelled = false;
     setLeaving(false);
     leavingRef.current = false;
+    setCrumpleFailed(false);
     setReady(false);
+    setAspect(null);
 
     /* 이웃 장도 미리 받아 페이지 넘김 뚝 완화 */
     preloadHandNoteImages(urlsKey.split('\0'));
@@ -137,34 +163,33 @@ export function HandwritingNoteFlap({
     [stopSfx],
   );
 
-  const requestClose = useCallback(() => {
-    if (leavingRef.current) return;
-    leavingRef.current = true;
-    setLeaving(true);
+  const playCloseSfx = useCallback(() => {
     window.clearTimeout(sfxTimer.current);
-    /* 펼침음만 끊고, 닫기음은 언마운트 stop에 안 걸리게 ref에서 분리 */
     if (sfxRef.current) {
       sfxRef.current.pause();
       sfxRef.current = null;
     }
     const closeUrl = (closeSfxUrl || '').trim();
-    if (closeUrl) {
-      try {
-        const el = takeHandNoteSfx(closeUrl);
-        if (el) {
-          el.volume = 0.62;
-          playSafe(el, 'sfx', closeUrl);
-          /* sfxRef에 넣지 않음 — open=false cleanup이 닫기음을 끊지 않음 */
-        }
-      } catch {
-        /* ignore */
+    if (!closeUrl) return;
+    try {
+      const el = takeHandNoteSfx(closeUrl);
+      if (el) {
+        el.volume = 0.62;
+        playSafe(el, 'sfx', closeUrl);
       }
+    } catch {
+      /* ignore */
     }
+  }, [closeSfxUrl]);
+
+  const requestClose = useCallback(() => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    playCloseSfx();
     window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => {
-      onClose();
-    }, CLOSE_MS);
-  }, [closeSfxUrl, onClose]);
+    setLeaving(true);
+    closeTimer.current = window.setTimeout(() => onClose(), CLOSE_MS);
+  }, [onClose, playCloseSfx]);
 
   /* 쪽지가 열려 있으면 Escape는 쪽지만 닫고, 뒤 상세는 유지 */
   useEffect(() => {
@@ -181,6 +206,9 @@ export function HandwritingNoteFlap({
 
   if (!open) return null;
 
+  const paper = parseNoteAspect(aspect);
+  const useCrumple = ready && !!aspect && !crumpleFailed;
+
   const overlay = (
     <div
       className={`pair-note-flap-lb${leaving ? ' is-leaving' : ''}`}
@@ -189,52 +217,59 @@ export function HandwritingNoteFlap({
       aria-label={`${title} 손글씨 쪽지`}
       onClick={requestClose}
     >
-      <button
-        type="button"
-        className="pair-note-flap-lb__close"
-        onClick={(e) => {
-          e.stopPropagation();
-          requestClose();
-        }}
-        aria-label="닫기"
-      >
-        ✕
-      </button>
-
       <div className="pair-note-flap-lb__stage" onClick={(e) => e.stopPropagation()}>
-        {ready && aspect ? (
-          <div
-            className="pair-note-unfold"
-            key={`${animKey}-${src}`}
-            style={{ aspectRatio: aspect }}
+        <div className="pair-note-flap-lb__row">
+          <button
+            type="button"
+            className="pair-note-flap-lb__close"
+            onClick={(e) => {
+              e.stopPropagation();
+              requestClose();
+            }}
+            aria-label="닫기"
           >
-            {Array.from({ length: FOLDS }, (_, i) => (
-              <div
-                key={i}
-                className="pair-note-unfold__fold"
-                style={{ ['--fold' as string]: i }}
-              >
-                <div className="pair-note-unfold__face">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    draggable={false}
-                    decoding="async"
-                    fetchPriority="high"
-                    style={{
-                      height: `${FOLDS * 100}%`,
-                      top: `${-i * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+            ✕
+          </button>
+          <div
+            className="pair-note-paper"
+            style={
+              ready && aspect
+                ? { width: paper.width, height: paper.height }
+                : undefined
+            }
+          >
+            {useCrumple ? (
+              <NotePaperUncrumple
+                key={`${animKey}-${src}`}
+                src={src}
+                alt=""
+                width={paper.width}
+                height={paper.height}
+                sceneHeight={paper.sceneHeight}
+                imageFit="contain"
+                autoUncrumple
+                draggable={false}
+                shadow={false}
+                roughness={1}
+                paperTexture={0}
+                lightIntensity={0.4}
+                detail={72}
+                onError={() => setCrumpleFailed(true)}
+              />
+            ) : ready && aspect ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className="lh-note-flat"
+                src={src}
+                alt=""
+                referrerPolicy="no-referrer"
+                draggable={false}
+              />
+            ) : (
+              <div className="pair-note-unfold-skeleton" aria-hidden />
+            )}
           </div>
-        ) : (
-          <div className="pair-note-unfold-skeleton" aria-hidden />
-        )}
+        </div>
 
         {ready && urls.length > 1 ? (
           <div className="pair-note-unfold__pager">

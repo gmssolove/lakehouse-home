@@ -22,7 +22,15 @@ function loadNoteImage(src: string): Promise<NoteDim | null> {
 
     const finish = async () => {
       try {
-        if (typeof img.decode === 'function') await img.decode();
+        if (typeof img.decode === 'function') {
+          await Promise.race([
+            img.decode().then(
+              () => undefined,
+              () => undefined,
+            ),
+            new Promise<void>((r) => window.setTimeout(r, 400)),
+          ]);
+        }
       } catch {
         /* decode 실패해도 naturalSize 있으면 사용 */
       }
@@ -47,7 +55,23 @@ function loadNoteImage(src: string): Promise<NoteDim | null> {
 
 export function preloadHandNoteImage(src: string): Promise<NoteDim | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  return loadNoteImage(src);
+  const url = src.trim();
+  if (!url) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      dimCache.delete(url);
+      resolve(null);
+    }, 900);
+    void loadNoteImage(url).then((dim) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve(dim);
+    });
+  });
 }
 
 export function preloadHandNoteImages(

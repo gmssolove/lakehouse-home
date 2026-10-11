@@ -167,6 +167,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
           media="print"
+          suppressHydrationWarning
         />
         <script
           dangerouslySetInnerHTML={{

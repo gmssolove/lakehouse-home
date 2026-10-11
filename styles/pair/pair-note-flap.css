@@ -20,7 +20,7 @@
 
 .pair-note-flap-lb.is-leaving {
   opacity: 0;
-  filter: blur(10px);
+  filter: blur(8px);
   pointer-events: none;
   transition:
     opacity 0.42s ease,
@@ -28,24 +28,24 @@
 }
 
 .pair-note-flap-lb__close {
-  position: absolute;
-  top: 2vh;
-  right: 3vw;
   all: unset;
+  box-sizing: border-box;
   cursor: pointer;
-  font-size: 20px;
-  color: rgba(244, 238, 229, 0.8);
-  width: 40px;
-  height: 40px;
+  flex-shrink: 0;
+  font-size: 18px;
+  color: rgba(244, 238, 229, 0.92);
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  background: rgba(12, 10, 8, 0.42);
   z-index: 2;
 }
 
 .pair-note-flap-lb__close:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(12, 10, 8, 0.62);
 }
 
 .pair-note-flap-lb__stage {
@@ -54,17 +54,98 @@
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  max-width: min(90vw, 560px);
-  width: 100%;
+  max-width: min(92vw, 800px);
+  width: auto;
   cursor: default;
+}
+
+.pair-note-flap-lb__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
 }
 
 .pair-note-unfold-skeleton {
   width: min(72vw, 280px);
   height: min(48vh, 360px);
-  border-radius: 12px;
+  border-radius: 14px;
   opacity: 0.15;
   background: rgba(255, 255, 255, 0.06);
+}
+
+.pair-note-paper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  clip-path: inset(0 round 20px);
+  transform: translateZ(0);
+  isolation: isolate;
+  line-height: 0;
+}
+
+.lh-note-crumple {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 20px;
+  clip-path: inset(0 round 20px);
+}
+
+.lh-note-crumple__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  border-radius: 20px;
+}
+
+.lh-note-crumple__fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: auto;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.lh-note-crumple[data-status='loading'] .lh-note-crumple__fallback {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: min(42%, 168px);
+  height: min(42%, 168px);
+  object-fit: cover;
+  border-radius: 48% 36% 44% 40%;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  filter: contrast(1.06) brightness(0.94);
+}
+
+.lh-note-flat {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 20px;
+  user-select: none;
+}
+
+.lh-note-crumple__hit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .pair-note-unfold {
@@ -74,7 +155,7 @@
   height: auto;
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
   transform-style: preserve-3d;
   background: transparent;
