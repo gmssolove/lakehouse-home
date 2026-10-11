@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import {
@@ -11,7 +11,24 @@ import {
 } from '@/lib/oc/handNotePreload';
 import { playSafe } from '@/lib/vn/safeAudio';
 
-const NotePaperUncrumple = dynamic(() => import('./NotePaperUncrumple'), { ssr: false });
+const NotePaperUncrumple = dynamic(() => import('./NotePaperUncrumple'), {
+  ssr: false,
+}) as ComponentType<{
+  src: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  sceneHeight?: number;
+  imageFit?: string;
+  autoUncrumple?: boolean;
+  draggable?: boolean;
+  shadow?: boolean;
+  roughness?: number;
+  paperTexture?: number;
+  lightIntensity?: number;
+  detail?: number;
+  onError?: () => void;
+}>;
 
 type Props = {
   open: boolean;
