@@ -68,23 +68,23 @@ export function warmTouchPortrait(url: string, priority: 'low' | 'high' = 'low')
   if (!src) return;
   let img = portraitCache.get(src);
   if (!img) {
-    img = new Image();
+    const next = new Image();
     try {
-      (img as HTMLImageElement & { fetchPriority?: string }).fetchPriority = priority;
+      (next as HTMLImageElement & { fetchPriority?: string }).fetchPriority = priority;
     } catch {
       /* ignore */
     }
-    img.decoding = 'async';
-    img.addEventListener(
+    next.decoding = 'async';
+    next.addEventListener(
       'error',
       () => {
         const orig = originalImageUrl(src);
-        if (orig && img.src !== orig) img.src = orig;
+        if (orig && next.src !== orig) next.src = orig;
       },
       { once: true },
     );
-    img.src = src;
-    portraitCache.set(src, img);
+    next.src = src;
+    portraitCache.set(src, next);
     return;
   }
   if (priority === 'high') {
