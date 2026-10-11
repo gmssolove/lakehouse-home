@@ -31,6 +31,8 @@ type Props = {
   uploadBusy?: boolean;
   listIdPrefix?: string;
   hint?: string;
+  /** OC VN 등 — 장소가 대사창에 붙는 경우. 없으면 중앙 배너 안내 */
+  locationHint?: string;
   startId?: string;
   onStartIdChange?: (id: string) => void;
 };
@@ -104,6 +106,7 @@ export function DialogueNodesEditor({
   uploadBusy,
   listIdPrefix = 'dlg',
   hint,
+  locationHint,
   startId,
   onStartIdChange,
 }: Props) {
@@ -554,8 +557,8 @@ export function DialogueNodesEditor({
                       }}
                     />
                     <p className="lh-dialogue-editor__hint" style={{ margin: '6px 0 0' }}>
-                      저장 후 캐릭터를 클릭해 대사창을 열면, 화면 중앙에 장소가 뜬 뒤 좌상단에 남습니다. 같은
-                      장소가 이어지면 연출이 반복되지 않습니다.
+                      {locationHint ||
+                        '저장 후 캐릭터를 클릭해 대사창을 열면, 화면 중앙에 장소가 뜬 뒤 좌상단에 남습니다. 같은 장소가 이어지면 연출이 반복되지 않습니다.'}
                     </p>
                   </section>
 

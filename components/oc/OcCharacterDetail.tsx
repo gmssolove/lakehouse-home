@@ -829,8 +829,8 @@ export function OcCharacterDetail({
     if (!vn.present || vn.leaving) return;
     const expr = vn.expression?.trim();
     if (!expr) return;
-    touchStackApi.hardSwap(expr);
-  }, [vn.present, vn.leaving, vn.expression, touchStackApi.hardSwap]);
+    touchStackApi.softSwap(expr);
+  }, [vn.present, vn.leaving, vn.expression, touchStackApi.softSwap]);
 
   /* X로 퇴장 시작 시 expression이 null → portraitTarget이 기본으로 바뀌며 soft 전환 */
   useEffect(() => {

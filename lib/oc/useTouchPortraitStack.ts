@@ -209,32 +209,9 @@ export function useTouchPortraitStack(baseSrc: string) {
 
   const hardSwap = useCallback(
     (url: string, onDone?: () => void) => {
-      const nextSrc = portraitSrc(url);
-      if (!nextSrc) {
-        onDone?.();
-        return;
-      }
-      const current = stackRef.current;
-      if (current.layers[current.front] === nextSrc) {
-        targetRef.current = nextSrc;
-        onDone?.();
-        return;
-      }
-      clearSoftTimer();
-      const gen = ++genRef.current;
-      targetRef.current = nextSrc;
-      warmTouchPortrait(nextSrc, 'high');
-      void waitPortraitReady(nextSrc).then(() => {
-        if (gen !== genRef.current) return;
-        const settled: Stack = { front: 0, layers: [nextSrc, nextSrc] };
-        stackRef.current = settled;
-        commitSync(() => {
-          setSoftRevert(false);
-          setStack(settled);
-        }, onDone);
-      });
+      softSwapTo(url, onDone);
     },
-    [clearSoftTimer],
+    [softSwapTo],
   );
 
   const softRevertToBase = useCallback(

@@ -5,7 +5,7 @@ import { VnActionChoices } from '@/components/shared/VnActionChoices';
 import { VnAutoPlayButton } from '@/components/shared/VnAutoPlayButton';
 import { VnDialogueChoices } from '@/components/shared/VnDialogueChoices';
 import { isNarrationSpeaker } from '@/components/shared/DialogueNodesEditor';
-import { VnLocationBanner } from '@/components/vn/VnLocationBanner';
+import { VnLocationLabel } from '@/components/vn/VnLocationLabel';
 import { useBalancedDialogueText } from '@/lib/hooks/useBalancedDialogueText';
 import { playLineVoice, stopLineVoice } from '@/lib/vn/playLineVoice';
 import { VN_OUT_MS } from '@/lib/vn/presence';
@@ -13,6 +13,7 @@ import { useVnAutoPlay } from '@/lib/vn/useVnAutoPlay';
 import { normalizeMotion, isDialogueFx, type DialogueFx, type DialogueMotion } from '@/lib/vn/motions';
 import { warmTouchPortrait } from '@/lib/oc/useTouchPortraitStack';
 import type { DialogueNode, OcCharacter } from '@/lib/types/character';
+import '@/styles/shared/vn-location.css';
 import '@/styles/shared/vn-savebar.css';
 
 type Props = {
@@ -344,6 +345,7 @@ export function OcVnDialogue({
         <button type="button" className="lh-vn-close" onClick={onClose} aria-label="닫기" disabled={leaving}>
           ×
         </button>
+        <VnLocationLabel location={node?.location} />
         <div className={`lh-vn-speaker${isNarration || !speaker ? ' is-empty' : ''}`} id="lh-vn-speaker">
           {isNarration || !speaker ? '\u00A0' : speaker}
         </div>
@@ -372,7 +374,6 @@ export function OcVnDialogue({
 
   return (
     <>
-      <VnLocationBanner location={node?.location} />
       {actionLayer}
       {overlay}
     </>

@@ -2514,6 +2514,7 @@ export function OcEditForm({
         uploadBusy={busy}
         listIdPrefix="oc-dlg"
         hint="캐릭터를 클릭하면 이 목록이 재생됩니다. 1→2→3→4 순서대로 적고, 필요할 때만 선택지·연출을 켜 주세요."
+        locationHint="저장 후 캐릭터를 클릭해 대사창을 열면, 지정한 장소가 대사창 위쪽에 표시됩니다. 같은 장소가 이어지면 연출이 반복되지 않습니다."
         startId={form.dialogueStart || form.dialogue?.[0]?.id || ''}
         onStartIdChange={(id) => set('dialogueStart', id)}
       />
