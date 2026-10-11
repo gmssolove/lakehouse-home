@@ -6,7 +6,7 @@
 // @ts-nocheck
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import * as THREE from 'three';
 const spring = (value = 0) => ({ value, target: value, velocity: 0 });
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -1269,5 +1269,22 @@ const PaperCrumple = ({
     </div>
   );
 };
-export default PaperCrumple;
+export default PaperCrumple as ComponentType<{
+  src: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  sceneHeight?: number;
+  imageFit?: string;
+  autoUncrumple?: boolean;
+  draggable?: boolean;
+  shadow?: boolean;
+  roughness?: number;
+  paperTexture?: number;
+  lightIntensity?: number;
+  detail?: number;
+  crumpleDuration?: number;
+  crumpleAmount?: number;
+  onError?: () => void;
+}>;
 
