@@ -41,7 +41,7 @@ import {
   typeKeyGlobalSounds,
 } from '@/lib/sounds/typeKeySound';
 import { CLICKER_SOUND_PRESETS, playClickerPreset } from '@/lib/clicker/sounds';
-import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
+import { CURSOR_PRESETS, CURSOR_SIZE_MAX, CURSOR_SIZE_MIN, clampCursorSize } from '@/lib/ui/cursorPresets';
 import { LakeToggle } from '@/components/ui/LakeToggle';
 import { LinkPickList } from '@/components/ui/LinkPickList';
 import { SecretPostFields } from '@/components/ui/SecretPostFields';
@@ -3161,6 +3161,18 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
             changeLabel="파일 변경"
           />
         ) : null}
+        <div className="form-group">
+          <SliderField
+            label="커서 크기"
+            value={clampCursorSize(form.cursorSize)}
+            onChange={(cursorSize) => setForm({ ...form, cursorSize })}
+            min={CURSOR_SIZE_MIN}
+            max={CURSOR_SIZE_MAX}
+            step={5}
+            displayValue={`${clampCursorSize(form.cursorSize)}%`}
+            hint="50%는 더 작게, 200%는 더 크게. 저장 후 사이트 전체에 적용됩니다."
+          />
+        </div>
         <div className="form-group" style={{ marginTop: '0.75rem' }}>
           <LakeToggle
             checked={form.clickRippleEnabled}

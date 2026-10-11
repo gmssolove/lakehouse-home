@@ -167,6 +167,10 @@ function mergeUiSettings(rawUi: Partial<SiteUiSettings>, legacy: Record<string, 
     1,
     Math.max(0, Number(merged.clickerDefaultVolume) || DEFAULT_SITE_UI_SETTINGS.clickerDefaultVolume),
   );
+  const sizeRaw = Number(merged.cursorSize);
+  merged.cursorSize = Number.isFinite(sizeRaw)
+    ? Math.min(200, Math.max(50, Math.round(sizeRaw)))
+    : DEFAULT_SITE_UI_SETTINGS.cursorSize;
   if (typeof merged.clickerHint !== 'string') {
     merged.clickerHint = DEFAULT_SITE_UI_SETTINGS.clickerHint;
   }

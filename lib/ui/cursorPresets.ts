@@ -102,3 +102,99 @@ export const CURSOR_PRESETS: { id: CursorPresetId; label: string; css: string; c
     cssPointer: 'pointer',
   },
 ];
+
+export const CURSOR_SIZE_MIN = 50;
+export const CURSOR_SIZE_MAX = 200;
+export const CURSOR_SIZE_DEFAULT = 100;
+const CURSOR_MAX_PX = 128;
+
+export function clampCursorSize(n: unknown): number {
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v)) return CURSOR_SIZE_DEFAULT;
+  return Math.min(CURSOR_SIZE_MAX, Math.max(CURSOR_SIZE_MIN, v));
+}
+
+function scaleHotspot(n: number, scale: number) {
+  return Math.max(0, Math.round(n * scale));
+}
+
+function scaleSvgMarkup(svg: string, scale: number): string {
+  const bump = (raw: string) => String(Math.max(8, Math.round(Number(raw) * scale)));
+  return svg
+    .replace(/\bwidth=(['"])(\d+(?:\.\d+)?)(?:px)?\1/, (_, q: string, w: string) => `width=${q}${bump(w)}${q}`)
+    .replace(/\bheight=(['"])(\d+(?:\.\d+)?)(?:px)?\1/, (_, q: string, h: string) => `height=${q}${bump(h)}${q}`);
+}
+
+function scaleDataSvgUrl(url: string, scale: number): string {
+  const comma = 'data:image/svg+xml,';
+  const b64 = 'data:image/svg+xml;base64,';
+  if (url.startsWith(comma)) {
+    return comma + encodeURIComponent(scaleSvgMarkup(decodeURIComponent(url.slice(comma.length)), scale));
+  }
+  if (url.startsWith(b64)) {
+    try {
+      return comma + encodeURIComponent(scaleSvgMarkup(atob(url.slice(b64.length)), scale));
+    } catch {
+      return url;
+    }
+  }
+  return url;
+}
+
+/** 프리셋 CSS cursor 값을 크기(%)에 맞춰 스케일 */
+export function scaleCursorCss(css: string, percent: number): string {
+  const scale = clampCursorSize(percent) / 100;
+  if (scale === 1) return css;
+  const m = css.match(/^url\((['"]?)(.+?)\1\)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?),\s*(.+)$/);
+  if (!m) return css;
+  const url = scaleDataSvgUrl(m[2], scale);
+  return `url("${url}") ${scaleHotspot(Number(m[3]), scale)} ${scaleHotspot(Number(m[4]), scale)}, ${m[5]}`;
+}
+
+function capSize(w: number, h: number): { w: number; h: number } {
+  const max = Math.max(w, h);
+  if (max <= CURSOR_MAX_PX) return { w, h };
+  const f = CURSOR_MAX_PX / max;
+  return { w: Math.max(8, Math.round(w * f)), h: Math.max(8, Math.round(h * f)) };
+}
+
+/** 업로드 커서 — 원본 픽셀에 %를 곱함 */
+export function buildScaledCursorCss(
+  src: string,
+  percent: number,
+  hotspot = 8,
+): Promise<string> {
+  const scale = clampCursorSize(percent) / 100;
+  const hx = scaleHotspot(hotspot, scale);
+  const hy = scaleHotspot(hotspot, scale);
+  if (src.includes('image/svg+xml')) {
+    return Promise.resolve(scaleCursorCss(`url("${src}") ${hotspot} ${hotspot}, auto`, percent));
+  }
+  if (scale === 1) {
+    return Promise.resolve(`url("${src}") ${hotspot} ${hotspot}, auto`);
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const baseW = Math.max(1, img.naturalWidth);
+      const baseH = Math.max(1, img.naturalHeight);
+      const sized = capSize(Math.round(baseW * scale), Math.round(baseH * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = sized.w;
+      canvas.height = sized.h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(`url("${src}") ${hx} ${hy}, auto`);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, sized.w, sized.h);
+      try {
+        resolve(`url("${canvas.toDataURL('image/png')}") ${hx} ${hy}, auto`);
+      } catch {
+        resolve(`url("${src}") ${hx} ${hy}, auto`);
+      }
+    };
+    img.onerror = () => resolve(`url("${src}") ${hx} ${hy}, auto`);
+    img.src = src;
+  });
+}

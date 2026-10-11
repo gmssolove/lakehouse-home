@@ -604,6 +604,8 @@ export type SiteUiSettings = {
     | 'classicWait'
     | 'custom';
   cursorCustom: string;
+  /** 커스텀 커서 크기. 100 = 프리셋/원본 그대로 (50–200) */
+  cursorSize: number;
   clickRippleEnabled: boolean;
   /** 메인 홈 클리커 위젯 */
   clickerEnabled: boolean;
@@ -638,6 +640,7 @@ export const DEFAULT_SITE_UI_SETTINGS: SiteUiSettings = {
   customCursorEnabled: true,
   cursorPreset: 'ring',
   cursorCustom: '',
+  cursorSize: 100,
   clickRippleEnabled: true,
   clickerEnabled: true,
   clickerHint: 'z · x · c · v',

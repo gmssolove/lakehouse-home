@@ -11,7 +11,12 @@ import {
   playTypeKeyBind,
   playTypeKeySound,
 } from '@/lib/sounds/typeKeySound';
-import { CURSOR_PRESETS } from '@/lib/ui/cursorPresets';
+import {
+  CURSOR_PRESETS,
+  buildScaledCursorCss,
+  clampCursorSize,
+  scaleCursorCss,
+} from '@/lib/ui/cursorPresets';
 
 type Ripple = { id: number; x: number; y: number };
 
@@ -39,20 +44,29 @@ export function SiteEffects() {
       return;
     }
 
+    const size = clampCursorSize(uiSettings.cursorSize);
+    let cancelled = false;
+
     if (uiSettings.cursorPreset === 'custom' && uiSettings.cursorCustom) {
-      const url = `url("${uiSettings.cursorCustom}") 8 8, auto`;
-      root.style.setProperty('--lake-cursor', url);
-      root.style.setProperty('--lake-cursor-pointer', url);
-      return;
+      void buildScaledCursorCss(uiSettings.cursorCustom, size).then((css) => {
+        if (cancelled) return;
+        root.style.setProperty('--lake-cursor', css);
+        root.style.setProperty('--lake-cursor-pointer', css);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
     const preset = CURSOR_PRESETS.find((p) => p.id === uiSettings.cursorPreset) ?? CURSOR_PRESETS[0];
-    root.style.setProperty('--lake-cursor', preset.css);
-    root.style.setProperty('--lake-cursor-pointer', preset.cssPointer);
+    root.style.setProperty('--lake-cursor', scaleCursorCss(preset.css, size));
+    root.style.setProperty('--lake-cursor-pointer', scaleCursorCss(preset.cssPointer, size));
+    return undefined;
   }, [
     uiSettings.customCursorEnabled,
     uiSettings.cursorPreset,
     uiSettings.cursorCustom,
+    uiSettings.cursorSize,
   ]);
 
   useEffect(() => {
