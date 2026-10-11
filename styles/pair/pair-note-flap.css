@@ -54,8 +54,8 @@
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  max-width: min(92vw, 800px);
-  width: auto;
+  max-width: min(90vw, 560px);
+  width: 100%;
   cursor: default;
 }
 

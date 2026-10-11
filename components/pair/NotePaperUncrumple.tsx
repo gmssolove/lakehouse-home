@@ -791,9 +791,7 @@ const PaperCrumple = ({
       const rect = root.getBoundingClientRect();
       viewportWidth = Math.max(1, rect.width);
       viewportHeight = Math.max(1, rect.height);
-      scale =
-        paperWidth *
-        Math.min(1, Math.max(1, viewportWidth - 48) / paperWidth, Math.max(1, viewportHeight - 48) / paperHeight);
+      scale = paperWidth * Math.min(viewportWidth / paperWidth, viewportHeight / paperHeight);
       sheet.scale.setScalar(scale);
       camera.aspect = viewportWidth / viewportHeight;
       camera.position.z = viewportHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));

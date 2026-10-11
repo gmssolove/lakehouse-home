@@ -48,10 +48,11 @@ function parseNoteAspect(aspect: string | null) {
   const w = Number.isFinite(parts[0]) && parts[0] > 0 ? parts[0] : 0;
   const h = Number.isFinite(parts[1]) && parts[1] > 0 ? parts[1] : 0;
   if (!w || !h) return null;
+  /* 모션 추가 전 .pair-note-unfold 과 동일: 너비 520, 높이 최대 78vh/720 */
   const maxW =
-    typeof window === 'undefined' ? 520 : Math.min(520, Math.round(window.innerWidth * 0.72));
+    typeof window === 'undefined' ? 520 : Math.min(520, Math.round(window.innerWidth * 0.9));
   const maxH =
-    typeof window === 'undefined' ? 560 : Math.min(560, Math.round(window.innerHeight * 0.78));
+    typeof window === 'undefined' ? 720 : Math.min(720, Math.round(window.innerHeight * 0.78));
   let width = maxW;
   let height = Math.max(1, Math.round((width * h) / w));
   if (height > maxH) {
