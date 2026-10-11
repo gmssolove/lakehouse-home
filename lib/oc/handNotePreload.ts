@@ -5,49 +5,41 @@ type NoteDim = { width: number; height: number };
 const dimCache = new Map<string, Promise<NoteDim | null>>();
 const sfxCache = new Map<string, HTMLAudioElement>();
 
+function dimFromBlob(blob: Blob): Promise<NoteDim | null> {
+  return new Promise((resolve) => {
+    const obj = URL.createObjectURL(blob);
+    const img = new window.Image();
+    const done = (dim: NoteDim | null) => {
+      URL.revokeObjectURL(obj);
+      resolve(dim);
+    };
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      done(w > 0 && h > 0 ? { width: w, height: h } : null);
+    };
+    img.onerror = () => done(null);
+    img.src = obj;
+  });
+}
+
 function loadNoteImage(src: string): Promise<NoteDim | null> {
   const url = src.trim();
   if (!url) return Promise.resolve(null);
   const hit = dimCache.get(url);
   if (hit) return hit;
 
-  const pending = new Promise<NoteDim | null>((resolve) => {
-    const img = new window.Image();
-    img.decoding = 'async';
+  const pending = (async () => {
     try {
-      (img as HTMLImageElement & { fetchPriority?: string }).fetchPriority = 'high';
+      const proxy = `/api/r2-blob?src=${encodeURIComponent(url)}`;
+      let res = await fetch(proxy);
+      if (!res.ok) res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) return null;
+      return dimFromBlob(await res.blob());
     } catch {
-      /* ignore */
+      return null;
     }
-
-    const finish = async () => {
-      try {
-        if (typeof img.decode === 'function') {
-          await Promise.race([
-            img.decode().then(
-              () => undefined,
-              () => undefined,
-            ),
-            new Promise<void>((r) => window.setTimeout(r, 400)),
-          ]);
-        }
-      } catch {
-        /* decode 실패해도 naturalSize 있으면 사용 */
-      }
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
-      resolve(w > 0 && h > 0 ? { width: w, height: h } : null);
-    };
-
-    img.onload = () => {
-      void finish();
-    };
-    img.onerror = () => resolve(null);
-    img.src = url;
-    if (img.complete && img.naturalWidth > 0) {
-      void finish();
-    }
-  });
+  })();
 
   dimCache.set(url, pending);
   return pending;
@@ -55,23 +47,7 @@ function loadNoteImage(src: string): Promise<NoteDim | null> {
 
 export function preloadHandNoteImage(src: string): Promise<NoteDim | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  const url = src.trim();
-  if (!url) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    let settled = false;
-    const timer = window.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      dimCache.delete(url);
-      resolve(null);
-    }, 900);
-    void loadNoteImage(url).then((dim) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      resolve(dim);
-    });
-  });
+  return loadNoteImage(src);
 }
 
 export function preloadHandNoteImages(

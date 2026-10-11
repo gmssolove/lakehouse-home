@@ -140,7 +140,9 @@ async function serveFile(request, env, ctx) {
   let object = await env.R2_BUCKET.get(key, hasRange ? { range: request.headers } : undefined);
   if (!object) return json({ error: 'not found' }, 404);
 
-  if (canResize && env.IMAGES) {
+  const formatHint = String(url.searchParams.get('f') || '').toLowerCase();
+  const keepOriginal = formatHint === 'orig' || formatHint === 'keep' || formatHint === 'source';
+  if (canResize && env.IMAGES && !keepOriginal) {
     const quality = Math.min(90, Math.max(40, Number(url.searchParams.get('q') || 72)));
     const width = Math.min(2400, Math.round(wantW));
     const format = pickImageFormat(request, url.searchParams.get('f'));

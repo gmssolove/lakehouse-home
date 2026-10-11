@@ -56,14 +56,11 @@ export function displayImageUrl(
   try {
     const u = new URL(raw, 'https://lakehouse.me.kr');
     if (u.searchParams.has('w')) return raw;
+    /* 스탠딩 PNG는 리사이즈·포맷 변환하면 투명/원본이 깨지는 파일이 있음 */
+    if (preset === 'hero') return raw;
     u.searchParams.set('w', String(Math.min(2400, width)));
-    /* hero는 스탠딩 PNG — f=auto가 일부 파일을 깨뜨리거나 투명 배경을 날림 */
-    if (preset === 'hero') {
-      u.searchParams.set('q', '90');
-    } else {
-      u.searchParams.set('q', '72');
-      u.searchParams.set('f', 'auto');
-    }
+    u.searchParams.set('q', '72');
+    u.searchParams.set('f', 'auto');
     return u.toString();
   } catch {
     return raw;

@@ -1070,20 +1070,8 @@ const PaperCrumple = ({
       textures.add(texture);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      const image = texture.image;
-      const imageAspect = image.width / image.height;
-      const targetAspect = paperWidth / paperHeight;
-      let rx = 1,
-        ry = 1;
-      if (imageFit === 'cover') {
-        if (imageAspect > targetAspect) rx = targetAspect / imageAspect;
-        else ry = imageAspect / targetAspect;
-      } else {
-        if (imageAspect > targetAspect) ry = imageAspect / targetAspect;
-        else rx = targetAspect / imageAspect;
-      }
-      texture.repeat.set(rx, ry);
-      texture.offset.set((1 - rx) / 2, (1 - ry) / 2);
+      texture.repeat.set(1, 1);
+      texture.offset.set(0, 0);
       texture.needsUpdate = true;
       return texture;
     }

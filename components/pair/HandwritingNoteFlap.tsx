@@ -44,15 +44,14 @@ type Props = {
 const CLOSE_MS = 420;
 
 function parseNoteAspect(aspect: string | null) {
-  const parts = (aspect || '3 / 4').split('/').map((s) => Number(String(s).trim()));
-  const w = Number.isFinite(parts[0]) && parts[0] > 0 ? parts[0] : 3;
-  const h = Number.isFinite(parts[1]) && parts[1] > 0 ? parts[1] : 4;
-  const landscape = w > h * 1.15;
-  const capW = landscape ? 640 : 520;
+  const parts = (aspect || '').split('/').map((s) => Number(String(s).trim()));
+  const w = Number.isFinite(parts[0]) && parts[0] > 0 ? parts[0] : 0;
+  const h = Number.isFinite(parts[1]) && parts[1] > 0 ? parts[1] : 0;
+  if (!w || !h) return null;
   const maxW =
-    typeof window === 'undefined' ? capW : Math.min(capW, Math.round(window.innerWidth * 0.72));
+    typeof window === 'undefined' ? 520 : Math.min(520, Math.round(window.innerWidth * 0.72));
   const maxH =
-    typeof window === 'undefined' ? 640 : Math.round(window.innerHeight * 0.78);
+    typeof window === 'undefined' ? 560 : Math.min(560, Math.round(window.innerHeight * 0.78));
   let width = maxW;
   let height = Math.max(1, Math.round((width * h) / w));
   if (height > maxH) {
@@ -147,7 +146,11 @@ export function HandwritingNoteFlap({
     void (async () => {
       const dim = await preloadHandNoteImage(src);
       if (cancelled) return;
-      setAspect(dim ? `${dim.width} / ${dim.height}` : '3 / 4');
+      if (!dim) {
+        setReady(false);
+        return;
+      }
+      setAspect(`${dim.width} / ${dim.height}`);
       setAnimKey((k) => k + 1);
       setReady(true);
     })();
@@ -224,7 +227,7 @@ export function HandwritingNoteFlap({
   if (!open) return null;
 
   const paper = parseNoteAspect(aspect);
-  const useCrumple = ready && !!aspect && !crumpleFailed;
+  const useCrumple = ready && !!paper && !crumpleFailed;
 
   const overlay = (
     <div
@@ -250,9 +253,7 @@ export function HandwritingNoteFlap({
           <div
             className="pair-note-paper"
             style={
-              ready && aspect
-                ? { width: paper.width, height: paper.height }
-                : undefined
+              paper ? { width: paper.width, height: paper.height } : undefined
             }
           >
             {useCrumple ? (
@@ -260,9 +261,9 @@ export function HandwritingNoteFlap({
                 key={`${animKey}-${src}`}
                 src={src}
                 alt=""
-                width={paper.width}
-                height={paper.height}
-                sceneHeight={paper.sceneHeight}
+                width={paper?.width}
+                height={paper?.height}
+                sceneHeight={paper?.sceneHeight}
                 imageFit="contain"
                 autoUncrumple
                 draggable={false}
@@ -273,7 +274,7 @@ export function HandwritingNoteFlap({
                 detail={72}
                 onError={() => setCrumpleFailed(true)}
               />
-            ) : ready && aspect ? (
+            ) : ready && paper ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 className="lh-note-flat"
