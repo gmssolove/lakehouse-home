@@ -30,22 +30,23 @@
 .pair-note-flap-lb__close {
   all: unset;
   box-sizing: border-box;
+  position: absolute;
+  top: 2vh;
+  right: 3vw;
   cursor: pointer;
-  flex-shrink: 0;
-  font-size: 18px;
-  color: rgba(244, 238, 229, 0.92);
-  width: 36px;
-  height: 36px;
+  font-size: 20px;
+  color: rgba(244, 238, 229, 0.8);
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(12, 10, 8, 0.42);
   z-index: 2;
 }
 
 .pair-note-flap-lb__close:hover {
-  background: rgba(12, 10, 8, 0.62);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .pair-note-flap-lb__stage {
@@ -68,9 +69,9 @@
 }
 
 .pair-note-unfold-skeleton {
-  width: min(72vw, 280px);
-  height: min(48vh, 360px);
-  border-radius: 14px;
+  width: min(90vw, 440px);
+  height: min(56vh, 236px);
+  border-radius: 12px;
   opacity: 0.15;
   background: rgba(255, 255, 255, 0.06);
 }
@@ -78,8 +79,8 @@
 .pair-note-paper {
   position: relative;
   overflow: hidden;
-  border-radius: 20px;
-  clip-path: inset(0 round 20px);
+  border-radius: 12px;
+  clip-path: inset(0 round 12px);
   transform: translateZ(0);
   isolation: isolate;
   line-height: 0;
@@ -89,8 +90,8 @@
   position: relative;
   display: block;
   overflow: hidden;
-  border-radius: 20px;
-  clip-path: inset(0 round 20px);
+  border-radius: 12px;
+  clip-path: inset(0 round 12px);
 }
 
 .lh-note-crumple__canvas {
@@ -100,7 +101,7 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-  border-radius: 20px;
+  border-radius: 12px;
 }
 
 .lh-note-crumple__fallback {
@@ -130,8 +131,8 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  border-radius: 20px;
+  object-fit: cover;
+  border-radius: 12px;
   user-select: none;
 }
 

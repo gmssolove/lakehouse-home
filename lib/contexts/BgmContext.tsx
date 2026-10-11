@@ -646,7 +646,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
           if (ytRef.current) {
             try {
               const currentId = ytRef.current.getVideoData?.()?.video_id;
-              if (!currentId || currentId !== track.id) {
+              if (currentId && currentId !== track.id) {
                 if (loadYoutubeVideo(track.id, seek || 0, !userPausedRef.current)) return;
               }
               if (typeof seek === 'number' && seek > 0) ytRef.current.seekTo(seek, true);
@@ -1141,10 +1141,13 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     if (!track?.id) return false;
     if (track.kind === 'youtube') {
       try {
-        /* 1 = PLAYING */
-        return ytRef.current?.getPlayerState?.() === 1;
+        /* 1 = PLAYING, 3 = BUFFERING */
+        const st = ytRef.current?.getPlayerState?.();
+        if (st === 1 || st === 3) return true;
+        if (typeof st === 'number') return false;
+        return playingRef.current;
       } catch {
-        return false;
+        return playingRef.current;
       }
     }
     const audio = audioRef.current;
@@ -1156,7 +1159,7 @@ export function BgmProvider({ children }: { children: ReactNode }) {
     toggleBusyRef.current = true;
     window.setTimeout(() => {
       toggleBusyRef.current = false;
-    }, 400);
+    }, 80);
 
     if (!trackRef.current?.id) {
       const first = firstPageTrack(siteBgm);
@@ -1742,7 +1745,7 @@ type YTPlayer = {
   stopVideo: () => void;
   loadVideoById: (videoId: string, startSeconds?: number) => void;
   getVideoData?: () => { video_id?: string };
-  getPlayerState?: () => number;
+  getPlayerState: () => number;
   seekTo: (s: number, allowSeek: boolean) => void;
   setVolume: (n: number) => void;
   getCurrentTime: () => number;

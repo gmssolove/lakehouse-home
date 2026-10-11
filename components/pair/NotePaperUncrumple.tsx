@@ -468,8 +468,8 @@ const PaperCrumple = ({
     const lighting = { value: 0 };
     const paperRad = {
       value: new THREE.Vector2(
-        Math.min(0.16, 20 / paperWidth),
-        Math.min(0.16, 20 / paperHeight),
+        Math.min(0.12, 12 / paperWidth),
+        Math.min(0.12, 12 / paperHeight),
       ),
     };
     const roundCornerChunk = `
@@ -1068,8 +1068,17 @@ const PaperCrumple = ({
       textures.add(texture);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      texture.repeat.set(1, 1);
-      texture.offset.set(0, 0);
+      const image = texture.image;
+      const imageAspect = image.width / Math.max(1, image.height);
+      const targetAspect = paperWidth / Math.max(1, paperHeight);
+      let rx = 1,
+        ry = 1;
+      if (imageFit === 'cover') {
+        if (imageAspect > targetAspect) rx = targetAspect / imageAspect;
+        else ry = imageAspect / targetAspect;
+      }
+      texture.repeat.set(rx, ry);
+      texture.offset.set((1 - rx) / 2, (1 - ry) / 2);
       texture.needsUpdate = true;
       return texture;
     }
