@@ -301,13 +301,13 @@ const PaperCrumple = ({
   disabled = false,
   resetKey = 0,
   autoUncrumple = true,
-  onStateChange,
-  onSettled,
-  onCrumpled,
-  crumpleApiRef,
-  onError,
+  onStateChange = undefined,
+  onSettled = undefined,
+  onCrumpled = undefined,
+  crumpleApiRef = undefined,
+  onError = undefined,
   className = '',
-  style
+  style = undefined,
 }) => {
   const pathCache = useRef(null);
   const rootRef = useRef(null);
