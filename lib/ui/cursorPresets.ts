@@ -103,10 +103,11 @@ export const CURSOR_PRESETS: { id: CursorPresetId; label: string; css: string; c
   },
 ];
 
-export const CURSOR_SIZE_MIN = 50;
-export const CURSOR_SIZE_MAX = 200;
+export const CURSOR_SIZE_MIN = 10;
+export const CURSOR_SIZE_MAX = 400;
 export const CURSOR_SIZE_DEFAULT = 100;
-const CURSOR_MAX_PX = 128;
+const CURSOR_MIN_PX = 1;
+const CURSOR_MAX_PX = 256;
 
 export function clampCursorSize(n: unknown): number {
   const v = Math.round(Number(n));
@@ -119,7 +120,7 @@ function scaleHotspot(n: number, scale: number) {
 }
 
 function scaleSvgMarkup(svg: string, scale: number): string {
-  const bump = (raw: string) => String(Math.max(8, Math.round(Number(raw) * scale)));
+  const bump = (raw: string) => String(Math.max(CURSOR_MIN_PX, Math.round(Number(raw) * scale)));
   return svg
     .replace(/\bwidth=(['"])(\d+(?:\.\d+)?)(?:px)?\1/, (_, q: string, w: string) => `width=${q}${bump(w)}${q}`)
     .replace(/\bheight=(['"])(\d+(?:\.\d+)?)(?:px)?\1/, (_, q: string, h: string) => `height=${q}${bump(h)}${q}`);
@@ -152,10 +153,15 @@ export function scaleCursorCss(css: string, percent: number): string {
 }
 
 function capSize(w: number, h: number): { w: number; h: number } {
-  const max = Math.max(w, h);
-  if (max <= CURSOR_MAX_PX) return { w, h };
+  const max = Math.max(w, h, 1);
+  if (max <= CURSOR_MAX_PX) {
+    return { w: Math.max(CURSOR_MIN_PX, w), h: Math.max(CURSOR_MIN_PX, h) };
+  }
   const f = CURSOR_MAX_PX / max;
-  return { w: Math.max(8, Math.round(w * f)), h: Math.max(8, Math.round(h * f)) };
+  return {
+    w: Math.max(CURSOR_MIN_PX, Math.round(w * f)),
+    h: Math.max(CURSOR_MIN_PX, Math.round(h * f)),
+  };
 }
 
 /** 업로드 커서 — 원본 픽셀에 %를 곱함 */

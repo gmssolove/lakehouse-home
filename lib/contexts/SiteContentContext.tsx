@@ -38,6 +38,7 @@ import {
   type UniverseCard,
   DEFAULT_TRPG_LIST_SETTINGS,
 } from '@/lib/types/site-content';
+import { clampCursorSize } from '@/lib/ui/cursorPresets';
 import { useFirebaseSection } from '@/lib/hooks/useFirebaseSection';
 import { normalizeMusicPlaylists, normalizeMusicTracks } from '@/lib/music/normalize';
 import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
@@ -167,10 +168,7 @@ function mergeUiSettings(rawUi: Partial<SiteUiSettings>, legacy: Record<string, 
     1,
     Math.max(0, Number(merged.clickerDefaultVolume) || DEFAULT_SITE_UI_SETTINGS.clickerDefaultVolume),
   );
-  const sizeRaw = Number(merged.cursorSize);
-  merged.cursorSize = Number.isFinite(sizeRaw)
-    ? Math.min(200, Math.max(50, Math.round(sizeRaw)))
-    : DEFAULT_SITE_UI_SETTINGS.cursorSize;
+  merged.cursorSize = clampCursorSize(merged.cursorSize);
   if (typeof merged.clickerHint !== 'string') {
     merged.clickerHint = DEFAULT_SITE_UI_SETTINGS.clickerHint;
   }

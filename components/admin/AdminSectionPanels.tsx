@@ -3168,9 +3168,9 @@ export function UxAdminPanel({ data, onSave }: UxSettingsProps) {
             onChange={(cursorSize) => setForm({ ...form, cursorSize })}
             min={CURSOR_SIZE_MIN}
             max={CURSOR_SIZE_MAX}
-            step={5}
+            step={1}
             displayValue={`${clampCursorSize(form.cursorSize)}%`}
-            hint="50%는 더 작게, 200%는 더 크게. 저장 후 사이트 전체에 적용됩니다."
+            hint="10%까지 아주 작게, 400%까지 크게. 저장 후 사이트 전체에 적용됩니다."
           />
         </div>
         <div className="form-group" style={{ marginTop: '0.75rem' }}>
