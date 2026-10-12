@@ -76,8 +76,6 @@ export function peekHandNoteDim(src: string): NoteDim | null | undefined {
 
 export function preloadHandNoteImage(src: string): Promise<NoteDim | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  prefetchNotePaperChunk();
-  void loadNoteBlobUrl(src);
   return loadNoteDims(src);
 }
 
@@ -90,13 +88,11 @@ export function preloadHandNoteImages(
   urls: Array<string | undefined | null> | undefined | null,
 ) {
   if (typeof window === 'undefined') return;
-  prefetchNotePaperChunk();
   const list = Array.from(
     new Set((urls ?? []).map((u) => (u || '').trim()).filter(Boolean)),
   );
   list.forEach((src) => {
     void loadNoteDims(src);
-    void loadNoteBlobUrl(src);
   });
 }
 
