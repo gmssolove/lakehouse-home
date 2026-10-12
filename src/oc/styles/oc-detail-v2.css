@@ -2621,14 +2621,17 @@
 }
 
 .oc-keyword-chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
+  grid-template-rows: repeat(3, auto);
+  justify-content: end;
+  justify-items: stretch;
+  align-content: start;
   gap: 0.35rem 0.4rem;
-  width: 100%;
+  width: fit-content;
   max-width: 100%;
   margin-left: auto;
+  overflow: hidden;
 }
 
 .oc-keyword-chip {
@@ -2647,7 +2650,8 @@
   color: var(--oc-personal, #d7a982);
   background: color-mix(in srgb, var(--oc-personal) 10%, rgba(12, 14, 13, 0.22));
   word-break: keep-all;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .oc-attr-label {
