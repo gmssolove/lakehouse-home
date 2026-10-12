@@ -148,8 +148,8 @@ export function HandwritingNoteFlap({
       setAspect(`${peeked.width} / ${peeked.height}`);
       setReady(true);
     } else {
-      setAspect(null);
       setReady(false);
+      setAspect(null);
     }
 
     /* 이웃 장도 미리 받아 페이지 넘김 뚝 완화 */

@@ -39,13 +39,6 @@ import {
 import { setOcReturnPath } from '@/lib/lake/ocReturn';
 import type { OcCharacter, PairItem } from '@/lib/types/character';
 import { preloadPairStandImages } from '@/lib/oc/pairStandPreload';
-import {
-  collectPairHandNoteSfx,
-  collectPairHandNoteUrls,
-  prefetchNotePaperChunk,
-  preloadHandNoteImages,
-  warmHandNoteSfx,
-} from '@/lib/oc/handNotePreload';
 
 type SortMode = 'order' | 'name';
 
@@ -376,9 +369,6 @@ export function PairPageClient() {
     /* 카드 스냅샷 대신 최신 pairs(방금 저장한 스탠딩 위치)로 연다 */
     const latest = pairsRef.current.find((x) => x.id === p.id) ?? p;
     preloadPairStandImages(latest);
-    preloadHandNoteImages(collectPairHandNoteUrls(latest));
-    warmHandNoteSfx(collectPairHandNoteSfx(latest));
-    prefetchNotePaperChunk();
     if (!opts?.skipSplash && normalizeEntrySplash(latest.entrySplash).enabled) {
       splashPendingRef.current = latest;
       setEntrySplash(latest);

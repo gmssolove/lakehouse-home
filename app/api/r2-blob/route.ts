@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     return new NextResponse(upstream.body, {
       headers: {
         'Content-Type': type,
-        'Cache-Control': 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800',
+        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
       },
     });
   } catch {

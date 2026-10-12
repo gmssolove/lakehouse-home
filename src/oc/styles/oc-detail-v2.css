@@ -5,7 +5,7 @@
   /* no extra margin/gap here — 비율 왜곡 방지 */
 }
 
-/* URL 상세 진입 / 상세 표시 중 — 목록 페인트만 끔 (contain 전환은 열 때 렉이 남) */
+/* URL 상세 진입 / 상세 표시 중 — 목록 깜빡임 차단 */
 .oc-archive-layout.is-detail-cover > .sidebar,
 .oc-archive-layout.is-detail-cover > .main-content,
 .oc-archive-layout.is-detail-cover > .oc-mobile-burger,

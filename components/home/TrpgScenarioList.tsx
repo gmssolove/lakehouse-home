@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { useOcData } from '@/lib/hooks/useOcData';
@@ -30,7 +29,6 @@ function TrpgCard({
   ocImgById: Map<string, { src: string; fit?: string; pos?: string }>;
   onTicketClick: (item: TrpgScenario) => void;
 }) {
-  const router = useRouter();
   const item = normalizeTrpgScenario(raw);
   const dates = formatTrpgDateRange(item);
   const hoverTitle = trpgCardHoverTitle(item);
@@ -38,22 +36,12 @@ function TrpgCard({
   const portrait = trpgCardHoverPortrait(item, ocImgById);
   const badge = item.system?.trim();
 
-  const warmScenario = () => {
-    try {
-      router.prefetch(`/trpg/${encodeURIComponent(item.id)}`);
-    } catch {
-      /* ignore */
-    }
-  };
-
   return (
     <article className="trpg-card" style={{ aspectRatio: aspect }}>
       <button
         type="button"
         className="trpg-card__hit"
         aria-label={`${item.title} 아카이브`}
-        onPointerEnter={warmScenario}
-        onFocus={warmScenario}
         onClick={() => onTicketClick(item)}
       >
         <div className="trpg-card__media">

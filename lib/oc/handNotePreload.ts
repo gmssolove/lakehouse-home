@@ -4,7 +4,7 @@ type NoteDim = { width: number; height: number };
 
 const dimResolved = new Map<string, NoteDim | null>();
 const dimCache = new Map<string, Promise<NoteDim | null>>();
-const imageCache = new Map<string, Promise<HTMLImageElement | null>>();
+const blobUrlCache = new Map<string, Promise<string | null>>();
 const sfxCache = new Map<string, HTMLAudioElement>();
 let notePaperChunk: Promise<unknown> | null = null;
 
@@ -44,47 +44,26 @@ function loadNoteDims(src: string): Promise<NoteDim | null> {
   return pending;
 }
 
-function loadCorsImage(src: string): Promise<HTMLImageElement | null> {
+function loadNoteBlobUrl(src: string): Promise<string | null> {
   const url = src.trim();
   if (!url) return Promise.resolve(null);
-  const hit = imageCache.get(url);
+  const hit = blobUrlCache.get(url);
   if (hit) return hit;
 
-  const pending = new Promise<HTMLImageElement | null>((resolve) => {
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.referrerPolicy = 'no-referrer';
-    img.decoding = 'async';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
-  imageCache.set(url, pending);
-  return pending;
-}
+  const pending = (async () => {
+    try {
+      const proxy = `/api/r2-blob?src=${encodeURIComponent(url)}`;
+      let res = await fetch(proxy);
+      if (!res.ok) res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) return null;
+      return URL.createObjectURL(await res.blob());
+    } catch {
+      return null;
+    }
+  })();
 
-async function loadNoteDecodedImage(src: string): Promise<HTMLImageElement | null> {
-  const url = src.trim();
-  if (!url) return null;
-  const cors = await loadCorsImage(url);
-  if (cors) return cors;
-  try {
-    const proxy = `/api/r2-blob?src=${encodeURIComponent(url)}`;
-    let res = await fetch(proxy);
-    if (!res.ok) res = await fetch(url, { mode: 'cors' });
-    if (!res.ok) return null;
-    const objectUrl = URL.createObjectURL(await res.blob());
-    const image = new window.Image();
-    image.src = objectUrl;
-    await new Promise<void>((resolve) => {
-      image.onload = () => resolve();
-      image.onerror = () => resolve();
-    });
-    imageCache.set(url, Promise.resolve(image));
-    return image;
-  } catch {
-    return null;
-  }
+  blobUrlCache.set(url, pending);
+  return pending;
 }
 
 /** 이미 끝난 비율 — 있으면 쪽지를 기다리지 않고 바로 그림 */
@@ -98,15 +77,13 @@ export function peekHandNoteDim(src: string): NoteDim | null | undefined {
 export function preloadHandNoteImage(src: string): Promise<NoteDim | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
   prefetchNotePaperChunk();
-  void loadCorsImage(src);
+  void loadNoteBlobUrl(src);
   return loadNoteDims(src);
 }
 
-export async function getHandNoteDecodedImage(
-  src: string,
-): Promise<HTMLImageElement | null> {
-  if (typeof window === 'undefined') return null;
-  return loadNoteDecodedImage(src);
+export function getHandNoteObjectUrl(src: string): Promise<string | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return loadNoteBlobUrl(src);
 }
 
 export function preloadHandNoteImages(
@@ -119,7 +96,7 @@ export function preloadHandNoteImages(
   );
   list.forEach((src) => {
     void loadNoteDims(src);
-    void loadCorsImage(src);
+    void loadNoteBlobUrl(src);
   });
 }
 
