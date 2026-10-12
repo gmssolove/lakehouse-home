@@ -1073,35 +1073,50 @@ const PaperCrumple = ({
       texture.needsUpdate = true;
       return texture;
     }
-    async function load(url) {
+    function textureFromUrl(srcUrl, cors) {
+      return new Promise((resolve, reject) => {
+        const loader = new THREE.TextureLoader();
+        if (cors) loader.setCrossOrigin('anonymous');
+        loader.load(
+          srcUrl,
+          (tex) => resolve(tex),
+          undefined,
+          () => reject(new Error(`Unable to load paper image: ${srcUrl}`)),
+        );
+      });
+    }
+    async function fetchAsObjectUrl(srcUrl) {
       const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 8000);
+      const timer = setTimeout(() => ac.abort(), 12000);
       try {
-        const proxy = `/api/r2-blob?src=${encodeURIComponent(url)}`;
-        let res = await fetch(proxy, { signal: ac.signal });
-        if (!res.ok) {
-          res = await fetch(url, { mode: 'cors', signal: ac.signal });
-        }
-        if (!res.ok) throw new Error(`Unable to load paper image: ${url}`);
-        const blob = await res.blob();
-        const obj = URL.createObjectURL(blob);
+        const res = await fetch(srcUrl, { mode: 'cors', signal: ac.signal });
+        if (!res.ok) throw new Error(`Unable to load paper image: ${srcUrl}`);
+        const obj = URL.createObjectURL(await res.blob());
         objectUrls.push(obj);
-        const texture = await new Promise((resolve, reject) => {
-          const loader = new THREE.TextureLoader();
-          loader.load(
-            obj,
-            (tex) => resolve(tex),
-            undefined,
-            () => reject(new Error(`Unable to load paper image: ${url}`)),
-          );
-        });
+        return obj;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async function load(imgUrl) {
+      try {
+        const texture = await textureFromUrl(imgUrl, true);
         if (disposed) {
           texture.dispose();
           throw new Error('disposed');
         }
         return applyFit(texture);
-      } finally {
-        clearTimeout(timer);
+      } catch (err) {
+        if (disposed || String(err?.message || '') === 'disposed') throw err;
+        /* CORS 막힐 때만 사이트 Worker 프록시 — 연 쪽지 1장 */
+        const proxy = `/api/r2-blob?src=${encodeURIComponent(imgUrl)}`;
+        const obj = await fetchAsObjectUrl(proxy);
+        const texture = await textureFromUrl(obj, false);
+        if (disposed) {
+          texture.dispose();
+          throw new Error('disposed');
+        }
+        return applyFit(texture);
       }
     }
     if (src) {
