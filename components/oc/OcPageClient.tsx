@@ -78,11 +78,11 @@ function charImg(c: OcCharacter, auIdx: number) {
   };
 }
 
-function warmOcDetailMedia(c: OcCharacter, au = -1) {
-  const src = charImg(c, au).src.trim();
-  if (src) warmTouchPortrait(src, 'high');
-  const auImg = (c.auVersions?.[0]?.img || '').trim();
-  if (auImg && auImg !== src) warmTouchPortrait(auImg, 'low');
+function warmOcDetailMedia(c: OcCharacter, au = -1, opts?: { standing?: boolean }) {
+  if (opts?.standing) {
+    const src = charImg(c, au).src.trim();
+    if (src) warmTouchPortrait(src, 'high');
+  }
   preloadHandNoteImages(c.handwritingNotes);
   warmHandNoteSfx([c.handwritingNoteSfx, c.handwritingNoteCloseSfx]);
   prefetchNotePaperChunk();
@@ -494,7 +494,7 @@ export function OcPageClient() {
     au: number,
     opts?: { skipIntro?: boolean; instant?: boolean; skipSplash?: boolean },
   ) {
-    warmOcDetailMedia(c, au);
+    warmOcDetailMedia(c, au, { standing: true });
     setDetailInstant(!!opts?.instant);
     const hasTheme = characterHasBgmTheme(c);
     detailUsedThemeRef.current = hasTheme;

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { warmTouchPortrait } from '@/lib/oc/useTouchPortraitStack';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { SecretLockBadge } from '@/components/ui/SecretLockBadge';
 import { useOcData } from '@/lib/hooks/useOcData';
@@ -40,8 +39,6 @@ function TrpgCard({
   const badge = item.system?.trim();
 
   const warmScenario = () => {
-    if (item.thumbnail) warmTouchPortrait(item.thumbnail, 'high');
-    if (portrait?.src) warmTouchPortrait(portrait.src, 'low');
     try {
       router.prefetch(`/trpg/${encodeURIComponent(item.id)}`);
     } catch {

@@ -2,12 +2,9 @@
 
 type NoteDim = { width: number; height: number };
 
-type NoteBlob = { objectUrl: string; image: HTMLImageElement };
-
 const dimResolved = new Map<string, NoteDim | null>();
 const dimCache = new Map<string, Promise<NoteDim | null>>();
-const blobCache = new Map<string, Promise<NoteBlob | null>>();
-const blobReady = new Set<string>();
+const imageCache = new Map<string, Promise<HTMLImageElement | null>>();
 const sfxCache = new Map<string, HTMLAudioElement>();
 let notePaperChunk: Promise<unknown> | null = null;
 
@@ -47,35 +44,47 @@ function loadNoteDims(src: string): Promise<NoteDim | null> {
   return pending;
 }
 
-function loadNoteBlob(src: string): Promise<NoteBlob | null> {
+function loadCorsImage(src: string): Promise<HTMLImageElement | null> {
   const url = src.trim();
   if (!url) return Promise.resolve(null);
-  const hit = blobCache.get(url);
+  const hit = imageCache.get(url);
   if (hit) return hit;
 
-  const pending = (async () => {
-    try {
-      const proxy = `/api/r2-blob?src=${encodeURIComponent(url)}`;
-      let res = await fetch(proxy);
-      if (!res.ok) res = await fetch(url, { mode: 'cors' });
-      if (!res.ok) return null;
-      const objectUrl = URL.createObjectURL(await res.blob());
-      const image = new window.Image();
-      image.src = objectUrl;
-      try {
-        if (typeof image.decode === 'function') await image.decode();
-      } catch {
-        /* decode 실패해도 텍스처는 시도 */
-      }
-      blobReady.add(url);
-      return { objectUrl, image };
-    } catch {
-      return null;
-    }
-  })();
-
-  blobCache.set(url, pending);
+  const pending = new Promise<HTMLImageElement | null>((resolve) => {
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+  imageCache.set(url, pending);
   return pending;
+}
+
+async function loadNoteDecodedImage(src: string): Promise<HTMLImageElement | null> {
+  const url = src.trim();
+  if (!url) return null;
+  const cors = await loadCorsImage(url);
+  if (cors) return cors;
+  try {
+    const proxy = `/api/r2-blob?src=${encodeURIComponent(url)}`;
+    let res = await fetch(proxy);
+    if (!res.ok) res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) return null;
+    const objectUrl = URL.createObjectURL(await res.blob());
+    const image = new window.Image();
+    image.src = objectUrl;
+    await new Promise<void>((resolve) => {
+      image.onload = () => resolve();
+      image.onerror = () => resolve();
+    });
+    imageCache.set(url, Promise.resolve(image));
+    return image;
+  } catch {
+    return null;
+  }
 }
 
 /** 이미 끝난 비율 — 있으면 쪽지를 기다리지 않고 바로 그림 */
@@ -86,28 +95,18 @@ export function peekHandNoteDim(src: string): NoteDim | null | undefined {
   return dimResolved.get(url) ?? null;
 }
 
-export function peekHandNoteDecoded(src: string): boolean {
-  return blobReady.has(src.trim());
-}
-
 export function preloadHandNoteImage(src: string): Promise<NoteDim | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
   prefetchNotePaperChunk();
-  void loadNoteBlob(src);
+  void loadCorsImage(src);
   return loadNoteDims(src);
-}
-
-export function getHandNoteObjectUrl(src: string): Promise<string | null> {
-  if (typeof window === 'undefined') return Promise.resolve(null);
-  return loadNoteBlob(src).then((pack) => pack?.objectUrl ?? null);
 }
 
 export async function getHandNoteDecodedImage(
   src: string,
 ): Promise<HTMLImageElement | null> {
   if (typeof window === 'undefined') return null;
-  const pack = await loadNoteBlob(src);
-  return pack?.image ?? null;
+  return loadNoteDecodedImage(src);
 }
 
 export function preloadHandNoteImages(
@@ -120,7 +119,7 @@ export function preloadHandNoteImages(
   );
   list.forEach((src) => {
     void loadNoteDims(src);
-    void loadNoteBlob(src);
+    void loadCorsImage(src);
   });
 }
 
