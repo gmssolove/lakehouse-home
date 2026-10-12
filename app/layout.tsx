@@ -161,16 +161,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" data-lake-favicon="1" />
         <link rel="preconnect" href="https://img.lakehouse.me.kr" />
         <link rel="dns-prefetch" href="https://img.lakehouse.me.kr" />
-        {/* Tabler Icons — 렌더 블로킹 방지 */}
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
-          media="print"
-          suppressHydrationWarning
-        />
+        {/* Tabler는 load 이후 — jsdelivr가 멈추면 탭 스피너가 안 끝남 */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var l=document.querySelector('link[href*="tabler-icons"]');if(!l)return;function go(){l.media='all';}l.addEventListener('load',go);if(l.sheet)go();setTimeout(go,2500);})();`,
+            __html: `(function(){function add(){if(document.getElementById('tabler-icons'))return;var l=document.createElement('link');l.id='tabler-icons';l.rel='stylesheet';l.href='https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css';document.head.appendChild(l);}if(document.readyState==='complete')add();else window.addEventListener('load',add,{once:true});})();`,
           }}
         />
       </head>
