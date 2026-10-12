@@ -3,8 +3,8 @@ import type { NextConfig } from 'next';
 
 const isTauriBuild = process.env.TAURI_BUILD === '1';
 
-/* Opennext/Cloudflare 훅은 웹 배포용 — Tauri 정적 export 때는 건너뜀 */
-if (!isTauriBuild) {
+/* next dev 전용. production build/CI에는 .open-next/worker.js가 아직 없어서 wrangler가 즉시 실패함 */
+if (!isTauriBuild && process.env.NODE_ENV !== 'production') {
   initOpenNextCloudflareForDev();
 }
 
