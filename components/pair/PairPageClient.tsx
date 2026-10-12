@@ -505,11 +505,6 @@ export function PairPageClient() {
     [ocSettings.tipToastPair],
   );
 
-  useEffect(() => {
-    for (const href of ocProfileLinks) {
-      if (href) router.prefetch(href);
-    }
-  }, [ocProfileLinks, router]);
 
   const showArchiveTip = !detail && !entrySplash;
   /* URL / soft-nav pending — 목록이 먼저 보이는 깜빡임 차단 */

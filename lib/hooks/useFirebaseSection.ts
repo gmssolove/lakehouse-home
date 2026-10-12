@@ -104,6 +104,12 @@ export function useFirebaseSection<T>(
     const hydrateFromCache = async () => {
       if (!cacheUrl) return;
       try {
+        /* 로컬에 이미 있으면 Worker 하이드레이트 생략 — HTML/BGM과 줄을 서지 않게 */
+        try {
+          if (localStorage.getItem(storageKey)) return;
+        } catch {
+          /* ignore */
+        }
         const res = await fetch(cacheUrl, {
           signal: AbortSignal.timeout(Math.min(timeoutMs, 4000)),
         });
