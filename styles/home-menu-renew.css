@@ -393,8 +393,7 @@ html:has(.layout--home):has(body.lh-route-enter) .rq-menu-panel {
   white-space: nowrap;
   overflow: visible;
   transition: color 0.14s ease, text-shadow 0.14s ease;
-  visibility: hidden;
-  animation: lh-nav-font-reveal 0s 1.2s forwards;
+  visibility: visible;
 }
 
 html.lh-fonts-ready .rq-nav-label,
@@ -470,8 +469,7 @@ html.lh-fonts-ready .rq-nav-sub {
   font-family: var(--font-pinyon);
   font-size: 20px;
   font-weight: 400;
-  visibility: hidden;
-  animation: lh-nav-font-reveal 0s 1.2s forwards;
+  visibility: visible;
   letter-spacing: 0.01em;
   line-height: 1;
   text-align: left;

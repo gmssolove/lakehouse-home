@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcChatAlertHost } from '@/components/oc/OcChatAlertHost';
@@ -14,6 +14,7 @@ import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useOcData } from '@/lib/hooks/useOcData';
+import { useWindowSearchParams } from '@/lib/hooks/useWindowSearchParams';
 import { useOcUserPresenceTracker } from '@/lib/hooks/useOcUserPresenceTracker';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
@@ -46,17 +47,6 @@ import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
 import type { OcCharacter } from '@/lib/types/character';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
-
-function useOcSearchParams() {
-  const [search, setSearch] = useState('');
-  useLayoutEffect(() => {
-    const sync = () => setSearch(window.location.search);
-    sync();
-    window.addEventListener('popstate', sync);
-    return () => window.removeEventListener('popstate', sync);
-  }, []);
-  return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
-}
 
 const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -133,7 +123,7 @@ const OcArchiveCard = memo(function OcArchiveCard({
 
 export function OcPageClient() {
   const router = useRouter();
-  const searchParams = useOcSearchParams();
+  const searchParams = useWindowSearchParams();
   const { characters, categories, loaded, saveCharacters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
   const { restorePageSnapshot, resumePageBgmIfNeeded, playCharacterTheme } = useBgm();

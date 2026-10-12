@@ -752,10 +752,19 @@ export function BgmProvider({ children }: { children: ReactNode }) {
             window.setTimeout(() => window.clearInterval(wait), 8000);
           }
           if (!document.getElementById('yt-api')) {
-            const sc = document.createElement('script');
-            sc.id = 'yt-api';
-            sc.src = 'https://www.youtube.com/iframe_api';
-            document.head.appendChild(sc);
+            const inject = () => {
+              if (document.getElementById('yt-api')) return;
+              const sc = document.createElement('script');
+              sc.id = 'yt-api';
+              sc.async = true;
+              sc.src = 'https://www.youtube.com/iframe_api';
+              document.head.appendChild(sc);
+            };
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', inject, { once: true });
+            } else {
+              inject();
+            }
           }
         }
         return;

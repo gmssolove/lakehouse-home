@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { HomeContent } from '@/components/home/HomeContent';
@@ -15,6 +15,7 @@ import { lakeBackClearAll, lakeBackConfigureGuard, lakeHistoryReplaceQuiet } fro
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
 import { lakeNavigate, clearLakeRouteClasses } from '@/lib/lake/routeTransition';
+import { useWindowSearchParams } from '@/lib/hooks/useWindowSearchParams';
 import { auth } from '@/lib/firebase/client';
 import { HOME_RECORDS_TABS, isHomeRecordsTabId } from '@/lib/records/sections';
 import type { TrpgScenario } from '@/lib/types/site-content';
@@ -35,7 +36,7 @@ const TAB_PARAMS: HomePageId[] = ['trpg', 'charArchive', 'universe', 'notice', '
 
 export function HomePageClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useWindowSearchParams();
   const { user, profile, isAdmin, refreshAuth } = useAuth();
   const { trpg, accessSettings, uiSettings, loaded: siteLoaded } = useSiteContent();
   const [page, setPage] = useState<HomePageId>('main');

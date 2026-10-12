@@ -89,8 +89,7 @@ const pinyon = Pinyon_Script({
   subsets: ['latin'],
   weight: ['400'],
   variable: '--font-pinyon',
-  /* 메뉴 첫 페인트에 필요. swap+메트릭 Fallback이면 세리프로 보였다가 필기체로 돌아옴 */
-  display: 'block',
+  display: 'swap',
   preload: true,
   adjustFontFallback: false,
 });
@@ -99,7 +98,7 @@ const mySoul = My_Soul({
   subsets: ['latin'],
   weight: ['400'],
   variable: '--font-my-soul',
-  display: 'block',
+  display: 'swap',
   preload: true,
   adjustFontFallback: false,
 });
@@ -162,16 +161,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/favicon.ico" type="image/png" data-lake-favicon="1" />
         <link rel="preconnect" href="https://img.lakehouse.me.kr" />
         <link rel="dns-prefetch" href="https://img.lakehouse.me.kr" />
-        {/* Tabler Icons — 렌더 블로킹 방지 */}
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
-          media="print"
-          suppressHydrationWarning
-        />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var l=document.querySelector('link[href*="tabler-icons"]');if(!l)return;function go(){l.media='all';}l.addEventListener('load',go);if(l.sheet)go();setTimeout(go,2500);})();`,
+            __html: `(function(){function add(){if(document.getElementById('tabler-icons'))return;var l=document.createElement('link');l.id='tabler-icons';l.rel='stylesheet';l.href='https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css';document.head.appendChild(l);}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',add,{once:true});else add();})();`,
           }}
         />
       </head>
