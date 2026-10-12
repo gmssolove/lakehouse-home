@@ -1,10 +1,9 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
-import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcChatAlertHost } from '@/components/oc/OcChatAlertHost';
 import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
 import { EntrySplash } from '@/components/shared/EntrySplash';
@@ -14,6 +13,7 @@ import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useOcData } from '@/lib/hooks/useOcData';
+import { useLocationSearchParams } from '@/lib/hooks/useLocationSearchParams';
 import { useOcUserPresenceTracker } from '@/lib/hooks/useOcUserPresenceTracker';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
@@ -47,6 +47,10 @@ import type { OcCharacter } from '@/lib/types/character';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
 
+const OcCharacterDetail = dynamic(
+  () => import('@/components/oc/OcCharacterDetail').then((m) => m.OcCharacterDetail),
+  { ssr: false },
+);
 const OcChatPanel = dynamic(
   () => import('@/components/oc/OcChatPanel').then((m) => m.OcChatPanel),
   { ssr: false },
@@ -127,7 +131,7 @@ const OcArchiveCard = memo(function OcArchiveCard({
 
 export function OcPageClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useLocationSearchParams();
   const { characters, categories, loaded, saveCharacters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
   const { restorePageSnapshot, resumePageBgmIfNeeded, playCharacterTheme } = useBgm();
@@ -167,6 +171,10 @@ export function OcPageClient() {
   const autoOpenedCharRef = useRef<string | null>(null);
   const detailRef = useRef(detail);
   detailRef.current = detail;
+  useEffect(() => {
+    void import('@/components/oc/OcCharacterDetail');
+  }, []);
+
   useEffect(() => {
     document.body.style.opacity = '1';
     document.body.classList.remove('lh-leaving');

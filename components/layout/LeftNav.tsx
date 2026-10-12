@@ -263,6 +263,7 @@ export function LeftNav({
           <button
             type="button"
             className={`rq-nav-sub${pathname === '/oc' ? ' is-active' : ''}`}
+            onPointerEnter={() => router.prefetch('/oc')}
             onClick={() => {
               closeMobile();
               lakeNavigate(router, '/oc', pathname);
@@ -273,6 +274,7 @@ export function LeftNav({
           <button
             type="button"
             className={`rq-nav-sub${pathname === '/pair' ? ' is-active' : ''}`}
+            onPointerEnter={() => router.prefetch('/pair')}
             onClick={() => {
               closeMobile();
               lakeNavigate(router, '/pair', pathname);
