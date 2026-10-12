@@ -30,10 +30,11 @@
 .pair-note-flap-lb__close {
   all: unset;
   box-sizing: border-box;
-  position: absolute;
-  top: 2vh;
-  right: 3vw;
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
   cursor: pointer;
+  flex-shrink: 0;
   font-size: 20px;
   color: rgba(244, 238, 229, 0.8);
   width: 40px;
@@ -42,10 +43,11 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  z-index: 2;
+  transition: background 0.2s ease;
 }
 
-.pair-note-flap-lb__close:hover {
+.pair-note-flap-lb__close:hover,
+.pair-note-flap-lb__close:focus-visible {
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -55,8 +57,8 @@
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  max-width: min(90vw, 560px);
-  width: 100%;
+  max-width: min(92vw, 800px);
+  width: auto;
   cursor: default;
 }
 
@@ -65,12 +67,14 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.85rem;
+  width: max-content;
+  isolation: isolate;
 }
 
 .pair-note-unfold-skeleton {
-  width: min(90vw, 440px);
-  height: min(56vh, 236px);
+  width: min(72vw, 280px);
+  height: min(48vh, 360px);
   border-radius: 12px;
   opacity: 0.15;
   background: rgba(255, 255, 255, 0.06);
@@ -78,6 +82,7 @@
 
 .pair-note-paper {
   position: relative;
+  flex-shrink: 0;
   overflow: hidden;
   border-radius: 12px;
   clip-path: inset(0 round 12px);
@@ -131,7 +136,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 12px;
   user-select: none;
 }

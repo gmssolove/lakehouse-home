@@ -43,11 +43,21 @@ type Props = {
 
 const CLOSE_MS = 420;
 
-function noteFrame() {
-  const width =
-    typeof window === 'undefined' ? 440 : Math.min(440, Math.round(window.innerWidth * 0.9));
-  const height =
-    typeof window === 'undefined' ? 236 : Math.min(236, Math.round(window.innerHeight * 0.56));
+function parseNoteAspect(aspect: string | null) {
+  const parts = (aspect || '').split('/').map((s) => Number(String(s).trim()));
+  const w = Number.isFinite(parts[0]) && parts[0] > 0 ? parts[0] : 0;
+  const h = Number.isFinite(parts[1]) && parts[1] > 0 ? parts[1] : 0;
+  if (!w || !h) return null;
+  const maxW =
+    typeof window === 'undefined' ? 520 : Math.min(520, Math.round(window.innerWidth * 0.9));
+  const maxH =
+    typeof window === 'undefined' ? 720 : Math.min(720, Math.round(window.innerHeight * 0.78));
+  let width = maxW;
+  let height = Math.max(1, Math.round((width * h) / w));
+  if (height > maxH) {
+    height = maxH;
+    width = Math.max(1, Math.round((height * w) / h));
+  }
   return { width, height, sceneHeight: height };
 }
 
@@ -216,8 +226,8 @@ export function HandwritingNoteFlap({
 
   if (!open) return null;
 
-  const paper = noteFrame();
-  const useCrumple = ready && !!aspect && !crumpleFailed;
+  const paper = parseNoteAspect(aspect);
+  const useCrumple = ready && !!paper && !crumpleFailed;
 
   const overlay = (
     <div
@@ -227,23 +237,24 @@ export function HandwritingNoteFlap({
       aria-label={`${title} 손글씨 쪽지`}
       onClick={requestClose}
     >
-      <button
-        type="button"
-        className="pair-note-flap-lb__close"
-        onClick={(e) => {
-          e.stopPropagation();
-          requestClose();
-        }}
-        aria-label="닫기"
-      >
-        ✕
-      </button>
       <div className="pair-note-flap-lb__stage" onClick={(e) => e.stopPropagation()}>
+        <div className="pair-note-flap-lb__row">
+          <button
+            type="button"
+            className="pair-note-flap-lb__close"
+            onClick={(e) => {
+              e.stopPropagation();
+              requestClose();
+            }}
+            aria-label="닫기"
+          >
+            ✕
+          </button>
           <div
             className="pair-note-paper"
-            style={{ width: paper.width, height: paper.height }}
+            style={paper ? { width: paper.width, height: paper.height } : undefined}
           >
-            {useCrumple ? (
+            {useCrumple && paper ? (
               <NotePaperUncrumple
                 key={`${animKey}-${src}`}
                 src={src}
@@ -251,7 +262,7 @@ export function HandwritingNoteFlap({
                 width={paper.width}
                 height={paper.height}
                 sceneHeight={paper.sceneHeight}
-                imageFit="cover"
+                imageFit="contain"
                 autoUncrumple
                 draggable={false}
                 shadow={false}
@@ -261,7 +272,7 @@ export function HandwritingNoteFlap({
                 detail={72}
                 onError={() => setCrumpleFailed(true)}
               />
-            ) : ready && aspect ? (
+            ) : ready && paper ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 className="lh-note-flat"
@@ -274,6 +285,7 @@ export function HandwritingNoteFlap({
               <div className="pair-note-unfold-skeleton" aria-hidden />
             )}
           </div>
+        </div>
 
         {ready && urls.length > 1 ? (
           <div className="pair-note-unfold__pager">
