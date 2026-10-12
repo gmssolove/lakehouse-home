@@ -1,8 +1,8 @@
 import { isR2PublicUrl } from '@/lib/media/displayImageUrl';
 import { NextResponse } from 'next/server';
 
-export const runtime = 'edge';
-export const revalidate = 86400;
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /** WebGL 텍스처용 — R2 이미지를 같은 출처로 중계해 CORS 우회 */
 export async function GET(request: Request) {
@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   try {
     const upstream = await fetch(src, {
       headers: { Accept: 'image/*' },
+      cache: 'force-cache',
     });
     if (!upstream.ok || !upstream.body) {
       return NextResponse.json({ error: 'upstream' }, { status: 502 });
@@ -26,7 +27,6 @@ export async function GET(request: Request) {
       headers: {
         'Content-Type': type,
         'Cache-Control': 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800',
-        'CDN-Cache-Control': 'public, max-age=86400',
       },
     });
   } catch {
