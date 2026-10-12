@@ -89,8 +89,7 @@ const pinyon = Pinyon_Script({
   subsets: ['latin'],
   weight: ['400'],
   variable: '--font-pinyon',
-  /* 메뉴 첫 페인트에 필요. swap+메트릭 Fallback이면 세리프로 보였다가 필기체로 돌아옴 */
-  display: 'block',
+  display: 'swap',
   preload: true,
   adjustFontFallback: false,
 });
@@ -99,8 +98,8 @@ const mySoul = My_Soul({
   subsets: ['latin'],
   weight: ['400'],
   variable: '--font-my-soul',
-  display: 'block',
-  preload: true,
+  display: 'swap',
+  preload: false,
   adjustFontFallback: false,
 });
 

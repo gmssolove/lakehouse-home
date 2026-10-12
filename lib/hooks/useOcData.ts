@@ -54,8 +54,12 @@ export function useOcData() {
       onValue(ref(db, 'lhdata/oc_characters'), (snap) => {
         if (!snap.exists()) return;
         const val = normalizeCharacters(snap.val() as OcCharacter[]);
-        localStorage.setItem('oc_characters', JSON.stringify(val));
-        setCharacters((prev) => (JSON.stringify(prev) === JSON.stringify(val) ? prev : val));
+        try {
+          localStorage.setItem('oc_characters', JSON.stringify(val));
+        } catch {
+          /* quota */
+        }
+        setCharacters(val);
       }),
       onValue(ref(db, 'lhdata/oc_categories'), (snap) => {
         if (!snap.exists()) return;
