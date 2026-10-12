@@ -21,7 +21,10 @@ const nextConfig: NextConfig = {
   devIndicators: {
     position: 'bottom-left',
   },
-  serverExternalPackages: ['aws4fetch', 'three'],
+  serverExternalPackages: [
+    'aws4fetch',
+    ...(process.env.NODE_ENV === 'development' ? ['three'] : []),
+  ],
   experimental: {
     serverActions: {
       bodySizeLimit: '12mb',
