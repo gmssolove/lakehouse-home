@@ -4,8 +4,6 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import {
-  peekHandNoteDim,
-  prefetchNotePaperChunk,
   preloadHandNoteImage,
   preloadHandNoteImages,
   takeHandNoteSfx,
@@ -13,10 +11,9 @@ import {
 } from '@/lib/oc/handNotePreload';
 import { playSafe } from '@/lib/vn/safeAudio';
 
-const NotePaperUncrumple = dynamic(
-  () => import('@/components/pair/NotePaperUncrumple'),
-  { ssr: false },
-) as ComponentType<{
+const NotePaperUncrumple = dynamic(() => import('./NotePaperUncrumple'), {
+  ssr: false,
+}) as ComponentType<{
   src: string;
   alt?: string;
   width?: number;
@@ -140,17 +137,8 @@ export function HandwritingNoteFlap({
     setLeaving(false);
     leavingRef.current = false;
     setCrumpleFailed(false);
-    prefetchNotePaperChunk();
-    setAnimKey((k) => k + 1);
-
-    const peeked = peekHandNoteDim(src);
-    if (peeked) {
-      setAspect(`${peeked.width} / ${peeked.height}`);
-      setReady(true);
-    } else {
-      setReady(false);
-      setAspect(null);
-    }
+    setReady(false);
+    setAspect(null);
 
     /* 이웃 장도 미리 받아 페이지 넘김 뚝 완화 */
     preloadHandNoteImages(urlsKey.split('\0'));
@@ -163,6 +151,7 @@ export function HandwritingNoteFlap({
         return;
       }
       setAspect(`${dim.width} / ${dim.height}`);
+      setAnimKey((k) => k + 1);
       setReady(true);
     })();
 

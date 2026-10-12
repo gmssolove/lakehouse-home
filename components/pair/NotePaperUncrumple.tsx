@@ -8,7 +8,6 @@
 
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import * as THREE from 'three';
-import { getHandNoteObjectUrl } from '@/lib/oc/handNotePreload';
 const spring = (value = 0) => ({ value, target: value, velocity: 0 });
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const finite = (value, fallback) => (Number.isFinite(value) ? value : fallback);
@@ -1064,6 +1063,7 @@ const PaperCrumple = ({
     intersectionObserver.observe(root);
     deform();
     resize();
+    const objectUrls = [];
     function applyFit(texture) {
       textures.add(texture);
       texture.colorSpace = THREE.SRGBColorSpace;
@@ -1074,22 +1074,35 @@ const PaperCrumple = ({
       return texture;
     }
     async function load(url) {
-      const obj = await getHandNoteObjectUrl(url);
-      if (!obj) throw new Error(`Unable to load paper image: ${url}`);
-      const texture = await new Promise((resolve, reject) => {
-        const loader = new THREE.TextureLoader();
-        loader.load(
-          obj,
-          (tex) => resolve(tex),
-          undefined,
-          () => reject(new Error(`Unable to load paper image: ${url}`)),
-        );
-      });
-      if (disposed) {
-        texture.dispose();
-        throw new Error('disposed');
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 8000);
+      try {
+        const proxy = `/api/r2-blob?src=${encodeURIComponent(url)}`;
+        let res = await fetch(proxy, { signal: ac.signal });
+        if (!res.ok) {
+          res = await fetch(url, { mode: 'cors', signal: ac.signal });
+        }
+        if (!res.ok) throw new Error(`Unable to load paper image: ${url}`);
+        const blob = await res.blob();
+        const obj = URL.createObjectURL(blob);
+        objectUrls.push(obj);
+        const texture = await new Promise((resolve, reject) => {
+          const loader = new THREE.TextureLoader();
+          loader.load(
+            obj,
+            (tex) => resolve(tex),
+            undefined,
+            () => reject(new Error(`Unable to load paper image: ${url}`)),
+          );
+        });
+        if (disposed) {
+          texture.dispose();
+          throw new Error('disposed');
+        }
+        return applyFit(texture);
+      } finally {
+        clearTimeout(timer);
       }
-      return applyFit(texture);
     }
     if (src) {
       Promise.all([load(src), backSrc ? load(backSrc) : Promise.resolve(null)])
@@ -1169,6 +1182,7 @@ const PaperCrumple = ({
       depthMaterial.dispose();
       floorMaterial.dispose();
       grain.dispose();
+      objectUrls.forEach((u) => URL.revokeObjectURL(u));
       textures.forEach(texture => texture.dispose());
       light.shadow.dispose();
       renderer.dispose();
