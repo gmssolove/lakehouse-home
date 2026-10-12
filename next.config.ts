@@ -41,6 +41,9 @@ const nextConfig: NextConfig = {
   },
   ...(!isTauriBuild
     ? {
+        async rewrites() {
+          return [{ source: '/favicon.ico', destination: '/api/site-favicon' }];
+        },
         async redirects() {
           return [
             { source: '/kisaragi.html', destination: '/verse/gate', permanent: false },

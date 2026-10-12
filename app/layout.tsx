@@ -124,8 +124,8 @@ export const metadata: Metadata = {
   description: 'archive & stories',
   /* 동일 출처 프록시 — Admin RTDB favicon. OC/Pair 하드로드에서도 브라우저가 이 링크를 씀 */
   icons: {
-    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
-    shortcut: '/favicon.svg',
+    icon: [{ url: '/favicon.ico', type: 'image/png' }],
+    shortcut: '/favicon.ico',
   },
 };
 
@@ -157,8 +157,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       {/* className 대신 CSS --lh-body-font('ChosunNm' 우선) — next/font Fallback이 Times로 가로채지 않게 */}
       <head>
-        {/* Admin 파비콘 — 동일 출처 /favicon.ico (api/site-favicon 프록시). localStorage 불필요 */}
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" data-lake-favicon="1" />
+        <link rel="icon" href="/favicon.ico" type="image/png" data-lake-favicon="1" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var h=localStorage.getItem('lake_favicon_href');if(!h)return;var l=document.querySelector('link[data-lake-favicon="1"]');if(!l)return;l.type=/svg/i.test(h)?'image/svg+xml':'image/png';l.href=h;}catch(e){}})();`,
+          }}
+        />
         <link rel="preconnect" href="https://img.lakehouse.me.kr" />
         <link rel="dns-prefetch" href="https://img.lakehouse.me.kr" />
         {/* Tabler는 load 이후 — jsdelivr가 멈추면 탭 스피너가 안 끝남 */}
