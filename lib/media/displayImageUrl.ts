@@ -44,25 +44,11 @@ export function isR2PublicUrl(src: string): boolean {
 
 export function displayImageUrl(
   src: string | null | undefined,
-  preset: DisplayImagePreset = 'card',
-  widthOverride?: number,
+  _preset: DisplayImagePreset = 'card',
+  _widthOverride?: number,
 ): string {
-  const raw = String(src || '').trim();
-  if (!raw || preset === 'full' || !isR2PublicUrl(raw)) return raw;
-
-  const width = Math.round(widthOverride || PRESET_WIDTH[preset]);
-  if (!Number.isFinite(width) || width < 16) return raw;
-
-  try {
-    const u = new URL(raw, 'https://lakehouse.me.kr');
-    if (u.searchParams.has('w')) return raw;
-    /* 스탠딩 PNG는 리사이즈·포맷 변환하면 투명/원본이 깨지는 파일이 있음 */
-    if (preset === 'hero') return raw;
-    u.searchParams.set('w', String(Math.min(2400, width)));
-    u.searchParams.set('q', '72');
-    u.searchParams.set('f', 'auto');
-    return u.toString();
-  } catch {
-    return raw;
-  }
+  /* 리사이즈 쿼리(?w=&q=&f=auto)는 이미지 워커를 한 번 더 기다려 상세가 늦어짐 — 원본 URL */
+  void _preset;
+  void _widthOverride;
+  return String(src || '').trim();
 }

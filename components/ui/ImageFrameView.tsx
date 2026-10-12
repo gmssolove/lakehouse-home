@@ -3,7 +3,6 @@
 import {
   memo,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -51,18 +50,18 @@ export const ImageFrameView = memo(function ImageFrameView({
   className = '',
   imgClassName = '',
   size = 'hero',
-  eager = false,
+  eager: _eager = false,
 }: Props) {
   const { scale, x, y, bottomBlur } = normalizeImageFrame(frame);
   const rootRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [box, setBox] = useState<BoxSize | null>(null);
   const [nat, setNat] = useState<NatSize | null>(null);
-  const [inView, setInView] = useState(eager);
+  void _eager;
 
   const useCoverLayout = (fit || 'cover') === 'cover';
   const displaySrc = displayImageUrl(src, size);
-  const activeSrc = inView ? displaySrc : undefined;
+  const activeSrc = displaySrc;
 
   const readNat = useCallback((img: HTMLImageElement | null) => {
     if (!img) return;
@@ -70,30 +69,6 @@ export const ImageFrameView = memo(function ImageFrameView({
     const h = img.naturalHeight;
     if (w > 0 && h > 0) setNat((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
   }, []);
-
-  useEffect(() => {
-    if (eager) {
-      setInView(true);
-      return;
-    }
-    const el = rootRef.current;
-    if (!el) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      setInView(true);
-      return;
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setInView(true);
-          io.disconnect();
-        }
-      },
-      { rootMargin: '480px 0px', threshold: 0.01 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [eager, src]);
 
   useLayoutEffect(() => {
     if (!useCoverLayout) {
@@ -214,9 +189,9 @@ export const ImageFrameView = memo(function ImageFrameView({
             alt={alt}
             draggable={false}
             referrerPolicy="no-referrer"
-            decoding="async"
-            loading={eager ? 'eager' : 'lazy'}
-            fetchPriority={eager ? 'high' : 'low'}
+            decoding="sync"
+            loading="eager"
+            fetchPriority="high"
             onLoad={onImgLoad}
             style={imgStyle}
           />

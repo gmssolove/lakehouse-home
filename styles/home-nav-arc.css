@@ -432,8 +432,8 @@
 }
 
 .layout.layout--home .nav-sub--arc .nav-sub-item::before {
-  content: '·' !important;
-  margin-right: 6px;
+  content: none !important;
+  margin-right: 0;
 }
 
 .layout.layout--home .nav-sub--arc .nav-sub-item:hover {

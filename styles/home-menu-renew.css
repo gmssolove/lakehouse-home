@@ -514,8 +514,8 @@ html.lh-fonts-ready .rq-nav-sub {
 }
 
 .rq-nav-sub::before {
-  content: '·';
-  margin-right: 6px;
+  content: none;
+  margin-right: 0;
 }
 
 .rq-nav-sub:hover,

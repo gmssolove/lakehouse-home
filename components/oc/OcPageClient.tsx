@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
 import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcChatAlertHost } from '@/components/oc/OcChatAlertHost';
@@ -46,6 +46,17 @@ import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
 import type { OcCharacter } from '@/lib/types/character';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
+
+function useOcSearchParams() {
+  const [search, setSearch] = useState('');
+  useLayoutEffect(() => {
+    const sync = () => setSearch(window.location.search);
+    sync();
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, []);
+  return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+}
 
 const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -122,7 +133,7 @@ const OcArchiveCard = memo(function OcArchiveCard({
 
 export function OcPageClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useOcSearchParams();
   const { characters, categories, loaded, saveCharacters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
   const { restorePageSnapshot, resumePageBgmIfNeeded, playCharacterTheme } = useBgm();
@@ -898,21 +909,7 @@ export function OcPageClient() {
         <div className="main-content">
           <h2 className="oc-archive-heading">Character Archive</h2>
           <div className="card-grid" id="card-grid">
-            {urlCharPending ? (
-              <div
-                style={{
-                  gridColumn: '1/-1',
-                  textAlign: 'center',
-                  padding: '5rem',
-                  fontFamily: 'Playfair Display, serif',
-                  fontStyle: 'italic',
-                  fontSize: 18,
-                  color: 'var(--text-muted)',
-                  opacity: 0.55,
-                }}
-                aria-hidden
-              />
-            ) : !filtered.length ? (
+            {!filtered.length && !urlCharPending ? (
               <div
                 style={{
                   gridColumn: '1/-1',
