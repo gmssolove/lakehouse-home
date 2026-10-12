@@ -27,7 +27,6 @@ import { PairPanelStage, PairReveal } from '@/components/pair/PairPanelStage';
 import { pairCardTitle } from '@/lib/oc/pairCover';
 import { preloadPairStandImages } from '@/lib/oc/pairStandPreload';
 import {
-  collectPairHandNoteUrls,
   collectPairHandNoteSfx,
   preloadHandNoteImages,
   unlockHandNoteSfx,
@@ -701,10 +700,8 @@ export function PairArchiveDetail({
     return () => window.clearTimeout(t);
   }, [enterKey]);
 
-  /* 전신·쪽지 프리로드 — 진입 직후 / 펼침 시 로딩·첫 효과음 지연 완화 */
   useEffect(() => {
     preloadPairStandImages(pair);
-    preloadHandNoteImages(collectPairHandNoteUrls(pair));
     warmHandNoteSfx(collectPairHandNoteSfx(pair));
   }, [pair]);
 

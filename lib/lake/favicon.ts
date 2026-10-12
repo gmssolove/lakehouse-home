@@ -3,18 +3,14 @@
 export const LAKE_FAVICON_HREF_KEY = 'lake_favicon_href';
 export const LAKE_FAVICON_ATTR = 'data-lake-favicon';
 
-/** Always same-origin so OC/Pair hard loads don't stick on public/favicon.svg */
-export const LAKE_FAVICON_SAME_ORIGIN = '/favicon.ico';
+/** 정적 폴백 — /favicon.ico Worker 프록시는 페이지 로딩을 막아서 쓰지 않음 */
+export const LAKE_FAVICON_SAME_ORIGIN = '/favicon.svg';
 
 export function resolveLakeFaviconHref(raw?: string | null): string {
   const href = (raw || '').trim();
-  if (!href) return LAKE_FAVICON_SAME_ORIGIN;
+  if (!href || href === '/favicon.ico') return LAKE_FAVICON_SAME_ORIGIN;
   if (href.startsWith('data:') && href.length > 24_000) return LAKE_FAVICON_SAME_ORIGIN;
-  // Prefer same-origin proxy so tab cache is origin-stable across /oc /pair
-  if (/^https?:\/\//i.test(href) || href.startsWith('data:')) {
-    return LAKE_FAVICON_SAME_ORIGIN;
-  }
-  if (href === '/favicon.svg') return LAKE_FAVICON_SAME_ORIGIN;
+  if (/^https?:\/\//i.test(href) || href.startsWith('data:')) return href;
   return href;
 }
 
@@ -53,10 +49,10 @@ function persistFaviconHref(remoteHref: string) {
  */
 export function applyLakeFavicon(remoteHref?: string | null): void {
   if (typeof document === 'undefined') return;
-  const version =
+  const raw =
     (remoteHref || '').trim() ||
     (typeof window !== 'undefined' ? localStorage.getItem(LAKE_FAVICON_HREF_KEY) || '' : '');
-  const href = withFaviconCacheBust(LAKE_FAVICON_SAME_ORIGIN, String(version.length || 1));
+  const href = resolveLakeFaviconHref(raw);
   const head = document.head;
   if (!head) return;
 
@@ -65,12 +61,12 @@ export function applyLakeFavicon(remoteHref?: string | null): void {
     link = document.createElement('link');
     link.rel = 'icon';
     link.setAttribute(LAKE_FAVICON_ATTR, '1');
-    link.type = 'image/png';
     head.appendChild(link);
   }
 
+  const type = faviconMimeType(href) || 'image/svg+xml';
   if (link.getAttribute('href') !== href) {
-    link.type = 'image/png';
+    link.type = type;
     link.setAttribute('href', href);
   }
 
