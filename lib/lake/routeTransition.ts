@@ -3,8 +3,8 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 const TRPG_SCENARIO = /^\/trpg\/[^/]+$/;
 const VERSE_PATH = /^\/verse(\/|$)/;
 const ARCHIVE = new Set(['/', '/oc', '/pair']);
-/** 홈·OC·Pair — soft push. hard assign는 BGM·JS를 죽여 로딩/노래가 멈춤 */
-const ARCHIVE_SOFT = new Set(['/', '/oc', '/pair']);
+/** OC↔Pair 는 공유 레이아웃 — soft push 가능 (LeftNav portal 제거됨) */
+const ARCHIVE_SOFT = new Set(['/oc', '/pair']);
 /** leave 연출 후 hard — 메인↔아카이브 */
 const HARD_LEAVE_MS = 280;
 /** OC↔Pair soft — 짧은 leave 후 push (딜레이 체감 최소) */

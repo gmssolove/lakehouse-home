@@ -214,6 +214,11 @@ export function LeftNav({
     return () => window.clearTimeout(t);
   }, [onHome]);
 
+  useEffect(() => {
+    router.prefetch('/oc');
+    router.prefetch('/pair');
+    router.prefetch('/');
+  }, [router]);
 
   function isRecordsGroupActive() {
     return isRecordsTab(activePage) && onHome;
@@ -225,7 +230,8 @@ export function LeftNav({
 
   function goHomeTab(page: HomePageId) {
     if (!onHome) {
-      lakeNavigate(router, `/?p=${page}`, pathname || '/oc');
+      /* hard-nav — soft push 시 메뉴 portal removeChild 레이스 */
+      window.location.assign(`/?p=${page}`);
       return;
     }
     onPageChange(page);

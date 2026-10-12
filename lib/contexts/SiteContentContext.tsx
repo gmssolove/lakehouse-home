@@ -263,6 +263,11 @@ function readHomeTab(): HomeTab {
   return new URLSearchParams(window.location.search).get('p') || 'main';
 }
 
+function sectionCacheUrl(section: string, limit?: number): string {
+  const q = limit != null ? `?limit=${limit}` : '';
+  return `/api/site-section/${section}${q}`;
+}
+
 type NeedMap = {
   notices: boolean;
   diary: boolean;
@@ -375,8 +380,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
   const need = needsForRoute(pathname, homeTab, eager);
   const lim = eager ? undefined : SITE_SECTION_DEFAULT_LIMIT;
   const timeoutMs = 5000;
-  /* Worker /api/site-section 하이드레이트 안 함 — 같은 isolate가 HTML·BGM을 막음. RTDB+local만 */
-  const cacheFor = (_section: string, _limit?: number) => null as string | null;
+  /* 어드민(eager)은 slim 캐시 하이드레이트 건너뛰고 전체 RTDB 구독 */
+  const cacheFor = (section: string, limit?: number) =>
+    eager ? null : sectionCacheUrl(section, limit);
 
   /* 항상: 셸·접근·BGM·UX */
   const main = useFirebaseSection<SiteMain>('lhdata/site/main', DEFAULT_SITE_MAIN, {
@@ -403,7 +409,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
   const guestSettings = useFirebaseSection<SiteGuestSettings>(
     'lhdata/site/guest_settings',
     DEFAULT_SITE_GUEST_SETTINGS,
-    { enabled: eager || need.guests, timeoutMs, cacheUrl: cacheFor('guest_settings') },
+    { timeoutMs, cacheUrl: cacheFor('guest_settings') },
   );
 
   const notices = useFirebaseSection<SitePost[]>('lhdata/site/notices', [], {

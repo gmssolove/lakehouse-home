@@ -1,38 +1,53 @@
-/** 손글씨 쪽지 비율·효과음. 이미지는 CDN 직행 — 사이트 Worker(/api/r2-blob)를 쓰지 않는다. */
+/** 손글씨 쪽지 이미지·효과음 프리로드 — 펼침 전 캐시로 뚝/첫 효과음 지연 완화 */
 
 type NoteDim = { width: number; height: number };
 
 const dimCache = new Map<string, Promise<NoteDim | null>>();
 const sfxCache = new Map<string, HTMLAudioElement>();
 
-function dimFromImageUrl(url: string): Promise<NoteDim | null> {
+function dimFromBlob(blob: Blob): Promise<NoteDim | null> {
   return new Promise((resolve) => {
+    const obj = URL.createObjectURL(blob);
     const img = new window.Image();
-    img.decoding = 'async';
-    img.referrerPolicy = 'no-referrer';
+    const done = (dim: NoteDim | null) => {
+      URL.revokeObjectURL(obj);
+      resolve(dim);
+    };
     img.onload = () => {
       const w = img.naturalWidth;
       const h = img.naturalHeight;
-      resolve(w > 0 && h > 0 ? { width: w, height: h } : null);
+      done(w > 0 && h > 0 ? { width: w, height: h } : null);
     };
-    img.onerror = () => resolve(null);
-    img.src = url;
+    img.onerror = () => done(null);
+    img.src = obj;
   });
 }
 
-function loadNoteDims(src: string): Promise<NoteDim | null> {
+function loadNoteImage(src: string): Promise<NoteDim | null> {
   const url = src.trim();
   if (!url) return Promise.resolve(null);
   const hit = dimCache.get(url);
   if (hit) return hit;
-  const pending = dimFromImageUrl(url);
+
+  const pending = (async () => {
+    try {
+      const proxy = `/api/r2-blob?src=${encodeURIComponent(url)}`;
+      let res = await fetch(proxy);
+      if (!res.ok) res = await fetch(url, { mode: 'cors' });
+      if (!res.ok) return null;
+      return dimFromBlob(await res.blob());
+    } catch {
+      return null;
+    }
+  })();
+
   dimCache.set(url, pending);
   return pending;
 }
 
 export function preloadHandNoteImage(src: string): Promise<NoteDim | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  return loadNoteDims(src);
+  return loadNoteImage(src);
 }
 
 export function preloadHandNoteImages(
@@ -43,7 +58,7 @@ export function preloadHandNoteImages(
     new Set((urls ?? []).map((u) => (u || '').trim()).filter(Boolean)),
   );
   list.forEach((src) => {
-    void loadNoteDims(src);
+    void loadNoteImage(src);
   });
 }
 
