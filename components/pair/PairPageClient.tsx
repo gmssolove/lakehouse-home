@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBgm } from '@/lib/contexts/BgmContext';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
@@ -17,7 +17,6 @@ import { movePairInList, pairOrderMeta } from '@/lib/oc/pairOrder';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useOcData } from '@/lib/hooks/useOcData';
-import { useLocationSearchParams } from '@/lib/hooks/useLocationSearchParams';
 import { usePairData } from '@/lib/hooks/usePairData';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -45,7 +44,7 @@ type SortMode = 'order' | 'name';
 
 export function PairPageClient() {
   const router = useRouter();
-  const searchParams = useLocationSearchParams();
+  const searchParams = useSearchParams();
   const { pairs, loaded, savePairs } = usePairData();
   const { characters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
@@ -506,6 +505,11 @@ export function PairPageClient() {
     [ocSettings.tipToastPair],
   );
 
+  useEffect(() => {
+    for (const href of ocProfileLinks) {
+      if (href) router.prefetch(href);
+    }
+  }, [ocProfileLinks, router]);
 
   const showArchiveTip = !detail && !entrySplash;
   /* URL / soft-nav pending — 목록이 먼저 보이는 깜빡임 차단 */

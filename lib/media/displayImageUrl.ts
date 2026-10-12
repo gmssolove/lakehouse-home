@@ -58,11 +58,9 @@ export function displayImageUrl(
     if (u.searchParams.has('w')) return raw;
     /* 스탠딩 PNG는 리사이즈·포맷 변환하면 투명/원본이 깨지는 파일이 있음 */
     if (preset === 'hero') return raw;
-    const isPng = /\.png$/i.test(u.pathname);
-    u.searchParams.set('w', String(Math.min(2400, isPng ? Math.max(width, 960) : width)));
-    u.searchParams.set('q', isPng ? '90' : '72');
-    /* f=auto 가 PNG를 JPEG로 바꿔 스탠딩이 뭉개짐 */
-    if (!isPng) u.searchParams.set('f', 'auto');
+    u.searchParams.set('w', String(Math.min(2400, width)));
+    u.searchParams.set('q', '72');
+    u.searchParams.set('f', 'auto');
     return u.toString();
   } catch {
     return raw;

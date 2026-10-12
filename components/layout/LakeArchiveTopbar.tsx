@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { lakeNavigate } from '@/lib/lake/routeTransition';
 
 type Props = {
@@ -13,6 +13,12 @@ type Props = {
 export function LakeArchiveTopbar({ title, active, back }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    router.prefetch('/oc');
+    router.prefetch('/pair');
+    router.prefetch('/');
+  }, [router]);
 
   function go(href: string) {
     lakeNavigate(router, href, pathname || '/');

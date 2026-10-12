@@ -89,7 +89,8 @@ const pinyon = Pinyon_Script({
   subsets: ['latin'],
   weight: ['400'],
   variable: '--font-pinyon',
-  display: 'swap',
+  /* 메뉴 첫 페인트에 필요. swap+메트릭 Fallback이면 세리프로 보였다가 필기체로 돌아옴 */
+  display: 'block',
   preload: true,
   adjustFontFallback: false,
 });
@@ -98,8 +99,8 @@ const mySoul = My_Soul({
   subsets: ['latin'],
   weight: ['400'],
   variable: '--font-my-soul',
-  display: 'swap',
-  preload: false,
+  display: 'block',
+  preload: true,
   adjustFontFallback: false,
 });
 
@@ -157,18 +158,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       {/* className 대신 CSS --lh-body-font('ChosunNm' 우선) — next/font Fallback이 Times로 가로채지 않게 */}
       <head>
+        {/* Admin 파비콘 — 동일 출처 /favicon.ico (api/site-favicon 프록시). localStorage 불필요 */}
         <link rel="icon" href="/favicon.ico" type="image/png" data-lake-favicon="1" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var h=localStorage.getItem('lake_favicon_href');if(!h)return;var l=document.querySelector('link[data-lake-favicon="1"]');if(!l)return;l.type=/svg/i.test(h)?'image/svg+xml':'image/png';l.href=h;}catch(e){}})();`,
-          }}
-        />
         <link rel="preconnect" href="https://img.lakehouse.me.kr" />
         <link rel="dns-prefetch" href="https://img.lakehouse.me.kr" />
-        {/* Tabler는 load 이후 — jsdelivr가 멈추면 탭 스피너가 안 끝남 */}
+        {/* Tabler Icons — 렌더 블로킹 방지 */}
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css"
+          media="print"
+          suppressHydrationWarning
+        />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){function add(){if(document.getElementById('tabler-icons'))return;var l=document.createElement('link');l.id='tabler-icons';l.rel='stylesheet';l.href='https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.34.1/dist/tabler-icons.min.css';document.head.appendChild(l);}if(document.readyState==='complete')add();else window.addEventListener('load',add,{once:true});})();`,
+            __html: `(function(){var l=document.querySelector('link[href*="tabler-icons"]');if(!l)return;function go(){l.media='all';}l.addEventListener('load',go);if(l.sheet)go();setTimeout(go,2500);})();`,
           }}
         />
       </head>

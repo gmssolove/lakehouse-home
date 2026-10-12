@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase/client';
 import { prepareCharactersForSave } from '@/lib/oc/prepareCharacterSave';
 import { stripEmptyThemeFields } from '@/lib/oc/characterTheme';
 import { mergeCategoryList, normalizeCategory } from '@/lib/oc/categories';
+import { hydrateOcStories } from '@/lib/oc/storyEntries';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import {
   DEFAULT_CATEGORIES,
@@ -14,10 +15,10 @@ import {
 } from '@/lib/types/character';
 
 function normalizeCharacter(c: OcCharacter): OcCharacter {
-  return {
+  return hydrateOcStories({
     ...c,
     category: normalizeCategory(c.category || ''),
-  };
+  });
 }
 
 function normalizeCharacters(list: OcCharacter[]): OcCharacter[] {
@@ -53,12 +54,8 @@ export function useOcData() {
       onValue(ref(db, 'lhdata/oc_characters'), (snap) => {
         if (!snap.exists()) return;
         const val = normalizeCharacters(snap.val() as OcCharacter[]);
-        try {
-          localStorage.setItem('oc_characters', JSON.stringify(val));
-        } catch {
-          /* quota */
-        }
-        setCharacters(val);
+        localStorage.setItem('oc_characters', JSON.stringify(val));
+        setCharacters((prev) => (JSON.stringify(prev) === JSON.stringify(val) ? prev : val));
       }),
       onValue(ref(db, 'lhdata/oc_categories'), (snap) => {
         if (!snap.exists()) return;

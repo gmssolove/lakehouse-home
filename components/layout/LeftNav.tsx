@@ -214,6 +214,12 @@ export function LeftNav({
     return () => window.clearTimeout(t);
   }, [onHome]);
 
+  useEffect(() => {
+    router.prefetch('/oc');
+    router.prefetch('/pair');
+    router.prefetch('/');
+  }, [router]);
+
   function isRecordsGroupActive() {
     return isRecordsTab(activePage) && onHome;
   }
@@ -224,7 +230,8 @@ export function LeftNav({
 
   function goHomeTab(page: HomePageId) {
     if (!onHome) {
-      lakeNavigate(router, `/?p=${page}`, pathname || '/oc');
+      /* hard-nav — soft push 시 메뉴 portal removeChild 레이스 */
+      window.location.assign(`/?p=${page}`);
       return;
     }
     onPageChange(page);
@@ -263,7 +270,6 @@ export function LeftNav({
           <button
             type="button"
             className={`rq-nav-sub${pathname === '/oc' ? ' is-active' : ''}`}
-            onPointerEnter={() => router.prefetch('/oc')}
             onClick={() => {
               closeMobile();
               lakeNavigate(router, '/oc', pathname);
@@ -274,7 +280,6 @@ export function LeftNav({
           <button
             type="button"
             className={`rq-nav-sub${pathname === '/pair' ? ' is-active' : ''}`}
-            onPointerEnter={() => router.prefetch('/pair')}
             onClick={() => {
               closeMobile();
               lakeNavigate(router, '/pair', pathname);

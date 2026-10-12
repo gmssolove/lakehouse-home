@@ -1,10 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
+import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcChatAlertHost } from '@/components/oc/OcChatAlertHost';
+import { OcChatPanel } from '@/components/oc/OcChatPanel';
 import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
 import { EntrySplash } from '@/components/shared/EntrySplash';
 import { PageTipToast } from '@/components/shared/PageTipToast';
@@ -13,7 +14,6 @@ import { normalizeTipToastSettings } from '@/lib/shared/tipToastQueue';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useLakeBackGesture, useLakeBackNavigation } from '@/lib/hooks/useLakeBackNavigation';
 import { useOcData } from '@/lib/hooks/useOcData';
-import { useLocationSearchParams } from '@/lib/hooks/useLocationSearchParams';
 import { useOcUserPresenceTracker } from '@/lib/hooks/useOcUserPresenceTracker';
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
@@ -46,15 +46,6 @@ import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
 import type { OcCharacter } from '@/lib/types/character';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
-
-const OcCharacterDetail = dynamic(
-  () => import('@/components/oc/OcCharacterDetail').then((m) => m.OcCharacterDetail),
-  { ssr: false },
-);
-const OcChatPanel = dynamic(
-  () => import('@/components/oc/OcChatPanel').then((m) => m.OcChatPanel),
-  { ssr: false },
-);
 
 const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -131,7 +122,7 @@ const OcArchiveCard = memo(function OcArchiveCard({
 
 export function OcPageClient() {
   const router = useRouter();
-  const searchParams = useLocationSearchParams();
+  const searchParams = useSearchParams();
   const { characters, categories, loaded, saveCharacters } = useOcData();
   const { ocSettings, accessSettings } = useSiteContent();
   const { restorePageSnapshot, resumePageBgmIfNeeded, playCharacterTheme } = useBgm();
@@ -171,10 +162,6 @@ export function OcPageClient() {
   const autoOpenedCharRef = useRef<string | null>(null);
   const detailRef = useRef(detail);
   detailRef.current = detail;
-  useEffect(() => {
-    void import('@/components/oc/OcCharacterDetail');
-  }, []);
-
   useEffect(() => {
     document.body.style.opacity = '1';
     document.body.classList.remove('lh-leaving');
@@ -911,7 +898,21 @@ export function OcPageClient() {
         <div className="main-content">
           <h2 className="oc-archive-heading">Character Archive</h2>
           <div className="card-grid" id="card-grid">
-            {!filtered.length && !urlCharPending ? (
+            {urlCharPending ? (
+              <div
+                style={{
+                  gridColumn: '1/-1',
+                  textAlign: 'center',
+                  padding: '5rem',
+                  fontFamily: 'Playfair Display, serif',
+                  fontStyle: 'italic',
+                  fontSize: 18,
+                  color: 'var(--text-muted)',
+                  opacity: 0.55,
+                }}
+                aria-hidden
+              />
+            ) : !filtered.length ? (
               <div
                 style={{
                   gridColumn: '1/-1',
@@ -931,7 +932,7 @@ export function OcPageClient() {
                   key={c.id}
                   character={c}
                   index={i}
-                  eager={i < 6}
+                  eager={i < 8}
                   onOpen={onOpenCard}
                 />
               ))

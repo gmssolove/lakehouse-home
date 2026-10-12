@@ -10,9 +10,6 @@ import {
   isTypeKeyEvent,
   playTypeKeyBind,
   playTypeKeySound,
-  typeKeyBindSounds,
-  typeKeyGlobalSounds,
-  warmTypeKeyFiles,
 } from '@/lib/sounds/typeKeySound';
 import {
   CURSOR_PRESETS,
@@ -71,14 +68,6 @@ export function SiteEffects() {
     uiSettings.cursorCustom,
     uiSettings.cursorSize,
   ]);
-
-  useEffect(() => {
-    const files = [...typeKeyGlobalSounds(uiSettings)];
-    for (const bind of uiSettings.typeKeySoundBinds || []) {
-      files.push(...typeKeyBindSounds(bind));
-    }
-    warmTypeKeyFiles(files);
-  }, [uiSettings]);
 
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {

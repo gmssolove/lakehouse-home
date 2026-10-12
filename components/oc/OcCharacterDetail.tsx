@@ -353,8 +353,13 @@ export function OcCharacterDetail({
   }, [character.id]); // eslint-disable-line react-hooks/exhaustive-deps -- reset on character switch only
 
   useEffect(() => {
+    preloadHandNoteImages(character.handwritingNotes ?? []);
     warmHandNoteSfx([character.handwritingNoteSfx, character.handwritingNoteCloseSfx]);
-  }, [character.handwritingNoteCloseSfx, character.handwritingNoteSfx]);
+  }, [
+    character.handwritingNoteCloseSfx,
+    character.handwritingNoteSfx,
+    character.handwritingNotes,
+  ]);
 
   useEffect(() => {
     if (ghostLayoutMode) return;

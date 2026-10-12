@@ -8,7 +8,7 @@ const FALLBACK_PATH = '/favicon.svg';
 export async function resolveSiteFaviconRemoteUrl(): Promise<string | null> {
   try {
     const res = await fetch(FIREBASE_FAVICON_URL, {
-      next: { revalidate: 3600 },
+      next: { revalidate: 60 },
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return null;
@@ -38,7 +38,7 @@ export async function fetchSiteFaviconBytes(): Promise<{
     return { body: bytes.buffer, contentType: m[1] };
   }
 
-  const img = await fetch(remote, { next: { revalidate: 3600 } });
+  const img = await fetch(remote, { next: { revalidate: 60 } });
   if (!img.ok) return null;
   const contentType =
     img.headers.get('content-type') ||

@@ -46,7 +46,6 @@ import {
   getSiteContentEager,
   subscribeSiteContentEager,
 } from '@/lib/site/siteContentEager';
-import { getHomeTabHint, subscribeHomeTabHint } from '@/lib/site/homeTabHint';
 import { SITE_SECTION_DEFAULT_LIMIT } from '@/lib/site/siteSectionMeta';
 import { mergeTrpgListPreserveHeavy, prepareTrpgScenariosForSave } from '@/lib/trpg/normalize';
 
@@ -264,6 +263,11 @@ function readHomeTab(): HomeTab {
   return new URLSearchParams(window.location.search).get('p') || 'main';
 }
 
+function sectionCacheUrl(section: string, limit?: number): string {
+  const q = limit != null ? `?limit=${limit}` : '';
+  return `/api/site-section/${section}${q}`;
+}
+
 type NeedMap = {
   notices: boolean;
   diary: boolean;
@@ -348,16 +352,15 @@ function needsForRoute(pathname: string, homeTab: HomeTab, eager: boolean): Need
 export function SiteContentProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname() || '/';
   const [eager, setEager] = useState(getSiteContentEager);
-  const [homeTab, setHomeTab] = useState<HomeTab>(() => getHomeTabHint() || 'main');
+  const [homeTab, setHomeTab] = useState<HomeTab>('main');
 
   useEffect(() => subscribeSiteContentEager(setEager), []);
-  useEffect(() => subscribeHomeTabHint(setHomeTab), []);
 
   /* popstate만 감지 — history.replaceState 패치는 Next router와 맞물려
    * navigated/update-depth 루프 → Application error 를 유발할 수 있음 */
   useEffect(() => {
     const sync = () => {
-      const next = getHomeTabHint() || readHomeTab();
+      const next = readHomeTab();
       setHomeTab((prev) => (prev === next ? prev : next));
     };
     sync();
@@ -377,8 +380,9 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
   const need = needsForRoute(pathname, homeTab, eager);
   const lim = eager ? undefined : SITE_SECTION_DEFAULT_LIMIT;
   const timeoutMs = 5000;
-  /* Worker /api/site-section 안 탐 — HTML·BGM·글꼴과 같은 isolate를 막음 */
-  const cacheFor = (_section: string, _limit?: number) => null as string | null;
+  /* 어드민(eager)은 slim 캐시 하이드레이트 건너뛰고 전체 RTDB 구독 */
+  const cacheFor = (section: string, limit?: number) =>
+    eager ? null : sectionCacheUrl(section, limit);
 
   /* 항상: 셸·접근·BGM·UX */
   const main = useFirebaseSection<SiteMain>('lhdata/site/main', DEFAULT_SITE_MAIN, {
@@ -405,7 +409,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
   const guestSettings = useFirebaseSection<SiteGuestSettings>(
     'lhdata/site/guest_settings',
     DEFAULT_SITE_GUEST_SETTINGS,
-    { enabled: eager || need.guests, timeoutMs, cacheUrl: cacheFor('guest_settings') },
+    { timeoutMs, cacheUrl: cacheFor('guest_settings') },
   );
 
   const notices = useFirebaseSection<SitePost[]>('lhdata/site/notices', [], {

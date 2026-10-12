@@ -3,10 +3,12 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 const TRPG_SCENARIO = /^\/trpg\/[^/]+$/;
 const VERSE_PATH = /^\/verse(\/|$)/;
 const ARCHIVE = new Set(['/', '/oc', '/pair']);
-/** 홈·OC·Pair — 전체 새로고침 없이 이동. hard assign은 BGM·글꼴을 죽임 */
-const ARCHIVE_SOFT = new Set(['/', '/oc', '/pair']);
-/** leave 연출 후 hard — TRPG 등 아카이브 밖 */
+/** OC↔Pair 는 공유 레이아웃 — soft push 가능 (LeftNav portal 제거됨) */
+const ARCHIVE_SOFT = new Set(['/oc', '/pair']);
+/** leave 연출 후 hard — 메인↔아카이브 */
 const HARD_LEAVE_MS = 280;
+/** OC↔Pair soft — 짧은 leave 후 push (딜레이 체감 최소) */
+const SOFT_LEAVE_MS = 200;
 
 const ARCHIVE_ORDER: Record<string, number> = {
   '/': 0,
@@ -297,15 +299,43 @@ export function lakeNavigate(
   if (canSoftLakeNavigate(from, nextPath)) {
     stashDeepPending(url);
     document.body.style.setProperty('opacity', '1');
-    /* leave 애니 없이 바로 push — 패널이 비운 채 RSC를 기다리면 무한로딩처럼 보임 */
+
+    const leaveDir =
+      beginLakeRouteLeave(from, nextPath) ||
+      (dir === 'back' || dir === 'forward' ? dir : null);
+
+    const go = () => {
+      navInFlight = false;
+      /*
+       * 복귀(back+deep)는 replace — push 하면
+       * pair → oc → pair?p= 스택이 남아 목록에서 뒤로 시 OC↔페어 상세 루프가 난다.
+       */
+      if (deep && dir === 'back') {
+        router.replace(fullHref);
+      } else {
+        router.push(fullHref);
+      }
+    };
+
+    if (leaveDir) {
+      navInFlight = true;
+      navToken += 1;
+      const token = navToken;
+      /* deep도 enter 재생 — skipEnter 하면 전환감이 사라짐 */
+      stashRouteEnter(leaveDir, nextPath, false);
+      window.setTimeout(() => {
+        if (token !== navToken) return;
+        go();
+      }, SOFT_LEAVE_MS);
+      return leaveDir;
+    }
+
     clearLakeRouteClasses();
     removeLeaveVeil();
-    navInFlight = false;
-    if (deep && dir === 'back') {
-      router.replace(fullHref);
-    } else {
-      router.push(fullHref);
+    if (dir === 'forward' || dir === 'back') {
+      stashRouteEnter(dir, nextPath, false);
     }
+    go();
     return dir === 'back' ? 'back' : dir === 'forward' ? 'forward' : null;
   }
 
