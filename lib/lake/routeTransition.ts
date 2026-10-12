@@ -3,12 +3,10 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 const TRPG_SCENARIO = /^\/trpg\/[^/]+$/;
 const VERSE_PATH = /^\/verse(\/|$)/;
 const ARCHIVE = new Set(['/', '/oc', '/pair']);
-/** OC↔Pair 는 공유 레이아웃 — soft push 가능 (LeftNav portal 제거됨) */
-const ARCHIVE_SOFT = new Set(['/oc', '/pair']);
-/** leave 연출 후 hard — 메인↔아카이브 */
+/** 홈·OC·Pair — 새로고침 없이 이동 (하드 assign은 한국에서 수 초가 걸림) */
+const ARCHIVE_SOFT = new Set(['/', '/oc', '/pair']);
+/** leave 연출 후 hard — TRPG 등 아카이브 밖 */
 const HARD_LEAVE_MS = 280;
-/** OC↔Pair soft — 짧은 leave 후 push (딜레이 체감 최소) */
-const SOFT_LEAVE_MS = 200;
 
 const ARCHIVE_ORDER: Record<string, number> = {
   '/': 0,
@@ -293,23 +291,14 @@ export function lakeNavigate(
   const deep = isLakeDeepProfileHref(fullHref);
 
   /*
-   * OC ↔ Pair: soft router.push/replace
-   * — leave 짧게 → soft 이동 → enter (deep도 enter — cover로 목록 안 보임)
+   * 홈·OC·Pair: leave 없이 바로 push — 하드 새로고침/leave 대기가 프로필 진입을 막음
    */
   if (canSoftLakeNavigate(from, nextPath)) {
     stashDeepPending(url);
     document.body.style.setProperty('opacity', '1');
 
-    const leaveDir =
-      beginLakeRouteLeave(from, nextPath) ||
-      (dir === 'back' || dir === 'forward' ? dir : null);
-
     const go = () => {
       navInFlight = false;
-      /*
-       * 복귀(back+deep)는 replace — push 하면
-       * pair → oc → pair?p= 스택이 남아 목록에서 뒤로 시 OC↔페어 상세 루프가 난다.
-       */
       if (deep && dir === 'back') {
         router.replace(fullHref);
       } else {
@@ -317,24 +306,10 @@ export function lakeNavigate(
       }
     };
 
-    if (leaveDir) {
-      navInFlight = true;
-      navToken += 1;
-      const token = navToken;
-      /* deep도 enter 재생 — skipEnter 하면 전환감이 사라짐 */
-      stashRouteEnter(leaveDir, nextPath, false);
-      window.setTimeout(() => {
-        if (token !== navToken) return;
-        go();
-      }, SOFT_LEAVE_MS);
-      return leaveDir;
-    }
-
     clearLakeRouteClasses();
     removeLeaveVeil();
-    if (dir === 'forward' || dir === 'back') {
-      stashRouteEnter(dir, nextPath, false);
-    }
+    document.body.style.setProperty('opacity', '1');
+    navInFlight = false;
     go();
     return dir === 'back' ? 'back' : dir === 'forward' ? 'forward' : null;
   }

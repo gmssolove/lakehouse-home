@@ -50,14 +50,13 @@ export const ImageFrameView = memo(function ImageFrameView({
   className = '',
   imgClassName = '',
   size = 'hero',
-  eager: _eager = false,
+  eager = false,
 }: Props) {
   const { scale, x, y, bottomBlur } = normalizeImageFrame(frame);
   const rootRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [box, setBox] = useState<BoxSize | null>(null);
   const [nat, setNat] = useState<NatSize | null>(null);
-  void _eager;
 
   const useCoverLayout = (fit || 'cover') === 'cover';
   const displaySrc = displayImageUrl(src, size);
@@ -189,9 +188,9 @@ export const ImageFrameView = memo(function ImageFrameView({
             alt={alt}
             draggable={false}
             referrerPolicy="no-referrer"
-            decoding="sync"
-            loading="eager"
-            fetchPriority="high"
+            decoding="async"
+            loading={eager ? 'eager' : 'lazy'}
+            fetchPriority={eager ? 'high' : 'auto'}
             onLoad={onImgLoad}
             style={imgStyle}
           />

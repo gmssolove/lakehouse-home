@@ -230,8 +230,7 @@ export function LeftNav({
 
   function goHomeTab(page: HomePageId) {
     if (!onHome) {
-      /* hard-nav — soft push 시 메뉴 portal removeChild 레이스 */
-      window.location.assign(`/?p=${page}`);
+      lakeNavigate(router, `/?p=${page}`, pathname || '/oc');
       return;
     }
     onPageChange(page);
