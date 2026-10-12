@@ -62,3 +62,10 @@
     animation: none;
   }
 }
+
+/* 상세·쪽지 중엔 전역 그레인 애니를 멈춰 GPU를 비움 */
+body:has(.oc-archive-layout.is-detail-cover) .lh-grain,
+body:has(.pair-note-flap-lb) .lh-grain,
+body:has(.trpg-scenario-layout) .lh-grain {
+  animation: none;
+}

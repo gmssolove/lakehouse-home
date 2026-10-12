@@ -2,9 +2,12 @@
 
 type NoteDim = { width: number; height: number };
 
+type NoteBlob = { objectUrl: string; image: HTMLImageElement };
+
 const dimResolved = new Map<string, NoteDim | null>();
 const dimCache = new Map<string, Promise<NoteDim | null>>();
-const blobUrlCache = new Map<string, Promise<string | null>>();
+const blobCache = new Map<string, Promise<NoteBlob | null>>();
+const blobReady = new Set<string>();
 const sfxCache = new Map<string, HTMLAudioElement>();
 let notePaperChunk: Promise<unknown> | null = null;
 
@@ -44,10 +47,10 @@ function loadNoteDims(src: string): Promise<NoteDim | null> {
   return pending;
 }
 
-function loadNoteBlobUrl(src: string): Promise<string | null> {
+function loadNoteBlob(src: string): Promise<NoteBlob | null> {
   const url = src.trim();
   if (!url) return Promise.resolve(null);
-  const hit = blobUrlCache.get(url);
+  const hit = blobCache.get(url);
   if (hit) return hit;
 
   const pending = (async () => {
@@ -56,13 +59,22 @@ function loadNoteBlobUrl(src: string): Promise<string | null> {
       let res = await fetch(proxy);
       if (!res.ok) res = await fetch(url, { mode: 'cors' });
       if (!res.ok) return null;
-      return URL.createObjectURL(await res.blob());
+      const objectUrl = URL.createObjectURL(await res.blob());
+      const image = new window.Image();
+      image.src = objectUrl;
+      try {
+        if (typeof image.decode === 'function') await image.decode();
+      } catch {
+        /* decode 실패해도 텍스처는 시도 */
+      }
+      blobReady.add(url);
+      return { objectUrl, image };
     } catch {
       return null;
     }
   })();
 
-  blobUrlCache.set(url, pending);
+  blobCache.set(url, pending);
   return pending;
 }
 
@@ -74,16 +86,28 @@ export function peekHandNoteDim(src: string): NoteDim | null | undefined {
   return dimResolved.get(url) ?? null;
 }
 
+export function peekHandNoteDecoded(src: string): boolean {
+  return blobReady.has(src.trim());
+}
+
 export function preloadHandNoteImage(src: string): Promise<NoteDim | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
   prefetchNotePaperChunk();
-  void loadNoteBlobUrl(src);
+  void loadNoteBlob(src);
   return loadNoteDims(src);
 }
 
 export function getHandNoteObjectUrl(src: string): Promise<string | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  return loadNoteBlobUrl(src);
+  return loadNoteBlob(src).then((pack) => pack?.objectUrl ?? null);
+}
+
+export async function getHandNoteDecodedImage(
+  src: string,
+): Promise<HTMLImageElement | null> {
+  if (typeof window === 'undefined') return null;
+  const pack = await loadNoteBlob(src);
+  return pack?.image ?? null;
 }
 
 export function preloadHandNoteImages(
@@ -96,7 +120,7 @@ export function preloadHandNoteImages(
   );
   list.forEach((src) => {
     void loadNoteDims(src);
-    void loadNoteBlobUrl(src);
+    void loadNoteBlob(src);
   });
 }
 

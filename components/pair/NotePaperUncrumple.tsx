@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import * as THREE from 'three';
-import { getHandNoteObjectUrl } from '@/lib/oc/handNotePreload';
+import { getHandNoteDecodedImage } from '@/lib/oc/handNotePreload';
 const spring = (value = 0) => ({ value, target: value, velocity: 0 });
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const finite = (value, fallback) => (Number.isFinite(value) ? value : fallback);
@@ -798,7 +798,7 @@ const PaperCrumple = ({
       camera.position.z = viewportHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld();
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
       renderer.setSize(viewportWidth, viewportHeight, false);
       const reach = Math.max(viewportWidth, viewportHeight);
       const angle = THREE.MathUtils.degToRad(finite(lightAngle, -35));
@@ -1074,17 +1074,9 @@ const PaperCrumple = ({
       return texture;
     }
     async function load(url) {
-      const obj = await getHandNoteObjectUrl(url);
-      if (!obj) throw new Error(`Unable to load paper image: ${url}`);
-      const texture = await new Promise((resolve, reject) => {
-        const loader = new THREE.TextureLoader();
-        loader.load(
-          obj,
-          (tex) => resolve(tex),
-          undefined,
-          () => reject(new Error(`Unable to load paper image: ${url}`)),
-        );
-      });
+      const image = await getHandNoteDecodedImage(url);
+      if (!image) throw new Error(`Unable to load paper image: ${url}`);
+      const texture = new THREE.Texture(image);
       if (disposed) {
         texture.dispose();
         throw new Error('disposed');

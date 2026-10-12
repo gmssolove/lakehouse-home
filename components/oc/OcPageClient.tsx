@@ -20,6 +20,12 @@ import { shouldShowPvIntro } from '@/lib/oc/profileQuotes';
 import { displayCategory, isTrpgCategory, isUniverseCategory, normalizeCategory } from '@/lib/oc/categories';
 import { characterHasBgmTheme } from '@/lib/oc/characterTheme';
 import {
+  prefetchNotePaperChunk,
+  preloadHandNoteImages,
+  warmHandNoteSfx,
+} from '@/lib/oc/handNotePreload';
+import { warmTouchPortrait } from '@/lib/oc/useTouchPortraitStack';
+import {
   canAccessSecretItem,
   resolveItemPassword,
   unlockLakeItem,
@@ -72,6 +78,16 @@ function charImg(c: OcCharacter, auIdx: number) {
   };
 }
 
+function warmOcDetailMedia(c: OcCharacter, au = -1) {
+  const src = charImg(c, au).src.trim();
+  if (src) warmTouchPortrait(src, 'high');
+  const auImg = (c.auVersions?.[0]?.img || '').trim();
+  if (auImg && auImg !== src) warmTouchPortrait(auImg, 'low');
+  preloadHandNoteImages(c.handwritingNotes);
+  warmHandNoteSfx([c.handwritingNoteSfx, c.handwritingNoteCloseSfx]);
+  prefetchNotePaperChunk();
+}
+
 const OcArchiveCard = memo(function OcArchiveCard({
   character: c,
   index: i,
@@ -86,7 +102,12 @@ const OcArchiveCard = memo(function OcArchiveCard({
   const stars = '★'.repeat(c.stars || 5) + '☆'.repeat(5 - (c.stars || 5));
   const cardTag = formatCardTag(c.tag);
   return (
-    <div className="char-card" onClick={() => onOpen(c)}>
+    <div
+      className="char-card"
+      onPointerEnter={() => warmOcDetailMedia(c)}
+      onFocus={() => warmOcDetailMedia(c)}
+      onClick={() => onOpen(c)}
+    >
       {c.img ? (
         <ImageFrameView
           src={c.img}
@@ -473,6 +494,7 @@ export function OcPageClient() {
     au: number,
     opts?: { skipIntro?: boolean; instant?: boolean; skipSplash?: boolean },
   ) {
+    warmOcDetailMedia(c, au);
     setDetailInstant(!!opts?.instant);
     const hasTheme = characterHasBgmTheme(c);
     detailUsedThemeRef.current = hasTheme;

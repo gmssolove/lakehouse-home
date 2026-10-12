@@ -5,13 +5,15 @@
   /* no extra margin/gap here — 비율 왜곡 방지 */
 }
 
-/* URL 상세 진입 / 상세 표시 중 — 목록 깜빡임 차단 */
+/* URL 상세 진입 / 상세 표시 중 — 목록은 페인트하지 않음 (visibility만으론 GPU에 남음) */
 .oc-archive-layout.is-detail-cover > .sidebar,
 .oc-archive-layout.is-detail-cover > .main-content,
 .oc-archive-layout.is-detail-cover > .oc-mobile-burger,
 .oc-archive-layout.is-detail-cover > .oc-mobile-backdrop {
-  visibility: hidden !important;
+  content-visibility: hidden !important;
+  contain: strict !important;
   pointer-events: none !important;
+  visibility: hidden !important;
   opacity: 0 !important;
 }
 

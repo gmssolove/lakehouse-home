@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import {
+  getHandNoteDecodedImage,
+  peekHandNoteDecoded,
   peekHandNoteDim,
   prefetchNotePaperChunk,
   preloadHandNoteImage,
@@ -144,19 +146,18 @@ export function HandwritingNoteFlap({
     setAnimKey((k) => k + 1);
 
     const peeked = peekHandNoteDim(src);
-    if (peeked) {
-      setAspect(`${peeked.width} / ${peeked.height}`);
-      setReady(true);
-    } else {
-      setReady(false);
-      setAspect(null);
-    }
+    if (peeked) setAspect(`${peeked.width} / ${peeked.height}`);
+    else setAspect(null);
+    setReady(!!(peeked && peekHandNoteDecoded(src)));
 
     /* 이웃 장도 미리 받아 페이지 넘김 뚝 완화 */
     preloadHandNoteImages(urlsKey.split('\0'));
 
     void (async () => {
-      const dim = await preloadHandNoteImage(src);
+      const [dim] = await Promise.all([
+        preloadHandNoteImage(src),
+        getHandNoteDecodedImage(src),
+      ]);
       if (cancelled) return;
       if (!dim) {
         setReady(false);
