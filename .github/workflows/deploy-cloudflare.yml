@@ -34,6 +34,7 @@ jobs:
       # secret put 루프는 시크릿마다 Worker 버전을 만들어 배포 직후 503/TIMEOUT 스톰을 유발함.
       # secret bulk = 원자적 1회 버전. 배포 전에 올려 최종 코드 배포가 secrets를 유지하게 함.
       - name: Upload Worker secrets (bulk)
+        continue-on-error: true
         run: |
           python3 <<'PY'
           import json, os
