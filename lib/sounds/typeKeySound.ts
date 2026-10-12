@@ -241,12 +241,40 @@ function markPlay(): boolean {
   return true;
 }
 
+const fileAudioCache = new Map<string, HTMLAudioElement>();
+
+export function warmTypeKeyFiles(urls: Array<string | undefined | null>) {
+  if (typeof window === 'undefined') return;
+  for (const raw of urls) {
+    const url = (raw || '').trim();
+    if (!url || fileAudioCache.has(url)) continue;
+    try {
+      const el = new Audio();
+      el.preload = 'auto';
+      el.volume = 0.45;
+      el.src = url;
+      try {
+        el.load();
+      } catch {
+        /* ignore */
+      }
+      fileAudioCache.set(url, el);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export function playTypeKeyFile(url: string) {
-  if (!url || !markPlay()) return;
+  if (!url || !markPlay() || typeof window === 'undefined') return;
+  warmTypeKeyFiles([url]);
+  const el = fileAudioCache.get(url.trim());
+  if (!el) return;
   try {
-    const a = new Audio(url);
-    a.volume = 0.45;
-    void a.play();
+    el.pause();
+    el.currentTime = 0;
+    el.volume = 0.45;
+    void el.play();
   } catch {
     /* ignore */
   }

@@ -15,6 +15,7 @@ import { lakeBackClearAll, lakeBackConfigureGuard, lakeHistoryReplaceQuiet } fro
 import { useSiteContent } from '@/lib/hooks/useSiteContent';
 import { isLakeAccessUnlocked } from '@/lib/lake/accessGate';
 import { lakeNavigate, clearLakeRouteClasses } from '@/lib/lake/routeTransition';
+import { setHomeTabHint } from '@/lib/site/homeTabHint';
 import { auth } from '@/lib/firebase/client';
 import { HOME_RECORDS_TABS, isHomeRecordsTabId } from '@/lib/records/sections';
 import type { TrpgScenario } from '@/lib/types/site-content';
@@ -108,7 +109,10 @@ export function HomePageClient() {
       return;
     }
     const pageTab = tab as HomePageId | null;
-    if (pageTab && TAB_PARAMS.includes(pageTab)) setPage(pageTab);
+    if (pageTab && TAB_PARAMS.includes(pageTab)) {
+      setHomeTabHint(pageTab);
+      setPage(pageTab);
+    }
     if (searchParams.get('admin') === '1' && isAdmin && adminPhase === 'idle') {
       setAdminPhase('open');
     }
@@ -129,6 +133,7 @@ export function HomePageClient() {
   }, adminPhase === 'idle' && page !== 'main');
 
   function changePage(next: HomePageId) {
+    if (next !== 'admin') setHomeTabHint(next);
     if (next === 'admin') {
       if (adminPhase === 'open') return;
       if (adminPhase === 'closing') {

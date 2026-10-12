@@ -2,10 +2,9 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
-import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcChatAlertHost } from '@/components/oc/OcChatAlertHost';
-import { OcChatPanel } from '@/components/oc/OcChatPanel';
 import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
 import { EntrySplash } from '@/components/shared/EntrySplash';
 import { PageTipToast } from '@/components/shared/PageTipToast';
@@ -46,6 +45,15 @@ import { normalizeEntrySplash } from '@/lib/shared/entrySplash';
 import type { OcCharacter } from '@/lib/types/character';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
+
+const OcCharacterDetail = dynamic(
+  () => import('@/components/oc/OcCharacterDetail').then((m) => m.OcCharacterDetail),
+  { ssr: false },
+);
+const OcChatPanel = dynamic(
+  () => import('@/components/oc/OcChatPanel').then((m) => m.OcChatPanel),
+  { ssr: false },
+);
 
 const ROMANS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -95,7 +103,7 @@ const OcArchiveCard = memo(function OcArchiveCard({
           pos={c.imgPos || 'center top'}
           className="char-card-img-wrap"
           imgClassName="char-card-img"
-          size="card"
+          size="thumb"
           eager={eager}
         />
       ) : (
@@ -932,7 +940,7 @@ export function OcPageClient() {
                   key={c.id}
                   character={c}
                   index={i}
-                  eager={i < 8}
+                  eager={i < 4}
                   onOpen={onOpenCard}
                 />
               ))

@@ -46,6 +46,7 @@ import {
   getSiteContentEager,
   subscribeSiteContentEager,
 } from '@/lib/site/siteContentEager';
+import { getHomeTabHint, subscribeHomeTabHint } from '@/lib/site/homeTabHint';
 import { SITE_SECTION_DEFAULT_LIMIT } from '@/lib/site/siteSectionMeta';
 import { mergeTrpgListPreserveHeavy, prepareTrpgScenariosForSave } from '@/lib/trpg/normalize';
 
@@ -347,15 +348,16 @@ function needsForRoute(pathname: string, homeTab: HomeTab, eager: boolean): Need
 export function SiteContentProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname() || '/';
   const [eager, setEager] = useState(getSiteContentEager);
-  const [homeTab, setHomeTab] = useState<HomeTab>('main');
+  const [homeTab, setHomeTab] = useState<HomeTab>(() => getHomeTabHint() || 'main');
 
   useEffect(() => subscribeSiteContentEager(setEager), []);
+  useEffect(() => subscribeHomeTabHint(setHomeTab), []);
 
   /* popstate만 감지 — history.replaceState 패치는 Next router와 맞물려
    * navigated/update-depth 루프 → Application error 를 유발할 수 있음 */
   useEffect(() => {
     const sync = () => {
-      const next = readHomeTab();
+      const next = getHomeTabHint() || readHomeTab();
       setHomeTab((prev) => (prev === next ? prev : next));
     };
     sync();
