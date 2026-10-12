@@ -6,7 +6,6 @@ import { db } from '@/lib/firebase/client';
 import { prepareCharactersForSave } from '@/lib/oc/prepareCharacterSave';
 import { stripEmptyThemeFields } from '@/lib/oc/characterTheme';
 import { mergeCategoryList, normalizeCategory } from '@/lib/oc/categories';
-import { hydrateOcStories } from '@/lib/oc/storyEntries';
 import { stripUndefinedDeep } from '@/lib/firebase/sanitize';
 import {
   DEFAULT_CATEGORIES,
@@ -15,10 +14,10 @@ import {
 } from '@/lib/types/character';
 
 function normalizeCharacter(c: OcCharacter): OcCharacter {
-  return hydrateOcStories({
+  return {
     ...c,
     category: normalizeCategory(c.category || ''),
-  });
+  };
 }
 
 function normalizeCharacters(list: OcCharacter[]): OcCharacter[] {

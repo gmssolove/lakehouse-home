@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { LakeArchiveTopbar } from '@/components/layout/LakeArchiveTopbar';
+import { OcCharacterDetail } from '@/components/oc/OcCharacterDetail';
 import { OcChatAlertHost } from '@/components/oc/OcChatAlertHost';
 import { OcProfileIntro } from '@/components/oc/OcProfileIntro';
 import { EntrySplash } from '@/components/shared/EntrySplash';
@@ -46,10 +47,6 @@ import type { OcCharacter } from '@/lib/types/character';
 import { ImageFrameView } from '@/components/ui/ImageFrameView';
 import { LakeSearchField } from '@/components/ui/LakeSearchField';
 
-const OcCharacterDetail = dynamic(
-  () => import('@/components/oc/OcCharacterDetail').then((m) => m.OcCharacterDetail),
-  { ssr: false },
-);
 const OcChatPanel = dynamic(
   () => import('@/components/oc/OcChatPanel').then((m) => m.OcChatPanel),
   { ssr: false },
@@ -103,7 +100,7 @@ const OcArchiveCard = memo(function OcArchiveCard({
           pos={c.imgPos || 'center top'}
           className="char-card-img-wrap"
           imgClassName="char-card-img"
-          size="thumb"
+          size="card"
           eager={eager}
         />
       ) : (
@@ -906,21 +903,7 @@ export function OcPageClient() {
         <div className="main-content">
           <h2 className="oc-archive-heading">Character Archive</h2>
           <div className="card-grid" id="card-grid">
-            {urlCharPending ? (
-              <div
-                style={{
-                  gridColumn: '1/-1',
-                  textAlign: 'center',
-                  padding: '5rem',
-                  fontFamily: 'Playfair Display, serif',
-                  fontStyle: 'italic',
-                  fontSize: 18,
-                  color: 'var(--text-muted)',
-                  opacity: 0.55,
-                }}
-                aria-hidden
-              />
-            ) : !filtered.length ? (
+            {!filtered.length && !urlCharPending ? (
               <div
                 style={{
                   gridColumn: '1/-1',
@@ -940,7 +923,7 @@ export function OcPageClient() {
                   key={c.id}
                   character={c}
                   index={i}
-                  eager={i < 4}
+                  eager={i < 6}
                   onOpen={onOpenCard}
                 />
               ))
